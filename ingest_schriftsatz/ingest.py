@@ -10,15 +10,13 @@ import base64
 import hashlib
 import json
 import os
-import random
 import re
 import shutil
 import statistics
 import sys
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 from pdf2image import convert_from_path
@@ -26,14 +24,26 @@ from tqdm import tqdm
 
 import anthropic
 
+from llm import LLMClient, OutputTruncatedError, RefusalError
+
+from ingest_schriftsatz.schemas import (
+    ExtractedAssertions,
+    ExtractedPage,
+    SubstantiveStart,
+    TranslatedParagraph,
+)
+
 EXTRACT_MODEL = "claude-sonnet-4-6"
 TRANSLATE_MODELS = ("claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6")
 SUBSTANTIVE_START_MODEL = "claude-sonnet-4-6"
-EXTRACT_MAX_TOKENS = 16000
-TRANSLATE_MAX_TOKENS = 4096
-RETRY_BASE_DELAY = 1.0
-RETRY_MAX_DELAY = 120.0
-RETRY_MAX_ATTEMPTS = 8
+ASSERTION_MODEL = "claude-sonnet-4-6"
+EXTRACT_MAX_TOKENS = 16384
+TRANSLATE_MAX_TOKENS = 8192
+ASSERTION_MAX_TOKENS = 8192
+
+CLASSIFICATION_VALUES = (
+    "factual", "legal", "rhetorical", "procedural", "evidentiary",
+)
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -43,99 +53,6 @@ def die(msg: str, code: int = 1) -> None:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def read_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def repair_unescaped_quotes(s: str) -> str:
-    """Escape unescaped ASCII `"` that appear inside JSON string values.
-
-    Walks character by character. When inside a string and we hit `"`,
-    look ahead past whitespace: if the next non-space char is `:`, `}`,
-    `]`, or end-of-input, it's a structural close. If it's `,`, peek past
-    the comma to see if the next non-space char is `"`, `{`, or `[`
-    (start of next field/element) — if so, structural; otherwise
-    embedded. Anything else after the quote → embedded → escape it.
-    Assumes a schema where string values aren't followed by raw scalars
-    in the same array — true for our paragraphs schema.
-    """
-    out: list[str] = []
-    i = 0
-    in_string = False
-    while i < len(s):
-        c = s[i]
-        if not in_string:
-            out.append(c)
-            if c == '"':
-                in_string = True
-            i += 1
-            continue
-        if c == "\\":
-            out.append(c)
-            if i + 1 < len(s):
-                out.append(s[i + 1])
-                i += 2
-            else:
-                i += 1
-            continue
-        if c == '"':
-            j = i + 1
-            while j < len(s) and s[j] in " \t\n\r":
-                j += 1
-            if j >= len(s) or s[j] in ":}]":
-                out.append(c)
-                in_string = False
-                i += 1
-                continue
-            if s[j] == ",":
-                k = j + 1
-                while k < len(s) and s[k] in " \t\n\r":
-                    k += 1
-                if k >= len(s) or s[k] in '"{[':
-                    out.append(c)
-                    in_string = False
-                    i += 1
-                    continue
-            out.append('\\"')
-            i += 1
-            continue
-        out.append(c)
-        i += 1
-    return "".join(out)
-
-
-def call_with_retry(fn, *, what: str):
-    """Run `fn`, retrying API errors with exponential backoff + equal jitter
-    (delay in [base/2, base], base = min(MAX_DELAY, BASE * 2**attempt)).
-    """
-    last_exc: Exception | None = None
-    for attempt in range(RETRY_MAX_ATTEMPTS):
-        try:
-            return fn()
-        except (anthropic.APIError, anthropic.RateLimitError) as exc:
-            last_exc = exc
-            if attempt == RETRY_MAX_ATTEMPTS - 1:
-                break
-            base = min(RETRY_MAX_DELAY, RETRY_BASE_DELAY * (2 ** attempt))
-            delay = base / 2 + random.uniform(0, base / 2)
-            print(
-                f"  retry {attempt + 1}/{RETRY_MAX_ATTEMPTS} for {what} "
-                f"in {delay:.1f}s: {exc}",
-                file=sys.stderr,
-            )
-            time.sleep(delay)
-    raise RuntimeError(
-        f"giving up on {what} after {RETRY_MAX_ATTEMPTS} attempts: {last_exc}"
-    )
-
-
-def extract_tool_input(response, tool_name: str, *, where: str) -> dict[str, Any]:
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == tool_name:
-            return block.input
-    raise RuntimeError(f"no tool_use block named {tool_name!r} in response for {where}")
 
 
 def render_pages(pdf_path: Path, cache_dir: Path) -> list[Path]:
@@ -157,7 +74,7 @@ def render_pages(pdf_path: Path, cache_dir: Path) -> list[Path]:
         output_file="page",
         paths_only=True,
     )
-    raw_paths = sorted(Path(p) for p in raw_paths)
+    raw_paths = sorted(Path(p) for p in raw_paths) # type: ignore
     pad = max(3, len(str(len(raw_paths))))
     normalized: list[Path] = []
     for i, p in enumerate(raw_paths, start=1):
@@ -168,9 +85,8 @@ def render_pages(pdf_path: Path, cache_dir: Path) -> list[Path]:
     return normalized
 
 
-def extract_page(client: anthropic.Anthropic, image_path: Path, page_num: int,
-                 total: int, system: str, tool_schema: dict,
-                 debug_dir: Path) -> tuple[list[dict], float]:
+def extract_page(llm: LLMClient, image_path: Path, page_num: int,
+                 total: int, system: str) -> tuple[list[dict], float]:
     b64 = base64.standard_b64encode(image_path.read_bytes()).decode("ascii")
     user_content = [
         {
@@ -180,127 +96,38 @@ def extract_page(client: anthropic.Anthropic, image_path: Path, page_num: int,
         {
             "type": "text",
             "text": (
-                f"This is page {page_num} of {total}. Extract all paragraphs. "
-                "Return `paragraphs` as a structured JSON array of objects, "
-                "not a JSON-encoded string."
+                f"This is page {page_num} of {total}. Extract all paragraphs."
             ),
         },
     ]
-
-    def attempt(temperature: float):
-        t0 = time.perf_counter()
-        response = call_with_retry(
-            lambda: client.messages.create(
-                model=EXTRACT_MODEL,
-                temperature=temperature,
-                max_tokens=EXTRACT_MAX_TOKENS,
-                system=system,
-                tools=[tool_schema],
-                tool_choice={"type": "tool", "name": tool_schema["name"]},
-                messages=[{"role": "user", "content": user_content}],
-            ),
-            what=f"extract page {page_num} (temp={temperature})",
-        )
-        elapsed = time.perf_counter() - t0
-        payload = extract_tool_input(response, tool_schema["name"],
-                                     where=f"page {page_num}")
-        paragraphs = payload.get("paragraphs")
-        # Sonnet occasionally emits `paragraphs` as a JSON-encoded string under
-        # forced tool use, and the stringified content can contain unescaped
-        # `"` inside string values (German typographic quotes, markdown
-        # quotes, etc.). Parse strictly first; on failure, escape embedded
-        # quotes via state-machine repair and retry.
-        if isinstance(paragraphs, str):
-            parsed = None
-            try:
-                parsed = json.loads(paragraphs)
-                tqdm.write(
-                    f"  page {page_num}: recovered stringified paragraphs "
-                    f"array (temp={temperature})"
-                )
-            except json.JSONDecodeError:
-                repaired = repair_unescaped_quotes(paragraphs)
-                try:
-                    parsed = json.loads(repaired)
-                    tqdm.write(
-                        f"  page {page_num}: repaired unescaped quotes and "
-                        f"parsed stringified paragraphs (temp={temperature})"
-                    )
-                except json.JSONDecodeError:
-                    parsed = None
-            if isinstance(parsed, list):
-                paragraphs = parsed
-        return paragraphs, elapsed, response, payload
-
-    paragraphs, elapsed, response, payload = attempt(0.0)
-    if not isinstance(paragraphs, list):
-        tqdm.write(
-            f"  page {page_num}: temp=0.0 produced {type(paragraphs).__name__}; "
-            f"retrying at temp=0.5"
-        )
-        retry_paragraphs, retry_elapsed, response, payload = attempt(0.5)
-        elapsed += retry_elapsed
-        if isinstance(retry_paragraphs, list):
-            paragraphs = retry_paragraphs
-
-    if not isinstance(paragraphs, list):
-        debug_dir.mkdir(parents=True, exist_ok=True)
-        err_path = debug_dir / f"page_{page_num:03d}.error.json"
-        err_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False, default=str),
-            encoding="utf-8",
-        )
-        raise RuntimeError(
-            f"page {page_num}: 'paragraphs' field is {type(paragraphs).__name__} "
-            f"(expected list) after temp-bump retry. "
-            f"stop_reason={response.stop_reason!r}. "
-            f"payload keys={list(payload.keys())}. raw payload dumped to {err_path}"
-        )
-    return paragraphs, elapsed
+    parsed, elapsed, _ = llm.call(
+        models=EXTRACT_MODEL,
+        system=system,
+        user_content=user_content,
+        output_model=ExtractedPage,
+        max_tokens=EXTRACT_MAX_TOKENS,
+        temperature=0.0,
+        where=f"extract page {page_num}",
+    )
+    return [p.model_dump() for p in parsed.paragraphs], elapsed
 
 
-def translate_paragraph(client: anthropic.Anthropic, text: str, system: str,
-                        tool_schema: dict, models: tuple[str, ...],
+def translate_paragraph(llm: LLMClient, text: str, system: str,
+                        models: tuple[str, ...],
                         *, where: str) -> tuple[str, float, str]:
     """Translate text, trying each model in `models` in order. Falls back to
-    the next model if one exhausts retries or returns a malformed response.
+    the next model if one exhausts retries.
     Returns (translation, elapsed_seconds, model_used).
     """
-    last_exc: Exception | None = None
-    for idx, model in enumerate(models):
-        try:
-            t0 = time.perf_counter()
-            response = call_with_retry(
-                lambda model=model: client.messages.create(
-                    model=model,
-                    max_tokens=TRANSLATE_MAX_TOKENS,
-                    system=system,
-                    tools=[tool_schema],
-                    tool_choice={"type": "tool", "name": tool_schema["name"]},
-                    messages=[{"role": "user", "content": text}],
-                ),
-                what=f"translate {where} ({model})",
-            )
-            elapsed = time.perf_counter() - t0
-            payload = extract_tool_input(response, tool_schema["name"], where=where)
-            translation = payload.get("translation")
-            if not isinstance(translation, str):
-                raise RuntimeError(
-                    f"{where}: translation field missing or not a string"
-                )
-            if idx > 0:
-                tqdm.write(f"  {where}: succeeded on fallback model {model}")
-            return translation, elapsed, model
-        except (RuntimeError, anthropic.APIError) as exc:
-            last_exc = exc
-            if idx < len(models) - 1:
-                tqdm.write(
-                    f"  {where}: model {model} failed ({exc}); "
-                    f"falling back to {models[idx + 1]}"
-                )
-    raise RuntimeError(
-        f"all translation models exhausted for {where}: {last_exc}"
+    parsed, elapsed, model_used = llm.call(
+        models=models,
+        system=system,
+        user_content=text,
+        output_model=TranslatedParagraph,
+        max_tokens=TRANSLATE_MAX_TOKENS,
+        where=f"translate {where}",
     )
+    return parsed.translation, elapsed, model_used
 
 
 def fmt_stats(name: str, samples: list[float]) -> str:
@@ -488,12 +315,10 @@ def find_substantive_start_regex(paragraphs: list[dict],
     return None
 
 
-def find_substantive_start_llm(client: anthropic.Anthropic,
+def find_substantive_start_llm(llm: LLMClient,
                                paragraphs: list[dict]
                                ) -> tuple[int, int] | None:
-    """Ask Sonnet 4.6 to identify the first substantive paragraph. Uses
-    assistant-prefill JSON output instead of forced tool use (simpler,
-    avoids the stringification quirk we hit on the extraction phase).
+    """Ask Sonnet 4.6 to identify the first substantive paragraph.
     Returns (page, paragraph) or None on parse failure.
     """
     ordered = sorted(paragraphs, key=lambda p: (p["page"], p["paragraph"]))
@@ -507,35 +332,21 @@ def find_substantive_start_llm(client: anthropic.Anthropic,
         "You are reading a German legal pleading. Identify the first "
         "paragraph that begins the substantive factual claims or legal "
         "arguments. Skip headers, addressee blocks, Vorbemerkungen, "
-        "Anträge, and Tatbestand summaries. Respond ONLY with a JSON "
-        "object of the form {\"page\": N, \"paragraph\": M}."
+        "Anträge, and Tatbestand summaries."
     )
 
-    response = call_with_retry(
-        lambda: client.messages.create(
-            model=SUBSTANTIVE_START_MODEL,
-            temperature=0.0,
-            max_tokens=64,
-            system=system,
-            stop_sequences=["}"],
-            messages=[
-                {"role": "user", "content": user_msg},
-                {"role": "assistant", "content": '{"page": '},
-            ],
-        ),
-        what="locate substantive start (LLM)",
-    )
-    # Reassemble the JSON literal: prefill + model output + the stop char.
-    text_parts = [b.text for b in response.content if getattr(b, "type", None) == "text"]
-    body = "".join(text_parts)
-    raw = '{"page": ' + body + "}"
     try:
-        parsed = json.loads(raw)
-        page = int(parsed["page"])
-        paragraph = int(parsed["paragraph"])
-        return page, paragraph
-    except (json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
-        print(f"  WARN: substantive-start LLM returned unparseable {raw!r}: {exc}",
+        parsed, _, _ = llm.call(
+            models=SUBSTANTIVE_START_MODEL,
+            system=system,
+            user_content=user_msg,
+            output_model=SubstantiveStart,
+            max_tokens=128,
+            where="locate substantive start (LLM)",
+        )
+        return parsed.page, parsed.paragraph
+    except (RuntimeError, RefusalError, OutputTruncatedError) as exc:
+        print(f"  WARN: substantive-start LLM failed: {exc}",
               file=sys.stderr)
         return None
 
@@ -648,8 +459,7 @@ def main() -> int:
     script_dir = Path(__file__).resolve().parent
     transcribe_prompt = read_text(script_dir / "transcribe.md")
     translate_prompt = read_text(script_dir / "translate.md")
-    extract_tool = read_json(script_dir / "submitExtraction.json")
-    translate_tool = read_json(script_dir / "submitTranslation.json")
+    extract_prompt = read_text(script_dir / "extract.md")
 
     pdf_stem = args.pdf_path.stem
     safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", pdf_stem)
@@ -659,7 +469,7 @@ def main() -> int:
     total_pages = len(image_paths)
     print(f"{total_pages} page(s) ready.")
 
-    client = anthropic.Anthropic()
+    llm = LLMClient(anthropic.Anthropic())
 
     wall_start = time.perf_counter()
 
@@ -673,8 +483,7 @@ def main() -> int:
             tqdm.write(f"  page {i}: loaded {len(page_paragraphs)} cached paragraph(s)")
         else:
             page_paragraphs, elapsed = extract_page(
-                client, image_path, i, total_pages, transcribe_prompt, extract_tool,
-                debug_dir=cache_dir,
+                llm, image_path, i, total_pages, transcribe_prompt,
             )
             extract_times.append(elapsed)
             page_cache.write_text(
@@ -705,7 +514,7 @@ def main() -> int:
         # TODO: insert HF sentence-transformer middle layer here when use
         # volume justifies it (regex → NLP fuzzy → LLM).
         print("Regex cues did not match; calling LLM to locate substantive start...")
-        start = find_substantive_start_llm(client, paragraphs)
+        start = find_substantive_start_llm(llm, paragraphs)
         matched_by = "llm" if start else None
 
     dropped_before_start: list[dict] = []
@@ -763,7 +572,7 @@ def main() -> int:
                       f"refreshing cache entry.", file=sys.stderr)
         if translation is None:
             translation, elapsed, model_used = translate_paragraph(
-                client, para["text"], translate_prompt, translate_tool,
+                llm, para["text"], translate_prompt,
                 TRANSLATE_MODELS, where=where,
             )
             translate_times.append(elapsed)
@@ -782,6 +591,49 @@ def main() -> int:
         para["translation"] = translation
         translated_count += 1
 
+    # Phase 3: extract assertions. Hash-keyed cache mirrors translations.
+    assertions_dir = cache_dir / "assertions"
+    assertions_dir.mkdir(parents=True, exist_ok=True)
+    assertion_times: list[float] = []
+    for para in tqdm(paragraphs, desc="assertions", unit="para"):
+        page_num = para.get("page")
+        para_num = para.get("paragraph")
+        where = f"p.{page_num}/¶{para_num}"
+        full_hex, hash16 = _text_hash(para["text"])
+        cache_path = assertions_dir / f"{hash16}.json"
+        assertions: list[dict] | None = None
+        if cache_path.is_file():
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            if cached.get("text_de") == para["text"]:
+                assertions = cached["assertions"]
+            else:
+                print(f"  WARN: hash16 collision at {hash16} for {where}; "
+                      f"refreshing assertion cache.", file=sys.stderr)
+        if assertions is None:
+            user_msg = f"DE: {para['text']}\n\nEN: {para['translation']}"
+            parsed, elapsed, _ = llm.call(
+                models=ASSERTION_MODEL,
+                system=extract_prompt,
+                user_content=user_msg,
+                output_model=ExtractedAssertions,
+                max_tokens=ASSERTION_MAX_TOKENS,
+                where=f"assertions {where}",
+            )
+            assertions = [a.model_dump() for a in parsed.assertions]
+            assertion_times.append(elapsed)
+            cache_path.write_text(
+                json.dumps(
+                    {
+                        "hash": full_hex,
+                        "text_de": para["text"],
+                        "assertions": assertions,
+                    },
+                    indent=2, ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+        para["assertions"] = assertions
+
     # Renumber paragraphs per-page (page numbers untouched) before writing.
     renumber(paragraphs)
 
@@ -793,6 +645,14 @@ def main() -> int:
     )
 
     wall = time.perf_counter() - wall_start
+
+    all_assertions = [a for p in paragraphs for a in p.get("assertions", [])]
+    class_counts = Counter(
+        a.get("classification") for a in all_assertions
+    )
+    paragraphs_with_zero_assertions = sum(
+        1 for p in paragraphs if not p.get("assertions")
+    )
 
     # Report.
     print()
@@ -806,9 +666,27 @@ def main() -> int:
     print(f"Paragraphs translated:           {translated_count}")
     if translated_count != extracted_count - len(dropped_header_footer) - len(dropped_before_start):
         print("WARNING: translated count does not match (extracted - dropped)!", file=sys.stderr)
+    print(f"Assertions extracted:            {len(all_assertions)}")
+    print(f"Paragraphs with 0 assertions:    {paragraphs_with_zero_assertions}")
+    print("Classification breakdown:")
+    for c in CLASSIFICATION_VALUES:
+        print(f"  {c:>12}: {class_counts.get(c, 0)}")
     print(f"Total wall time:                 {wall:.1f}s")
     print(fmt_stats("Extract latency  ", extract_times))
     print(fmt_stats("Translate latency", translate_times))
+    print(fmt_stats("Assertion latency", assertion_times))
+    usage = llm.usage_summary()
+    cached = usage["cache_read_input_tokens"]
+    written = usage["cache_creation_input_tokens"]
+    full_price = usage["input_tokens"]
+    total_in = cached + written + full_price
+    hit_rate = (cached / total_in * 100.0) if total_in else 0.0
+    print(
+        f"Token usage:                     "
+        f"in={full_price} cache_write={written} "
+        f"cache_read={cached} out={usage['output_tokens']}"
+    )
+    print(f"Cache hit rate (input):          {hit_rate:.1f}%")
     print("=" * 60)
     return 0
 

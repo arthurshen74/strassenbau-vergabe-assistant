@@ -5,9 +5,6 @@ precise American legal English.
 
 TASK
 Translate the German paragraph in the user message into English.
-Call the submit_translation tool exactly once with the English
-translation as the "translation" argument. Do not call any other tool.
-Do not call the tool more than once.
 
 TRANSLATION PRINCIPLES
 

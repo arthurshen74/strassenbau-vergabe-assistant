@@ -25,7 +25,6 @@ import anthropic
 from dotenv import load_dotenv
 
 from graph.models import Assertion, Document, Paragraph
-from ingest_schriftsatz.ingest import repair_unescaped_quotes
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = PROJECT_ROOT / "out/data/klageerwiderung.2026.04.09.pdf.json"
@@ -177,20 +176,6 @@ def extract_assertions(
         raise RuntimeError(f"{where}: no submit_assertions tool_use in response")
 
     assertions = tool_input.get("assertions", [])
-    if isinstance(assertions, str):
-        # Sonnet under forced tool_use occasionally returns array fields as a
-        # JSON-encoded string, sometimes with unescaped `"` inside string
-        # values. Same recovery path as ingest_schriftsatz/ingest.py.
-        try:
-            assertions = json.loads(assertions)
-        except json.JSONDecodeError:
-            try:
-                assertions = json.loads(repair_unescaped_quotes(assertions))
-            except json.JSONDecodeError as exc:
-                raise RuntimeError(
-                    f"{where}: assertions arrived as stringified JSON and "
-                    f"would not parse even after quote repair: {exc}"
-                ) from exc
     if not isinstance(assertions, list):
         raise RuntimeError(
             f"{where}: tool returned non-list assertions: {type(assertions).__name__}"
