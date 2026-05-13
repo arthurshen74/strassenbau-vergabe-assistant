@@ -334,9 +334,32 @@ def _text_hash(text: str) -> tuple[str, str]:
     return full, full[:16]
 
 
+BOILERPLATE_MARKERS = (
+    "IBAN",
+    "BIC:",
+    "Steuer-Nr",
+    "Bürozeiten",
+    "Bankverbindung",
+    "BDSchG",
+    "Telefonische Auskünfte",
+)
+
+
+def _has_boilerplate_marker(text: str) -> str | None:
+    lower = text.lower()
+    for marker in BOILERPLATE_MARKERS:
+        if marker.lower() in lower:
+            return marker
+    return None
+
+
 def filter_header_footer(paragraphs: list[dict], total_pages: int
                          ) -> tuple[list[dict], list[dict]]:
-    """Drop paragraphs that match repeating header/footer patterns.
+    """Drop paragraphs that match repeating header/footer patterns, plus
+    single-occurrence edge-position paragraphs that contain boilerplate
+    markers (IBAN, BIC, Steuer-Nr, Bürozeiten, Bankverbindung, BDSchG,
+    "Telefonische Auskünfte"). The marker check catches firm letterhead /
+    footer blocks that appear on only one page and so don't form a cluster.
 
     Inspects positions 1, 2, second-to-last, and last on each page. Builds
     a frequency map keyed on the normalized text. Any cluster whose size is
@@ -345,7 +368,7 @@ def filter_header_footer(paragraphs: list[dict], total_pages: int
     even if positioned mid-page.
 
     Returns (kept, dropped). Each dropped dict has an added `_reason` field
-    naming the pattern it matched.
+    naming the pattern or marker it matched.
     """
     # Group paragraphs by page, preserving original order.
     by_page: dict[int, list[dict]] = defaultdict(list)
@@ -357,6 +380,7 @@ def filter_header_footer(paragraphs: list[dict], total_pages: int
     # Collect normalized text from positions of interest.
     candidates: dict[str, list[tuple[int, int]]] = defaultdict(list)
     edge_positions: set[tuple[int, int]] = set()
+    boilerplate_edge: dict[tuple[int, int], str] = {}
     for page, items in by_page.items():
         if not items:
             continue
@@ -369,11 +393,15 @@ def filter_header_footer(paragraphs: list[dict], total_pages: int
             positions.append(len(items) - 2)
         for idx in set(positions):
             p = items[idx]
+            key = (p["page"], p["paragraph"])
+            edge_positions.add(key)
+            marker = _has_boilerplate_marker(p["text"])
+            if marker is not None:
+                boilerplate_edge[key] = marker
             normalized = _normalize_for_match(p["text"])
             if not normalized:
                 continue
-            candidates[normalized].append((p["page"], p["paragraph"]))
-            edge_positions.add((p["page"], p["paragraph"]))
+            candidates[normalized].append(key)
 
     # Identify patterns whose cluster size matches the page count (-1).
     patterns: dict[str, int] = {}
@@ -389,25 +417,40 @@ def filter_header_footer(paragraphs: list[dict], total_pages: int
         more = f" ... (+{len(occurrences) - 5} more)" if len(occurrences) > 5 else ""
         print(f"  [{len(occurrences):>2}] {normalized!r}: {sample_positions}{more}{marker}")
 
-    if not patterns:
-        print("  (no clusters matched header/footer thresholds)")
+    if not patterns and not boilerplate_edge:
+        print("  (no clusters matched header/footer thresholds; "
+              "no edge-position boilerplate markers found)")
         return list(paragraphs), []
 
-    # Drop every paragraph whose normalized text matches a pattern.
+    if boilerplate_edge:
+        print(f"Edge-position boilerplate marker hits: {len(boilerplate_edge)}")
+        for (pg, pa), marker in sorted(boilerplate_edge.items()):
+            print(f"  p{pg}/¶{pa}: marker={marker!r}")
+
+    # Drop every paragraph whose normalized text matches a cluster pattern,
+    # or which sits at an edge position and contains a boilerplate marker.
     kept: list[dict] = []
     dropped: list[dict] = []
     for p in paragraphs:
         normalized = _normalize_for_match(p["text"])
+        key = (p["page"], p["paragraph"])
         if normalized in patterns:
             entry = dict(p)
             entry["_reason"] = f"matches header/footer pattern: {normalized!r}"
             dropped.append(entry)
-            if (p["page"], p["paragraph"]) not in edge_positions:
+            if key not in edge_positions:
                 print(
                     f"  WARN: dropped paragraph p{p['page']}/¶{p['paragraph']} "
                     f"matched a header/footer pattern but appears mid-page "
                     f"(not in positions 1, 2, second-to-last, or last)."
                 )
+        elif key in boilerplate_edge:
+            entry = dict(p)
+            entry["_reason"] = (
+                f"edge-position boilerplate marker: "
+                f"{boilerplate_edge[key]!r}"
+            )
+            dropped.append(entry)
         else:
             kept.append(p)
 
