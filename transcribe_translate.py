@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import random
@@ -15,6 +16,7 @@ import shutil
 import statistics
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,7 @@ import anthropic
 
 EXTRACT_MODEL = "claude-sonnet-4-6"
 TRANSLATE_MODELS = ("claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6")
+SUBSTANTIVE_START_MODEL = "claude-sonnet-4-6"
 EXTRACT_MAX_TOKENS = 16000
 TRANSLATE_MAX_TOKENS = 4096
 RETRY_BASE_DELAY = 1.0
@@ -311,6 +314,281 @@ def fmt_stats(name: str, samples: list[float]) -> str:
     )
 
 
+def _normalize_for_match(s: str) -> str:
+    """Normalize text for header/footer clustering: trim, lowercase,
+    collapse internal whitespace, mask every run of digits with a single
+    `_`. No punctuation stripping. Runs must collapse (not per-digit) so
+    that single- and double-digit page numbers cluster together
+    (`Seite 2 zum Schreiben` and `Seite 10 zum Schreiben` both become
+    `seite _ zum schreiben`)."""
+    s = s.strip().lower()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"\d+", "_", s)
+    return s
+
+
+def _text_hash(text: str) -> tuple[str, str]:
+    """Return (full_hex, prefix16) sha256 of `text`. Prefix used as cache
+    filename; full hex stored inside for inspection / future widening."""
+    full = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return full, full[:16]
+
+
+def filter_header_footer(paragraphs: list[dict], total_pages: int
+                         ) -> tuple[list[dict], list[dict]]:
+    """Drop paragraphs that match repeating header/footer patterns.
+
+    Inspects positions 1, 2, second-to-last, and last on each page. Builds
+    a frequency map keyed on the normalized text. Any cluster whose size is
+    in {total_pages, total_pages - 1} is treated as a header/footer pattern;
+    every paragraph whose normalized text matches a pattern is dropped,
+    even if positioned mid-page.
+
+    Returns (kept, dropped). Each dropped dict has an added `_reason` field
+    naming the pattern it matched.
+    """
+    # Group paragraphs by page, preserving original order.
+    by_page: dict[int, list[dict]] = defaultdict(list)
+    for p in paragraphs:
+        by_page[p["page"]].append(p)
+    for page in by_page:
+        by_page[page].sort(key=lambda x: x["paragraph"])
+
+    # Collect normalized text from positions of interest.
+    candidates: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    edge_positions: set[tuple[int, int]] = set()
+    for page, items in by_page.items():
+        if not items:
+            continue
+        positions: list[int] = []
+        positions.append(0)
+        if len(items) >= 2:
+            positions.append(1)
+            positions.append(len(items) - 1)
+        if len(items) >= 3:
+            positions.append(len(items) - 2)
+        for idx in set(positions):
+            p = items[idx]
+            normalized = _normalize_for_match(p["text"])
+            if not normalized:
+                continue
+            candidates[normalized].append((p["page"], p["paragraph"]))
+            edge_positions.add((p["page"], p["paragraph"]))
+
+    # Identify patterns whose cluster size matches the page count (-1).
+    patterns: dict[str, int] = {}
+    print("Header/footer candidate clusters:")
+    for normalized, occurrences in sorted(
+        candidates.items(), key=lambda kv: (-len(kv[1]), kv[0])
+    ):
+        marker = ""
+        if len(occurrences) in (total_pages, total_pages - 1):
+            marker = " [HEADER/FOOTER PATTERN]"
+            patterns[normalized] = len(occurrences)
+        sample_positions = ", ".join(f"p{pg}/¶{pa}" for pg, pa in occurrences[:5])
+        more = f" ... (+{len(occurrences) - 5} more)" if len(occurrences) > 5 else ""
+        print(f"  [{len(occurrences):>2}] {normalized!r}: {sample_positions}{more}{marker}")
+
+    if not patterns:
+        print("  (no clusters matched header/footer thresholds)")
+        return list(paragraphs), []
+
+    # Drop every paragraph whose normalized text matches a pattern.
+    kept: list[dict] = []
+    dropped: list[dict] = []
+    for p in paragraphs:
+        normalized = _normalize_for_match(p["text"])
+        if normalized in patterns:
+            entry = dict(p)
+            entry["_reason"] = f"matches header/footer pattern: {normalized!r}"
+            dropped.append(entry)
+            if (p["page"], p["paragraph"]) not in edge_positions:
+                print(
+                    f"  WARN: dropped paragraph p{p['page']}/¶{p['paragraph']} "
+                    f"matched a header/footer pattern but appears mid-page "
+                    f"(not in positions 1, 2, second-to-last, or last)."
+                )
+        else:
+            kept.append(p)
+
+    print(f"Header/footer filter: dropped {len(dropped)}, kept {len(kept)}.")
+    return kept, dropped
+
+
+def load_cue_phrases(path: Path) -> list[re.Pattern]:
+    """Load substantive-start cue phrases from a text file. One regex per
+    line; blank lines and `#` comments ignored. Compiled IGNORECASE."""
+    if not path.is_file():
+        return []
+    patterns: list[re.Pattern] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        patterns.append(re.compile(line, re.IGNORECASE))
+    return patterns
+
+
+def find_substantive_start_regex(paragraphs: list[dict],
+                                 cues: list[re.Pattern]
+                                 ) -> tuple[int, int] | None:
+    """Iterate paragraphs in document order; return (page, paragraph) of the
+    first whose text matches any cue. Returns None if no match."""
+    if not cues:
+        return None
+    ordered = sorted(paragraphs, key=lambda p: (p["page"], p["paragraph"]))
+    for p in ordered:
+        text = p.get("text", "")
+        for cue in cues:
+            if cue.search(text):
+                return p["page"], p["paragraph"]
+    return None
+
+
+def find_substantive_start_llm(client: anthropic.Anthropic,
+                               paragraphs: list[dict]
+                               ) -> tuple[int, int] | None:
+    """Ask Sonnet 4.6 to identify the first substantive paragraph. Uses
+    assistant-prefill JSON output instead of forced tool use (simpler,
+    avoids the stringification quirk we hit on the extraction phase).
+    Returns (page, paragraph) or None on parse failure.
+    """
+    ordered = sorted(paragraphs, key=lambda p: (p["page"], p["paragraph"]))
+    lines = []
+    for p in ordered:
+        snippet = " ".join(p.get("text", "").split())[:200]
+        lines.append(f"p{p['page']}/¶{p['paragraph']}: {snippet}")
+    user_msg = "\n".join(lines)
+
+    system = (
+        "You are reading a German legal pleading. Identify the first "
+        "paragraph that begins the substantive factual claims or legal "
+        "arguments. Skip headers, addressee blocks, Vorbemerkungen, "
+        "Anträge, and Tatbestand summaries. Respond ONLY with a JSON "
+        "object of the form {\"page\": N, \"paragraph\": M}."
+    )
+
+    response = call_with_retry(
+        lambda: client.messages.create(
+            model=SUBSTANTIVE_START_MODEL,
+            temperature=0.0,
+            max_tokens=64,
+            system=system,
+            stop_sequences=["}"],
+            messages=[
+                {"role": "user", "content": user_msg},
+                {"role": "assistant", "content": '{"page": '},
+            ],
+        ),
+        what="locate substantive start (LLM)",
+    )
+    # Reassemble the JSON literal: prefill + model output + the stop char.
+    text_parts = [b.text for b in response.content if getattr(b, "type", None) == "text"]
+    body = "".join(text_parts)
+    raw = '{"page": ' + body + "}"
+    try:
+        parsed = json.loads(raw)
+        page = int(parsed["page"])
+        paragraph = int(parsed["paragraph"])
+        return page, paragraph
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
+        print(f"  WARN: substantive-start LLM returned unparseable {raw!r}: {exc}",
+              file=sys.stderr)
+        return None
+
+
+def filter_before_substantive_start(paragraphs: list[dict],
+                                    start: tuple[int, int]
+                                    ) -> tuple[list[dict], list[dict]]:
+    """Drop paragraphs that come before (start_page, start_paragraph) in
+    document order. Returns (kept, dropped)."""
+    start_key = start
+    kept: list[dict] = []
+    dropped: list[dict] = []
+    for p in paragraphs:
+        if (p["page"], p["paragraph"]) < start_key:
+            dropped.append(dict(p))
+        else:
+            kept.append(p)
+    return kept, dropped
+
+
+def migrate_translation_cache(translations_dir: Path,
+                              cache_dir: Path) -> int:
+    """One-shot migration from positional cache filenames (`pNNN_paraNNN.json`)
+    to hash-keyed filenames. Looks up paragraph text in the per-page
+    extraction cache files and writes the new hash entry. Removes the old
+    positional file on success. Idempotent.
+    """
+    if not translations_dir.is_dir():
+        return 0
+    positional_pattern = re.compile(r"^p(\d{3})_para(\d{3})\.json$")
+    page_cache: dict[int, list[dict]] = {}
+
+    migrated = 0
+    for entry in sorted(translations_dir.iterdir()):
+        if not entry.is_file():
+            continue
+        m = positional_pattern.match(entry.name)
+        if not m:
+            continue
+        page_num = int(m.group(1))
+        para_num = int(m.group(2))
+
+        if page_num not in page_cache:
+            page_file = cache_dir / f"page_{page_num:03d}.paragraphs.json"
+            if not page_file.is_file():
+                print(f"  WARN: cannot migrate {entry.name}: missing {page_file.name}",
+                      file=sys.stderr)
+                continue
+            page_cache[page_num] = json.loads(page_file.read_text(encoding="utf-8"))
+
+        text = None
+        for item in page_cache[page_num]:
+            if item.get("paragraph") == para_num:
+                text = item.get("text")
+                break
+        if text is None:
+            print(f"  WARN: cannot migrate {entry.name}: no paragraph {para_num} "
+                  f"in page {page_num} cache", file=sys.stderr)
+            continue
+
+        old = json.loads(entry.read_text(encoding="utf-8"))
+        full_hex, hash16 = _text_hash(text)
+        new_path = translations_dir / f"{hash16}.json"
+        if not new_path.is_file():
+            new_path.write_text(
+                json.dumps(
+                    {
+                        "hash": full_hex,
+                        "text": text,
+                        "translation": old.get("translation"),
+                        "model": old.get("model"),
+                    },
+                    indent=2, ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+        entry.unlink()
+        migrated += 1
+
+    if migrated:
+        print(f"Translation cache: migrated {migrated} positional file(s) to hash-keyed format.")
+    return migrated
+
+
+def renumber(paragraphs: list[dict]) -> None:
+    """In-place: within each page, renumber `paragraph` starting at 1 by
+    original order. Page numbers are not touched."""
+    by_page: dict[int, list[dict]] = defaultdict(list)
+    for p in paragraphs:
+        by_page[p["page"]].append(p)
+    for page, items in by_page.items():
+        items.sort(key=lambda x: x["paragraph"])
+        for new_idx, item in enumerate(items, start=1):
+            item["paragraph"] = new_idx
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pdf_path", type=Path, help="Input PDF file")
@@ -365,19 +643,82 @@ def main() -> int:
     extracted_count = len(paragraphs)
     print(f"Extracted {extracted_count} paragraph(s) across {total_pages} page(s).")
 
-    # Phase 2: translate. Cached per-paragraph so reruns skip completed work.
+    # Translation cache: migrate any positional files left over from the old
+    # numbering scheme to hash-keyed filenames before the translate phase.
     translations_dir = cache_dir / "translations"
     translations_dir.mkdir(parents=True, exist_ok=True)
+    migrate_translation_cache(translations_dir, cache_dir)
+
+    # Filter: header/footer.
+    paragraphs, dropped_header_footer = filter_header_footer(paragraphs, total_pages)
+
+    # Filter: substantive start (regex fast path → LLM fallback).
+    cue_path = script_dir / "substantiveStartPhrases.txt"
+    cues = load_cue_phrases(cue_path)
+    print(f"Loaded {len(cues)} substantive-start cue phrase(s) from {cue_path.name}.")
+    start = find_substantive_start_regex(paragraphs, cues)
+    matched_by = "regex" if start else None
+    if start is None:
+        # TODO: insert HF sentence-transformer middle layer here when use
+        # volume justifies it (regex → NLP fuzzy → LLM).
+        print("Regex cues did not match; calling LLM to locate substantive start...")
+        start = find_substantive_start_llm(client, paragraphs)
+        matched_by = "llm" if start else None
+
+    dropped_before_start: list[dict] = []
+    if start is not None:
+        print(f"Substantive start: p{start[0]}/¶{start[1]} (matched by {matched_by}).")
+        paragraphs, dropped_before_start = filter_before_substantive_start(paragraphs, start)
+        print(f"Substantive-start filter: dropped {len(dropped_before_start)}, "
+              f"kept {len(paragraphs)}.")
+    else:
+        print("WARN: substantive start not located by regex or LLM; "
+              "keeping all paragraphs (fail-open).")
+
+    # Filter audit log.
+    audit = {
+        "header_footer": [
+            {
+                "page": d["page"],
+                "paragraph": d["paragraph"],
+                "reason": d.get("_reason", ""),
+                "text": d["text"],
+            }
+            for d in dropped_header_footer
+        ],
+        "before_substantive_start": [
+            {"page": d["page"], "paragraph": d["paragraph"], "text": d["text"]}
+            for d in dropped_before_start
+        ],
+        "substantive_start": (
+            {"page": start[0], "paragraph": start[1], "matched_by": matched_by}
+            if start is not None
+            else None
+        ),
+    }
+    (cache_dir / "filtered.json").write_text(
+        json.dumps(audit, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    # Phase 2: translate. Hash-keyed cache survives renumbering / filter tweaks.
     translate_times: list[float] = []
     translated_count = 0
     for para in tqdm(paragraphs, desc="translate", unit="para"):
         page_num = para.get("page")
         para_num = para.get("paragraph")
         where = f"p.{page_num}/¶{para_num}"
-        para_cache = translations_dir / f"p{page_num:03d}_para{para_num:03d}.json"
+        full_hex, hash16 = _text_hash(para["text"])
+        para_cache = translations_dir / f"{hash16}.json"
+        translation: str | None = None
         if para_cache.is_file():
-            translation = json.loads(para_cache.read_text(encoding="utf-8"))["translation"]
-        else:
+            cached = json.loads(para_cache.read_text(encoding="utf-8"))
+            if cached.get("text") == para["text"]:
+                translation = cached["translation"]
+            else:
+                # Hash prefix collision (vanishingly unlikely) — treat as miss.
+                print(f"  WARN: hash16 collision at {hash16} for {where}; "
+                      f"refreshing cache entry.", file=sys.stderr)
+        if translation is None:
             translation, elapsed, model_used = translate_paragraph(
                 client, para["text"], translate_prompt, translate_tool,
                 TRANSLATE_MODELS, where=where,
@@ -385,13 +726,21 @@ def main() -> int:
             translate_times.append(elapsed)
             para_cache.write_text(
                 json.dumps(
-                    {"translation": translation, "model": model_used},
+                    {
+                        "hash": full_hex,
+                        "text": para["text"],
+                        "translation": translation,
+                        "model": model_used,
+                    },
                     indent=2, ensure_ascii=False,
                 ),
                 encoding="utf-8",
             )
         para["translation"] = translation
         translated_count += 1
+
+    # Renumber paragraphs per-page (page numbers untouched) before writing.
+    renumber(paragraphs)
 
     # Write output.
     args.output_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -405,13 +754,16 @@ def main() -> int:
     # Report.
     print()
     print("=" * 60)
-    print(f"Output:                {args.output_file_path}")
-    print(f"Pages processed:       {total_pages}")
-    print(f"Paragraphs extracted:  {extracted_count}")
-    print(f"Paragraphs translated: {translated_count}")
-    if extracted_count != translated_count:
-        print("WARNING: extracted/translated paragraph counts differ!", file=sys.stderr)
-    print(f"Total wall time:       {wall:.1f}s")
+    print(f"Output:                          {args.output_file_path}")
+    print(f"Pages processed:                 {total_pages}")
+    print(f"Paragraphs extracted:            {extracted_count}")
+    print(f"Paragraphs dropped (header/footer):  {len(dropped_header_footer)}")
+    print(f"Paragraphs dropped (pre-substantive): {len(dropped_before_start)}")
+    print(f"Substantive start matched by:    {matched_by or 'none'}")
+    print(f"Paragraphs translated:           {translated_count}")
+    if translated_count != extracted_count - len(dropped_header_footer) - len(dropped_before_start):
+        print("WARNING: translated count does not match (extracted - dropped)!", file=sys.stderr)
+    print(f"Total wall time:                 {wall:.1f}s")
     print(fmt_stats("Extract latency  ", extract_times))
     print(fmt_stats("Translate latency", translate_times))
     print("=" * 60)
