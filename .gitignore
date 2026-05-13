@@ -157,6 +157,6 @@ Thumbs.db
 *.swo
 
 data/
-
+dbdata/
 # Claude Code local files
 CLAUDE.local.md
