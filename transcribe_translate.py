@@ -9,6 +9,7 @@ import argparse
 import base64
 import json
 import os
+import random
 import re
 import shutil
 import statistics
@@ -24,10 +25,12 @@ from tqdm import tqdm
 import anthropic
 
 EXTRACT_MODEL = "claude-sonnet-4-6"
-TRANSLATE_MODEL = "claude-opus-4-7"
+TRANSLATE_MODELS = ("claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6")
 EXTRACT_MAX_TOKENS = 16000
 TRANSLATE_MAX_TOKENS = 4096
-RETRY_DELAYS = (1, 4, 16)
+RETRY_BASE_DELAY = 1.0
+RETRY_MAX_DELAY = 120.0
+RETRY_MAX_ATTEMPTS = 8
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -43,17 +46,86 @@ def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def repair_unescaped_quotes(s: str) -> str:
+    """Escape unescaped ASCII `"` that appear inside JSON string values.
+
+    Walks character by character. When inside a string and we hit `"`,
+    look ahead past whitespace: if the next non-space char is `:`, `}`,
+    `]`, or end-of-input, it's a structural close. If it's `,`, peek past
+    the comma to see if the next non-space char is `"`, `{`, or `[`
+    (start of next field/element) — if so, structural; otherwise
+    embedded. Anything else after the quote → embedded → escape it.
+    Assumes a schema where string values aren't followed by raw scalars
+    in the same array — true for our paragraphs schema.
+    """
+    out: list[str] = []
+    i = 0
+    in_string = False
+    while i < len(s):
+        c = s[i]
+        if not in_string:
+            out.append(c)
+            if c == '"':
+                in_string = True
+            i += 1
+            continue
+        if c == "\\":
+            out.append(c)
+            if i + 1 < len(s):
+                out.append(s[i + 1])
+                i += 2
+            else:
+                i += 1
+            continue
+        if c == '"':
+            j = i + 1
+            while j < len(s) and s[j] in " \t\n\r":
+                j += 1
+            if j >= len(s) or s[j] in ":}]":
+                out.append(c)
+                in_string = False
+                i += 1
+                continue
+            if s[j] == ",":
+                k = j + 1
+                while k < len(s) and s[k] in " \t\n\r":
+                    k += 1
+                if k >= len(s) or s[k] in '"{[':
+                    out.append(c)
+                    in_string = False
+                    i += 1
+                    continue
+            out.append('\\"')
+            i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def call_with_retry(fn, *, what: str):
+    """Run `fn`, retrying API errors with exponential backoff + equal jitter
+    (delay in [base/2, base], base = min(MAX_DELAY, BASE * 2**attempt)).
+    """
     last_exc: Exception | None = None
-    for attempt, delay in enumerate((0, *RETRY_DELAYS)):
-        if delay:
-            time.sleep(delay)
+    for attempt in range(RETRY_MAX_ATTEMPTS):
         try:
             return fn()
         except (anthropic.APIError, anthropic.RateLimitError) as exc:
             last_exc = exc
-            print(f"  retry {attempt + 1}/{len(RETRY_DELAYS)} for {what}: {exc}", file=sys.stderr)
-    raise RuntimeError(f"giving up on {what} after {len(RETRY_DELAYS)} retries: {last_exc}")
+            if attempt == RETRY_MAX_ATTEMPTS - 1:
+                break
+            base = min(RETRY_MAX_DELAY, RETRY_BASE_DELAY * (2 ** attempt))
+            delay = base / 2 + random.uniform(0, base / 2)
+            print(
+                f"  retry {attempt + 1}/{RETRY_MAX_ATTEMPTS} for {what} "
+                f"in {delay:.1f}s: {exc}",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+    raise RuntimeError(
+        f"giving up on {what} after {RETRY_MAX_ATTEMPTS} attempts: {last_exc}"
+    )
 
 
 def extract_tool_input(response, tool_name: str, *, where: str) -> dict[str, Any]:
@@ -94,7 +166,8 @@ def render_pages(pdf_path: Path, cache_dir: Path) -> list[Path]:
 
 
 def extract_page(client: anthropic.Anthropic, image_path: Path, page_num: int,
-                 total: int, system: str, tool_schema: dict) -> tuple[list[dict], float]:
+                 total: int, system: str, tool_schema: dict,
+                 debug_dir: Path) -> tuple[list[dict], float]:
     b64 = base64.standard_b64encode(image_path.read_bytes()).decode("ascii")
     user_content = [
         {
@@ -103,51 +176,128 @@ def extract_page(client: anthropic.Anthropic, image_path: Path, page_num: int,
         },
         {
             "type": "text",
-            "text": f"This is page {page_num} of {total}. Extract all paragraphs.",
+            "text": (
+                f"This is page {page_num} of {total}. Extract all paragraphs. "
+                "Return `paragraphs` as a structured JSON array of objects, "
+                "not a JSON-encoded string."
+            ),
         },
     ]
-    t0 = time.perf_counter()
-    response = call_with_retry(
-        lambda: client.messages.create(
-            model=EXTRACT_MODEL,
-            temperature=0.0,
-            max_tokens=EXTRACT_MAX_TOKENS,
-            system=system,
-            tools=[tool_schema],
-            tool_choice={"type": "tool", "name": tool_schema["name"]},
-            messages=[{"role": "user", "content": user_content}],
-        ),
-        what=f"extract page {page_num}",
-    )
-    elapsed = time.perf_counter() - t0
-    payload = extract_tool_input(response, tool_schema["name"], where=f"page {page_num}")
-    paragraphs = payload.get("paragraphs") or []
+
+    def attempt(temperature: float):
+        t0 = time.perf_counter()
+        response = call_with_retry(
+            lambda: client.messages.create(
+                model=EXTRACT_MODEL,
+                temperature=temperature,
+                max_tokens=EXTRACT_MAX_TOKENS,
+                system=system,
+                tools=[tool_schema],
+                tool_choice={"type": "tool", "name": tool_schema["name"]},
+                messages=[{"role": "user", "content": user_content}],
+            ),
+            what=f"extract page {page_num} (temp={temperature})",
+        )
+        elapsed = time.perf_counter() - t0
+        payload = extract_tool_input(response, tool_schema["name"],
+                                     where=f"page {page_num}")
+        paragraphs = payload.get("paragraphs")
+        # Sonnet occasionally emits `paragraphs` as a JSON-encoded string under
+        # forced tool use, and the stringified content can contain unescaped
+        # `"` inside string values (German typographic quotes, markdown
+        # quotes, etc.). Parse strictly first; on failure, escape embedded
+        # quotes via state-machine repair and retry.
+        if isinstance(paragraphs, str):
+            parsed = None
+            try:
+                parsed = json.loads(paragraphs)
+                tqdm.write(
+                    f"  page {page_num}: recovered stringified paragraphs "
+                    f"array (temp={temperature})"
+                )
+            except json.JSONDecodeError:
+                repaired = repair_unescaped_quotes(paragraphs)
+                try:
+                    parsed = json.loads(repaired)
+                    tqdm.write(
+                        f"  page {page_num}: repaired unescaped quotes and "
+                        f"parsed stringified paragraphs (temp={temperature})"
+                    )
+                except json.JSONDecodeError:
+                    parsed = None
+            if isinstance(parsed, list):
+                paragraphs = parsed
+        return paragraphs, elapsed, response, payload
+
+    paragraphs, elapsed, response, payload = attempt(0.0)
     if not isinstance(paragraphs, list):
-        raise RuntimeError(f"page {page_num}: paragraphs is not a list")
+        tqdm.write(
+            f"  page {page_num}: temp=0.0 produced {type(paragraphs).__name__}; "
+            f"retrying at temp=0.5"
+        )
+        retry_paragraphs, retry_elapsed, response, payload = attempt(0.5)
+        elapsed += retry_elapsed
+        if isinstance(retry_paragraphs, list):
+            paragraphs = retry_paragraphs
+
+    if not isinstance(paragraphs, list):
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        err_path = debug_dir / f"page_{page_num:03d}.error.json"
+        err_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False, default=str),
+            encoding="utf-8",
+        )
+        raise RuntimeError(
+            f"page {page_num}: 'paragraphs' field is {type(paragraphs).__name__} "
+            f"(expected list) after temp-bump retry. "
+            f"stop_reason={response.stop_reason!r}. "
+            f"payload keys={list(payload.keys())}. raw payload dumped to {err_path}"
+        )
     return paragraphs, elapsed
 
 
 def translate_paragraph(client: anthropic.Anthropic, text: str, system: str,
-                        tool_schema: dict, *, where: str) -> tuple[str, float]:
-    t0 = time.perf_counter()
-    response = call_with_retry(
-        lambda: client.messages.create(
-            model=TRANSLATE_MODEL,
-            temperature=0.0,
-            max_tokens=TRANSLATE_MAX_TOKENS,
-            system=system,
-            tools=[tool_schema],
-            tool_choice={"type": "tool", "name": tool_schema["name"]},
-            messages=[{"role": "user", "content": text}],
-        ),
-        what=f"translate {where}",
+                        tool_schema: dict, models: tuple[str, ...],
+                        *, where: str) -> tuple[str, float, str]:
+    """Translate text, trying each model in `models` in order. Falls back to
+    the next model if one exhausts retries or returns a malformed response.
+    Returns (translation, elapsed_seconds, model_used).
+    """
+    last_exc: Exception | None = None
+    for idx, model in enumerate(models):
+        try:
+            t0 = time.perf_counter()
+            response = call_with_retry(
+                lambda model=model: client.messages.create(
+                    model=model,
+                    max_tokens=TRANSLATE_MAX_TOKENS,
+                    system=system,
+                    tools=[tool_schema],
+                    tool_choice={"type": "tool", "name": tool_schema["name"]},
+                    messages=[{"role": "user", "content": text}],
+                ),
+                what=f"translate {where} ({model})",
+            )
+            elapsed = time.perf_counter() - t0
+            payload = extract_tool_input(response, tool_schema["name"], where=where)
+            translation = payload.get("translation")
+            if not isinstance(translation, str):
+                raise RuntimeError(
+                    f"{where}: translation field missing or not a string"
+                )
+            if idx > 0:
+                tqdm.write(f"  {where}: succeeded on fallback model {model}")
+            return translation, elapsed, model
+        except (RuntimeError, anthropic.APIError) as exc:
+            last_exc = exc
+            if idx < len(models) - 1:
+                tqdm.write(
+                    f"  {where}: model {model} failed ({exc}); "
+                    f"falling back to {models[idx + 1]}"
+                )
+    raise RuntimeError(
+        f"all translation models exhausted for {where}: {last_exc}"
     )
-    elapsed = time.perf_counter() - t0
-    payload = extract_tool_input(response, tool_schema["name"], where=where)
-    translation = payload.get("translation")
-    if not isinstance(translation, str):
-        raise RuntimeError(f"{where}: translation field missing or not a string")
-    return translation, elapsed
 
 
 def fmt_stats(name: str, samples: list[float]) -> str:
@@ -192,28 +342,54 @@ def main() -> int:
 
     wall_start = time.perf_counter()
 
-    # Phase 1: extract.
+    # Phase 1: extract. Cached per-page so reruns skip completed pages.
     paragraphs: list[dict] = []
     extract_times: list[float] = []
     for i, image_path in enumerate(tqdm(image_paths, desc="extract", unit="page"), start=1):
-        page_paragraphs, elapsed = extract_page(
-            client, image_path, i, total_pages, transcribe_prompt, extract_tool
-        )
-        extract_times.append(elapsed)
+        page_cache = cache_dir / f"page_{i:03d}.paragraphs.json"
+        if page_cache.is_file():
+            page_paragraphs = json.loads(page_cache.read_text(encoding="utf-8"))
+            tqdm.write(f"  page {i}: loaded {len(page_paragraphs)} cached paragraph(s)")
+        else:
+            page_paragraphs, elapsed = extract_page(
+                client, image_path, i, total_pages, transcribe_prompt, extract_tool,
+                debug_dir=cache_dir,
+            )
+            extract_times.append(elapsed)
+            page_cache.write_text(
+                json.dumps(page_paragraphs, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
         paragraphs.extend(page_paragraphs)
 
     extracted_count = len(paragraphs)
     print(f"Extracted {extracted_count} paragraph(s) across {total_pages} page(s).")
 
-    # Phase 2: translate.
+    # Phase 2: translate. Cached per-paragraph so reruns skip completed work.
+    translations_dir = cache_dir / "translations"
+    translations_dir.mkdir(parents=True, exist_ok=True)
     translate_times: list[float] = []
     translated_count = 0
     for para in tqdm(paragraphs, desc="translate", unit="para"):
-        where = f"p.{para.get('page')}/¶{para.get('paragraph')}"
-        translation, elapsed = translate_paragraph(
-            client, para["text"], translate_prompt, translate_tool, where=where
-        )
-        translate_times.append(elapsed)
+        page_num = para.get("page")
+        para_num = para.get("paragraph")
+        where = f"p.{page_num}/¶{para_num}"
+        para_cache = translations_dir / f"p{page_num:03d}_para{para_num:03d}.json"
+        if para_cache.is_file():
+            translation = json.loads(para_cache.read_text(encoding="utf-8"))["translation"]
+        else:
+            translation, elapsed, model_used = translate_paragraph(
+                client, para["text"], translate_prompt, translate_tool,
+                TRANSLATE_MODELS, where=where,
+            )
+            translate_times.append(elapsed)
+            para_cache.write_text(
+                json.dumps(
+                    {"translation": translation, "model": model_used},
+                    indent=2, ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
         para["translation"] = translation
         translated_count += 1
 
