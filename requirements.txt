@@ -2,3 +2,4 @@ python-dotenv
 anthropic
 pdf2image
 tqdm
+pydantic
