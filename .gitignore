@@ -158,5 +158,6 @@ Thumbs.db
 
 data/
 dbdata/
+out/
 # Claude Code local files
 CLAUDE.local.md
