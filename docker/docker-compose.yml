@@ -9,7 +9,7 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - ./dbdata/postgres:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql
   neo4j:
     image: neo4j:latest
     container_name: ai2-neo4j
@@ -20,4 +20,4 @@ services:
       - '7474:7474'
       - '7687:7687'
     volumes:
-      - ./dbdata/neo4j:/data
+      - ./data/neo4j:/data

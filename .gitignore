@@ -161,3 +161,5 @@ dbdata/
 out/
 # Claude Code local files
 CLAUDE.local.md
+
+docker/data/
