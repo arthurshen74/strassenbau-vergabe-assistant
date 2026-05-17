@@ -1,5 +1,5 @@
 // Query/mutation hooks for conversations. Workspace-only at this stage;
-// prep_session and judge_run hooks will plug in later as those views land.
+// judge_run hooks will plug in later as that view lands.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
@@ -17,7 +17,7 @@ export const conversationKeys = {
 };
 
 export function useConversationList(
-  type?: 'workspace' | 'prep_session' | 'judge_run',
+  type?: 'workspace' | 'judge_run',
 ) {
   return useQuery({
     queryKey: conversationKeys.list(type),

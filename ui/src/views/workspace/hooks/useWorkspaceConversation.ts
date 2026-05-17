@@ -22,12 +22,10 @@
 //                           authoritative server-side IDs.
 
 import { useCallback, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { postStream } from '../../../api/sse';
 import { conversationKeys } from '../../../api/conversations';
 import { positionKeys } from '../../../api/positions';
-import { profileKeys } from '../../../api/profile';
 import { promptKeys } from '../../../api/prompts';
 import { log } from '../../../lib/logger';
 import { useUIStore } from '../../../store/ui';
@@ -74,11 +72,7 @@ interface StreamState {
 
 export function useWorkspaceConversation(conversationId: string) {
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const setStreamActive = useUIStore((s) => s.setStreamActive);
-  // When start_prep_session succeeds, we stash the new session ID here
-  // so we can navigate after the stream fully closes.
-  const pendingNavigateRef = useRef<string | null>(null);
 
   // Locally-buffered messages that haven't been reconciled with the
   // server yet. We keep them separate from the query cache so an
@@ -98,9 +92,6 @@ export function useWorkspaceConversation(conversationId: string) {
     (toolName: string | null | undefined) => {
       if (!toolName) return;
       switch (toolName) {
-        case 'update_profile':
-          qc.invalidateQueries({ queryKey: profileKeys.detail });
-          break;
         case 'list_positions':
         case 'add_position':
         case 'modify_position':
@@ -112,12 +103,6 @@ export function useWorkspaceConversation(conversationId: string) {
         case 'edit_prompt':
         case 'archive_prompt':
           qc.invalidateQueries({ queryKey: promptKeys.all });
-          break;
-        case 'start_prep_session':
-        case 'list_prep_sessions':
-        case 'delete_prep_session':
-          // Sessions appear in the conversations sidebar.
-          qc.invalidateQueries({ queryKey: conversationKeys.all });
           break;
       }
     },
@@ -140,7 +125,6 @@ export function useWorkspaceConversation(conversationId: string) {
         openAssistantId: null,
         toolNameByCallId: {},
       };
-      pendingNavigateRef.current = null;
       setIsStreaming(true);
       setStreamActive(conversationId, true);
       const ctrl = new AbortController();
@@ -216,20 +200,8 @@ export function useWorkspaceConversation(conversationId: string) {
                   has_data: e.data != null,
                   error_count: e.errors?.length ?? 0,
                 });
-                // Log the full payload for debugging — especially useful for
-                // session tools whose output is suppressed in the chat UI.
                 if (e.data != null) {
                   log.tool('data', e.data);
-                }
-                // Queue navigation for session creation/resumption so we
-                // route to the new session once the stream fully closes.
-                if (
-                  e.success &&
-                  toolName === 'start_prep_session' &&
-                  e.data &&
-                  typeof (e.data as Record<string, unknown>).id === 'string'
-                ) {
-                  pendingNavigateRef.current = (e.data as Record<string, unknown>).id as string;
                 }
                 const endGroup = toolGroupEnds[e.call_id];
                 if (endGroup) {
@@ -286,8 +258,6 @@ export function useWorkspaceConversation(conversationId: string) {
                   },
                 ]);
                 break;
-              // interviewer_delta / eval_update aren't part of the
-              // workspace protocol — they belong to prep_session views.
               default:
                 break;
             }
@@ -330,17 +300,9 @@ export function useWorkspaceConversation(conversationId: string) {
         await qc.refetchQueries({ queryKey: conversationKeys.messages(conversationId) });
         setStreamMessages([]);
         qc.invalidateQueries({ queryKey: conversationKeys.all });
-
-        // Navigate to a newly created session now that the workspace stream
-        // has fully closed and local state is cleaned up.
-        const dest = pendingNavigateRef.current;
-        pendingNavigateRef.current = null;
-        if (dest) {
-          navigate(`/c/${dest}`);
-        }
       }
     },
-    [conversationId, navigate, qc, setStreamActive, invalidateForTool],
+    [conversationId, qc, setStreamActive, invalidateForTool],
   );
 
   // Resets the local buffer once the server has the same content (caller
@@ -372,10 +334,10 @@ export function useWorkspaceConversation(conversationId: string) {
   );
 
   // Push a synthetic tool-result message into the local stream. View
-  // flows that bypass the dispatcher (paste-position saves, eventually
-  // direct profile edits, etc.) use this so the chat shows the same
-  // inline card the LLM-driven path would produce. We mark the message
-  // as success=true; failed results would be filtered by MessageList.
+  // flows that bypass the dispatcher (paste-position saves, etc.) use
+  // this so the chat shows the same inline card the LLM-driven path
+  // would produce. We mark the message as success=true; failed results
+  // would be filtered by MessageList.
   //
   // Because these are local-only and never persisted server-side, they
   // disappear on reload — the authoritative position card can be

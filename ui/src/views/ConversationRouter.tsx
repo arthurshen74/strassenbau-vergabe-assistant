@@ -3,13 +3,12 @@
 // because the dispatch decision depends on async server state, not
 // just the URL.
 //
-// PrepSession and JudgeRun views aren't built yet; we render a small
-// placeholder for those types so navigation still works.
+// JudgeRun view isn't built yet; we render a small placeholder so
+// navigation still works.
 
 import { useParams } from 'react-router-dom';
 import { useConversation } from '../api/conversations';
 import { WorkspaceView } from './workspace/WorkspaceView';
-import { PrepSessionView } from './prep_session/PrepSessionView';
 import { LoadingState } from '../components/feedback/LoadingState';
 import { ErrorState } from '../components/feedback/ErrorState';
 import { EmptyState } from '../components/feedback/EmptyState';
@@ -35,8 +34,6 @@ export function ConversationRouter() {
   switch (data.type) {
     case 'workspace':
       return <WorkspaceView />;
-    case 'prep_session':
-      return <PrepSessionView />;
     case 'judge_run':
       return (
         <EmptyState

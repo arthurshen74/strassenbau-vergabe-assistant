@@ -8,7 +8,6 @@
 // service layer returns, and that's allowed to evolve.
 
 import type { FunctionCallOutputMessageDTO } from '../../../types/generated';
-import { ProfileCard } from './ProfileCard';
 import { PositionList } from './PositionList';
 import { PositionCard } from './PositionCard';
 import { ArchivedNotice } from './ArchivedNotice';
@@ -28,12 +27,6 @@ interface ToolResultRouterProps {
 
 export function ToolResultRouter({ msg, onSendMessage }: ToolResultRouterProps) {
   switch (msg.tool_name) {
-    case 'view_profile':
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return <ProfileCard data={msg.data as any} variant="view" />;
-    case 'update_profile':
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return <ProfileCard data={msg.data as any} variant="update" />;
     case 'list_positions':
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return <PositionList data={msg.data as any} interactive={!!onSendMessage} />;
@@ -61,14 +54,6 @@ export function ToolResultRouter({ msg, onSendMessage }: ToolResultRouterProps) 
     case 'archive_prompt':
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return <PromptGroupCard data={msg.data as any} variant="archived" />;
-    // Session tools: navigation (start) or sidebar refresh (list/delete)
-    // handle the UX — no inline card needed. Returning null suppresses the
-    // default JSON dump; FunctionCallOutputMessage skips the InlineToolResult
-    // wrapper when content is null.
-    case 'start_prep_session':
-    case 'list_prep_sessions':
-    case 'delete_prep_session':
-      return null;
     default:
       return (
         <pre className="overflow-auto text-xs text-zinc-700 dark:text-zinc-300">

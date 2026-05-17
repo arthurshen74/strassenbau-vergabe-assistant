@@ -9,8 +9,6 @@ import type {
 } from '../../types/generated';
 import { UserMessage } from './messages/UserMessage';
 import { AssistantMessage } from './messages/AssistantMessage';
-import { InterviewerMessage } from './messages/InterviewerMessage';
-import { CandidateMessage } from './messages/CandidateMessage';
 import { UINoticeMessage } from './messages/UINoticeMessage';
 import { FunctionCallOutputMessage } from './messages/FunctionCallOutputMessage';
 
@@ -27,10 +25,6 @@ export function Message({ m, streaming, renderToolResult }: MessageProps) {
       return <UserMessage m={m} />;
     case 'assistant_message':
       return <AssistantMessage m={m} streaming={streaming} />;
-    case 'interviewer_message':
-      return <InterviewerMessage m={m} streaming={streaming} />;
-    case 'candidate_message':
-      return <CandidateMessage m={m} />;
     case 'ui_notice':
       return <UINoticeMessage m={m} />;
     case 'function_call':

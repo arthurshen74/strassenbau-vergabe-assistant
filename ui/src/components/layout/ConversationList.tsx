@@ -1,13 +1,13 @@
 // Sidebar list of recent conversations. Groups by type so the user can
-// scan workspace threads vs. ongoing prep sessions vs. judge runs.
+// scan workspace threads vs. judge runs.
 //
 // Keeping grouping logic here (rather than in a global selector) because
 // it's purely a presentation choice for THIS surface — the API returns
 // a flat list sorted by updated_at.
 //
 // Per-row actions (currently: delete) only render for workspace threads.
-// Prep sessions and judge runs have their own lifecycles and can't be
-// torn down from here — see ARCHITECTURE.md §4.
+// Judge runs have their own lifecycle and can't be torn down from here —
+// see ARCHITECTURE.md §4.
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -16,7 +16,6 @@ import { EllipsisHorizontalIcon } from '@heroicons/react/16/solid';
 import type { ConversationSummaryDTO } from '../../types/generated';
 import { formatRelativeTime } from '../../lib/format';
 import { useDeleteConversation, useRenameConversation } from '../../api/conversations';
-import { useDeletePrepSession } from '../../api/sessions';
 import {
   Dropdown,
   DropdownButton,
@@ -44,13 +43,11 @@ interface ConversationListProps {
 
 const TYPE_LABELS: Record<ConversationSummaryDTO['type'], string> = {
   workspace: 'Workspace',
-  prep_session: 'Prep sessions',
   judge_run: 'Judge runs',
 };
 
 const TYPE_ORDER: ConversationSummaryDTO['type'][] = [
   'workspace',
-  'prep_session',
   'judge_run',
 ];
 
@@ -58,7 +55,6 @@ export function ConversationList({ items }: ConversationListProps) {
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const deleteConversationMutation = useDeleteConversation();
-  const deleteSessionMutation = useDeletePrepSession();
   const renameMutation = useRenameConversation();
 
   // Pending deletion target. Storing the whole summary (not just the id)
@@ -73,10 +69,7 @@ export function ConversationList({ items }: ConversationListProps) {
   const [renameTitle, setRenameTitle] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const deleteMutation =
-    pendingDelete?.type === 'prep_session'
-      ? deleteSessionMutation
-      : deleteConversationMutation;
+  const deleteMutation = deleteConversationMutation;
 
   // Auto-select the text in the rename input when the dialog opens so the
   // user can start typing immediately without manually clearing the field.
@@ -146,8 +139,7 @@ export function ConversationList({ items }: ConversationListProps) {
             </div>
             {g.items.map((c) => {
               const active = c.id === conversationId;
-              const canDelete =
-                c.type === 'workspace' || c.type === 'prep_session';
+              const canDelete = c.type === 'workspace';
               const canRename = c.type === 'workspace';
               return (
                 <div
@@ -200,9 +192,7 @@ export function ConversationList({ items }: ConversationListProps) {
                             onClick={() => setPendingDelete(c)}
                             className="!text-red-600 dark:!text-red-400"
                           >
-                            {c.type === 'prep_session'
-                              ? 'Delete session'
-                              : 'Delete thread'}
+                            Delete thread
                           </DropdownItem>
                         )}
                       </DropdownMenu>
@@ -260,22 +250,9 @@ export function ConversationList({ items }: ConversationListProps) {
           if (!deleteMutation.isPending) setPendingDelete(null);
         }}
       >
-        <AlertTitle>
-          {pendingDelete?.type === 'prep_session'
-            ? 'Delete this session?'
-            : 'Delete this thread?'}
-        </AlertTitle>
+        <AlertTitle>Delete this thread?</AlertTitle>
         <AlertDescription>
-          {pendingDelete?.type === 'prep_session' ? (
-            <>
-              &ldquo;{pendingDelete.title}&rdquo; will be removed from the
-              sidebar. Its transcript and scores are retained internally so
-              any judge runs referencing it still work.
-              {pendingDelete.status === 'in_progress' && (
-                <> This session is currently <strong>in progress</strong> — deleting it will end it.</>  
-              )}
-            </>
-          ) : pendingDelete ? (
+          {pendingDelete ? (
             <>
               &ldquo;{pendingDelete.title}&rdquo; and all of its messages will
               be permanently deleted. This cannot be undone.

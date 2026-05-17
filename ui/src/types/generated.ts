@@ -15,13 +15,6 @@ export interface AssistantMessageDTO {
   kind: "assistant_message";
   content: string;
 }
-export interface CandidateMessageDTO {
-  id: string;
-  conversation_id: string;
-  created_at: string;
-  kind: "candidate_message";
-  content: string;
-}
 /**
  * Sidebar entry. Carries enough to group/sort and render a status pill.
  */
@@ -109,14 +102,6 @@ export interface FunctionCallOutputMessageDTO {
 }
 export interface InterviewerDeltaEvent {
   event: "interviewer_delta";
-  content: string;
-  question_number: number;
-}
-export interface InterviewerMessageDTO {
-  id: string;
-  conversation_id: string;
-  created_at: string;
-  kind: "interviewer_message";
   content: string;
   question_number: number;
 }
@@ -485,8 +470,6 @@ export type MessageDTO =
   | AssistantMessageDTO
   | FunctionCallMessageDTO
   | FunctionCallOutputMessageDTO
-  | CandidateMessageDTO
-  | InterviewerMessageDTO
   | UINoticeMessageDTO;
 
 export type ConversationDTO =
