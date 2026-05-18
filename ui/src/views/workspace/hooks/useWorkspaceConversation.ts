@@ -25,7 +25,6 @@ import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { postStream } from '../../../api/sse';
 import { conversationKeys } from '../../../api/conversations';
-import { positionKeys } from '../../../api/positions';
 import { promptKeys } from '../../../api/prompts';
 import { log } from '../../../lib/logger';
 import { useUIStore } from '../../../store/ui';
@@ -45,10 +44,6 @@ import type {
 // `tool_name` here must match a real tool — it's the discriminator the
 // router uses to pick a renderer.
 export type SyntheticToolName =
-  | 'add_position'
-  | 'modify_position'
-  | 'view_position'
-  | 'archive_position'
   | 'view_prompt'
   | 'edit_prompt'
   | 'archive_prompt';
@@ -92,12 +87,6 @@ export function useWorkspaceConversation(conversationId: string) {
     (toolName: string | null | undefined) => {
       if (!toolName) return;
       switch (toolName) {
-        case 'list_positions':
-        case 'add_position':
-        case 'modify_position':
-        case 'archive_position':
-          qc.invalidateQueries({ queryKey: positionKeys.all });
-          break;
         case 'list_prompts':
         case 'view_prompt':
         case 'edit_prompt':
@@ -334,16 +323,16 @@ export function useWorkspaceConversation(conversationId: string) {
   );
 
   // Push a synthetic tool-result message into the local stream. View
-  // flows that bypass the dispatcher (paste-position saves, etc.) use
-  // this so the chat shows the same inline card the LLM-driven path
-  // would produce. We mark the message as success=true; failed results
-  // would be filtered by MessageList.
+  // flows that bypass the dispatcher use this so the chat shows the
+  // same inline card the LLM-driven path would produce. We mark the
+  // message as success=true; failed results would be filtered by
+  // MessageList.
   //
   // Because these are local-only and never persisted server-side, they
-  // disappear on reload — the authoritative position card can be
-  // recovered via the dispatcher ("show me my positions"). That's a
-  // deliberate trade-off: persisting client-initiated tool-result
-  // synthetics would muddle the dispatcher's view of conversation history.
+  // disappear on reload — the authoritative card can be recovered via
+  // the dispatcher. That's a deliberate trade-off: persisting
+  // client-initiated tool-result synthetics would muddle the
+  // dispatcher's view of conversation history.
   const appendToolResult = useCallback(
     (toolName: SyntheticToolName, data: Record<string, unknown>) => {
       setStreamMessages((prev) => [

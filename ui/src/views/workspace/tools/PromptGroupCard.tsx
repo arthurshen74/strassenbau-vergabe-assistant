@@ -7,7 +7,7 @@
 // historical version exposes its own Test button so the user can
 // compare versions side-by-side over time.
 //
-// Local override pattern (same as PositionCard): when an Edit or
+// Local override pattern: when an Edit or
 // Archive succeeds, we keep the freshly-returned PromptGroupDTO in
 // component state so the inline card reflects the new version
 // immediately without re-fetching for every card in the chat history.

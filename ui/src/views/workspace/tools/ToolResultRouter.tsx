@@ -8,9 +8,6 @@
 // service layer returns, and that's allowed to evolve.
 
 import type { FunctionCallOutputMessageDTO } from '../../../types/generated';
-import { PositionList } from './PositionList';
-import { PositionCard } from './PositionCard';
-import { ArchivedNotice } from './ArchivedNotice';
 import { PromptList } from './PromptList';
 import { PromptGroupCard } from './PromptGroupCard';
 
@@ -27,21 +24,6 @@ interface ToolResultRouterProps {
 
 export function ToolResultRouter({ msg, onSendMessage }: ToolResultRouterProps) {
   switch (msg.tool_name) {
-    case 'list_positions':
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return <PositionList data={msg.data as any} interactive={!!onSendMessage} />;
-    case 'view_position':
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return <PositionCard data={msg.data as any} variant="view" />;
-    case 'add_position':
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return <PositionCard data={msg.data as any} variant="created" />;
-    case 'modify_position':
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return <PositionCard data={msg.data as any} variant="modified" />;
-    case 'archive_position':
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return <ArchivedNotice data={msg.data as any} />;
     case 'list_prompts':
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return <PromptList data={msg.data as any} interactive={!!onSendMessage} />;

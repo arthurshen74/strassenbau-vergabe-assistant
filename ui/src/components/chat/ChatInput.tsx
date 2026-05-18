@@ -8,7 +8,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { ClipboardDocumentIcon } from '@heroicons/react/16/solid';
 import { Button } from '../ui/button';
 import { useDraftsStore } from '../../store/drafts';
 import {
@@ -33,13 +32,6 @@ interface ChatInputProps {
   disabled?: boolean;
   hint?: string;
   draftKey?: string;
-  /**
-   * If supplied, render a clipboard button that asks the parent to open
-   * its own paste dialog. We don't ship a textarea modal from inside the
-   * input because the right UX (dialog vs inline panel vs sidebar) is a
-   * view-level decision.
-   */
-  onPasteText?: () => void;
 }
 
 const MAX_ROWS = 6;
@@ -53,7 +45,6 @@ export function ChatInput({
   disabled,
   hint,
   draftKey,
-  onPasteText,
 }: ChatInputProps) {
   const draft = useDraftsStore((s) => (draftKey ? s.drafts[draftKey] ?? '' : ''));
   const setDraft = useDraftsStore((s) => s.setDraft);
@@ -141,18 +132,6 @@ export function ChatInput({
           </div>
         )}
         <div className="flex items-end gap-2">
-          {onPasteText && (
-            <Button
-              type="button"
-              plain
-              onClick={onPasteText}
-              disabled={disabled}
-              aria-label="Paste a job description"
-              title="Paste a job description as text"
-            >
-              <ClipboardDocumentIcon />
-            </Button>
-          )}
           <textarea
             ref={textareaRef}
             value={value}

@@ -9,7 +9,7 @@
 // deduped by id (server wins). This way once the server reconciles
 // IDs after the stream completes, the placeholders silently fall away.
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   useConversation,
@@ -22,11 +22,6 @@ import { useSlashCommands } from '../../api/dispatcher';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
 import { ToolResultRouter } from './tools/ToolResultRouter';
-import {
-  PositionDraftPanel,
-  type PositionDraftSource,
-} from './components/PositionDraftPanel';
-import { PastePositionDialog } from './components/PastePositionDialog';
 import type { MessageDTO } from '../../types/generated';
 
 export function WorkspaceView() {
@@ -45,16 +40,8 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     streamingMessageId,
     isStreaming,
     sendMessage,
-    appendToolResult,
   } = useWorkspaceConversation(conversationId);
 
-  // The active pasted-text draft being reviewed in the draft panel.
-  // We key the panel by source identity so a new paste unmounts and
-  // restarts cleanly.
-  const [draftSource, setDraftSource] = useState<PositionDraftSource | null>(
-    null,
-  );
-  const [pasteOpen, setPasteOpen] = useState(false);
   // Workspace slash commands are catalog-driven and expand server-side.
   // We pass them to ChatInput for autocomplete but do NOT pass
   // ``onSlashCommand`` — the literal text falls through to ``sendMessage``
@@ -125,43 +112,13 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
         )}
       />
 
-      {draftSource && (
-        <PositionDraftPanel
-          source={draftSource}
-          onDismiss={() => setDraftSource(null)}
-          onCreated={(position) => {
-            setDraftSource(null);
-            // Render the saved position as if the dispatcher had
-            // emitted ``add_position`` — same inline card, including
-            // the Edit affordance. The synthetic message is local-only
-            // so it doesn't pollute the dispatcher's view of the
-            // conversation; on reload the user can re-fetch the card
-            // by asking the dispatcher to view their positions.
-            appendToolResult(
-              'add_position',
-              position as unknown as Record<string, unknown>,
-            );
-          }}
-        />
-      )}
-
       <ChatInput
         onSend={sendMessage}
         disabled={isStreaming}
-        placeholder="Ask the dispatcher, type / for shortcuts, or paste a job description."
+        placeholder="Ask the dispatcher or type / for shortcuts."
         draftKey={`ws:${conversationId}`}
         hint={isStreaming ? 'Thinking…' : undefined}
         slashCommands={slashCommands}
-        onPasteText={() => setPasteOpen(true)}
-      />
-
-      <PastePositionDialog
-        open={pasteOpen}
-        onClose={() => setPasteOpen(false)}
-        onExtract={(text) => {
-          setPasteOpen(false);
-          setDraftSource({ kind: 'text', text });
-        }}
       />
     </div>
   );
