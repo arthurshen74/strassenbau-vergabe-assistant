@@ -36,7 +36,7 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Besondere Vertragsbedingungen** (BVB) — Special contract terms. Project-specific contract clauses that supplement or modify the general Vertragsbedingungen. Often contain the highest-impact clauses for cost calculation: penalty schedules, retention terms, warranty extensions, and similar.
 
-**Zusätzliche Technische Vertragsbedingungen** (ZTV) — Additional technical contract terms. Project-specific technical specifications that supplement VOB/C and the general technical standards. Frequently qualify or override the default execution of LV items.
+**Zusätzliche Technische Vertragsbedingungen** (ZTV) — Additional technical contract terms. Project-specific technical specifications that supplement VOB/C and the general technical standards. Frequently qualify or override the default execution of LV items. These are sometimes embedded in the Baubeschreibung.
 
 **Vorzulegende Unterlagen** — Documents to be submitted. A checklist of artifacts the bidder must include with the Angebot (Eignungsnachweise, references, certificates, sample calculations, and so on). Missing items typically disqualify a bid.
 
