@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import and_, delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.projects import projects
@@ -15,10 +15,25 @@ class ProjectRepository:
     def __init__(self, conn: AsyncConnection) -> None:
         self.conn = conn
 
-    async def get(self, project_id: UUID) -> Project | None:
+    async def get(self, project_uuid: UUID) -> Project | None:
         row = (
             await self.conn.execute(
-                select(projects).where(projects.c.project_id == project_id)
+                select(projects).where(projects.c.project_uuid == project_uuid)
+            )
+        ).mappings().first()
+        return Project.model_validate(dict(row)) if row else None
+
+    async def get_by_external_id(
+        self, vergabe_stelle: str, project_id: str
+    ) -> Project | None:
+        row = (
+            await self.conn.execute(
+                select(projects).where(
+                    and_(
+                        projects.c.vergabe_stelle == vergabe_stelle,
+                        projects.c.project_id == project_id,
+                    )
+                )
             )
         ).mappings().first()
         return Project.model_validate(dict(row)) if row else None
@@ -38,20 +53,20 @@ class ProjectRepository:
         row = (await self.conn.execute(stmt)).mappings().one()
         return Project.model_validate(dict(row))
 
-    async def update(self, project_id: UUID, **changes: Any) -> Project | None:
+    async def update(self, project_uuid: UUID, **changes: Any) -> Project | None:
         if not changes:
-            return await self.get(project_id)
+            return await self.get(project_uuid)
         stmt = (
             update(projects)
-            .where(projects.c.project_id == project_id)
+            .where(projects.c.project_uuid == project_uuid)
             .values(**changes)
             .returning(projects)
         )
         row = (await self.conn.execute(stmt)).mappings().first()
         return Project.model_validate(dict(row)) if row else None
 
-    async def delete(self, project_id: UUID) -> bool:
+    async def delete(self, project_uuid: UUID) -> bool:
         result = await self.conn.execute(
-            delete(projects).where(projects.c.project_id == project_id)
+            delete(projects).where(projects.c.project_uuid == project_uuid)
         )
         return result.rowcount > 0

@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 class NewProject(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    project_id: str
     project_name: str
     project_description: str | None = None
     vergabe_stelle: str
@@ -19,7 +20,8 @@ class NewProject(BaseModel):
 class Project(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    project_id: UUID
+    project_uuid: UUID
+    project_id: str
     project_name: str
     project_description: str | None
     vergabe_stelle: str
