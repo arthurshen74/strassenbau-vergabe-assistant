@@ -2,7 +2,7 @@
 
 A domain-focused RAG system that helps cost calculators (Kalkulatoren) at road construction contracting companies work through public-tender (Vergabe) documents and prepare bids. The system ingests the full document set for a tender, builds a structured knowledge representation, and answers grounded, citation-backed questions about it.
 
-This README explains what the system is and what it does. Architecture decisions and code-level guidance live in `ARCHITECTURE.md` and `CLAUDE.local.md`. German construction-domain terms used throughout are defined in `GLOSSARY.md`.
+This README explains what the system is and what it does. Architecture decisions and code-level guidance live in `docs/ARCHITECTURE.md` and `CLAUDE.local.md`. German construction-domain terms used throughout are defined in `docs/GLOSSARY.md`.
 
 ## The Problem
 
@@ -37,7 +37,7 @@ Three user groups, each with a defined permission scope. Permissions are role-ba
 
 ## What It Does
 
-The system has four functional surfaces.
+The system has five functional surfaces.
 
 ### 1. Project Ingestion
 
@@ -77,13 +77,17 @@ The system ships with an evaluation harness. The eval set itself (target: 50 que
 
 The runner integrates with RAGAs and produces tracked results across runs, supporting comparison between RAG configurations.
 
+### 5. Prompt Library
+
+Every LLM call in the system — vision extraction during ingest, paragraph-to-assertion extraction, chat answer synthesis, eval grading — is dispatched through the **Prompt Library**: a versioned store of system prompts, each pinned to a specific model, temperature, sampling settings, and (where structured output is required) a response schema. Editing a prompt creates a new immutable version; call sites stay on whichever version they reference until explicitly migrated, so a prompt change cannot silently destabilise an upstream pipeline. A small UI surfaces the prompts and their version timelines, and lets authorised users read, edit, and version them.
+
 ## Knowledge Representation, at a Glance
 
 The system uses two stores. Neo4j holds the **knowledge graph**: documents, their internal structure, and the relationships between elements. LV items are first-class nodes carrying their structured GAEB attributes; sibling edges (`next_item`, `prev_item`) form a doubly-linked traversal of the LV in original order, and source edges link each item to its corresponding page in the LV PDF. Prose documents decompose into paragraph and table nodes and downstream assertion or fact nodes, with cross-document edges where references warrant.
 
-Postgres holds the **operational data**: users and roles, project metadata, conversation history, token-usage and cost logs, eval records and run results, and the Prompt Library (carried over from the previous sprint, versioned on every change, storing model ID, system prompt text, temperature, and top_p per prompt).
+Postgres holds the **operational data**: project metadata, conversation history, token-usage and cost logs, eval records and run results, and the Prompt Library. Identity (users, roles, OAuth clients, refresh tokens) lives in a separate Postgres database owned by the `auth/` service and is never queried directly by the rest of the system — user identity flows in via OAuth2 tokens.
 
-Detailed schema, modeling decisions, and ingestion pipelines belong in `ARCHITECTURE.md`.
+Detailed schema, modeling decisions, and ingestion pipelines belong in `docs/ARCHITECTURE.md`.
 
 ## Phase Roadmap
 
@@ -125,7 +129,7 @@ This is a monorepo with four top-level service or infrastructure directories:
 - `auth/` — OAuth2 Authorization Server, separable from `server/` so it can be replaced by an off-the-shelf component (Ory Hydra, Authentik, Keycloak) without disturbing the rest of the system. `server/` never imports from `auth/`; the contract is HTTP and opaque tokens.
 - `docker/` — Docker Compose configuration and supporting infrastructure files
 
-Code-level conventions, internal module structure, and contribution guidance live in `ARCHITECTURE.md` and `CLAUDE.local.md`.
+Code-level conventions, internal module structure, and contribution guidance live in `docs/ARCHITECTURE.md` and `CLAUDE.local.md`.
 
 ## Getting Started
 
@@ -137,7 +141,7 @@ Local startup, after configuring the environment file (OpenRouter API key, Postg
 docker compose up --build -d
 ```
 
-The first run will build images, bring up Postgres and Neo4j, and start the API and UI services. Initial admin-user creation, seed data, and eval-set loading are handled by separate bootstrap steps documented in `ARCHITECTURE.md`.
+The first run will build images, bring up Postgres and Neo4j, and start the API and UI services. Initial admin-user creation, seed data, and eval-set loading are handled by separate bootstrap steps documented in `docs/ARCHITECTURE.md`.
 
 ## Deployment Posture
 
@@ -145,6 +149,8 @@ Single-tenant. Each contracting company runs its own instance. There is no multi
 
 ## Companion Documents
 
-- `GLOSSARY.md` — German construction-domain terms used throughout (LV, GAEB, ZTV, OZ, Vergabe, Auftraggeber, Bauleiter, Kalkulator, Bautagebuch, and others)
-- `ARCHITECTURE.md` — system design, data models, ingestion pipelines, retrieval strategy, deployment topology
+- `docs/GLOSSARY.md` — German construction-domain terms used throughout (LV, GAEB, ZTV, OZ, Vergabe, Auftraggeber, Bauleiter, Kalkulator, Bautagebuch, and others)
+- `docs/ARCHITECTURE.md` — system design, data models, ingestion pipelines, retrieval strategy, deployment topology
+- `docs/DATA_LAYER_ARCHITECTURE.md` — SQLAlchemy Core + Pydantic implementation guide for the Postgres data layer
+- `docs/ORM_OPTIONS.md` — comparison of ORM / Core / SQLModel / Tortoise / roll-your-own that drove the data-layer choice
 - `CLAUDE.local.md` — instructions and conventions for AI coding agents working on this codebase
