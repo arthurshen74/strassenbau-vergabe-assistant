@@ -1,5 +1,13 @@
-python-dotenv
 anthropic
 pdf2image
 tqdm
 pydantic
+pydantic-settings
+sqlalchemy[asyncio]>=2.0
+asyncpg
+alembic
+fastapi
+uvicorn[standard]
+pytest
+pytest-asyncio
+httpx

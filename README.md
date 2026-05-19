@@ -99,7 +99,7 @@ The capabilities listed below are committed in the noted phase. Anything not lis
 - Per-project knowledge base in Neo4j and Postgres
 - RAG chat with page-level retrieval and page-level source citations
 - Three tools: LV Item Lookup, Ingest Project, Add Document to Project
-- Authentication and the three-role model (Administrator, Kalkulator, Bauleiter)
+- Authentication (fastapi-users, interim) and the three-role model (Administrator, Kalkulator, Bauleiter)
 - Conversation history per project and Markdown export
 - Token usage and cost display, per project
 - Eval schema and eval runner integrated with RAGAs
