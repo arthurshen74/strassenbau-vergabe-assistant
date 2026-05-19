@@ -118,10 +118,11 @@ The capabilities listed below are committed in the noted phase. Anything not lis
 
 ## Repository Layout
 
-This is a monorepo with three top-level directories:
+This is a monorepo with four top-level service or infrastructure directories:
 
 - `ui/` — React and Tailwind frontend, built with the Catalyst UI Kit
-- `server/` — Python FastAPI backend
+- `server/` — Python FastAPI backend (API + ingest worker, shared image)
+- `auth/` — OAuth2 Authorization Server, separable from `server/` so it can be replaced by an off-the-shelf component (Ory Hydra, Authentik, Keycloak) without disturbing the rest of the system. `server/` never imports from `auth/`; the contract is HTTP and opaque tokens.
 - `docker/` — Docker Compose configuration and supporting infrastructure files
 
 Code-level conventions, internal module structure, and contribution guidance live in `ARCHITECTURE.md` and `CLAUDE.local.md`.
