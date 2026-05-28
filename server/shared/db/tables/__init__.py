@@ -1,6 +1,9 @@
+from . import document_thumbnails  # noqa: F401
 from . import eval_items  # noqa: F401
 from . import eval_results  # noqa: F401
 from . import eval_test_sets  # noqa: F401
+from . import project_document_types  # noqa: F401
+from . import project_documents  # noqa: F401
 from . import projects  # noqa: F401
 from . import prompt_versions  # noqa: F401
 from . import prompts  # noqa: F401
