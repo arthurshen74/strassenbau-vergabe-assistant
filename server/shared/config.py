@@ -15,28 +15,81 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    database_url: str
-    auth_database_url: str
-    test_database_url: str
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str = "roadbuilders"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+
+    neo4j_auth: str
+    neo4j_host: str = "localhost"
+    neo4j_bolt_port: int = 7687
+
+    minio_root_user: str
+    minio_root_password: str
+    s3_host: str = "localhost"
+    s3_port: int = 9000
+    s3_bucket: str = "roadbuilders"
+
+    elasticsearch_host: str = "localhost"
+    elasticsearch_port: int = 9200
+    elasticsearch_index: str = "roadbuilders_text"
 
     embedding_model: str = "openai/text-embedding-3-small"
     embedding_dim: int = 512
 
-    neo4j_uri: str | None = None
-    neo4j_user: str | None = None
-    neo4j_password: str | None = None
-
-    elasticsearch_url: str | None = None
-    elasticsearch_index: str = "roadbuilders_text"
-
-    s3_endpoint: str | None = None
-    s3_access_key: str | None = None
-    s3_secret_key: str | None = None
-    s3_bucket: str = "roadbuilders"
-
     openrouter_api_key: str | None = None
     anthropic_api_key: str | None = None
     jwt_secret: str | None = None
+
+    @property
+    def database_url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    @property
+    def auth_database_url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}_auth"
+        )
+
+    @property
+    def test_database_url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}_test"
+        )
+
+    @property
+    def neo4j_uri(self) -> str:
+        return f"bolt://{self.neo4j_host}:{self.neo4j_bolt_port}"
+
+    @property
+    def neo4j_user(self) -> str:
+        return self.neo4j_auth.split("/", 1)[0]
+
+    @property
+    def neo4j_password(self) -> str:
+        return self.neo4j_auth.split("/", 1)[1]
+
+    @property
+    def elasticsearch_url(self) -> str:
+        return f"http://{self.elasticsearch_host}:{self.elasticsearch_port}"
+
+    @property
+    def s3_endpoint(self) -> str:
+        return f"http://{self.s3_host}:{self.s3_port}"
+
+    @property
+    def s3_access_key(self) -> str:
+        return self.minio_root_user
+
+    @property
+    def s3_secret_key(self) -> str:
+        return self.minio_root_password
 
 
 settings = Settings()  # type: ignore[call-arg]

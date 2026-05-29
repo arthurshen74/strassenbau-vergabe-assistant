@@ -10,7 +10,12 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def health(engine: AsyncEngine = Depends(get_engine)) -> dict[str, str]:
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@router.get("/health/db")
+async def health_db(engine: AsyncEngine = Depends(get_engine)) -> dict[str, str]:
     async with engine.connect() as conn:
         result = await conn.execute(text("SELECT 1"))
         result.scalar_one()

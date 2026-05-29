@@ -2,19 +2,23 @@ services:
   postgres:
     image: postgres:latest
     container_name: ai2-postgres
-    environment:
-      POSTGRES_USER: roadbuilders
-      POSTGRES_PASSWORD: roadbuilders
-      POSTGRES_DB: roadbuilders
+    env_file:
+      - ../.env
     ports:
       - '5432:5432'
     volumes:
       - ./data/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
   neo4j:
     image: neo4j:latest
     container_name: ai2-neo4j
+    env_file:
+      - ../.env
     environment:
-      NEO4J_AUTH: neo4j/hallo_ai2
       NEO4J_PLUGINS: '["apoc"]'
     ports:
       - '7474:7474'
@@ -47,11 +51,91 @@ services:
     image: minio/minio
     container_name: ai2-minio
     command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: roadbuilders
-      MINIO_ROOT_PASSWORD: roadbuilders
+    env_file:
+      - ../.env
     ports:
       - '9000:9000'
       - '9001:9001'
     volumes:
       - ./data/minio:/data
+  api:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    container_name: ai2-api
+    command:
+      - sh
+      - -c
+      - >
+        python -m scripts.bootstrap_dbs &&
+        python -m scripts.bootstrap_storage &&
+        uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_HOST: postgres
+      NEO4J_HOST: neo4j
+      ELASTICSEARCH_HOST: elasticsearch
+      S3_HOST: minio
+    ports:
+      - '8000:8000'
+    volumes:
+      - ../server:/app/server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/db')\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+  worker:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    container_name: ai2-worker
+    command: ['python', '-m', 'worker.main']
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_HOST: postgres
+      NEO4J_HOST: neo4j
+      ELASTICSEARCH_HOST: elasticsearch
+      S3_HOST: minio
+    volumes:
+      - ../server:/app/server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_started
+  ui:
+    build:
+      context: ../ui
+      dockerfile: Dockerfile
+    container_name: ai2-ui
+    environment:
+      VITE_API_PROXY_TARGET: http://api:8000
+    ports:
+      - '5173:5173'
+    volumes:
+      - ../ui:/app
+      - /app/node_modules
+    depends_on:
+      api:
+        condition: service_started
