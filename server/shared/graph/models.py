@@ -1,191 +1,152 @@
-"""Pydantic models for graph nodes.
+"""Pydantic models for the Neo4j construction knowledge graph.
 
-These models are the application-layer schema enforcement for the
-case-preparation knowledge graph. Neo4j Community Edition only enforces
-uniqueness constraints natively, so all other invariants from the ontology
-(id patterns, enum membership, embedding dimensions, date ordering) are
-enforced here, on the write path, before any Cypher executes.
-
-Canonical schema lives in plans/ontology.md.
+These are the write-path schema enforcement for the graph nodes: Neo4j Community
+enforces only uniqueness natively, so all other invariants (enum membership,
+embedding dimension, page-range ordering) are validated here before any Cypher
+runs. Canonical schema: docs/DATA_MODEL.md §7. Node ids (project_uuid,
+document_id, oz, chunk_id) are stored as strings in Neo4j; the UUID-typed,
+embedding-free domain models live under shared/domain/.
 """
 
 from __future__ import annotations
 
-import re
-from datetime import date, datetime
-from typing import Literal
+from decimal import Decimal
+from enum import StrEnum
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-EMBEDDING_DIM = 384
-
-DocumentType = Literal[
-    "Klageschrift",
-    "Klageerweiterung",
-    "Klageerwiderung",
-    "Replik",
-    "Schriftsatz",
-    "Beschluss",
-    "Protokoll",
-    "Anlage",
-]
-
-FilingParty = Literal["plaintiff", "defendant", "court"]
-
-Classification = Literal[
-    "factual", "legal", "rhetorical", "procedural", "evidentiary"
-]
-_CLASSIFICATION_VALUES: frozenset[str] = frozenset(Classification.__args__)  # type: ignore[attr-defined]
-
-TemporalScope = Literal["specific_date", "period", "undated"]
-
-SubstantiationStatus = Literal["substantiated", "unsubstantiated", "partial"]
+from shared.config import settings
 
 
-_PARA_ID_RE = re.compile(r"^(?P<doc>.+)_p(?P<page>\d+)_para(?P<para>\d+)$")
-_ASSERTION_ID_RE = re.compile(r"^(?P<para>.+)_assertion_(?P<n>\d+)$")
+class PositionsTyp(StrEnum):
+    NORMAL = "normal"
+    BEDARF = "bedarf"
+    WAHL = "wahl"
+    ZULAGE = "zulage"
+    PAUSCHAL = "pauschal"
+
+
+class ChunkType(StrEnum):
+    SIMPLE = "simple"
+    PROSE = "prose"
+
+
+def _check_embedding_dim(v: list[float] | None) -> list[float] | None:
+    if v is not None and len(v) != settings.embedding_dim:
+        raise ValueError(
+            f"embedding must have dimension {settings.embedding_dim}, got {len(v)}"
+        )
+    return v
+
+
+Embedding = Annotated[list[float] | None, AfterValidator(_check_embedding_dim)]
+
+
+def _check_page_range(start: int, end: int) -> None:
+    if end < start:
+        raise ValueError(
+            f"page_number_end ({end}) must be >= page_number_start ({start})"
+        )
+
+
+class Project(BaseModel):
+    """Graph anchor; Postgres `projects` is the identity record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_uuid: str
 
 
 class Document(BaseModel):
-    """A Schriftsatz (legal filing) or source evidence document."""
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    project_uuid: str
+    document_kind: str
+    total_pages: int = Field(ge=1)
+
+
+class Page(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    project_uuid: str
+    page_number: int = Field(ge=1)
+
+
+class Section(BaseModel):
+    """Heading/group node shared by both ingest paths; keyed on `oz`."""
 
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    document_type: DocumentType
-    filing_date: date
-    filing_party: FilingParty
-    aktenzeichen: str
-
-    author_firm: str | None = None
-    total_pages: int | None = Field(default=None, ge=1)
-    source_file: str | None = None
-    ingested_at: datetime | None = None
-
-    @classmethod
-    def build_id(cls, document_type: str, filing_date: date) -> str:
-        return f"{document_type.lower()}_{filing_date.strftime('%Y_%m_%d')}"
-
-    @model_validator(mode="after")
-    def _check_id_matches_pattern(self) -> Document:
-        expected = self.build_id(self.document_type, self.filing_date)
-        if self.id != expected:
-            raise ValueError(
-                f"Document.id {self.id!r} does not match required pattern "
-                f"{{document_type_lower}}_{{yyyy_mm_dd}}; expected {expected!r}"
-            )
-        return self
-
-    @model_validator(mode="after")
-    def _check_filing_before_ingest(self) -> Document:
-        if self.ingested_at is not None and self.filing_date > self.ingested_at.date():
-            raise ValueError(
-                f"filing_date {self.filing_date} must be on or before "
-                f"ingested_at {self.ingested_at.date()}"
-            )
-        return self
+    document_id: str
+    project_uuid: str
+    oz: str
+    title: str
+    level: int = Field(ge=1)
 
 
-class Paragraph(BaseModel):
-    """A numbered paragraph within a Schriftsatz."""
-
+class LVItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    page: int = Field(ge=1)
-    paragraph: int = Field(ge=1)
-    text_de: str
-
-    text_en: str | None = None
-    position: int | None = Field(default=None, ge=1)
-    substantiated: bool | None = None
-    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-    embedding: list[float] | None = None
-
-    @classmethod
-    def build_id(cls, document_id: str, page: int, paragraph: int) -> str:
-        return f"{document_id}_p{page}_para{paragraph}"
+    document_id: str
+    project_uuid: str
+    oz: str
+    kurztext: str
+    langtext: str
+    menge: Decimal | None = None
+    einheit: str | None = None
+    positionstyp: PositionsTyp
+    level: int = Field(ge=1)
+    stl_nr: str | None = None
+    page_number_start: int = Field(ge=1)
+    page_number_end: int = Field(ge=1)
+    ordinal: int = Field(ge=0)
+    embedding: Embedding = None
 
     @model_validator(mode="after")
-    def _check_id_matches_pattern(self) -> Paragraph:
-        m = _PARA_ID_RE.match(self.id)
-        if m is None:
-            raise ValueError(
-                f"Paragraph.id {self.id!r} does not match pattern "
-                f"{{document_id}}_p{{page}}_para{{paragraph}}"
-            )
-        if int(m["page"]) != self.page or int(m["para"]) != self.paragraph:
-            raise ValueError(
-                f"Paragraph.id {self.id!r} disagrees with "
-                f"(page={self.page}, paragraph={self.paragraph})"
-            )
+    def _validate_page_range(self) -> LVItem:
+        _check_page_range(self.page_number_start, self.page_number_end)
         return self
 
-    @field_validator("embedding")
-    @classmethod
-    def _check_embedding_dim(cls, v: list[float] | None) -> list[float] | None:
-        if v is not None and len(v) != EMBEDDING_DIM:
-            raise ValueError(
-                f"embedding must have dimension {EMBEDDING_DIM}, got {len(v)}"
-            )
-        return v
 
-
-class Assertion(BaseModel):
-    """An atomic claim extracted from a Paragraph (factual, legal, evidentiary, …)."""
-
+class SimpleChunk(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    assertion_text: str
-
-    assertion_text_en: str | None = None
-    classification: str | None = None
-    temporal_scope: TemporalScope | None = None
-    temporal_value: date | str | None = None
-    is_negative: bool | None = None
-    substantiation_status: SubstantiationStatus | None = None
-    embedding: list[float] | None = None
-    extracted_at: datetime | None = None
-    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-
-    @classmethod
-    def build_id(cls, paragraph_id: str, n: int) -> str:
-        if n < 1:
-            raise ValueError("assertion index n must be >= 1")
-        return f"{paragraph_id}_assertion_{n}"
+    chunk_id: str
+    document_id: str
+    project_uuid: str
+    text: str
+    page_number_start: int = Field(ge=1)
+    page_number_end: int = Field(ge=1)
+    ordinal: int = Field(ge=0)
+    start_index: int = Field(ge=0)
+    embedding: Embedding = None
 
     @model_validator(mode="after")
-    def _check_id_matches_pattern(self) -> Assertion:
-        m = _ASSERTION_ID_RE.match(self.id)
-        if m is None or int(m["n"]) < 1:
-            raise ValueError(
-                f"Assertion.id {self.id!r} does not match pattern "
-                f"{{paragraph_id}}_assertion_{{n}} (n >= 1)"
-            )
+    def _validate_page_range(self) -> SimpleChunk:
+        _check_page_range(self.page_number_start, self.page_number_end)
         return self
 
-    @field_validator("classification")
-    @classmethod
-    def _check_classification_values(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        tokens = [t.strip() for t in v.split(";")]
-        if not tokens or any(not t for t in tokens):
-            raise ValueError("classification has empty tokens")
-        bad = [t for t in tokens if t not in _CLASSIFICATION_VALUES]
-        if bad:
-            raise ValueError(
-                f"classification tokens not allowed: {bad}; "
-                f"allowed={sorted(_CLASSIFICATION_VALUES)}"
-            )
-        return v
 
-    @field_validator("embedding")
-    @classmethod
-    def _check_embedding_dim(cls, v: list[float] | None) -> list[float] | None:
-        if v is not None and len(v) != EMBEDDING_DIM:
-            raise ValueError(
-                f"embedding must have dimension {EMBEDDING_DIM}, got {len(v)}"
-            )
-        return v
+class ProseChunk(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    chunk_id: str
+    document_id: str
+    project_uuid: str
+    text: str
+    page_number_start: int = Field(ge=1)
+    page_number_end: int = Field(ge=1)
+    ordinal: int = Field(ge=0)
+    section_oz: str
+    heading: str
+    breadcrumb: str
+    part: int = Field(ge=0)
+    embedding: Embedding = None
+
+    @model_validator(mode="after")
+    def _validate_page_range(self) -> ProseChunk:
+        _check_page_range(self.page_number_start, self.page_number_end)
+        return self

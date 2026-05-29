@@ -19,5 +19,24 @@ class Settings(BaseSettings):
     auth_database_url: str
     test_database_url: str
 
+    embedding_model: str = "openai/text-embedding-3-small"
+    embedding_dim: int = 512
+
+    neo4j_uri: str | None = None
+    neo4j_user: str | None = None
+    neo4j_password: str | None = None
+
+    elasticsearch_url: str | None = None
+    elasticsearch_index: str = "roadbuilders_text"
+
+    s3_endpoint: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: str | None = None
+    s3_bucket: str = "roadbuilders"
+
+    openrouter_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    jwt_secret: str | None = None
+
 
 settings = Settings()  # type: ignore[call-arg]

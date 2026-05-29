@@ -2,6 +2,8 @@ from . import document_thumbnails  # noqa: F401
 from . import eval_items  # noqa: F401
 from . import eval_results  # noqa: F401
 from . import eval_test_sets  # noqa: F401
+from . import ingest_job_events  # noqa: F401
+from . import ingest_jobs  # noqa: F401
 from . import project_document_types  # noqa: F401
 from . import project_documents  # noqa: F401
 from . import projects  # noqa: F401
