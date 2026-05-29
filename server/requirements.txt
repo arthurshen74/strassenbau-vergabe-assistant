@@ -11,3 +11,11 @@ uvicorn[standard]
 pytest
 pytest-asyncio
 httpx
+neo4j
+elasticsearch
+openai
+langchain-core
+langchain-text-splitters
+pdfplumber
+ragas
+boto3
