@@ -44,8 +44,8 @@ The system has five functional surfaces.
 A project corresponds to one tender. Creating a project means establishing a per-project knowledge base into which the tender documents are ingested. The system ingests three categories of input:
 
 - **GAEB structured exchange files** (D83, X83) — the machine-readable form of the Leistungsverzeichnis. These are parsed into structured LV items carrying OZ (Ordnungszahl), Kurztext, Langtext, Menge, Einheit, and Positionstyp.
-- **LV PDFs** — the contractually binding human-readable form of the Leistungsverzeichnis. These are extracted using a vision model so that the structured GAEB items can be linked back to the page they originate from.
-- **Prose documents** (Baubeschreibung, Vertragsbedingungen, Besondere Vertragsbedingungen, ZTV, Vorzulegende Unterlagen, and similar) — ingested with a default prose pipeline that decomposes each document into paragraph and table units and downstream assertions or facts.
+- **LV PDFs** — the contractually binding human-readable form of the Leistungsverzeichnis. These are parsed deterministically from the embedded PDF text layer (pdfplumber), with vision used only as a fallback for pages that lack a usable text layer; each LV Position is linked back to its source page.
+- **Prose documents** (Baubeschreibung, Vertragsbedingungen, Besondere Vertragsbedingungen, ZTV, Vorzulegende Unterlagen, and similar) — ingested with a default prose pipeline that decomposes each document into two parallel chunk sets (`SimpleChunk`, fixed-size; and `ProseChunk`, section-aware). Paragraph/assertion extraction is deferred to a later sprint.
 
 Project metadata is tracked as a separate, evolving artifact and currently includes at minimum the Vergabe-ID, Auftraggeber, location, Abgabetermin, estimated value, project status, and owning user. The schema is allowed to grow over time.
 
@@ -83,7 +83,7 @@ Every LLM call in the system — vision extraction during ingest, paragraph-to-a
 
 ## Knowledge Representation, at a Glance
 
-The system uses two stores. Neo4j holds the **knowledge graph**: documents, their internal structure, and the relationships between elements. LV items are first-class nodes carrying their structured GAEB attributes; sibling edges (`next_item`, `prev_item`) form a doubly-linked traversal of the LV in original order, and source edges link each item to its corresponding page in the LV PDF. Prose documents decompose into paragraph and table nodes and downstream assertion or fact nodes, with cross-document edges where references warrant.
+The system uses two stores. Neo4j holds the **knowledge graph**: documents, their internal structure, and the relationships between elements. LV items are first-class nodes carrying their structured GAEB attributes; sibling edges (`next_item`, `prev_item`) form a doubly-linked traversal of the LV in original order, and source edges link each item to its corresponding page in the LV PDF. Prose documents decompose into `SimpleChunk` and `ProseChunk` nodes; paragraph/assertion nodes and cross-document reference edges are deferred to a later sprint.
 
 Postgres holds the **operational data**: project metadata, conversation history, token-usage and cost logs, eval records and run results, and the Prompt Library. Identity (users, roles, OAuth clients, refresh tokens) lives in a separate Postgres database owned by the `auth/` service and is never queried directly by the rest of the system — user identity flows in via OAuth2 tokens.
 
@@ -95,7 +95,7 @@ The capabilities listed below are committed in the noted phase. Anything not lis
 
 ### Current Sprint (Sprint 2)
 
-- Ingest D83 and X83 GAEB files, LV PDFs (vision extraction), and prose tender documents
+- Ingest D83 and X83 GAEB files, LV PDFs (deterministic text extraction, vision fallback), and prose tender documents
 - Per-project knowledge base in Neo4j and Postgres
 - RAG chat with page-level retrieval and page-level source citations
 - Three tools: LV Item Lookup, Ingest Project, Add Document to Project
@@ -151,6 +151,7 @@ Single-tenant. Each contracting company runs its own instance. There is no multi
 
 - `docs/GLOSSARY.md` — German construction-domain terms used throughout (LV, GAEB, ZTV, OZ, Vergabe, Auftraggeber, Bauleiter, Kalkulator, Bautagebuch, and others)
 - `docs/ARCHITECTURE.md` — system design, data models, ingestion pipelines, retrieval strategy, deployment topology
+- `docs/DATA_MODEL.md` — the canonical data model: entity names, fields, types, enums, and cross-store identity (the source of truth coding agents build against)
 - `docs/DATA_LAYER_ARCHITECTURE.md` — SQLAlchemy Core + Pydantic implementation guide for the Postgres data layer
 - `docs/ORM_OPTIONS.md` — comparison of ORM / Core / SQLModel / Tortoise / roll-your-own that drove the data-layer choice
 - `CLAUDE.local.md` — instructions and conventions for AI coding agents working on this codebase
