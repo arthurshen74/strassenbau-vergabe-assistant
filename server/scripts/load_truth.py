@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
+from shared.config import settings
 from shared.db.engine import make_engine
 from shared.domain.eval_item import AnswerType, NewEvalItem, TestType
 from shared.domain.project import NewProject
@@ -22,15 +22,6 @@ from shared.repositories.questions import QuestionRepository
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = REPO_ROOT / "docs" / "eval" / "truth.json"
 DEFAULT_PROJECTS = REPO_ROOT / "docs" / "eval" / "projects.json"
-ENV_FILE = REPO_ROOT / ".env"
-
-
-class LoaderConfig(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore", case_sensitive=False
-    )
-
-    database_url: str
 
 CATEGORY_MAP = {"Calculator": QuestionCategory.CALCULATOR, "Bauleiter": QuestionCategory.BAULEITER}
 TYPE_MAP = {
@@ -288,9 +279,8 @@ async def main() -> None:
     projects_list: list[dict[str, Any]] = json.loads(args.projects.read_text(encoding="utf-8"))
     projects_meta = {p["project_id"]: p for p in projects_list}
 
-    config = LoaderConfig()  # type: ignore[call-arg]
     engine: AsyncEngine = make_engine(
-        config.database_url, pool_size=2, application_name="load-truth"
+        settings.database_url, pool_size=2, application_name="load-truth"
     )
     try:
         if args.dry_run:
