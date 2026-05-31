@@ -1,0 +1,32 @@
+QuestionID,ProjectId,QuestionCategory,QuestionType,Question
+Q01,CATALOG,Calculator,Lookup,When is the bid for this project due?
+Q02,CATALOG,Calculator,Lookup,What is the Eröffnungstermin (bid opening date and time)?
+Q03,CATALOG,Calculator,Lookup,Until when is the Bindefrist (bid validity period)?
+Q04,CATALOG,Calculator,Lookup,What is the Ausführungsbeginn (project start date)?
+Q05,CATALOG,Calculator,Lookup,What is the Vollendungsfrist (project completion date)?
+Q06,CATALOG,Calculator,Lookup,Are there Zwischenfristen (interim deadlines)? If so, list them.
+Q07,CATALOG,Calculator,Lookup,Which documents must be submitted with the bid?
+Q08,CATALOG,Calculator,ConstraintSurfacing,Sind Nebenangebote zugelassen?
+Q09,CATALOG,Calculator,ConstraintSurfacing,Sind Bietergemeinschaften zugelassen?
+Q10,CATALOG,Calculator,Lookup,"What are the Wertungskriterien (award criteria) — price only, or weighted across criteria?"
+Q11,CATALOG,Calculator,ConstraintSurfacing,Is a price calculation required for the bid?
+Q12,CATALOG,Calculator,Lookup,"If a price calculation is required, what form is required?"
+Q13,CATALOG,Calculator,Aggregation,What is the total m² of asphalt Deckschicht across all positions?
+Q14,CATALOG,Calculator,Aggregation,What is the total m³ of Erdarbeiten across all positions?
+Q15,CATALOG,Calculator,Lookup,How many positions does the LV contain?
+Q16,CATALOG,Calculator,Lookup,What asphalt mix is specified for the Deckschicht?
+Q17,CATALOG,Calculator,Lookup,What is the specified Einbaudicke (lift thickness) for the Binderschicht?
+Q18,CATALOG,Calculator,ConstraintSurfacing,Are there Eventualpositionen or Wahlpositionen in the LV?
+Q19,CATALOG,Calculator,Lookup,What is the Vertragsstrafe per day of delay?
+Q20,CATALOG,Calculator,Lookup,What is the Sicherheitsleistung — amount and form?
+Q21,CATALOG,Calculator,Lookup,What is the duration of the Mängelansprüche (warranty period) in years?
+Q22,CATALOG,Calculator,Lookup,Which ZTV documents apply to this project?
+Q23,CATALOG,Calculator,Aggregation,Please list the BVB set by the Vergabestelle.
+Q24,CATALOG,Bauleiter,ConstraintSurfacing,Are there working-hour restrictions?
+Q25,CATALOG,Bauleiter,Lookup,"Is the Verkehrssicherung provided by the Auftraggeber, or at the contractor's cost?"
+Q26,CATALOG,Bauleiter,Lookup,"Are Lagerflächen for materials provided, or is the contractor responsible?"
+Q27,CATALOG,Bauleiter,ConstraintSurfacing,Are Sondernutzungserlaubnisse required?
+Q28,CATALOG,Bauleiter,ConstraintSurfacing,"Are there protected utilities, trees, or environmental restrictions adjacent to the work zone?"
+Q29,CATALOG,Calculator,CrossDocConditional,Does the LV include explicit positions for the Verkehrssicherung referenced in the BVB?
+Q30,CATALOG,Calculator,CrossDocConditional,Does the asphalt mix specified in the Baubeschreibung match the ZTV reference cited?
+Q31,CATALOG,Bauleiter,MultiHop,"Given the Ausführungsfristen and any Witterungsregelung, what is the effective number of working days available?"

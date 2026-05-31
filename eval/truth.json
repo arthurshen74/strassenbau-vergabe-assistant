@@ -1,0 +1,1561 @@
+[
+  {
+    "QuestionID": "Q01",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "When is the bid for this project due?",
+    "answer": "The bid (Angebotsfrist) is due on 02.06.2026 at 13:00 Uhr.",
+    "context": ["P22039_HVA_111.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q02",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What is the Eröffnungstermin (bid opening date and time)?",
+    "answer": "There is no Eröffnungstermin (opening ceremony). Instead, an Öffnungstermin (electronic opening) is specified: 02.06.2026 at 13:00 Uhr.",
+    "context": ["P22039_HVA_111.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q03",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "Until when is the Bindefrist (bid validity period)?",
+    "answer": "The Bindefrist (bid validity period) ends on 24.06.2026.",
+    "context": ["P22039_HVA_111.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q04",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What is the Ausführungsbeginn (project start date)?",
+    "answer": "The project start date (Ausführungsbeginn) is 31.08.2026 (spätestens).",
+    "context": ["P22039_HVA_131.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q05",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What is the Vollendungsfrist (project completion date)?",
+    "answer": "The project completion date (Vollendung der Ausführung) is 16.10.2026.",
+    "context": ["P22039_HVA_131.pdf::Seite_1", "P22039_BB.pdf::Seite_3"]
+  },
+  {
+    "QuestionID": "Q06",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "Are there Zwischenfristen (interim deadlines)? If so",
+    "answer": "No Zwischenfristen (interim deadlines) are specified in the contract documents. The Besondere Vertragsbedingungen (BVB) document only specifies two dates: a fixed start date (Beginn der Ausführung) of 31.08.2026 and a fixed completion date (Vollendung der Ausführung) of 16.10.2026. The fields for individual Einzelfristen (1.2.1–1.2.5 and 1.3.1–1.3.5) and Einzelfristen für Verkehrsbeschränkungen (1.4.1–1.4.5) are all left blank.",
+    "context": ["P22039_HVA_131.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q07",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "Which documents must be submitted with the bid?",
+    "answer": "The following documents must be submitted with the bid (Abschnitt 1 of the Vorzulegende Unterlagen):\n\n**Mit der Aufforderung zur Angebotsabgabe übersandte Vordrucke / Formblätter:**\n- HVA B-StB Angebotsschreiben (for each main offer separately)\n- HVA B-StB Unterauftrag-/Nachunternehmerleistungen (if subcontractors are planned)\n- HVA B-StB Erklärung Bieter-/Arbeitsgemeinschaft (if the offer is submitted by a bidding consortium)\n- Angebots-LV als DA84, verpreistes LV als PDF-Datei\n- Baustoffverzeichnis, EFB Preis 1 oder 2, Bieterangabenverzeichnis\n\n**Unternehmensbezogene Unterlagen:**\n- HVA B-StB Eigenerklärung zur Eignung (if no PQ number is available or PQ qualification is not applicable), alternatively Einheitliche Europäische Eigenerklärung\n\n**Leistungsbezogene Unterlagen:**\n- Leistungsverzeichnis/Leistungsprogramm mit den Preisen\n- Produktangaben für Position 01.04.0004\n\n**Sonstige Unterlagen:**\n- Bauablaufplan & Einbautechnologie für die Durchführung der Bauarbeiten",
+    "context": ["P22039_HVA_101.pdf::Seite_1", "P22039_HVA_101.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q08",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P22039",
+    "question": "Sind Nebenangebote zugelassen?",
+    "answer": "Nein, Nebenangebote sind nicht zugelassen.",
+    "context": ["P22039_BB.pdf::Seite_9", "P22039_HVA_111.pdf::Seite_3"]
+  },
+  {
+    "QuestionID": "Q09",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P22039",
+    "question": "Sind Bietergemeinschaften zugelassen?",
+    "answer": "Ja, Bietergemeinschaften sind zugelassen. Mit dem Angebot ist das Formblatt 'HVA B-StB Erklärung Bieter-/Arbeitsgemeinschaft' einzureichen, wenn das Angebot von einer Bietergemeinschaft abgegeben wird. Bei Abgabe mehrerer Hauptangebote ist das Formblatt für jedes Hauptangebot einer Bietergemeinschaft gesondert einzureichen.",
+    "context": ["P22039_HVA_111.pdf::Seite_1", "P22039_HVA_101.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q10",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What are the Wertungskriterien (award criteria) — price only, or weighted across criteria?",
+    "answer": "Price only (Zuschlagskriterium Preis). The award is based solely on the evaluated bid price (Wertungssumme), which is derived from the recalculated offer sum, taking into account any more favourable base or optional positions, monetised award criteria, and any unconditional discounts. There are no multiple weighted criteria; the checkbox for 'Mehrere Zuschlagskriterien gemäß Vorlage HVA B-StB Gewichtung der Zuschlagskriterien' is NOT checked.",
+    "context": ["P22039_HVA_111.pdf::Seite_3"]
+  },
+  {
+    "QuestionID": "Q11",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P22039",
+    "question": "Is a price calculation required for the bid?",
+    "answer": "Yes, a price calculation (Preisermittlung) is required for the bid. Specifically, the bidder must submit a 'Baustoffverzeichnis, EFB Preis 1 oder 2, Bieterangabenverzeichnis' (materials list, price calculation form EFB Price 1 or 2, and bidder information list) together with the offer. Additionally, the priced bill of quantities (verpreistes LV als PDF-Datei) must be submitted with the bid.",
+    "context": [
+      "P22039_HVA_111.pdf::Seite_1",
+      "P22039_HVA_111.pdf::Seite_2",
+      "P22039_HVA_101.pdf::Seite_1"
+    ]
+  },
+  {
+    "QuestionID": "Q12",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "If a price calculation is required, what form is required?",
+    "answer": "EFB Preis 1 oder 2 (Einheitspreisformblatt). The bidder must submit either EFB Preis 1 or EFB Preis 2 along with the Baustoffverzeichnis and Bieterangabenverzeichnis.",
+    "context": ["P22039_HVA_101.pdf::Seite_1", "P22039_HVA_111.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q13",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "P22039",
+    "question": "What is the total m² of asphalt Deckschicht across all positions?",
+    "answer": {
+      "text": "The total identified m² of Asphaltdeckschicht (asphalt surface course) across all positions is 23,617 m²",
+      "reasoning_note": "Section 01.04 'Asphaltarbeiten' contains the primary asphalt deck layer positions. The Asphaltdeckschicht AC 8 D S is installed as the upper layer of the Kompaktasphalt system (10 cm systemdicke). Additionally, section 00.04 contains small repair/control positions for Asphaltdeckschicht. The main positions are: 01.04.0009 (AC 8 D S, 7,800 m²), 01.04.0010 Abstumpfung (7,800 m² - same area, not additive as it is a surface treatment on the same deck), 01.04.0011 Kehren (7,800 m² - same area, not additive). For the Wegezufahrten section 01.05, there are small Gussasphalt deck positions (15 m²). In section 00.04 there are 2 m² repair positions. The distinct Asphaltdeckschicht areas are: 01.04.0009 AC 8 DS = 7,800 m²; 01.05.0005 MA 8 S Wegezufahrten = 15 m²; 00.04.0009 MA 8 S Kontrollprüfung = 2 m². The Abstumpfung (01.04.0010) and Kehren (01.04.0011) positions cover the same 7,800 m² area and are not separate deck layer areas. Note: LV1 and LV2 are identical documents with the same quantities.",
+      "identified_positions": [
+        {
+          "oz": "01.04.0009",
+          "category": "Asphaltarbeiten",
+          "description": "Asphaltdeckschicht aus Asphaltbeton AC 8 D S herstellen, Dicke = 2,5 cm, Einbau mit Beschicker, obere Schicht Kompaktasphalt heiß auf heiß, Belastungsklasse Bk1,8",
+          "quantity": 7800.0,
+          "unit": "m2",
+          "oz_metadata": {
+            "billing_type": "TA",
+            "system": "Kompaktasphalt Systemdicke 10 cm"
+          }
+        },
+        {
+          "oz": "01.05.0005",
+          "category": "Anpassung von Wegezufahrten",
+          "description": "Asphaltdeckschicht aus Gussasphalt MA 8 S herstellen, Einbaudicke 3,5 cm, Einbau von Hand, Wegezufahrten",
+          "quantity": 15.0,
+          "unit": "m2",
+          "oz_metadata": {
+            "billing_type": "TA"
+          }
+        },
+        {
+          "oz": "00.04.0009",
+          "category": "Hilfsleistungen, Kontrollprüfungen",
+          "description": "Asphaltdeckschicht aus Gussasphalt MA 8 S herstellen, Kontrollprüfungsflächen, Einbau von Hand",
+          "quantity": 2.0,
+          "unit": "m2",
+          "oz_metadata": {
+            "billing_type": "TA"
+          }
+        }
+      ],
+      "total": 7817.0,
+      "excluded_positions": [
+        "01.04.0010 (Abstumpfungsmaßnahme 7,800 m² - surface treatment on same deck area, not a separate layer)",
+        "01.04.0011 (Verkehrsfläche kehren 7,800 m² - sweeping of same deck area, not a separate layer)",
+        "01.08.0001 (Markierungsfläche reinigen 500 m² - marking preparation, not deck layer)",
+        "01.08.0002 (Markierungsfläche trocknen 500 m² - marking preparation, not deck layer)"
+      ],
+      "context": [
+        "P22039_LV1.pdf::Seite_42",
+        "P22039_LV1.pdf::Seite_43",
+        "P22039_LV1.pdf::Seite_45",
+        "P22039_LV1.pdf::Seite_27"
+      ]
+    },
+    "context": [
+      "P22039_LV1.pdf::Seite_42",
+      "P22039_LV1.pdf::Seite_43",
+      "P22039_LV1.pdf::Seite_45",
+      "P22039_LV1.pdf::Seite_27"
+    ]
+  },
+  {
+    "QuestionID": "Q14",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "P22039",
+    "question": "What is the total m³ of Erdarbeiten across all positions?",
+    "answer": {
+      "text": "The total identified m³ of Erdarbeiten (Bodenlösen/Aushub) across all positions is 260 m³",
+      "reasoning_note": "Section 01.03 is titled 'Erdarbeiten und Tragschichten'. Within it, two positions are true earthworks (Bodenlösen/Aushub): OZ 01.03.0001 (Boden aus Verbreiterungsstreifen lösen, 200 m³) and OZ 01.03.0007 (Boden aus Stützstreifen lösen, 60 m³). The remaining m³ positions in 01.03 (OZ 01.03.0004 and 01.03.0010) are Frostschutzschicht (bearing course / Tragschicht) positions, not true earthworks/excavation. Additionally, OZ 00.05.0003 (10 m³ Frostschutzschicht for bus diversion route) is also a Tragschicht, not Erdarbeiten. The Bankettarbeiten (OZ 01.00.0002, 500 m³ and OZ 01.00.0003, 100 m³) are categorized under 'Bankette und Böschungen', not Erdarbeiten. Only the two positions explicitly described as 'Boden lösen' from the Erdarbeiten section are counted.",
+      "identified_positions": [
+        {
+          "oz": "01.03.0001",
+          "category": "Erdarbeiten und Tragschichten",
+          "description": "Boden aus Verbreiterungsstreifen lösen (Bodenklasse 3–5, Tiefe ca. 18–20 cm, Abtragsbreite ≥ 0,50 m)",
+          "quantity": 200.0,
+          "unit": "m3",
+          "oz_metadata": {
+            "billing_type": "TA (nach Abtragsprofilen)"
+          }
+        },
+        {
+          "oz": "01.03.0007",
+          "category": "Erdarbeiten und Tragschichten",
+          "description": "Boden aus Stützstreifen lösen (Bodenklasse 3–5, Tiefe ca. 20 cm, Abtragsbreite ca. 0,30 m)",
+          "quantity": 60.0,
+          "unit": "m3",
+          "oz_metadata": {
+            "billing_type": "TA (nach Abtragsprofilen)"
+          }
+        }
+      ],
+      "total": 260.0,
+      "excluded_positions": [
+        "01.03.0004 – Frostschutzschicht Verbreiterungsstreifen (100 m³, Tragschicht)",
+        "01.03.0010 – Frostschutzschicht Stützstreifen (60 m³, Tragschicht)",
+        "00.05.0003 – Frostschutzschicht Busumleitungsstrecke (10 m³, Tragschicht)",
+        "01.00.0002 – Bankett abtragen (500 m³, Bankette und Böschungen)",
+        "01.00.0003 – Baustoff liefern und einbauen unter Banketten (100 m³, Bankette und Böschungen)"
+      ],
+      "context": [
+        "P22039_LV1.pdf::Seite_36",
+        "P22039_LV1.pdf::Seite_37",
+        "P22039_LV2.pdf::Seite_36",
+        "P22039_LV2.pdf::Seite_37"
+      ]
+    },
+    "context": [
+      "P22039_LV1.pdf::Seite_36",
+      "P22039_LV1.pdf::Seite_37",
+      "P22039_LV2.pdf::Seite_36",
+      "P22039_LV2.pdf::Seite_37"
+    ]
+  },
+  {
+    "QuestionID": "Q15",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "P22039",
+    "question": "How many positions does the LV contain?",
+    "answer": {
+      "text": "The LV (Leistungsverzeichnis) for project 22039 L101 Hordorf-Krottorf contains a total of 109 positions (OZ), distributed across the following sections:\n\n- 00.00 Baustelleneinrichtung: 4 positions (00.00.0001–00.00.0004)\n- 00.01 Hilfsleistungen und Sonstiges: 15 positions (00.01.0001–00.01.0015)\n- 00.02 Verkehrs- und Baustellensicherung: 9 positions (00.02.0001–00.02.0009)\n- 00.03 Umleitungsführungen: 34 positions (00.03.0001–00.03.0034)\n- 00.04 Hilfsleistungen, Kontrollprüfungen: 11 positions (00.04.0001–00.04.0011)\n- 00.05 Unterhaltung Busumleitungsstrecke: 3 positions (00.05.0001–00.05.0003)\n- 01.00 Bankette und Böschungen: 9 positions (01.00.0001–01.00.0009)\n- 01.01 Erschwernisse im Straßenbau: 2 positions (01.01.0001–01.01.0002)\n- 01.02 Fräs- und Aufbrucharbeiten: 10 positions (01.02.0001–01.02.0010)\n- 01.03 Erdarbeiten und Tragschichten: 10 positions (01.03.0001–01.03.0010)\n- 01.04 Asphaltarbeiten: 14 positions (01.04.0001–01.04.0014)\n- 01.05 Anpassung von Wegezufahrten: 14 positions (01.05.0001–01.05.0014)\n- 01.06 Demontage Ausstattung: 3 positions (01.06.0001–01.06.0003)\n- 01.07 Beschilderung: 2 positions (01.07.0001–01.07.0002)\n- 01.08 Fahrbahnmarkierung: 4 positions (01.08.0001–01.08.0004)\n\nTotal: 144 positions across all sections.",
+      "reasoning_note": "Counted all OZ numbers appearing in the LV document (P22039_LV1.pdf / P22039_LV2.pdf). Both LV files contain identical content. The count is based on all numbered positions (OZ) listed in the Langtext-/Preis-Verzeichnis.",
+      "identified_positions": null,
+      "total": 144.0,
+      "excluded_positions": null,
+      "context": [
+        "P22039_LV1.pdf::Seite_3",
+        "P22039_LV1.pdf::Seite_53",
+        "P22039_LV2.pdf::Seite_2",
+        "P22039_LV2.pdf::Seite_53"
+      ]
+    },
+    "context": [
+      "P22039_LV1.pdf::Seite_2",
+      "P22039_LV1.pdf::Seite_53",
+      "P22039_LV2.pdf::Seite_2",
+      "P22039_LV2.pdf::Seite_53"
+    ]
+  },
+  {
+    "QuestionID": "Q16",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What asphalt mix is specified for the Deckschicht?",
+    "answer": "The asphalt mix specified for the Deckschicht (surface course) is AC 8 DS 45/80-50 A, with an installation thickness of 2.5 cm, installed as the upper layer of a compact asphalt (Kompaktasphalt) system with a total system thickness of 10 cm.",
+    "context": ["P22039_BB.pdf::Seite_4", "P22039_LV1.pdf::Seite_42"]
+  },
+  {
+    "QuestionID": "Q17",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What is the specified Einbaudicke (lift thickness) for the Binderschicht?",
+    "answer": "The specified Einbaudicke (lift thickness) for the Asphaltbinderschicht (AC 16 BS 45/80-50 A) is 7.5 cm. It is installed as the lower layer of the compact asphalt pavement (Kompaktasphalt) with a total system thickness of 10 cm.",
+    "context": ["P22039_BB.pdf::Seite_4", "P22039_LV1.pdf::Seite_42"]
+  },
+  {
+    "QuestionID": "Q18",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P22039",
+    "question": "Are there Eventualpositionen or Wahlpositionen in the LV?",
+    "answer": "No, there are no Eventualpositionen (contingency positions) or Wahlpositionen (alternative positions) in the LV. All positions in the Leistungsverzeichnis (LV) are standard positions (Grundpositionen). Some positions are marked with 'TA' (Tatsächlicher Aufwand / actual effort billing), but none are designated as Eventual- or Wahlpositionen.",
+    "context": [
+      "P22039_LV1.pdf::Seite_1",
+      "P22039_LV1.pdf::Seite_2",
+      "P22039_LV2.pdf::Seite_1",
+      "P22039_LV2.pdf::Seite_2"
+    ]
+  },
+  {
+    "QuestionID": "Q19",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What is the Vertragsstrafe per day of delay?",
+    "answer": "The Vertragsstrafe (contractual penalty) is 0.2% per Werktag (working day) of the Auftragssumme (netto) as stated in the Zuschlagsschreiben, for exceeding the Frist für die Vollendung der Ausführung (completion deadline). The total sum of all Vertragsstrafen is capped at 5% of the net contract sum.",
+    "context": ["P22039_HVA_131.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q20",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What is the Sicherheitsleistung — amount and form?",
+    "answer": "There are two types of Sicherheitsleistung (security deposits) specified in the Besondere Vertragsbedingungen:\n\n1. **Sicherheit für die Vertragserfüllung (Performance Security):** 5 % of the Auftragssumme (inkl. Umsatzsteuer, ohne Nachträge). Form: Bürgschaft using the formblatt 'HVA B-StB Vertragserfüllungsbürgschaft'.\n\n2. **Sicherheit für Mängelansprüche (Defect Liability Security):** 3 % of the Abrechnungssumme (inkl. Umsatzsteuer) at the time of acceptance (Abnahme), to be maintained until the end of the warranty period. Form: Bürgschaft using the formblatt 'HVA B-StB Mängelanspruchsbürgschaft'.",
+    "context": ["P22039_HVA_131.pdf::Seite_1", "P22039_HVA_131.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q21",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "What is the duration of the Mängelansprüche (warranty period) in years?",
+    "answer": "The warranty period (Mängelansprüche) depends on the type of work:\n\n1. **Deckenerneuerung 4 cm**: 2 Jahre\n2. **Asphaltbinder und -deckschicht, Systemdicke 10 cm** (mehr als 8,50 cm und kleiner als 11,5 cm): 4 Jahre\n\nAdditionally, for **Bankette einschließlich Rasenansaat**: mindestens 2 Jahre (per Baubeschreibung).\n\nThe security for Mängelansprüche (Mängelanspruchsbürgschaft) amounts to 3% of the Abrechnungssumme inkl. Umsatzsteuer zum Zeitpunkt der Abnahme.",
+    "context": ["P22039_BB.pdf::Seite_30", "P22039_HVA_131.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q22",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "Which ZTV documents apply to this project?",
+    "answer": "The following ZTV (Zusätzliche Technische Vertragsbedingungen) documents apply to this project:\n\n1. ZTV-StB LSBB 2021 (primary, overarching)\n2. ZTV Asphalt-StB, Ausgabe 2007, Fassung 2013, Änderung Juli 2014\n3. ZTV E-StB 17, Ausgabe 2017\n4. ZTV La-StB 18, Ausgabe 2018\n5. ZTV Beton-StB 07, Ausgabe 2007, Änderung März 2013\n6. ZTV M 13, Ausgabe 2013, Änderung Mai 2016\n7. ZTV SoB-StB 20, Ausgabe 2020\n8. ZTV A-StB 12, Ausgabe 2012, Änderung Juli 2013\n9. ZTV Ew-StB 14, Ausgabe 2014\n10. ZTV Pflaster-StB 06, Ausgabe 2020\n11. ZTV-LW 16, Ausgabe 2016\n12. ZTV-ING, Fassung 04/2019\n13. ZTV-SA 97, Ausgabe 1997, Änderung März 2016\n14. ZTV Verm-StB 01, Ausgabe 2001\n15. ZTV Fug-StB 15, Ausgabe 2015\n16. ZTV FRS 13, Ausgabe 2013",
+    "context": ["P22039_BB.pdf::Seite_29"]
+  },
+  {
+    "QuestionID": "Q23",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "P22039",
+    "question": "Please list the BVB set by the Vergabestelle.",
+    "answer": "The Besondere Vertragsbedingungen (BVB) set by the Vergabestelle are as follows:\n\n1. **Vertragsfristen (§ 5 VOB/B):**\n   - Beginn der Ausführung: Spätestens am 31.08.2026\n   - Vollendung der Ausführung: Spätestens am 16.10.2026\n\n2. **Vertragsstrafen (§ 11 VOB/B):**\n   - Bei Überschreitung der Frist für die Vollendung der Ausführung: 0,2 % je Werktag der im Zuschlagsschreiben genannten Auftragssumme (netto)\n   - Gesamtbegrenzung der Vertragsstrafen auf 5 % der Netto-Auftragssumme\n\n3. **Zahlung (§ 16 VOB/B):**\n   - Frist für die Schlusszahlung und Eintritt des Verzugs: 30 Kalendertage\n\n4. **Sicherheit für die Vertragserfüllung (§ 17 VOB/B):**\n   - 5 % der Auftragssumme (inkl. Umsatzsteuer, ohne Nachträge)\n\n5. **Sicherheit für Mängelansprüche (§ 17 VOB/B):**\n   - 3 % der Abrechnungssumme inkl. Umsatzsteuer zum Zeitpunkt der Abnahme; bis zum Ablauf der Verjährungsfrist für Mängelansprüche\n\n6. **Bürgschaften:**\n   - Vertragserfüllung: Formblatt 'HVA B-StB Vertragserfüllungsbürgschaft'\n   - Mängelansprüche: Formblatt 'HVA B-StB Mängelanspruchsbürgschaft'\n   - Vorauszahlungen/Abschlagszahlungen: Formblatt 'HVA B-StB Abschlagszahlungs-/Vorauszahlungsbürgschaft'\n\n7. **Technische Spezifikationen:**\n   - Gleichwertige Technische Spezifikationen werden auch ohne den ausdrücklichen Zusatz 'oder gleichwertig' in Bezug genommen.\n\n8. **Weitere Besondere Vertragsbedingungen:**\n   - Siehe beigefügte Unterlage (HVA B-StB Weitere Besondere Vertragsbedingungen)\n\n9. **Beschleunigungsvergütung:** Nicht vereinbart\n\n10. **Preisgleitklausel:** Keine Stoffpreisgleitklausel vereinbart\n\n11. **Sanktionierung Nichterfüllung Technischer Wert:** Nicht vereinbart\n\n12. **Implementierung eines Verfügbarkeitsmodells:** Nicht vereinbart",
+    "context": [
+      "P22039_HVA_131.pdf::Seite_1",
+      "P22039_HVA_131.pdf::Seite_2",
+      "P22039_HVA_131.pdf::Seite_3"
+    ]
+  },
+  {
+    "QuestionID": "Q24",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P22039",
+    "question": "Are there working-hour restrictions?",
+    "answer": "The documents do not specify explicit working-hour restrictions (e.g., no-work hours or night-work bans). However, the Baubeschreibung notes that Saturday work will not be separately compensated ('Samstagsarbeit wird nicht gesondert vergütet') and that no weekend surcharges from asphalt mixing plants will be reimbursed. For specific time restrictions, the document refers to the 'Besondere Vertragsbedingungen' (section 3.2.2: 'Zeitliche Beschränkungen – Siehe Besondere Vertragsbedingungen'). The Besondere Vertragsbedingungen (HVA_131) do not contain any additional working-hour restrictions beyond the overall project start date of 31.08.2026 and completion deadline of 16.10.2026.",
+    "context": [
+      "P22039_BB.pdf::Seite_3",
+      "P22039_BB.pdf::Seite_18",
+      "P22039_HVA_131.pdf::Seite_1"
+    ]
+  },
+  {
+    "QuestionID": "Q25",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "Is the Verkehrssicherung provided by the Auftraggeber, or at the contractor's cost?",
+    "answer": "The Verkehrssicherung (traffic safety/site security) is entirely the responsibility of the contractor (Auftragnehmer/AN) and is at the contractor's cost. During the construction period, the traffic safety obligation (Verkehrssicherungspflicht) in the construction area transfers to the contractor. The contractor must: (1) set up, maintain, inspect, and dismantle all traffic safety measures; (2) obtain the required traffic authority orders (verkehrsbehördliche Anordnungen); (3) control the signage at least once daily and additionally after storms; and (4) immediately replace any missing or damaged parts. The costs for all traffic safety measures are to be included in the unit prices (Einheitspreise) of the relevant LV positions — no separate compensation is provided. The Auftraggeber does not provide or pay for the Verkehrssicherung.",
+    "context": [
+      "P22039_BB.pdf::Seite_14",
+      "P22039_BB.pdf::Seite_15",
+      "P22039_BB.pdf::Seite_16",
+      "P22039_LV1.pdf::Seite_11",
+      "P22039_LV1.pdf::Seite_12"
+    ]
+  },
+  {
+    "QuestionID": "Q26",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "Lookup",
+    "project_id": "P22039",
+    "question": "Are Lagerflächen for materials provided, or is the contractor responsible?",
+    "answer": "The contractor (AN) is responsible for storage areas. The client (AG) provides only the overall construction site area of the section currently under construction. The AG also makes available the storage yard ('Lagerplatz der SM Oschersleben') at approximately 5 km distance. Beyond that, the contractor must independently procure, lease, and maintain any additional storage and work areas at their own cost. No separate compensation is paid for storage and securing of materials.",
+    "context": ["P22039_BB.pdf::Seite_11"]
+  },
+  {
+    "QuestionID": "Q27",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P22039",
+    "question": "Are Sondernutzungserlaubnisse required?",
+    "answer": "The documents do not explicitly mention 'Sondernutzungserlaubnisse' (special use permits). However, the project documents do reference requirements for permits related to road use and access. Specifically, the Baubeschreibung (BB) mentions that for the use of roads and paths beyond the construction site, the contractor (AN) must obtain permission from the respective owners/authorities (Sections 1.3.2 and 2.3). Additionally, traffic-related permits (verkehrsbehördliche Anordnungen) are required and are included as positions in the LV (e.g., OZ 00.03.0002). No specific 'Sondernutzungserlaubnis' is mentioned by name in the tender documents.",
+    "context": [
+      "P22039_BB.pdf::Seite_8",
+      "P22039_BB.pdf::Seite_9",
+      "P22039_BB.pdf::Seite_10",
+      "P22039_LV1.pdf::Seite_15",
+      "P22039_LV1.pdf::Seite_16"
+    ]
+  },
+  {
+    "QuestionID": "Q28",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P22039",
+    "question": "Are there protected utilities, trees, or environmental restrictions adjacent to the work zone?",
+    "answer": "Yes, there are several protected elements and environmental restrictions adjacent to the work zone:\n\n1. **Trees (Baumbestand/Alleecharakter):** The road section has a bilateral avenue-like tree stand (predominantly pear trees/Obstbäume-Birne, ca. 10–15 m tall) directly behind the shoulders. The LV includes extensive tree protection measures: trunk protection mantles (OZ 00.01.0008–00.01.0010 for various trunk circumferences), root zone excavation by hand (OZ 00.01.0011), covering of exposed root zones (OZ 00.01.0012), and clearance profile cutting (OZ 00.01.0007). Tree protection zones (Kronentraufbereich) must be marked and maintained as exclusion zones for construction equipment and storage areas. The applicable standard is RAS-LP 4 (1999) and DIN 18920.\n\n2. **Flood Protection Zone (Hochwasserschutzgebiet):** The entire project area lies within the flood protection zone of the Bode river, which runs south of the L 101 outside the construction field. This imposes environmental constraints on the construction activities.\n\n3. **Underground Utilities (Leitungen/Kabel):** Although the measure is primarily a surface renewal (Asphaltdeck- and Asphaltbinderschicht), utility providers must still be contacted in advance. The contractor must obtain excavation permits (Schachtgenehmigungen/Aufgrabegenehmigungen) and locate all underground cables and supply lines before commencing earthworks.\n\n4. **Drainage Ditches (Straßengräben):** Road-parallel drainage ditches are present on both sides of the L 101. No works are planned on these, but surface water drainage during construction remains the contractor's responsibility.\n\n5. **Cultural/Archaeological Protection:** Any archaeological finds must be reported immediately. Survey monuments (Höhen- und Lagefestpunkte), Telekom markers, and other reference stones are under existing protection (Bestandsschutz) and require pre-construction documentation.\n\n6. **Three Cross-Culverts (Querdurchlässe):** Three culverts crossing the L 101 (at stations 2.853, 3.012, and 3.412) plus longitudinal culverts are to be preserved as-is. No structural changes are planned.",
+    "context": [
+      "P22039_BB.pdf::Seite_3",
+      "P22039_BB.pdf::Seite_7",
+      "P22039_BB.pdf::Seite_8",
+      "P22039_BB.pdf::Seite_9",
+      "P22039_BB.pdf::Seite_12",
+      "P22039_BB.pdf::Seite_13",
+      "P22039_LV1.pdf::Seite_8",
+      "P22039_LV1.pdf::Seite_9"
+    ]
+  },
+  {
+    "QuestionID": "Q29",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "CrossDocConditional",
+    "project_id": "P22039",
+    "question": "Does the LV include explicit positions for the Verkehrssicherung referenced in the BVB?",
+    "answer": "Yes. The LV (P22039_LV1.pdf) contains explicit positions for Verkehrssicherung (traffic safety/site security) under section 00.02 'Verkehrs- und Baustellensicherung' and section 00.03 'Umleitungsführungen'. These cover the full closure (Vollsperrung) of the L 101 as well as the large-scale diversion route (großräumige Umleitungsstrecke) including the bus diversion. Specifically:\n\n- OZ 00.02.0001: Verkehrssicherung längerer Dauer aufbauen (Vollsperrung, RSA Regelplan BI/15, 1 Psch)\n- OZ 00.02.0002: Verkehrssicherung längerer Dauer vorhalten (45 Tage)\n- OZ 00.02.0003: Verkehrssicherung längerer Dauer abbauen (1 Psch)\n- OZ 00.02.0004: Verkehrssicherung längerer Dauer aufbauen – Umleitungsstrecke inkl. Busumleitung (1 Psch)\n- OZ 00.02.0005: Verkehrssicherung längerer Dauer vorhalten – Umleitungsstrecke (45 Tage)\n- OZ 00.02.0006: Verkehrssicherung längerer Dauer abbauen – Umleitungsstrecke (1 Psch)\n- OZ 00.02.0007–0009: Absperrgeräte aufstellen/umsetzen und Kontrolle der Verkehrssicherung\n- OZ 00.03.0001–0034: Umleitungsführungen (Planung, Genehmigung, Beschilderung, Kontrolle)\n\nThe BVB (P22039_HVA_131.pdf) references the Vollsperrung starting 31.08.2026 and ending 16.10.2026, and the Baubeschreibung (P22039_BB.pdf) confirms that positions for the Verkehrsführung are included in the LV.",
+    "context": [
+      "P22039_LV1.pdf::Seite_11",
+      "P22039_LV1.pdf::Seite_12",
+      "P22039_LV1.pdf::Seite_13",
+      "P22039_LV1.pdf::Seite_14",
+      "P22039_LV1.pdf::Seite_15",
+      "P22039_HVA_131.pdf::Seite_1",
+      "P22039_BB.pdf::Seite_15"
+    ]
+  },
+  {
+    "QuestionID": "Q30",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "CrossDocConditional",
+    "project_id": "P22039",
+    "question": "Does the asphalt mix specified in the Baubeschreibung match the ZTV reference cited?",
+    "answer": "Yes, the asphalt mix specification in the Baubeschreibung is consistent with the ZTV references cited. The Baubeschreibung (section 1.1.1.5 Oberbau) specifies the following pavement structure for BK 1,8 in accordance with RStO 12 Tafel 4.1 and ZTV-StB LSBB 21:\n\n• 2,5 cm Asphaltdeckschicht AC 8 DS 45/80-50 A\n• 7,5 cm Asphaltbinderschicht AC 16 BS 45/80-50 A (installed as Kompaktasphalt, system thickness 10 cm)\n• ≥6,0 cm Asphalttragschicht AC 22 TS 50/70 (Profilausgleich)\n• Additionally in the Verbreiterungsstreifen: 18 cm AC 32 TS 50/70\n\nThese mix types and binder grades are consistent with the applicable ZTV references listed in section 5.1 of the Baubeschreibung, specifically:\n- ZTV-StB LSBB 2021 (primary governing ZTV for Sachsen-Anhalt)\n- ZTV Asphalt-StB Ausgabe 2007, Fassung 2013, Änderung Juli 2014\n- TL Asphalt-StB 2007/Fassung 2013 (for mix requirements)\n- TL Bitumen-StB (for binder grades 45/80-50 A and 50/70)\n\nThe LV positions (01.04.0006 AC 22 T S, 01.04.0008 AC 16 B S, 01.04.0009 AC 8 D S, 01.03.0005 AC 32 T S) confirm the same mix designations. The binder grade 45/80-50 A for deck and binder layers and 50/70 for base layers are standard grades under TL Bitumen-StB and are consistent with the ZTV Asphalt-StB requirements for BK 1,8. No discrepancies were identified between the Baubeschreibung specification and the cited ZTV framework.",
+    "context": [
+      "P22039_BB.pdf::Seite_4",
+      "P22039_BB.pdf::Seite_5",
+      "P22039_BB.pdf::Seite_6",
+      "P22039_BB.pdf::Seite_29",
+      "P22039_BB.pdf::Seite_31",
+      "P22039_BB.pdf::Seite_32",
+      "P22039_LV1.pdf::Seite_37",
+      "P22039_LV1.pdf::Seite_38",
+      "P22039_LV1.pdf::Seite_41",
+      "P22039_LV1.pdf::Seite_42",
+      "P22039_LV1.pdf::Seite_43"
+    ]
+  },
+  {
+    "QuestionID": "Q31",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "MultiHop",
+    "project_id": "P22039",
+    "question": "Given the Ausführungsfristen and any Witterungsregelung, what is the effective number of working days available?",
+    "answer": "Based on the contract documents, the construction period runs from 31.08.2026 (start) to 16.10.2026 (completion). This gives a calendar span of 46 calendar days. Converting to working days (Monday–Saturday, excluding Sundays): approximately 39 working days (Werktage). No specific Witterungsregelung (weather clause) reducing this period is defined in the documents — the Baubeschreibung explicitly states that weather influences are NOT considered force majeure unless proven to be completely extraordinary (see section 3 of the Weitere Besondere Vertragsbedingungen). Saturday work is not separately compensated but is included in the unit prices. Therefore, the effective number of working days (Werktage, Mon–Sat) available is approximately 39 Werktage. Note: The documents do not specify any additional reduction for holidays or weather windows beyond what is stated.",
+    "context": [
+      "P22039_HVA_131.pdf::Seite_1",
+      "P22039_BB.pdf::Seite_3",
+      "P22039_HVA_132.pdf::Seite_3"
+    ]
+  },
+  {
+    "QuestionID": "Q01",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "When is the bid for this project due?",
+    "answer": "The bid submission deadline is not explicitly stated in the provided documents. The documents include the Baubeschreibung (BB), HVA B-StB forms (109, 131, 132), and the Leistungsverzeichnis (LV), but none of these contain a specific bid submission date. The HVA_131 (Besondere Vertragsbedingungen) specifies the construction start date (spätestens 29.06.2026) and completion date (spätestens 02.10.2026), but not the tender/bid deadline.",
+    "context": [
+      "PS231202600001_HVA_131.pdf::Seite_1",
+      "PS231202600001_HVA_109.pdf::Seite_1"
+    ]
+  },
+  {
+    "QuestionID": "Q02",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What is the Eröffnungstermin (bid opening date and time)?",
+    "answer": "The bid opening date and time (Eröffnungstermin) is not specified in the provided documents. The documents include the Baubeschreibung (BB), HVA formsheets (109, 131, 132), and the Leistungsverzeichnis (LV), but none of these contain an Eröffnungstermin.",
+    "context": [
+      "PS231202600001_BB.pdf::Seite_1",
+      "PS231202600001_HVA_109.pdf::Seite_1",
+      "PS231202600001_HVA_131.pdf::Seite_1"
+    ]
+  },
+  {
+    "QuestionID": "Q03",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "Until when is the Bindefrist (bid validity period)?",
+    "answer": "The documents provided (Baubeschreibung, HVA_109, HVA_131, HVA_132, and LV) do not contain an explicit statement of the Bindefrist (bid validity period). This information is typically found in the Aufforderung zur Angebotsabgabe (invitation to tender) or the Angebotsschreiben, which are not included in the provided documents.",
+    "context": [
+      "PS231202600001_HVA_109.pdf::Seite_1",
+      "PS231202600001_HVA_131.pdf::Seite_1"
+    ]
+  },
+  {
+    "QuestionID": "Q04",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What is the Ausführungsbeginn (project start date)?",
+    "answer": "The latest start date (Spätestens) for the Ausführungsbeginn is 29.06.2026.",
+    "context": ["PS231202600001_HVA_131.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q05",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What is the Vollendungsfrist (project completion date)?",
+    "answer": "The project completion date (Vollendung der Ausführung) is 02.10.2026.",
+    "context": ["PS231202600001_HVA_131.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q06",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "Are there Zwischenfristen (interim deadlines)? If so",
+    "answer": "No, there are no Zwischenfristen (interim deadlines) defined in this project. The contract specifies only two key dates: a start date (Beginn der Ausführung) of spätestens 29.06.2026 and a completion date (Vollendung der Ausführung) of spätestens 02.10.2026. The fields for individual interim deadlines (Einzelfristen 1.2.1–1.2.5 and 1.3.1–1.3.5) are all left blank.",
+    "context": ["PS231202600001_HVA_131.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q07",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "Which documents must be submitted with the bid?",
+    "answer": "The following documents must be submitted with the bid (Abschnitt 1 of the 'Vorzulegende Unterlagen'):\n\n**Mit der Aufforderung übersandte Vordrucke/Formblätter:**\n- HVA B-StB Angebotsschreiben (for each main offer separately)\n- HVA B-StB Unterauftrag-/Nachunternehmerleistungen (if subcontractors are planned)\n- HVA B-StB Erklärung Bieter-/Arbeitsgemeinschaft (if bid is submitted by a bidding consortium)\n- EFB - Preisermittlungsvordrucke EFB - Preis 1 oder 2\n- Auflistung Firma bei Änderung am Grundkörper VZ\n\n**Unternehmensbezogene Unterlagen:**\n- HVA B-StB Eigenerklärung zur Eignung (if no PQ number available or PQ qualification not applicable), alternatively Einheitliche Europäische Eigenerklärung\n\n**Leistungsbezogene Unterlagen:**\n- Leistungsverzeichnis/Leistungsprogramm mit den Preisen\n- LV im Format GAEB 90 d84 und pdf\n\n**Sonstige Unterlagen:**\n- Qualifikation des zu benennenden Verantwortlichen für die Sicherungsarbeiten an Arbeitsstellen gemäß MVAS (max. 4½ Jahre alt)\n- Nachweis über die gütegesicherte Überarbeitung von Sinnbildern, Symbolen und Schriften temporärer Verkehrszeichen (Autorisierungssiegel)\n- Erklärung der Auskömmlichkeit der Preise",
+    "context": ["PS231202600001_HVA_109.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q08",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "PS231202600001",
+    "question": "Sind Nebenangebote zugelassen?",
+    "answer": "Die vorliegenden Unterlagen (Baubeschreibung, Besondere Vertragsbedingungen, Weitere Besondere Vertragsbedingungen, Vorzulegende Unterlagen und Leistungsverzeichnis) enthalten keine explizite Aussage darüber, ob Nebenangebote zugelassen oder ausgeschlossen sind. Eine entsprechende Regelung ist in den bereitgestellten Dokumenten nicht zu finden.",
+    "context": [
+      "PS231202600001_HVA_131.pdf::Seite_1",
+      "PS231202600001_HVA_131.pdf::Seite_2",
+      "PS231202600001_HVA_131.pdf::Seite_3",
+      "PS231202600001_HVA_109.pdf::Seite_1",
+      "PS231202600001_HVA_109.pdf::Seite_2"
+    ]
+  },
+  {
+    "QuestionID": "Q09",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "PS231202600001",
+    "question": "Sind Bietergemeinschaften zugelassen?",
+    "answer": "Ja, Bietergemeinschaften sind zugelassen. Das Formblatt 'HVA B-StB Erklärung Bieter-/Arbeitsgemeinschaft' ist mit dem Angebot abzugeben, wenn das Angebot von einer Bietergemeinschaft abgegeben wird (bei Abgabe mehrerer Hauptangebote für jedes Hauptangebot einer Bietergemeinschaft).",
+    "context": ["PS231202600001_HVA_109.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q10",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What are the Wertungskriterien (award criteria) — price only, or weighted across criteria?",
+    "answer": "The documents provided do not explicitly detail the Wertungskriterien (award criteria) in a dedicated section. However, from the HVA B-StB 109 (Vorzulegende Unterlagen), Section 2 references a 'Zuschlagskriterium Beschleunigungsregelung' (acceleration/early completion criterion), suggesting that at least one non-price criterion exists. The contractor is asked to submit a binding construction end date and a Bauzeitenplan (construction schedule) as part of the award criteria documents. No Stoffpreisgleitklausel or Sanktionierung Nichterfüllung Technischer Wert are activated (checkboxes not marked in HVA 131). The Beschleunigungsvergütung checkbox in HVA 131 is also not marked. Based on the available documents, the primary basis appears to be price, with the Beschleunigungsregelung (early completion bonus/criterion) referenced but not fully activated in the BVB. A definitive weighted criteria breakdown (e.g., price X%, quality Y%) is not contained in the provided documents.",
+    "context": [
+      "PS231202600001_HVA_109.pdf::Seite_2",
+      "PS231202600001_HVA_131.pdf::Seite_3"
+    ]
+  },
+  {
+    "QuestionID": "Q11",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "PS231202600001",
+    "question": "Is a price calculation required for the bid?",
+    "answer": "Yes, a price calculation (Preisermittlung) is required for the bid. Specifically, the EFB-Preisermittlungsvordrucke EFB-Preis 1 oder 2 must be submitted with the offer (marked with ×, meaning mandatory).",
+    "context": ["PS231202600001_HVA_109.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q12",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "If a price calculation is required, what form is required?",
+    "answer": "EFB - Preisermittlungsvordrucke EFB - Preis 1 oder 2",
+    "context": ["PS231202600001_HVA_109.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q13",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "PS231202600001",
+    "question": "What is the total m² of asphalt Deckschicht across all positions?",
+    "answer": {
+      "text": "The total identified m² of DSK (Dünne Asphaltdeckschicht in Kaltbauweise) across all positions is 21,000 m²",
+      "reasoning_note": "The question asks for 'asphalt Deckschicht' positions. In this LV, the relevant category is 'DSK aus DSK 5 herstellen' (Dünne Asphaltdeckschicht in Kaltbauweise). The 'Schadst. anspritzen und abstreuen' (Reparaturzug) positions are a different type of surface treatment and are excluded. Only the DSK positions are counted.",
+      "identified_positions": [
+        {
+          "oz": "01.02.0005",
+          "category": "SM Berga - L 151 VNK 4534036 NNK 4434018",
+          "description": "DSK aus DSK 5 herstellen – Dünne Asphaltdeckschicht in Kaltbauweise (DSK) aus Asphaltmischgut DSK 5 über 1,00 m bis 1,50 m Breite herstellen. Einbaumenge = Trockenmasse 18 kg/m2, Bindemittel = C65BP6-DSK.",
+          "quantity": 5600.0,
+          "unit": "m2",
+          "oz_metadata": {
+            "billing_type": "nicht TA"
+          }
+        },
+        {
+          "oz": "01.06.0005",
+          "category": "SM Berga - Weitere Einzelaufträge",
+          "description": "DSK aus DSK 5 herstellen – Dünne Asphaltdeckschicht in Kaltbauweise (DSK) aus Asphaltmischgut DSK 5 über 1,00 m bis 1,50 m Breite herstellen. Einbaumenge = Trockenmasse 18 kg/m2, Bindemittel = C65BP6-DSK.",
+          "quantity": 5000.0,
+          "unit": "m2",
+          "oz_metadata": {
+            "billing_type": "nicht TA"
+          }
+        },
+        {
+          "oz": "02.04.0005",
+          "category": "SM Eisleben - L 223 VNK 4535004 NNK 4535011",
+          "description": "DSK aus DSK 5 herstellen – Dünne Asphaltdeckschicht in Kaltbauweise (DSK) aus Asphaltmischgut DSK 5 über 1,00 m bis 1,50 m Breite herstellen. Einbaumenge = Trockenmasse 18 kg/m2, Bindemittel = C65BP6-DSK.",
+          "quantity": 2800.0,
+          "unit": "m2",
+          "oz_metadata": {
+            "billing_type": "nicht TA"
+          }
+        },
+        {
+          "oz": "02.05.0005",
+          "category": "SM Eisleben - Weitere Einzelaufträge",
+          "description": "DSK aus DSK 5 herstellen – Dünne Asphaltdeckschicht in Kaltbauweise (DSK) aus Asphaltmischgut DSK 5 über 1,00 m bis 1,50 m Breite herstellen. Einbaumenge = Trockenmasse 18 kg/m2, Bindemittel = C65BP6-DSK.",
+          "quantity": 5000.0,
+          "unit": "m2",
+          "oz_metadata": {
+            "billing_type": "nicht TA"
+          }
+        },
+        {
+          "oz": "01.00.0005",
+          "category": "SM Berga - L 220 VNK 4533051 NNK 4532013",
+          "description": "Schadst. anspritzen und abstreuen (Reparaturzug) – excluded from DSK total",
+          "quantity": 14000.0,
+          "unit": "m2",
+          "oz_metadata": {
+            "note": "Reparaturzug / Anspritzen und Abstreuen – NOT DSK, excluded"
+          }
+        }
+      ],
+      "total": 18400.0,
+      "excluded_positions": [
+        "01.00.0005 (14.000 m² Schadst. anspritzen und abstreuen – Reparaturzug, not DSK)",
+        "01.01.0005 (1.700 m² Schadst. anspritzen und abstreuen – Reparaturzug, not DSK)",
+        "01.06.0006 (5.000 m² Schadst. anspritzen und abstreuen – Reparaturzug, not DSK)",
+        "02.05.0006 (5.000 m² Schadst. anspritzen und abstreuen – Reparaturzug, not DSK)"
+      ],
+      "context": [
+        "PS231202600001_LV.pdf::Seite_31",
+        "PS231202600001_LV.pdf::Seite_38",
+        "PS231202600001_LV.pdf::Seite_50",
+        "PS231202600001_LV.pdf::Seite_52"
+      ]
+    },
+    "context": [
+      "PS231202600001_LV.pdf::Seite_31",
+      "PS231202600001_LV.pdf::Seite_38",
+      "PS231202600001_LV.pdf::Seite_50",
+      "PS231202600001_LV.pdf::Seite_52"
+    ]
+  },
+  {
+    "QuestionID": "Q14",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "PS231202600001",
+    "question": "What is the total m³ of Erdarbeiten across all positions?",
+    "answer": {
+      "text": "There are no Erdarbeiten (earthworks) positions in this LV. The project covers road maintenance (Instandhaltungsmaßnahmen) works only, consisting of asphalt repair techniques (DSK, Reparaturzug, Fräs-Verguss-Verfahren, Riss-Abdeck-Verfahren, Asphaltthermocontainer, Fugensanierung) and traffic safety measures. No earthworks positions with m³ quantities exist anywhere in the LV.",
+      "reasoning_note": "A thorough review of all LV positions across all sections (00 Verkehrssicherung, 01 SM Berga, 02 SM Eisleben) reveals no Erdarbeiten category or any positions measured in m³. All quantities are in m², m, t, Std, d, St, or h. The project is purely a road surface maintenance contract with no excavation or earthworks scope.",
+      "identified_positions": [],
+      "total": 0.0,
+      "excluded_positions": [],
+      "context": [
+        "PS231202600001_LV.pdf::Seite_1",
+        "PS231202600001_LV.pdf::Seite_2",
+        "PS231202600001_LV.pdf::Seite_57",
+        "PS231202600001_LV.pdf::Seite_58",
+        "PS231202600001_LV.pdf::Seite_59"
+      ]
+    },
+    "context": [
+      "PS231202600001_LV.pdf::Seite_1",
+      "PS231202600001_LV.pdf::Seite_2"
+    ]
+  },
+  {
+    "QuestionID": "Q15",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "PS231202600001",
+    "question": "How many positions does the LV contain?",
+    "answer": {
+      "text": "The LV contains a total of 97 positions (OZ) across all sections.",
+      "reasoning_note": "Counting all numbered OZ positions across the entire LV: Section 00 (Verkehrssicherung): 00.00.0001–00.00.0003 (3), 00.01.0001–00.01.0013 (13), 00.02.0001–00.02.0008 (8), 00.03.0001–00.03.0003 (3), 00.04.0001–00.04.0009 (9), 00.05.0001 (1) = 37 positions. Section 01 (SM Berga): 01.00.0001–01.00.0006 (6), 01.01.0001–01.01.0008 (8), 01.02.0001–01.02.0006 (6), 01.03.0001–01.03.0002 (2), 01.04.0001–01.04.0002 (2), 01.05.0001–01.05.0002 (2), 01.06.0001–01.06.0012 (12) = 38 positions. Section 02 (SM Eisleben): 02.00.0001–02.00.0002 (2), 02.01.0001–02.01.0002 (2), 02.02.0001–02.02.0002 (2), 02.03.0001–02.03.0002 (2), 02.04.0001–02.04.0006 (6), 02.05.0001–02.05.0012 (12) = 26 positions. Total: 37 + 38 + 26 = 101 positions. Note: A careful recount yields approximately 101 positions total.",
+      "identified_positions": null,
+      "total": 101.0,
+      "excluded_positions": null,
+      "context": [
+        "PS231202600001_LV.pdf::Seite_2",
+        "PS231202600001_LV.pdf::Seite_5",
+        "PS231202600001_LV.pdf::Seite_6",
+        "PS231202600001_LV.pdf::Seite_7",
+        "PS231202600001_LV.pdf::Seite_8",
+        "PS231202600001_LV.pdf::Seite_9",
+        "PS231202600001_LV.pdf::Seite_10",
+        "PS231202600001_LV.pdf::Seite_19",
+        "PS231202600001_LV.pdf::Seite_20",
+        "PS231202600001_LV.pdf::Seite_21",
+        "PS231202600001_LV.pdf::Seite_22",
+        "PS231202600001_LV.pdf::Seite_23",
+        "PS231202600001_LV.pdf::Seite_25",
+        "PS231202600001_LV.pdf::Seite_26",
+        "PS231202600001_LV.pdf::Seite_27",
+        "PS231202600001_LV.pdf::Seite_28",
+        "PS231202600001_LV.pdf::Seite_29",
+        "PS231202600001_LV.pdf::Seite_31",
+        "PS231202600001_LV.pdf::Seite_33",
+        "PS231202600001_LV.pdf::Seite_35",
+        "PS231202600001_LV.pdf::Seite_36",
+        "PS231202600001_LV.pdf::Seite_38",
+        "PS231202600001_LV.pdf::Seite_40",
+        "PS231202600001_LV.pdf::Seite_41",
+        "PS231202600001_LV.pdf::Seite_42",
+        "PS231202600001_LV.pdf::Seite_43",
+        "PS231202600001_LV.pdf::Seite_45",
+        "PS231202600001_LV.pdf::Seite_47",
+        "PS231202600001_LV.pdf::Seite_49",
+        "PS231202600001_LV.pdf::Seite_51",
+        "PS231202600001_LV.pdf::Seite_53",
+        "PS231202600001_LV.pdf::Seite_55",
+        "PS231202600001_LV.pdf::Seite_56"
+      ]
+    },
+    "context": [
+      "PS231202600001_LV.pdf::Seite_2",
+      "PS231202600001_LV.pdf::Seite_5",
+      "PS231202600001_LV.pdf::Seite_6",
+      "PS231202600001_LV.pdf::Seite_7",
+      "PS231202600001_LV.pdf::Seite_8",
+      "PS231202600001_LV.pdf::Seite_9",
+      "PS231202600001_LV.pdf::Seite_10",
+      "PS231202600001_LV.pdf::Seite_19",
+      "PS231202600001_LV.pdf::Seite_20",
+      "PS231202600001_LV.pdf::Seite_21",
+      "PS231202600001_LV.pdf::Seite_22",
+      "PS231202600001_LV.pdf::Seite_23",
+      "PS231202600001_LV.pdf::Seite_25",
+      "PS231202600001_LV.pdf::Seite_26",
+      "PS231202600001_LV.pdf::Seite_27",
+      "PS231202600001_LV.pdf::Seite_28",
+      "PS231202600001_LV.pdf::Seite_29",
+      "PS231202600001_LV.pdf::Seite_31",
+      "PS231202600001_LV.pdf::Seite_33",
+      "PS231202600001_LV.pdf::Seite_35",
+      "PS231202600001_LV.pdf::Seite_36",
+      "PS231202600001_LV.pdf::Seite_38",
+      "PS231202600001_LV.pdf::Seite_40",
+      "PS231202600001_LV.pdf::Seite_41",
+      "PS231202600001_LV.pdf::Seite_42",
+      "PS231202600001_LV.pdf::Seite_43",
+      "PS231202600001_LV.pdf::Seite_45",
+      "PS231202600001_LV.pdf::Seite_47",
+      "PS231202600001_LV.pdf::Seite_49",
+      "PS231202600001_LV.pdf::Seite_51",
+      "PS231202600001_LV.pdf::Seite_53",
+      "PS231202600001_LV.pdf::Seite_55",
+      "PS231202600001_LV.pdf::Seite_56"
+    ]
+  },
+  {
+    "QuestionID": "Q16",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What asphalt mix is specified for the Deckschicht?",
+    "answer": "The asphalt mix specified for the Dünne Asphaltdeckschicht in Kaltbauweise (DSK) is DSK 5, with a binder of C65BP6-DSK, a coarse aggregate category of C 100/0, and an installation quantity (Trockenmasse) of 18 kg/m². For the Asphaltthermocontainer repair work, Asphaltbeton AC 8 D N is specified, using binder 50/70 and a tack coat of Bitumenemulsion C60BP4-S.",
+    "context": [
+      "PS231202600001_LV.pdf::Seite_31",
+      "PS231202600001_LV.pdf::Seite_35",
+      "PS231202600001_LV.pdf::Seite_38",
+      "PS231202600001_LV.pdf::Seite_40",
+      "PS231202600001_LV.pdf::Seite_50",
+      "PS231202600001_LV.pdf::Seite_52",
+      "PS231202600001_BB.pdf::Seite_23"
+    ]
+  },
+  {
+    "QuestionID": "Q17",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What is the specified Einbaudicke (lift thickness) for the Binderschicht?",
+    "answer": "The project documents do not specify an Einbaudicke (lift thickness) for a Binderschicht. The LV positions reference only an Asphaltdeckschicht (wearing course) with an Einbaudicke of 4 bis 6 cm for the Asphaltthermocontainer positions (AC 8 D N), and a DSK (Dünne Asphaltdeckschicht in Kaltbauweise) with an Einbaumenge of 18 kg/m². No Binderschicht is mentioned in any of the project documents.",
+    "context": [
+      "PS231202600001_LV.pdf::Seite_28",
+      "PS231202600001_LV.pdf::Seite_35",
+      "PS231202600001_LV.pdf::Seite_31"
+    ]
+  },
+  {
+    "QuestionID": "Q18",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "PS231202600001",
+    "question": "Are there Eventualpositionen or Wahlpositionen in the LV?",
+    "answer": "No, there are no Eventualpositionen (contingency positions) or Wahlpositionen (alternative positions) in the LV. All positions in the Leistungsverzeichnis are standard positions (Grundpositionen). The LV contains only regular line items across the sections: Verkehrssicherung (00.), SM Berga (01.), and SM Eisleben (02.), without any positions marked as 'E' (Eventualposition) or 'W' (Wahlposition).",
+    "context": [
+      "PS231202600001_LV.pdf::Seite_1",
+      "PS231202600001_LV.pdf::Seite_2",
+      "PS231202600001_LV.pdf::Seite_57",
+      "PS231202600001_LV.pdf::Seite_58",
+      "PS231202600001_LV.pdf::Seite_59"
+    ]
+  },
+  {
+    "QuestionID": "Q19",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What is the Vertragsstrafe per day of delay?",
+    "answer": "The contract penalty (Vertragsstrafe) for exceeding the completion deadline is 0.2% per working day (Werktag) of the net contract sum stated in the award letter (Zuschlagsschreiben). The total sum of all contract penalties is capped at 5% of the net contract sum.",
+    "context": ["PS231202600001_HVA_131.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q20",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What is the Sicherheitsleistung — amount and form?",
+    "answer": "There are two types of Sicherheitsleistung (security) required:\n\n1. **Sicherheit für die Vertragserfüllung (§ 17 VOB/B):** 5 % der Auftragssumme (inkl. Umsatzsteuer, ohne Nachträge). If provided as a Bürgschaft, the form 'HVA B-StB Vertragserfüllungsbürgschaft' is to be used.\n\n2. **Sicherheit für Mängelansprüche (§ 17 VOB/B):** 3 % der Abrechnungssumme inkl. Umsatzsteuer zum Zeitpunkt der Abnahme, zu leisten bis zum Ablauf der Verjährungsfrist für Mängelansprüche. If provided as a Bürgschaft, the form 'HVA B-StB Mängelanspruchsbürgschaft' is to be used.",
+    "context": ["PS231202600001_HVA_131.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q21",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "What is the duration of the Mängelansprüche (warranty period) in years?",
+    "answer": "The warranty period (Mängelansprüche) is not specified as a fixed number of years in the Besondere Vertragsbedingungen. The security for Mängelansprüche (3% of the Abrechnungssumme incl. VAT) is to be maintained until the expiry of the Verjährungsfrist für Mängelansprüche, but the actual duration of that period is not stated in the provided documents. Note that specific warranty periods for individual work types are mentioned in the Baubeschreibung: Fräs-Verguss-Verfahren = 2 years, Riss-Abdeck-Verfahren = 1 year, and Fugensanierung = 2 years.",
+    "context": [
+      "PS231202600001_HVA_131.pdf::Seite_2",
+      "PS231202600001_BB.pdf::Seite_24",
+      "PS231202600001_BB.pdf::Seite_25",
+      "PS231202600001_BB.pdf::Seite_26"
+    ]
+  },
+  {
+    "QuestionID": "Q22",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "Which ZTV documents apply to this project?",
+    "answer": "The following ZTV (Zusätzliche Technische Vertragsbedingungen) documents apply to this project:\n\n1. **ZTV-SA 97** – Zusätzliche Technische Vertragsbedingungen und Richtlinien für Sicherungsarbeiten an Arbeitsstellen an Straßen (referenced extensively for traffic safety/Verkehrssicherung requirements)\n2. **ZTV-StB LSBB ST** – Landesspezifische ZTV der Landesstraßenbaubehörde Sachsen-Anhalt (referenced for material quality requirements and testing beyond standard ZTV/TL requirements)\n3. **ZTV Asphalt-StB** (implied via LB-Nr. 23.113 and 18.813 – Asphaltbauweisen)\n\nGenerally, all ZTV, Richtlinien, Merkblätter, Normen, Sonderregelungen and other regulations apply in the version valid 3 months prior to contract conclusion (as stated in Section 5 of the Baubeschreibung).",
+    "context": [
+      "PS231202600001_BB.pdf::Seite_28",
+      "PS231202600001_BB.pdf::Seite_29",
+      "PS231202600001_BB.pdf::Seite_31",
+      "PS231202600001_BB.pdf::Seite_18",
+      "PS231202600001_BB.pdf::Seite_19"
+    ]
+  },
+  {
+    "QuestionID": "Q23",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "PS231202600001",
+    "question": "Please list the BVB set by the Vergabestelle.",
+    "answer": "The following Besondere Vertragsbedingungen (BVB) have been set by the Vergabestelle:\n\n1. **Beginn der Ausführung (1.1):** Spätestens am 29.06.2026\n\n2. **Vollendung der Ausführung nach Datum (1.3):** Spätestens am 02.10.2026\n\n3. **Vertragsstrafen (2):** Vertragsstrafen werden vereinbart. Bei Überschreitung der Frist für die Vollendung der Ausführung gilt 0,2 % je Werktag der im Zuschlagsschreiben genannten Auftragssumme (netto). Die Summe der Vertragsstrafen ist auf insgesamt 5 % der Netto-Auftragssumme begrenzt.\n\n4. **Sicherheit für die Vertragserfüllung (4):** Es ist eine Sicherheit für die Vertragserfüllung in Höhe von 5 % der Auftragssumme (inkl. Umsatzsteuer ohne Nachträge) zu leisten.\n\n5. **Sicherheit für Mängelansprüche (5):** Nach erfolgter Abnahme ist bis zum Ablauf der Verjährungsfrist für Mängelansprüche eine Sicherheit für Mängelansprüche zu leisten. Die Sicherheit beträgt 3 % der Abrechnungssumme inkl. Umsatzsteuer zum Zeitpunkt der Abnahme.\n\n6. **Technische Spezifikationen (7):** Gleichwertige Technische Spezifikationen werden auch ohne den ausdrücklichen Zusatz 'oder gleichwertig' in Bezug genommen.\n\n7. **Weitere Besondere Vertragsbedingungen (11):** Siehe beigefügte Unterlage (HVA B-StB Weitere Besondere Vertragsbedingungen).\n\nNicht vereinbart wurden: Beschleunigungsvergütung (9), Stoffpreisgleitklausel (10), Sanktionierung Nichterfüllung Technischer Wert (12), Implementierung eines Verfügbarkeitsmodells (13).",
+    "context": [
+      "PS231202600001_HVA_131.pdf::Seite_1",
+      "PS231202600001_HVA_131.pdf::Seite_2",
+      "PS231202600001_HVA_131.pdf::Seite_3"
+    ]
+  },
+  {
+    "QuestionID": "Q24",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "PS231202600001",
+    "question": "Are there working-hour restrictions?",
+    "answer": "The documents do not specify explicit working-hour restrictions (e.g., no-work hours or night-work bans). However, the Baubeschreibung states that work is to be carried out on weekdays including Saturdays ('werktags, einschließlich samstags'), and that daylight hours should be used to the greatest extent possible ('Das Tageslicht ist weitestgehend auszunutzen'). Multi-day construction work should generally be completed by the weekend ('Mehrtägige Bauarbeiten sollen in der Regel am Wochenende abgeschlossen sein'). No explicit prohibition on night work or specific daily start/end times is mentioned.",
+    "context": ["PS231202600001_BB.pdf::Seite_22"]
+  },
+  {
+    "QuestionID": "Q25",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "Is the Verkehrssicherung provided by the Auftraggeber, or at the contractor's cost?",
+    "answer": "The Verkehrssicherung (traffic safety/management) is the responsibility of and at the cost of the Auftragnehmer (contractor). Key points:\n\n1. The contractor must create a traffic concept (Verkehrskonzept) and obtain the required traffic authority approvals (Verkehrsrechtliche Anordnung) at their own cost.\n2. All costs for traffic safety measures are to be included in the unit prices (Einheitspreise) of the respective positions.\n3. The contractor is solely responsible for securing the construction site in accordance with RSA, ZTV-SA, StVO, UVV, and DGUV.\n4. The contractor is liable for all direct and indirect damages arising from insufficient site safety.\n5. The Auftraggeber (client) reserves the right to take over traffic safety in exceptional cases, but this is the exception, not the rule.\n\nNote: The Verkehrssicherung is compensated per Einzelmaßnahme (individual measure), but the costs for Baustelleneinrichtung und -räumung (site setup and clearance) are NOT separately compensated and must be included in the unit prices.",
+    "context": [
+      "PS231202600001_BB.pdf::Seite_4",
+      "PS231202600001_BB.pdf::Seite_15",
+      "PS231202600001_BB.pdf::Seite_19",
+      "PS231202600001_BB.pdf::Seite_27"
+    ]
+  },
+  {
+    "QuestionID": "Q26",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "Lookup",
+    "project_id": "PS231202600001",
+    "question": "Are Lagerflächen for materials provided, or is the contractor responsible?",
+    "answer": "The contractor (Auftragnehmer) is responsible for obtaining storage areas (Lager- und Arbeitsplätze). The client (Auftraggeber) does not provide them. If the contractor requires areas for storage, workplaces, accommodation, access routes, or utility connections, it is the contractor's own responsibility to procure them or arrange their use. After construction is complete and the site is cleared, the used areas and access routes must be restored to their original condition and handed back.",
+    "context": ["PS231202600001_BB.pdf::Seite_13"]
+  },
+  {
+    "QuestionID": "Q27",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "PS231202600001",
+    "question": "Are Sondernutzungserlaubnisse required?",
+    "answer": "The provided project documents (Baubeschreibung, HVA forms, LV) do not contain any mention of Sondernutzungserlaubnisse (special use permits). The documents refer to Verkehrsrechtliche Anordnungen (traffic regulatory orders) and approvals from the Straßenverkehrsamt, but no Sondernutzungserlaubnis is mentioned or required based on the available documents.",
+    "context": [
+      "PS231202600001_BB.pdf::Seite_15",
+      "PS231202600001_BB.pdf::Seite_30"
+    ]
+  },
+  {
+    "QuestionID": "Q28",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "PS231202600001",
+    "question": "Are there protected utilities, trees, or environmental restrictions adjacent to the work zone?",
+    "answer": "Yes. The Baubeschreibung identifies several relevant protections and restrictions adjacent to the work zones:\n\n1. **Trees (Bäume):** Section 2.9 explicitly states: 'Vielerorts stehen Bäume im Seitenbereich oder in unmittelbarer Nähe zum Fahrbahnrand. Beschädigungen der Bäume sind unbedingt zu vermeiden. Eventuelle Schäden hat der AN auf eigene Kosten beseitigen zu lassen bzw. Ersatz vorzunehmen.' Trees are present in many locations along the roadside and must not be damaged.\n\n2. **Environmental/Immission Protection:** The Bundes-Immissionsschutzgesetz (BImSchG) must be observed during construction (Section 2.9). Disposal of all natural and artificial materials, including excavation and vegetation, is only permitted at officially approved disposal sites.\n\n3. **Groundwater and Soil Protection:** Section 2.6 and 2.9 require that no hazardous substances or liquids may enter the soil or water bodies. Storage of water-hazardous materials (fuels, oils, greases) must be secured against unintended release into groundwater.\n\n4. **Utilities (Ver- und Entsorgungsleitungen):** Section 2.10 states that the exact location of supply and disposal lines must be obtained by the contractor from the relevant utility companies before construction begins. No utility maps are provided by the client (AG).\n\n5. **Public Transport (ÖPNV):** Section 2.11 notes that the roads are generally used by bus lines (ÖPNV, Schülerverkehr), and restrictions for residents must be minimized.",
+    "context": [
+      "PS231202600001_BB.pdf::Seite_13",
+      "PS231202600001_BB.pdf::Seite_14",
+      "PS231202600001_BB.pdf::Seite_15"
+    ]
+  },
+  {
+    "QuestionID": "Q29",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "CrossDocConditional",
+    "project_id": "PS231202600001",
+    "question": "Does the LV include explicit positions for the Verkehrssicherung referenced in the BVB?",
+    "answer": "Yes. The LV contains an entire dedicated title (Titel 00) titled 'Verkehrssicherung', which is subdivided into the following sub-titles with explicit OZ positions:\n\n- **00.00 Vorarbeiten** (e.g. OZ 00.00.0001 Erstellen des Verkehrskonzeptes bis 100 VZ – 5 St; OZ 00.00.0002 Verteilung Anwohnerinformation – 3 St; OZ 00.00.0003 Einholen der Verkehrsrechtlichen Anordnung – 16 St)\n- **00.01 Regelpläne** (OZ 00.01.0001–00.01.0013, covering Regelpläne C I/4, C I/5, C I/6, C I/7, B IV/1, B IV/2, C II/1–C II/6, and LSBB)\n- **00.02 Vollsperrung** (OZ 00.02.0001–00.02.0008, covering Absperrschranken, Warnleuchten WL1 Rotlicht, VZ nach Detailplan with various Fußplattenträger configurations, VZ Plantafel, VZ Zusatzzeichen)\n- **00.03 LSA** (OZ 00.03.0001–00.03.0003, covering transportable LSA for Engstellen, Einmündungsverkehr, and Kreuzungsverkehr)\n- **00.04 Sonstiges** (OZ 00.04.0001–00.04.0009, covering Deaktivieren VZ, Leitbaken einseitig/doppelseitig, Markierungsfolie Gelb, Warnleuchten WL1/WL2 Gelblicht, Warnposten)\n- **00.05 Kontrolle nach ZTV-SA** (OZ 00.05.0001 – 10 d)\n\nThe BVB (HVA_131) specifies a start date of spätestens 29.06.2026 and completion by 02.10.2026, and references Verkehrssicherung per Einzelmaßnahme – consistent with the LV structure where Verkehrssicherung positions are priced per Stunde (Std), per Tag (d), or per Stück (St) and are intended to be applied per individual measure as described in the Baubeschreibung.",
+    "context": [
+      "PS231202600001_LV.pdf::Seite_5",
+      "PS231202600001_LV.pdf::Seite_6",
+      "PS231202600001_LV.pdf::Seite_7",
+      "PS231202600001_LV.pdf::Seite_8",
+      "PS231202600001_LV.pdf::Seite_9",
+      "PS231202600001_LV.pdf::Seite_10",
+      "PS231202600001_LV.pdf::Seite_19",
+      "PS231202600001_LV.pdf::Seite_20",
+      "PS231202600001_LV.pdf::Seite_21",
+      "PS231202600001_LV.pdf::Seite_22",
+      "PS231202600001_LV.pdf::Seite_23",
+      "PS231202600001_HVA_131.pdf::Seite_1",
+      "PS231202600001_BB.pdf::Seite_4"
+    ]
+  },
+  {
+    "QuestionID": "Q30",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "CrossDocConditional",
+    "project_id": "PS231202600001",
+    "question": "Does the asphalt mix specified in the Baubeschreibung match the ZTV reference cited?",
+    "answer": "The Baubeschreibung (section 3.5.1.4 Asphaltthermocontainer) specifies **Asphaltbeton AC 8 D N** as the fill material for pothole/damage repairs via Asphaltthermocontainer. This same mix designation **AC 8 D N** is consistently used throughout the LV positions for Thermocontainer work (e.g., OZ 01.01.0007, 01.05.0001, 01.06.0010, 02.05.0010), so the Baubeschreibung and the LV are internally consistent on the mix type.\n\nHowever, regarding the ZTV cross-reference: the LV positions for the Thermocontainer work do **not** carry a StL-Nr (they are marked '-- -- -- -- -- -- -- --', i.e., free-text positions without a STLK standard reference number). The Baubeschreibung itself does not explicitly cite a specific ZTV paragraph for the AC 8 D N mix designation. The general clause in section 5 (Zusätzliche Technische Vertragsbedingungen) states that ZTV, Richtlinien, Merkblätter etc. apply in the version valid 3 months before contract conclusion, and section 3.12.1 references the ZTV-StB LSBB ST for additional requirements. No specific ZTV article number is cited alongside the AC 8 D N specification in the Baubeschreibung, so a direct match or mismatch between the mix designation and a named ZTV clause cannot be verified from the documents provided.",
+    "context": [
+      "PS231202600001_BB.pdf::Seite_25",
+      "PS231202600001_LV.pdf::Seite_28",
+      "PS231202600001_LV.pdf::Seite_35",
+      "PS231202600001_LV.pdf::Seite_40",
+      "PS231202600001_LV.pdf::Seite_55",
+      "PS231202600001_BB.pdf::Seite_31"
+    ]
+  },
+  {
+    "QuestionID": "Q31",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "MultiHop",
+    "project_id": "PS231202600001",
+    "question": "Given the Ausführungsfristen and any Witterungsregelung, what is the effective number of working days available?",
+    "answer": "The contract specifies a start date of spätestens 29.06.2026 and a completion date of spätestens 02.10.2026 (per HVA_131, section 1.1 and 1.3). This gives a calendar span of approximately 95 calendar days (29 June to 2 October 2026). Work is to be carried out on Werktage including Saturdays (per Baubeschreibung section 3.2: 'Die Arbeiten sind werktags, einschließlich samstags durchzuführen'). Counting Werktage (Monday–Saturday) over this period yields approximately 65–66 Werktage. No explicit Witterungsregelung (weather-related working-day deduction) is specified in the contract documents; the Baubeschreibung only notes general temperature restrictions per individual work types (e.g. min. 5°C surface temperature for DSK/Risssanierung, min. 3°C air temperature for Asphaltthermocontainer) but does not define a fixed number of weather days to be deducted. Therefore, the effective number of available Werktage is approximately 65–66, subject to any weather-related stoppages that may arise during execution.",
+    "context": [
+      "PS231202600001_HVA_131.pdf::Seite_1",
+      "PS231202600001_BB.pdf::Seite_22"
+    ]
+  },
+  {
+    "QuestionID": "Q01",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "When is the bid for this project due?",
+    "answer": "The bid (Angebotsfrist) for this project is due on 11.05.2026 at 13:00 Uhr.",
+    "context": ["P630394379990126_211.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q02",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What is the Eröffnungstermin (bid opening date and time)?",
+    "answer": "No Eröffnungstermin (bid opening date and time) is specified in the documents. The fields for date and time of the Eröffnungstermin are left blank.",
+    "context": ["P630394379990126_211.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q03",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "Until when is the Bindefrist (bid validity period)?",
+    "answer": "The Bindefrist (bid validity period) ends on 10.07.2026.",
+    "context": ["P630394379990126_211.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q04",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What is the Ausführungsbeginn (project start date)?",
+    "answer": "The Ausführungsbeginn (project start date) is 27.07.2026. This is a binding contractual deadline (Vertragsfrist).",
+    "context": ["P630394379990126_214.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q05",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What is the Vollendungsfrist (project completion date)?",
+    "answer": "The project completion date (Vollendungsfrist) is 27.11.2026.",
+    "context": ["P630394379990126_214.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q06",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "Are there Zwischenfristen (interim deadlines)? If so",
+    "answer": "No, there are no Zwischenfristen (interim deadlines) defined in this project. The Besondere Vertragsbedingungen (Form 214) specifies only two binding contract deadlines (Vertragsfristen): the start date of 27.07.2026 and the completion date of 27.11.2026. The checkbox for 'folgende als Vertragsfrist vereinbarte Einzelfristen' (specific interim deadlines) is NOT checked.",
+    "context": ["P630394379990126_214.pdf::Seite_1"]
+  },
+  {
+    "QuestionID": "Q07",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "Which documents must be submitted with the bid?",
+    "answer": "The following documents must be submitted with the bid (section C of form 211):\n\n1. **213** – Angebotsschreiben (Bid letter)\n2. **Teile der Leistungsbeschreibung** – Leistungsverzeichnis/Leistungsprogramm (Parts of the performance description: bill of quantities/performance programme)\n3. **124** – Eigenerklärung zur Eignung (Self-declaration of suitability)\n4. **221/222** – Angaben zur Preisermittlung entsprechend Formblatt 221 oder 222 (Price calculation information per form 221 or 222)\n5. **233** – Nachunternehmerleistungen (Subcontractor services declaration)\n6. **234** – Erklärung Bieter-/Arbeitsgemeinschaft (Declaration of bidding/working consortium)\n\nAdditionally, under section 3.1 (documents to be submitted with the bid):\n- **Nachweis Haftpflichtversicherung** (Proof of liability insurance)\n- **Eigenerklärung zum ThürVgG** (Self-declaration pursuant to the Thuringian procurement law)\n- **GAEB D84**",
+    "context": [
+      "P630394379990126_211.pdf::Seite_1",
+      "P630394379990126_211.pdf::Seite_2",
+      "P630394379990126_211.pdf::Seite_3"
+    ]
+  },
+  {
+    "QuestionID": "Q08",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P630394379990126",
+    "question": "Sind Nebenangebote zugelassen?",
+    "answer": "Nein, Nebenangebote sind nicht zugelassen. Dies wird sowohl in der Baubeschreibung (Abschnitt 1.5) als auch im Formblatt 211 (Abschnitt 6.1) bestätigt.",
+    "context": [
+      "P630394379990126_BB.pdf::Seite_8",
+      "P630394379990126_211.pdf::Seite_4"
+    ]
+  },
+  {
+    "QuestionID": "Q09",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P630394379990126",
+    "question": "Sind Bietergemeinschaften zugelassen?",
+    "answer": "Ja, Bietergemeinschaften sind zugelassen. Gemäß den Teilnahmebedingungen (Formblatt 212) hat die Bietergemeinschaft mit ihrem Angebot eine Erklärung aller Mitglieder in Textform abzugeben, in der die Bildung einer Arbeitsgemeinschaft im Auftragsfall erklärt ist, alle Mitglieder aufgeführt sind, der bevollmächtigte Vertreter bezeichnet ist, dieser die Mitglieder rechtsverbindlich vertritt und alle Mitglieder als Gesamtschuldner haften. Zudem ist das Formblatt 234 (Erklärung Bieter-/Arbeitsgemeinschaft) mit dem Angebot einzureichen.",
+    "context": [
+      "P630394379990126_212.pdf::Seite_2",
+      "P630394379990126_211.pdf::Seite_2"
+    ]
+  },
+  {
+    "QuestionID": "Q10",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What are the Wertungskriterien (award criteria) — price only, or weighted across criteria?",
+    "answer": "The award criterion is price only (Zuschlagskriterium Preis). The price is determined from the Wertungssumme (evaluated sum) of the offer, taking into account discounts, reimbursements from wage adjustment clauses, and maintenance offers. There are no multiple weighted criteria.",
+    "context": ["P630394379990126_211.pdf::Seite_4"]
+  },
+  {
+    "QuestionID": "Q11",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P630394379990126",
+    "question": "Is a price calculation required for the bid?",
+    "answer": "Yes, a price calculation is required for the bid. According to the tender documents (Formblatt 211), the bidder must submit either Formblatt 221 (Angaben zur Kalkulation mit vorbestimmten Zuschlägen / Preisermittlung bei Zuschlagskalkulation) or Formblatt 222 (Angaben zur Kalkulation über die Endsumme) together with the bid. Both forms (221 and 222) are included in the tender documents. Additionally, Formblatt 223 (Aufgliederung der Einheitspreise) may be requested separately by the contracting authority.",
+    "context": [
+      "P630394379990126_211.pdf::Seite_2",
+      "P630394379990126_221.pdf::Seite_1",
+      "P630394379990126_222.pdf::Seite_1"
+    ]
+  },
+  {
+    "QuestionID": "Q12",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "If a price calculation is required, what form is required?",
+    "answer": "According to the tender documents, if a price calculation is required, the bidder must submit either Formblatt 221 (Angaben zur Kalkulation mit vorbestimmten Zuschlägen / Preisermittlung bei Zuschlagskalkulation) or Formblatt 222 (Angaben zur Kalkulation über die Endsumme / Preisermittlung bei Kalkulation über die Endsumme). Both forms are included in the tender documents. The submission of these forms (221/222) is marked as required with the offer (section C of the Aufforderung zur Abgabe eines Angebots).",
+    "context": [
+      "P630394379990126_211.pdf::Seite_2",
+      "P630394379990126_221.pdf::Seite_1",
+      "P630394379990126_222.pdf::Seite_1"
+    ]
+  },
+  {
+    "QuestionID": "Q13",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "P630394379990126",
+    "question": "What is the total m² of asphalt Deckschicht across all positions?",
+    "answer": {
+      "text": "There are no asphalt Deckschicht (asphalt surface course) positions in this LV. The project involves a bridge replacement (Ersatzneubau) with granite stone paving (Natursteinpflaster/Großpflastersteine) rather than asphalt surfaces. No asphalt Deckschicht positions exist anywhere in the Leistungsverzeichnis.",
+      "reasoning_note": "A thorough review of all LV positions (Abschnitte 1–12) reveals no asphalt Deckschicht positions. The road surface specified in the Baubeschreibung (section 1.1.1.6) is Natursteinpflaster Granit 100/100/100, and the LV positions for surfacing (e.g., 1.12.30, 1.9.90) are all granite stone paving. There are no bituminous or asphalt surface course (Deckschicht) line items.",
+      "identified_positions": [],
+      "total": 0.0,
+      "excluded_positions": null,
+      "context": [
+        "P630394379990126_LV.pdf::Seite_21",
+        "P630394379990126_LV.pdf::Seite_22",
+        "P630394379990126_BB.pdf::Seite_2"
+      ]
+    },
+    "context": [
+      "P630394379990126_LV.pdf::Seite_21",
+      "P630394379990126_LV.pdf::Seite_22",
+      "P630394379990126_BB.pdf::Seite_2"
+    ]
+  },
+  {
+    "QuestionID": "Q14",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "P630394379990126",
+    "question": "What is the total m³ of Erdarbeiten across all positions?",
+    "answer": {
+      "text": "The total identified m³ of Erdarbeiten (earthworks) across all positions is 95 m³",
+      "reasoning_note": "Abschnitt 6 is titled 'Erdbau'. Within it, the m³ positions are: 1.6.30 Oberboden abtragen (5 m³), 1.6.40 N.gefährl. Abfall aus Baustelle entsorgen – Boden (15 m³). Additionally, in Abschnitt 11 (Gewässersohle, Böschungen), position 1.11.10 Anlandungen und Schlammablagerungen beseitigen (20 m³), 1.11.30 Oberboden abtragen und andecken (45 m³), and 1.11.40 Baustoff liefern und einbauen (10 m³) are earthwork-related m³ positions. The positions in Abschnitt 5 (1.5.30 Bauliche Anlage abbrechen, 6 m³) relate to demolition/abbruch, not Erdarbeiten. Positions measured in m² (e.g. 1.6.10, 1.6.20, 1.6.50) are not m³ and are excluded.",
+      "identified_positions": [
+        {
+          "oz": "1.6.30",
+          "category": "Erdbau",
+          "description": "Oberboden abtragen (inkl. Vegetationsdecke, Dicke über 10 bis 30 cm, Abrechnung nach Abtragsprofilen)",
+          "quantity": 5.0,
+          "unit": "m3",
+          "oz_metadata": {
+            "section": "Abschnitt 6 Erdbau"
+          }
+        },
+        {
+          "oz": "1.6.40",
+          "category": "Erdbau",
+          "description": "N.gefährl. Abfall aus Baustelle entsorgen – Boden, AVV-Nr.: 170504, Abrechnung nach Abtragsprofilen",
+          "quantity": 15.0,
+          "unit": "m3",
+          "oz_metadata": {
+            "section": "Abschnitt 6 Erdbau"
+          }
+        },
+        {
+          "oz": "1.11.10",
+          "category": "Gewässersohle, Böschungen",
+          "description": "Anlandungen und Schlammablagerungen beseitigen – Beräumung Bachbett Schötener Bach ca. 25 m Länge",
+          "quantity": 20.0,
+          "unit": "m3",
+          "oz_metadata": {
+            "section": "Abschnitt 11 Gewässersohle, Böschungen"
+          }
+        },
+        {
+          "oz": "1.11.30",
+          "category": "Gewässersohle, Böschungen",
+          "description": "Oberboden abtragen und andecken – Böschungen, Uferbereiche, Abtrag über 10-30 cm, Andeckung über 15-25 cm",
+          "quantity": 45.0,
+          "unit": "m3",
+          "oz_metadata": {
+            "section": "Abschnitt 11 Gewässersohle, Böschungen"
+          }
+        },
+        {
+          "oz": "1.11.40",
+          "category": "Gewässersohle, Böschungen",
+          "description": "Baustoff liefern und einbauen – Kies-Sand-Gemisch, Verfüllen ausgespülter Bereiche hinter/neben Widerlagern, Abrechnung nach Auftragsprofilen",
+          "quantity": 10.0,
+          "unit": "m3",
+          "oz_metadata": {
+            "section": "Abschnitt 11 Gewässersohle, Böschungen"
+          }
+        }
+      ],
+      "total": 95.0,
+      "excluded_positions": [
+        "1.6.10 (m², Schicht ohne Bindemittel aufnehmen, STS)",
+        "1.6.20 (m², Schicht ohne Bindemittel aufnehmen, STS+DoB)",
+        "1.6.50 (m, Bankett profilgerecht herstellen)",
+        "1.5.30 (m³, Bauliche Anlage abbrechen – Abbruch, not Erdarbeiten)",
+        "1.11.20 (m², Gewässersohle profilieren)"
+      ],
+      "context": [
+        "P630394379990126_LV.pdf::Seite_12",
+        "P630394379990126_LV.pdf::Seite_13",
+        "P630394379990126_LV.pdf::Seite_20",
+        "P630394379990126_LV.pdf::Seite_21"
+      ]
+    },
+    "context": [
+      "P630394379990126_LV.pdf::Seite_12",
+      "P630394379990126_LV.pdf::Seite_13",
+      "P630394379990126_LV.pdf::Seite_20",
+      "P630394379990126_LV.pdf::Seite_21"
+    ]
+  },
+  {
+    "QuestionID": "Q15",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "P630394379990126",
+    "question": "How many positions does the LV contain?",
+    "answer": {
+      "text": "The LV contains 63 positions in total across 12 sections (Abschnitte) within Bereich 1 (Ersatzneubau Überbau Brücke über den Schötener Bach).",
+      "reasoning_note": "Counting all numbered positions across all sections: Abschnitt 1 (1.1.10, 1.1.20, 1.1.30, 1.1.40, 1.1.50 = 5), Abschnitt 2 (1.2.10, 1.2.20, 1.2.30, 1.2.40, 1.2.50, 1.2.60 = 6), Abschnitt 3 (1.3.10, 1.3.20, 1.3.30, 1.3.40, 1.3.50, 1.3.60, 1.3.70 = 7), Abschnitt 4 (1.4.10 = 1), Abschnitt 5 (1.5.10, 1.5.20, 1.5.30, 1.5.40, 1.5.50, 1.5.60, 1.5.70, 1.5.80, 1.5.90, 1.5.100 = 10), Abschnitt 6 (1.6.10, 1.6.20, 1.6.30, 1.6.40, 1.6.50 = 5), Abschnitt 7 (1.7.10, 1.7.20, 1.7.30 = 3), Abschnitt 8 (1.8.10, 1.8.20 = 2), Abschnitt 9 (1.9.10, 1.9.20, 1.9.30, 1.9.40, 1.9.50, 1.9.60, 1.9.70, 1.9.80, 1.9.90, 1.9.100, 1.9.110, 1.9.120 = 12), Abschnitt 10 (1.10.10, 1.10.20, 1.10.30 = 3), Abschnitt 11 (1.11.10, 1.11.20, 1.11.30, 1.11.40 = 4), Abschnitt 12 (1.12.10, 1.12.20, 1.12.30, 1.12.40, 1.12.50, 1.12.60, 1.12.70, 1.12.80, 1.12.90, 1.12.100, 1.12.110, 1.12.120 = 12). Total: 5+6+7+1+10+5+3+2+12+3+4+12 = 70 positions.",
+      "identified_positions": null,
+      "total": 70.0,
+      "excluded_positions": null,
+      "context": [
+        "P630394379990126_LV.pdf::Seite_2",
+        "P630394379990126_LV.pdf::Seite_3",
+        "P630394379990126_LV.pdf::Seite_4",
+        "P630394379990126_LV.pdf::Seite_5",
+        "P630394379990126_LV.pdf::Seite_6",
+        "P630394379990126_LV.pdf::Seite_7",
+        "P630394379990126_LV.pdf::Seite_8",
+        "P630394379990126_LV.pdf::Seite_9",
+        "P630394379990126_LV.pdf::Seite_10",
+        "P630394379990126_LV.pdf::Seite_11",
+        "P630394379990126_LV.pdf::Seite_12",
+        "P630394379990126_LV.pdf::Seite_13",
+        "P630394379990126_LV.pdf::Seite_14",
+        "P630394379990126_LV.pdf::Seite_15",
+        "P630394379990126_LV.pdf::Seite_16",
+        "P630394379990126_LV.pdf::Seite_17",
+        "P630394379990126_LV.pdf::Seite_18",
+        "P630394379990126_LV.pdf::Seite_19",
+        "P630394379990126_LV.pdf::Seite_20",
+        "P630394379990126_LV.pdf::Seite_21",
+        "P630394379990126_LV.pdf::Seite_22",
+        "P630394379990126_LV.pdf::Seite_23",
+        "P630394379990126_LV.pdf::Seite_24",
+        "P630394379990126_LV.pdf::Seite_25",
+        "P630394379990126_LV.pdf::Seite_26"
+      ]
+    },
+    "context": [
+      "P630394379990126_LV.pdf::Seite_2",
+      "P630394379990126_LV.pdf::Seite_3",
+      "P630394379990126_LV.pdf::Seite_4",
+      "P630394379990126_LV.pdf::Seite_5",
+      "P630394379990126_LV.pdf::Seite_6",
+      "P630394379990126_LV.pdf::Seite_7",
+      "P630394379990126_LV.pdf::Seite_8",
+      "P630394379990126_LV.pdf::Seite_9",
+      "P630394379990126_LV.pdf::Seite_10",
+      "P630394379990126_LV.pdf::Seite_11",
+      "P630394379990126_LV.pdf::Seite_12",
+      "P630394379990126_LV.pdf::Seite_13",
+      "P630394379990126_LV.pdf::Seite_14",
+      "P630394379990126_LV.pdf::Seite_15",
+      "P630394379990126_LV.pdf::Seite_16",
+      "P630394379990126_LV.pdf::Seite_17",
+      "P630394379990126_LV.pdf::Seite_18",
+      "P630394379990126_LV.pdf::Seite_19",
+      "P630394379990126_LV.pdf::Seite_20",
+      "P630394379990126_LV.pdf::Seite_21",
+      "P630394379990126_LV.pdf::Seite_22",
+      "P630394379990126_LV.pdf::Seite_23",
+      "P630394379990126_LV.pdf::Seite_24",
+      "P630394379990126_LV.pdf::Seite_25",
+      "P630394379990126_LV.pdf::Seite_26"
+    ]
+  },
+  {
+    "QuestionID": "Q16",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What asphalt mix is specified for the Deckschicht?",
+    "answer": "No asphalt mix (Deckschicht) is specified in this project. The road surface (Oberbau) for the Schötener Grund consists of Natursteinpflaster (granite cobblestones 100/100/100 mm) on a Schottertragschicht (crushed stone base course 0/30), not an asphalt pavement. There is no asphalt Deckschicht in this project.",
+    "context": [
+      "P630394379990126_BB.pdf::Seite_2",
+      "P630394379990126_LV.pdf::Seite_21",
+      "P630394379990126_LV.pdf::Seite_22"
+    ]
+  },
+  {
+    "QuestionID": "Q17",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What is the specified Einbaudicke (lift thickness) for the Binderschicht?",
+    "answer": "There is no Binderschicht (binder course) specified in this project. The pavement structure described in the tender documents consists of Natursteinpflaster Granit (100/100/100), a Bettung (bedding layer), and a Schottertragschicht (crushed stone base course). No asphalt layers including a Binderschicht are part of this project.",
+    "context": ["P630394379990126_BB.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q18",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P630394379990126",
+    "question": "Are there Eventualpositionen or Wahlpositionen in the LV?",
+    "answer": "No, there are no Eventualpositionen (conditional positions) or Wahlpositionen (alternative positions) in the LV. The Leistungsverzeichnis contains only regular positions across 12 sections (Abschnitte) within Bereich 1 (Ersatzneubau Überbau Brücke über den Schötener Bach). All positions are standard mandatory positions without any designation as 'E' (Eventualposition) or 'W' (Wahlposition).",
+    "context": [
+      "P630394379990126_LV.pdf::Seite_2",
+      "P630394379990126_LV.pdf::Seite_27"
+    ]
+  },
+  {
+    "QuestionID": "Q19",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What is the Vertragsstrafe per day of delay?",
+    "answer": "The Vertragsstrafe (contractual penalty) is 0,10 € (ohne Umsatzsteuer) per Werktag (working day) of delay. The total Vertragsstrafe is capped at 5 Prozent of the Auftragssumme (ohne Umsatzsteuer).",
+    "context": ["P630394379990126_214.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q20",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What is the Sicherheitsleistung — amount and form?",
+    "answer": "There are two types of Sicherheitsleistung specified:\n\n1. **Sicherheitsleistung für die Vertragserfüllung (§ 17 VOB/B):** Soweit die Auftragssumme mindestens 250.000 Euro ohne Umsatzsteuer beträgt, ist Sicherheit in Höhe von **5 Prozent der Auftragssumme (inkl. Umsatzsteuer, ohne Nachträge)** zu leisten. Wird Sicherheit durch Bürgschaft geleistet, ist das Formblatt „Vertragserfüllungsbürgschaft",
+    "context": ["P630394379990126_214.pdf::Seite_2"]
+  },
+  {
+    "QuestionID": "Q21",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "What is the duration of the Mängelansprüche (warranty period) in years?",
+    "answer": "The warranty period (Gewährleistungsfrist) for Mängelansprüche is 4 years. According to section 10.2 of the Besondere Vertragsbedingungen, the security for Mängelansprüche will only be returned to the contractor after the expiry of the warranty period of 4 years.",
+    "context": ["P630394379990126_214.pdf::Seite_3"]
+  },
+  {
+    "QuestionID": "Q22",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "Which ZTV documents apply to this project?",
+    "answer": "Based on the Baubeschreibung, the following ZTV (Zusätzliche Technische Vertragsbedingungen) documents apply to this project:\n\n1. **ZTV E-StB** – for earthworks (Erdarbeiten), including compaction requirements and hinterfill material\n2. **ZTV-ING** (various parts):\n   - ZTV-ING Teil 1, Abschnitt 2 – Vermessungsleistungen\n   - ZTV-ING Teil 3, Abschnitt 1 – Beton (Transportbeton)\n   - ZTV-ING Teil 3.5 – Verschließen von Rissen im Konstruktionsbeton\n   - ZTV-ING Teil 4-3 – Korrosionsschutzsystem für Geländer\n   - ZTV-ING Teil 5 – Herstellung tragender Hilfskonstruktionen (Baubehelfe)\n   - ZTV-ING Teil 6, Abschnitt 1 – Bituminöse Abdichtung\n   - ZTV-ING Teil 6, Abschnitt 3 – Witterungsbedingte Schutzeinrichtungen\n   - ZTV-ING Teil 9 – Zusammenstellung der Normen und Technischen Regelwerke (Vertragsbestandteil)\n3. **ZTV-SA** – Verkehrssicherung (Kontrolle der Verkehrssicherungseinrichtungen)\n4. **ZTV Pflaster-StB** – Anforderungen an Pflaster und Borde (Verjährungsfrist für Mängelansprüche)\n5. **ZVB E-StB** – Bautagesberichte",
+    "context": [
+      "P630394379990126_BB.pdf::Seite_5",
+      "P630394379990126_BB.pdf::Seite_11",
+      "P630394379990126_BB.pdf::Seite_12",
+      "P630394379990126_BB.pdf::Seite_13",
+      "P630394379990126_BB.pdf::Seite_14",
+      "P630394379990126_BB.pdf::Seite_15",
+      "P630394379990126_BB.pdf::Seite_16",
+      "P630394379990126_BB.pdf::Seite_17",
+      "P630394379990126_BB.pdf::Seite_21"
+    ]
+  },
+  {
+    "QuestionID": "Q23",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "Aggregation",
+    "project_id": "P630394379990126",
+    "question": "Please list the BVB set by the Vergabestelle.",
+    "answer": "The Besondere Vertragsbedingungen (BVB) set by the Vergabestelle (Stadt Apolda) are as follows:\n\n1. **Ausführungsfristen (§ 5 VOB/B):** Ausführungsbeginn am 27.07.2026; Fertigstellung (abnahmereif) am 27.11.2026. Beide Fristen sind verbindliche Vertragsfristen.\n\n2. **Vertragsstrafen (§ 11 VOB/B):** 0,10 € (ohne Umsatzsteuer) je Werktag des Verzugs; begrenzt auf insgesamt 5 % der im Auftragsschreiben genannten Auftragssumme (ohne Umsatzsteuer). Verwirkte Vertragsstrafen für Einzelfristen werden auf die Vertragsstrafe für die Vollendungsfrist angerechnet.\n\n3. **Zahlung (§ 16 VOB/B):** Keine abweichende Regelung zur Schlusszahlungsfrist angegeben (Feld leer).\n\n4. **Sicherheitsleistung für die Vertragserfüllung (§ 17 VOB/B):** Soweit die Auftragssumme mindestens 250.000 Euro (ohne Umsatzsteuer) beträgt, ist Sicherheit für die Vertragserfüllung in Höhe von 5 % der Auftragssumme (inkl. Umsatzsteuer, ohne Nachträge) zu leisten.\n\n5. **Sicherheitsleistung für Mängelansprüche:** Die Sicherheit für Mängelansprüche beträgt 3 % der Summe der Abschlagszahlungen zum Zeitpunkt der Abnahme (vorläufige Abrechnungssumme).\n\n6. **Bürgschaften (§ 17 VOB/B):** Für Vertragserfüllung: Formblatt 'Vertragserfüllungsbürgschaft'; für Mängelansprüche: Formblatt 'Mängelansprüchebürgschaft'; für Vorauszahlungen/Abschlagszahlungen: Formblatt 'Abschlagszahlungs-/Vorauszahlungsbürgschaft'.\n\n7. **Technische Spezifikationen:** Gleichwertige Technische Spezifikationen werden auch ohne ausdrücklichen Zusatz 'oder gleichwertig' in Bezug genommen.\n\n8. **Werbung:** Werbung auf der Baustelle ist nur nach vorheriger Zustimmung des Auftraggebers zulässig.\n\n9. **Weitere Besondere Vertragsbedingungen (Ziffer 10):**\n   - 10.1: Das Thüringer Vergabegesetz ist durch den AN und dessen NU einzuhalten.\n   - 10.2: Die Sicherheitsleistung für Mängelansprüche wird erst nach Ablauf der Gewährleistungsfrist (4 Jahre) an den Auftragnehmer zurückgegeben.",
+    "context": [
+      "P630394379990126_214.pdf::Seite_1",
+      "P630394379990126_214.pdf::Seite_2",
+      "P630394379990126_214.pdf::Seite_3"
+    ]
+  },
+  {
+    "QuestionID": "Q24",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P630394379990126",
+    "question": "Are there working-hour restrictions?",
+    "answer": "Yes. Night, weekend, and holiday work are not planned (\"Nacht-, Wochenend- und Feiertagsarbeit sind nicht vorgesehen\"). Should the contractor nevertheless carry out multi-shift work, the corresponding surcharges must be included in the unit prices; no separate remuneration for wage surcharges will be made.",
+    "context": ["P630394379990126_BB.pdf::Seite_12"]
+  },
+  {
+    "QuestionID": "Q25",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "Is the Verkehrssicherung provided by the Auftraggeber, or at the contractor's cost?",
+    "answer": "The Verkehrssicherung (traffic safety/control) is at the contractor's (Auftragnehmer's) cost and responsibility. The contractor must set up, maintain, and dismantle all traffic safety measures. However, there is one specific exception: the fees (Gebühren) for the required traffic authority permits (verkehrsrechtliche Anordnung) are reimbursed by the Auftraggeber on proof of cost ('auf Nachweis erstattet'). All other costs for traffic safety equipment, signage, lighting, controls, and maintenance are borne by the contractor and are included in the relevant LV positions (e.g. positions 1.3.10 through 1.3.70).",
+    "context": [
+      "P630394379990126_LV.pdf::Seite_6",
+      "P630394379990126_LV.pdf::Seite_7",
+      "P630394379990126_LV.pdf::Seite_8",
+      "P630394379990126_LV.pdf::Seite_9"
+    ]
+  },
+  {
+    "QuestionID": "Q26",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "Lookup",
+    "project_id": "P630394379990126",
+    "question": "Are Lagerflächen for materials provided, or is the contractor responsible?",
+    "answer": "Lager- und Arbeitsplätze are provided by the client (AG) in approximately 100 m distance to the construction site in a southerly direction. However, if the contractor requires additional areas beyond those provided, he must procure or arrange for their use at his own expense and responsibility. All necessary permits (e.g. from the Untere Naturschutzbehörde) must be obtained by the contractor himself, and associated costs are not separately reimbursed.",
+    "context": ["P630394379990126_BB.pdf::Seite_9"]
+  },
+  {
+    "QuestionID": "Q27",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P630394379990126",
+    "question": "Are Sondernutzungserlaubnisse required?",
+    "answer": "The documents do not explicitly mention 'Sondernutzungserlaubnisse' (special use permits). However, the Baubeschreibung notes that for using unpaved areas and paths with special vehicles, cranes, or heavy machinery, the contractor (AN) must independently obtain required permits ('Genehmigungen') and take load-distributing measures. Additionally, for all areas and paths intended for use, the required permits (including from the lower nature conservation authority – Untere Naturschutzbehörde) must be obtained by the contractor. These are not explicitly called 'Sondernutzungserlaubnisse' but represent similar permit requirements.",
+    "context": ["P630394379990126_BB.pdf::Seite_9"]
+  },
+  {
+    "QuestionID": "Q28",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "ConstraintSurfacing",
+    "project_id": "P630394379990126",
+    "question": "Are there protected utilities, trees, or environmental restrictions adjacent to the work zone?",
+    "answer": "Yes, there are several environmental and protection-related restrictions adjacent to the work zone:\n\n1. **Landschaftsschutzgebiet (Landscape Protection Area):** The entire area where the bridge is located lies within the landscape protection area 'Schötener Promenade'. The nature conservation regulations (§§13ff BNatSchG i.V. mit §§9ff SächsNatSchG) and species protection regulations (§44 Abs. 1 BNatSchG) must be observed.\n\n2. **Trees/Vegetation:** No trees are located in the direct construction area (section 2.9.2). However, DIN 18920 'Schutz von Bäumen, Pflanzbeständen und Vegetationsflächen bei Baumaßnahmen' must be complied with.\n\n3. **Protected Biotopes:** No protected biotopes are present in the construction area (section 2.9.3).\n\n4. **Water Body (Gewässer – Schötener Bach):** The Schötener Bach is a Gewässer 2. Ordnung (second-order watercourse). No pollutants, construction wastewater, or contaminated water may be discharged into it. Flood protection and groundwater protection must be ensured.\n\n5. **Noise/Immission Protection:** All applicable immission protection laws (BImSchG, 32. BImSchV, AVV Baulärm) must be observed. Night-time noise disturbances are to be avoided.\n\n6. **No monuments or protected biotopes** were identified in the construction area.",
+    "context": [
+      "P630394379990126_BB.pdf::Seite_10",
+      "P630394379990126_BB.pdf::Seite_11",
+      "P630394379990126_BB.pdf::Seite_7"
+    ]
+  },
+  {
+    "QuestionID": "Q29",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "CrossDocConditional",
+    "project_id": "P630394379990126",
+    "question": "Does the LV include explicit positions for the Verkehrssicherung referenced in the BVB?",
+    "answer": {
+      "text": "Yes, the LV includes explicit positions for Verkehrssicherung. Abschnitt 3 'Verkehrssicherung' contains the following dedicated positions:\n\n1. OZ 1.3.10 – Verkehrssich. läng. Dauer aufbauen (Arbeitsstelle, Vollsperrung Schötener Grund), 1,000 Psch\n2. OZ 1.3.20 – Verkehrssich. läng. Dauer vorhalten (Vollsperrung Schötener Grund), 90,000 d\n3. OZ 1.3.30 – Verkehrssich. läng. Dauer abbauen (Vollsperrung Schötener Grund), 1,000 Psch\n4. OZ 1.3.40 – Verkehrssich. läng. Dauer aufbauen (Umleitungsstrecke), 1,000 Psch\n5. OZ 1.3.50 – Verkehrssich. läng. Dauer vorhalten (Umleitungsstrecke), 90,000 d\n6. OZ 1.3.60 – Verkehrssich. läng. Dauer abbauen (Umleitungsstrecke), 1,000 Psch\n7. OZ 1.3.70 – Kontrolle d. Verkehrss. a. Uml.str. (zweimal bzw. einmal täglich, schriftliche Dokumentation), 90,000 d\n\nThese positions cover the full closure of the Schötener Grund (Vollsperrung) and the associated diversion route (Umleitungsstrecke) as required by the traffic management concept referenced in the Baubeschreibung (section 3.1) and the BVB.",
+      "reasoning_note": null,
+      "identified_positions": [
+        {
+          "oz": "1.3.10",
+          "category": "Verkehrssicherung",
+          "description": "Verkehrssicherung längerer Dauer aufbauen – Arbeitsstelle, Vollsperrung Schötener Grund, inkl. verkehrsrechtlicher Anordnung",
+          "quantity": 1.0,
+          "unit": "Psch",
+          "oz_metadata": {
+            "Regelplan": "B I/15",
+            "Verkehrsführungsphase": "Vollsperrung Schötener Grund"
+          }
+        },
+        {
+          "oz": "1.3.20",
+          "category": "Verkehrssicherung",
+          "description": "Verkehrssicherung längerer Dauer vorhalten – Vollsperrung Schötener Grund",
+          "quantity": 90.0,
+          "unit": "d",
+          "oz_metadata": {
+            "Verkehrsführungsphase": "Vollsperrung Schötener Grund"
+          }
+        },
+        {
+          "oz": "1.3.30",
+          "category": "Verkehrssicherung",
+          "description": "Verkehrssicherung längerer Dauer abbauen – Vollsperrung Schötener Grund",
+          "quantity": 1.0,
+          "unit": "Psch",
+          "oz_metadata": {
+            "Verkehrsführungsphase": "Vollsperrung Schötener Grund"
+          }
+        },
+        {
+          "oz": "1.3.40",
+          "category": "Verkehrssicherung",
+          "description": "Verkehrssicherung längerer Dauer aufbauen – Umleitungsstrecke, inkl. verkehrsrechtlicher Anordnung",
+          "quantity": 1.0,
+          "unit": "Psch",
+          "oz_metadata": {
+            "Verkehrsführungsphase": "Umleitungsstrecke PKW- und LKW-Verkehr"
+          }
+        },
+        {
+          "oz": "1.3.50",
+          "category": "Verkehrssicherung",
+          "description": "Verkehrssicherung längerer Dauer vorhalten – Umleitungsstrecke",
+          "quantity": 90.0,
+          "unit": "d",
+          "oz_metadata": {
+            "Verkehrsführungsphase": "Umleitungsstrecke PKW- und LKW-Verkehr"
+          }
+        },
+        {
+          "oz": "1.3.60",
+          "category": "Verkehrssicherung",
+          "description": "Verkehrssicherung längerer Dauer abbauen – Umleitungsstrecke",
+          "quantity": 1.0,
+          "unit": "Psch",
+          "oz_metadata": {
+            "Verkehrsführungsphase": "Umleitungsstrecke PKW- und LKW-Verkehr"
+          }
+        },
+        {
+          "oz": "1.3.70",
+          "category": "Verkehrssicherung",
+          "description": "Kontrolle der Verkehrssicherung an Arbeitsstellen und Umleitungsstrecke – zweimal täglich, an arbeitsfreien Tagen einmal täglich, schriftliche Dokumentation",
+          "quantity": 90.0,
+          "unit": "d",
+          "oz_metadata": {
+            "Kontrolle": "zweimal täglich / einmal täglich an arbeitsfreien Tagen"
+          }
+        }
+      ],
+      "total": null,
+      "excluded_positions": null,
+      "context": [
+        "P630394379990126_LV.pdf::Seite_6",
+        "P630394379990126_LV.pdf::Seite_7",
+        "P630394379990126_LV.pdf::Seite_8",
+        "P630394379990126_LV.pdf::Seite_9"
+      ]
+    },
+    "context": [
+      "P630394379990126_LV.pdf::Seite_6",
+      "P630394379990126_LV.pdf::Seite_7",
+      "P630394379990126_LV.pdf::Seite_8",
+      "P630394379990126_LV.pdf::Seite_9",
+      "P630394379990126_BB.pdf::Seite_11"
+    ]
+  },
+  {
+    "QuestionID": "Q30",
+    "QuestionCategory": "Calculator",
+    "QuestionType": "CrossDocConditional",
+    "project_id": "P630394379990126",
+    "question": "Does the asphalt mix specified in the Baubeschreibung match the ZTV reference cited?",
+    "answer": "The Baubeschreibung does not specify an asphalt mix at all. The road surface (Oberbau) for the Schötener Grund is specified as Natursteinpflaster (granite natural stone paving, 10x10x10 cm) with a gravel base course (Schottertragschicht 0/30), not asphalt. The relevant ZTV reference cited in the context of the bridge deck waterproofing/surfacing is ZTV-ING 6-1 (for the bituminous waterproofing/Abdichtung), but this governs the waterproofing membrane system, not an asphalt wearing course. There is no asphalt mix (e.g. AC or SMA) specified anywhere in the Baubeschreibung, so the question of whether an asphalt mix matches a ZTV reference does not apply to this project.",
+    "context": [
+      "P630394379990126_BB.pdf::Seite_2",
+      "P630394379990126_BB.pdf::Seite_5",
+      "P630394379990126_BB.pdf::Seite_9"
+    ]
+  },
+  {
+    "QuestionID": "Q31",
+    "QuestionCategory": "Bauleiter",
+    "QuestionType": "MultiHop",
+    "project_id": "P630394379990126",
+    "question": "Given the Ausführungsfristen and any Witterungsregelung, what is the effective number of working days available?",
+    "answer": "The contract specifies a fixed start date of 27.07.2026 and a fixed completion date (abnahmereife Fertigstellung) of 27.11.2026. This corresponds to approximately 87 working days (Werktage, i.e. Monday–Saturday) between these two dates. No Witterungsregelung (weather-related working day adjustment clause) is mentioned in the documents — neither a Lohngleitklausel nor a specific Witterungstageregelung is included. Night, weekend, and holiday work is explicitly not foreseen (Baubeschreibung Section 3.2). Therefore, the effective number of working days available is approximately 87 Werktage (calendar period: 27.07.2026 to 27.11.2026), with no documented reduction or extension for weather days.",
+    "context": [
+      "P630394379990126_214.pdf::Seite_1",
+      "P630394379990126_BB.pdf::Seite_12"
+    ]
+  }
+]

@@ -164,5 +164,5 @@ CLAUDE.local.md
 
 docker/data/
 
-docs/eval/context/
-docs/eval/generator/.cache/
+eval/context/
+eval/generator/.cache/
