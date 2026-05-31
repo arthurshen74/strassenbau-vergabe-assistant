@@ -57,6 +57,7 @@ classDiagram
         +timestamptz created_at postgres_only
         +timestamptz updated_at postgres_only
     }
+    note for Document "At most one LV_DOCUMENT per project: partial unique on project_uuid WHERE document_type = LV_DOCUMENT."
 
     note for SourceLine "This is where canonical prose body text lives."
     class SourceLine {
@@ -118,8 +119,8 @@ classDiagram
         +str langtext
         +numeric menge
         +str einheit
-        +str positionstyp
-        +int level
+        +str? positionstyp
+        +int? level
         +str? stl_nr
         +str? hinweis
         +str? langtext_resolved "linked oz body + the delta, composed at ingestion"
@@ -153,5 +154,38 @@ classDiagram
 
     SimpleChunk ..> Document : DOCUMENT
     SimpleChunk ..> LVItem : LV_ITEM
+    note for SimpleChunk "Re-ingestion archives prior chunks: rows matching (source_doc_uuid, source_doc_type) are moved to the {elasticsearch_index}_archive index (e.g. roadbuilders_text_archive) with an added archived_at timestamptz, then replaced in the live index."
+
+    class PromptType {
+        <<enumeration>>
+        dispatcher
+        project_chat
+        classify_project_chat_user_message
+        multi_question_generator
+        lv_extraction
+    }
+
+    note for ChatMessage "Value object, not its own table; persisted as JSONB inside PromptVersion.initial_messages."
+    class ChatMessage {
+        +text role "user or assistant"
+        +text content
+    }
+
+    class PromptVersion {
+        <<postgres>>
+        +uuid prompt_version_uuid PK
+        +PromptType prompt_type UK_COMPOSITE
+        +int version UK_COMPOSITE
+        +text model_name
+        +text system_prompt
+        +float temperature
+        +float? top_p
+        +float? min_p
+        +list~ChatMessage~ initial_messages
+        +timestamptz created_at postgres_only
+    }
+
+    PromptType *-- PromptVersion : classifies_on_prompt_type
+    ChatMessage *-- PromptVersion : can_have_many_initial_messages
 
 ```

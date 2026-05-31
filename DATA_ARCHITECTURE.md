@@ -104,62 +104,7 @@ async def transaction() -> AsyncIterator[AsyncConnection]:
 
 ## 2. Schema layer (`db/tables/`)
 
-The shared `MetaData` + `NAMING_CONVENTION` block is unchanged from the guide. The tables below replace the example ones.
-
-```python
-# db/tables/projects.py
-from sqlalchemy import Table, Column, Text, DateTime, func, text
-from sqlalchemy.dialects.postgresql import UUID
-
-from app.db.metadata import metadata
-
-projects = Table(
-    "projects", metadata,
-    Column("project_uuid", UUID(as_uuid=True), primary_key=True,
-           server_default=text("gen_random_uuid()")),
-    Column("vergabe_id", Text, nullable=False),
-    Column("project_name", Text, nullable=False),
-    Column("project_description", Text, nullable=False),
-    Column("vergabestelle", Text, nullable=False),
-    Column("created_at", DateTime(timezone=True), nullable=False,
-           server_default=func.now()),
-    Column("updated_at", DateTime(timezone=True), nullable=False,
-           server_default=func.now(), onupdate=func.now()),
-)
-```
-
-```python
-# db/tables/documents.py
-from sqlalchemy import (
-    Table, Column, Text, Integer, DateTime, ForeignKey,
-    CheckConstraint, func, text,
-)
-from sqlalchemy.dialects.postgresql import UUID
-
-from app.db.metadata import metadata
-
-documents = Table(
-    "documents", metadata,
-    Column("document_uuid", UUID(as_uuid=True), primary_key=True,
-           server_default=text("gen_random_uuid()")),
-    Column("project_uuid", UUID(as_uuid=True),
-           ForeignKey("projects.project_uuid", ondelete="CASCADE"),
-           nullable=False, index=True),
-    Column("document_type", Text, nullable=False),
-    Column("file_name", Text, nullable=False),
-    Column("document_description", Text, nullable=True),   # marked `?` in DATA_SCHEMA
-    Column("number_of_pages", Integer, nullable=False),
-    Column("created_at", DateTime(timezone=True), nullable=False,
-           server_default=func.now()),
-    Column("updated_at", DateTime(timezone=True), nullable=False,
-           server_default=func.now(), onupdate=func.now()),
-    # document_type is a closed set in DATA_SCHEMA; enforce it.
-    CheckConstraint(
-        "document_type IN ('LV_DOCUMENT', 'PROSE_DOCUMENT')",
-        name="document_type_valid",  # -> ck_documents_document_type_valid
-    ),
-)
-```
+Here are some samples of the Schema layer coordinated with DATA_SCHEMA.md
 
 ```python
 # db/tables/lv_items.py
@@ -184,8 +129,8 @@ lv_items = Table(
     Column("langtext_resolved", Text, nullable=True),     # `?` — composed only for back-ref items
     Column("menge", Numeric(12, 4), nullable=False),      # Decimal, never float
     Column("einheit", Text, nullable=False),
-    Column("positionstyp", Text, nullable=False),         # consider CHECK once value set is pinned
-    Column("level", Integer, nullable=False),
+    Column("positionstyp", Text, nullable=True),          # nullable: not always derivable from a PDF-only parse; consider CHECK once value set is pinned
+    Column("level", Integer, nullable=True),              # nullable: derived from OZ depth when determinable
     Column("stl_nr", Text, nullable=True),
     Column("hinweis", Text, nullable=True),
     Column("linked_oz", Text, nullable=True),
@@ -212,36 +157,6 @@ lv_items = Table(
 ## 3. Domain models (`models/`)
 
 ```python
-# models/project.py
-from datetime import datetime
-from uuid import UUID
-
-from pydantic import BaseModel, ConfigDict
-
-
-class Project(BaseModel):
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
-
-    project_uuid: UUID
-    vergabe_id: str
-    project_name: str
-    project_description: str
-    vergabestelle: str
-    created_at: datetime
-    updated_at: datetime
-
-
-class NewProject(BaseModel):
-    """Shape required to create a Project. PK and timestamps assigned by DB."""
-    model_config = ConfigDict(extra="forbid")
-
-    vergabe_id: str
-    project_name: str
-    project_description: str
-    vergabestelle: str
-```
-
-```python
 # models/lv_item.py
 from datetime import datetime
 from decimal import Decimal
@@ -261,8 +176,8 @@ class LVItem(BaseModel):
     langtext_resolved: str | None = None
     menge: Decimal
     einheit: str
-    positionstyp: str
-    level: int
+    positionstyp: str | None = None
+    level: int | None = None
     stl_nr: str | None = None
     hinweis: str | None = None
     linked_oz: str | None = None
@@ -284,8 +199,8 @@ class NewLVItem(BaseModel):
     langtext_resolved: str | None = None
     menge: Decimal
     einheit: str
-    positionstyp: str
-    level: int
+    positionstyp: str | None = None
+    level: int | None = None
     stl_nr: str | None = None
     hinweis: str | None = None
     linked_oz: str | None = None

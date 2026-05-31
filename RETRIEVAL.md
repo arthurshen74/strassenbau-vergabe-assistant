@@ -67,6 +67,6 @@ Both apply `project_uuid == {project_uuid}` first; they differ only in the `sour
 
 ## Notes
 
-- **Building the Plus filter needs a Postgres lookup first.** Resolve the project's LV document uuids (`Document.document_type == LV_DOCUMENT`) and pass them as the exclusion set. With one LV per project it's `source_doc_uuid != {lv_document_uuid}`; with several it's `NOT IN {…}`.
+- **Building the Plus filter needs a Postgres lookup first.** Resolve the project's LV document uuid (`Document.document_type == LV_DOCUMENT`) and pass it as the exclusion. DATA_SCHEMA enforces at most one LV document per project, so this is a single `source_doc_uuid != {lv_document_uuid}`.
 - **RRF is triggered by multi-query OR BM25**, not BM25 alone — either produces more than one ranked list, and the fusion stage reconciles them all. With a single list it is a no-op pass-through.
 - **Cross-encoder is the only post-retrieval stage**; use a multilingual reranker on German LV/ZTV text.
