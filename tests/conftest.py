@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
+import shared.db.tables  # noqa: F401  -- registers all tables on the shared metadata
 from shared.config import settings
 from shared.db.metadata import metadata
 

@@ -189,3 +189,21 @@ classDiagram
     ChatMessage *-- PromptVersion : can_have_many_initial_messages
 
 ```
+
+# Postgres constraints not expressible in the class diagram
+
+A few invariants are enforced by Postgres constructs the class diagram can't render. Implement them exactly as shown.
+
+### At most one LV document per project
+
+Enforce the `note for Document` invariant with a **partial unique index** (not a plain `UniqueConstraint`), inside the `documents` table definition:
+
+```python
+Index(
+    "uq_one_lv_document_per_project", "project_uuid",
+    unique=True,
+    postgresql_where=text("document_type = 'LV_DOCUMENT'"),
+)
+```
+
+`Index` and `text` are imported from `sqlalchemy`. This permits many `PROSE_DOCUMENT` rows per project while allowing only one `LV_DOCUMENT`.

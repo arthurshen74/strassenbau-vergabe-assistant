@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import health, prompts
+from api.routes import health
 from shared.config import settings
 from shared.db.engine import make_engine
 
@@ -35,7 +35,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health.router)
-    app.include_router(prompts.router)
     return app
 
 

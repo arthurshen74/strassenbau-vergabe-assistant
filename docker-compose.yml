@@ -3,7 +3,7 @@ services:
     image: postgres:latest
     container_name: ai2-postgres
     env_file:
-      - ../.env
+      - ./.env
     ports:
       - '5432:5432'
     volumes:
@@ -40,7 +40,7 @@ services:
     container_name: ai2-minio
     command: server /data --console-address ":9001"
     env_file:
-      - ../.env
+      - ./.env
     ports:
       - '9000:9000'
       - '9001:9001'
@@ -48,7 +48,7 @@ services:
       - ./data/minio:/data
   api:
     build:
-      context: ..
+      context: .
       dockerfile: server/Dockerfile
     container_name: ai2-api
     command:
@@ -59,7 +59,7 @@ services:
         python -m scripts.bootstrap_storage &&
         uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
-      - ../.env
+      - ./.env
     environment:
       POSTGRES_HOST: postgres
       ELASTICSEARCH_HOST: elasticsearch
@@ -67,7 +67,7 @@ services:
     ports:
       - '8000:8000'
     volumes:
-      - ../server:/app/server
+      - ./server:/app/server
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,18 +87,18 @@ services:
       start_period: 30s
   worker:
     build:
-      context: ..
+      context: .
       dockerfile: server/Dockerfile
     container_name: ai2-worker
     command: ['python', '-m', 'worker.main']
     env_file:
-      - ../.env
+      - ./.env
     environment:
       POSTGRES_HOST: postgres
       ELASTICSEARCH_HOST: elasticsearch
       S3_HOST: minio
     volumes:
-      - ../server:/app/server
+      - ./server:/app/server
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,7 +108,7 @@ services:
         condition: service_started
   ui:
     build:
-      context: ../ui
+      context: ./ui
       dockerfile: Dockerfile
     container_name: ai2-ui
     environment:
@@ -116,7 +116,7 @@ services:
     ports:
       - '5173:5173'
     volumes:
-      - ../ui:/app
+      - ./ui:/app
       - /app/node_modules
     depends_on:
       api:
