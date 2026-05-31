@@ -41,13 +41,10 @@ The system has five functional surfaces.
 
 ### 1. Project Ingestion
 
-A project corresponds to one tender. Creating a project means establishing a per-project knowledge base into which the tender documents are ingested. The system ingests three categories of input:
+A project corresponds to one tender. Creating a project means establishing a per-project knowledge base into which the tender documents are ingested. The system ingests two categories of input:
 
-- **GAEB structured exchange files** (D83, X83) — the machine-readable form of the Leistungsverzeichnis. These are parsed into structured LV items carrying OZ (Ordnungszahl), Kurztext, Langtext, Menge, Einheit, and Positionstyp.
 - **LV PDFs** — the contractually binding human-readable form of the Leistungsverzeichnis. These are parsed deterministically from the embedded PDF text layer (pdfplumber), with vision used only as a fallback for pages that lack a usable text layer; each LV Position is linked back to its source page.
 - **Prose documents** (Baubeschreibung, Vertragsbedingungen, Besondere Vertragsbedingungen, ZTV, Vorzulegende Unterlagen, and similar) — ingested with a default prose pipeline that decomposes each document into two parallel chunk sets (`SimpleChunk`, fixed-size; and `ProseChunk`, section-aware). Paragraph/assertion extraction is deferred to a later sprint.
-
-Project metadata is tracked as a separate, evolving artifact and currently includes at minimum the Vergabe-ID, Auftraggeber, location, Abgabetermin, estimated value, project status, and owning user. The schema is allowed to grow over time.
 
 ### 2. Chat
 
@@ -57,11 +54,16 @@ The Kalkulator asks questions about an active project. Answers are RAG-grounded 
 
 Three tools are exposed to the chat in the current sprint:
 
-- **LV Item Lookup** — resolve a question about a specific LV item by OZ or description, returning the structured item plus its source page.
+- **LV Item Lookup** — the user can look up a specific LV Item. resolve a question about a specific LV item by OZ or description, returning the structured item plus its source page.
 - **Ingest Project** — kick off ingestion of a full document set for a new project.
 - **Add Document to Project** — append a single document to an existing project's knowledge base.
+- **Add Project** - create a new project, ostensibly to ingest project documents.
+- **View Prompts** - list prompts in the system.
 
-Tool-call results are surfaced in the chat alongside the assistant's prose response.
+Tool-call results are surfaced ON TOP of the chat interface as a modal dialog. The chat has two modalities:
+
+- Dispatch: the primary default modality, where the tool calls surface the component dialogs.
+- Discuss Project: when a user selects a project from the dialog, a conversation with that project is initiated. A user may also select an existing project-level conversation. Here, the LLM agent is a RAG-based agent.
 
 ### 4. Evaluation
 
@@ -87,61 +89,17 @@ The system uses two stores. Neo4j holds the **knowledge graph**: documents, thei
 
 Postgres holds the **operational data**: project metadata, conversation history, token-usage and cost logs, eval records and run results, and the Prompt Library. Identity (users, roles, OAuth clients, refresh tokens) lives in a separate Postgres database owned by the `auth/` service and is never queried directly by the rest of the system — user identity flows in via OAuth2 tokens.
 
-Detailed schema, modeling decisions, and ingestion pipelines belong in `docs/ARCHITECTURE.md`.
-
-## Phase Roadmap
-
-The capabilities listed below are committed in the noted phase. Anything not listed is out of scope until further notice.
-
-### Current Sprint (Sprint 2)
-
-- Ingest D83 and X83 GAEB files, LV PDFs (deterministic text extraction, vision fallback), and prose tender documents
-- Per-project knowledge base in Neo4j and Postgres
-- RAG chat with page-level retrieval and page-level source citations
-- Three tools: LV Item Lookup, Ingest Project, Add Document to Project
-- Authentication (fastapi-users, interim) and the three-role model (Administrator, Kalkulator, Bauleiter)
-- Conversation history per project and Markdown export
-- Token usage and cost display, per project
-- Eval schema and eval runner integrated with RAGAs
-- Prompt Library integration
-
-### Next Sprint (Sprint 3)
-
-- Bautagebuch and site-report ingestion for the Bauleiter role, feeding the same per-project graph
-- Shared company-knowledge layer (preferred Lieferanten and Subunternehmer, internal cost-calculation formulas, machine inventory) layered alongside per-project knowledge
-- Multi-model support via OpenRouter, selectable per conversation
-- Tool-call visualization in the chat UI (inline cards showing tool, input, and output, in the style of Claude.ai)
-- Advanced indexing experiments (RAPTOR, ColBERT)
-
-### Capstone
-
-- Subcontractor RFQ generation
-- Full bid assembly producing output suitable for transparent cost-structure review
-- Viability triage across the active project pipeline
-- Per-user-per-project conversation visibility, backed by a permissions table and middleware
-
-## Repository Layout
-
-This is a monorepo with four top-level service or infrastructure directories:
-
-- `ui/` — React and Tailwind frontend, built with the Catalyst UI Kit
-- `server/` — Python FastAPI backend (API + ingest worker, shared image)
-- `auth/` — OAuth2 Authorization Server, separable from `server/` so it can be replaced by an off-the-shelf component (Ory Hydra, Authentik, Keycloak) without disturbing the rest of the system. `server/` never imports from `auth/`; the contract is HTTP and opaque tokens.
-- `docker/` — Docker Compose configuration and supporting infrastructure files
-
-Code-level conventions, internal module structure, and contribution guidance live in `docs/ARCHITECTURE.md` and `CLAUDE.local.md`.
+Elasticsearch holds the vector stores. It also stores structured LV Items and has "graph-like" attributes such as \_parent, \_sibling_previous and \_sibling_next.
 
 ## Getting Started
 
 The system is intended to run locally via Docker Compose and is structured so that the same composition deploys cleanly to a single EC2 instance later.
 
-Local startup, after configuring the environment file (OpenRouter API key, Postgres credentials, Neo4j credentials, and any other required secrets):
+Local startup, after configuring the environment file (OpenRouter API key, Postgres credentials, Elasticsearch credentials, and any other required secrets):
 
 ```
 docker compose up --build -d
 ```
-
-The first run will build images, bring up Postgres and Neo4j, and start the API and UI services. Initial admin-user creation, seed data, and eval-set loading are handled by separate bootstrap steps documented in `docs/ARCHITECTURE.md`.
 
 ## Deployment Posture
 
@@ -150,8 +108,5 @@ Single-tenant. Each contracting company runs its own instance. There is no multi
 ## Companion Documents
 
 - `docs/GLOSSARY.md` — German construction-domain terms used throughout (LV, GAEB, ZTV, OZ, Vergabe, Auftraggeber, Bauleiter, Kalkulator, Bautagebuch, and others)
-- `docs/ARCHITECTURE.md` — system design, data models, ingestion pipelines, retrieval strategy, deployment topology
-- `docs/DATA_MODEL.md` — the canonical data model: entity names, fields, types, enums, and cross-store identity (the source of truth coding agents build against)
-- `docs/DATA_LAYER_ARCHITECTURE.md` — SQLAlchemy Core + Pydantic implementation guide for the Postgres data layer
-- `docs/ORM_OPTIONS.md` — comparison of ORM / Core / SQLModel / Tortoise / roll-your-own that drove the data-layer choice
-- `CLAUDE.local.md` — instructions and conventions for AI coding agents working on this codebase
+- `docs/DATA_SCHEMA.md` — the canonical data model: entity names, fields, types, enums, and cross-store identity (the source of truth coding agents build against)
+- `docs/DATA_ARCHITECTURE.md` — SQLAlchemy Core + Pydantic implementation guide for the Postgres data layer
