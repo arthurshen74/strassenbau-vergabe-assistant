@@ -4,7 +4,7 @@ import asyncio
 
 
 async def main() -> None:
-    # Placeholder until task 10 wires the ingest queue consumer; keeps the
+    # placeholder; keeps the
     # container alive so the service stays up under compose.
     while True:
         await asyncio.sleep(3600)

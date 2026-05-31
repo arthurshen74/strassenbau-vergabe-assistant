@@ -26,7 +26,7 @@ async def _seed_question_and_project(conn: AsyncConnection):
         NewProject(
             project_id="VS-EVAL-001",
             project_name="Eval Test Project",
-            vergabe_stelle="Test Vergabestelle",
+            vergabestelle="Test Vergabestelle",
             project_location="Berlin",
         )
     )
@@ -76,7 +76,7 @@ async def test_list_by_project_returns_only_that_projects_items(
         NewProject(
             project_id="VS-EVAL-002",
             project_name="B",
-            vergabe_stelle="Test Vergabestelle",
+            vergabestelle="Test Vergabestelle",
             project_location="X",
         )
     )
@@ -110,7 +110,7 @@ async def test_list_by_question_returns_items_across_projects(
         NewProject(
             project_id="VS-EVAL-003",
             project_name="B",
-            vergabe_stelle="Test Vergabestelle",
+            vergabestelle="Test Vergabestelle",
             project_location="X",
         )
     )

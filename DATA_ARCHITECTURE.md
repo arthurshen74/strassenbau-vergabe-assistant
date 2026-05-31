@@ -103,261 +103,325 @@ async def transaction() -> AsyncIterator[AsyncConnection]:
 
 ---
 
-## 2. Schema layer (`db/metadata.py`, `db/tables/`)
+## 2. Schema layer (`db/tables/`)
 
-A single shared `MetaData` object holds all table definitions and is what Alembic compares against.
-
-```python
-# db/metadata.py
-from sqlalchemy import MetaData
-
-# Naming convention ensures Alembic-generated constraints have stable names,
-# which makes autogenerate migrations diff-clean and prevents random renames.
-NAMING_CONVENTION = {
-    "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s",
-}
-
-metadata = MetaData(naming_convention=NAMING_CONVENTION)
-```
+The shared `MetaData` + `NAMING_CONVENTION` block is unchanged from the guide. The tables below replace the example ones.
 
 ```python
 # db/tables/projects.py
-from sqlalchemy import (
-    Table, Column, Integer, BigInteger, String, Text,
-    DateTime, ForeignKey, Numeric, JSON,
-)
-from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.sql import func
-import uuid
+from sqlalchemy import Table, Column, Text, DateTime, func, text
+from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.metadata import metadata
 
 projects = Table(
     "projects", metadata,
-    Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-    Column("name", String(255), nullable=False),
-    Column("client", String(255), nullable=True),
-    Column("status", String(32), nullable=False, server_default="draft"),
-    Column("metadata_", JSONB, nullable=False, server_default="{}", key="metadata"),
-    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
-    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now(),
-           onupdate=func.now()),
+    Column("project_uuid", UUID(as_uuid=True), primary_key=True,
+           server_default=text("gen_random_uuid()")),
+    Column("vergabe_id", Text, nullable=False),
+    Column("project_name", Text, nullable=False),
+    Column("project_description", Text, nullable=False),
+    Column("vergabestelle", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False,
+           server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False,
+           server_default=func.now(), onupdate=func.now()),
 )
 ```
 
 ```python
-# db/tables/line_items.py
-from sqlalchemy import Table, Column, ForeignKey, String, Numeric, Integer
+# db/tables/documents.py
+from sqlalchemy import (
+    Table, Column, Text, Integer, DateTime, ForeignKey,
+    CheckConstraint, func, text,
+)
 from sqlalchemy.dialects.postgresql import UUID
-import uuid
 
 from app.db.metadata import metadata
 
-line_items = Table(
-    "line_items", metadata,
-    Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-    Column("estimate_id", UUID(as_uuid=True),
-           ForeignKey("estimates.id", ondelete="CASCADE"), nullable=False, index=True),
-    Column("position_number", String(32), nullable=False),
-    Column("description", String, nullable=False),
-    Column("quantity", Numeric(12, 4), nullable=False),
-    Column("unit", String(16), nullable=False),
-    Column("unit_price_cents", Integer, nullable=False),
+documents = Table(
+    "documents", metadata,
+    Column("document_uuid", UUID(as_uuid=True), primary_key=True,
+           server_default=text("gen_random_uuid()")),
+    Column("project_uuid", UUID(as_uuid=True),
+           ForeignKey("projects.project_uuid", ondelete="CASCADE"),
+           nullable=False, index=True),
+    Column("document_type", Text, nullable=False),
+    Column("file_name", Text, nullable=False),
+    Column("document_description", Text, nullable=True),   # marked `?` in DATA_SCHEMA
+    Column("number_of_pages", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False,
+           server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False,
+           server_default=func.now(), onupdate=func.now()),
+    # document_type is a closed set in DATA_SCHEMA; enforce it.
+    CheckConstraint(
+        "document_type IN ('LV_DOCUMENT', 'PROSE_DOCUMENT')",
+        name="document_type_valid",  # -> ck_documents_document_type_valid
+    ),
 )
 ```
 
-**Conventions to follow:**
+```python
+# db/tables/lv_items.py
+from sqlalchemy import (
+    Table, Column, Text, Integer, Numeric, DateTime,
+    ForeignKey, UniqueConstraint, func, text,
+)
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 
-- Use `UUID` primary keys with `default=uuid.uuid4` (Python-side) rather than autoincrement integers. Avoids exposing row counts, lets you generate IDs before insert, makes merging data across environments safe.
-- `server_default` for database-level defaults (`now()`, JSONB `{}`, status enums). `default` is Python-only and won't apply to inserts that bypass the ORM. With Core, you'll often want `server_default` for both consistency and Alembic-detectability.
-- `nullable=False` everywhere except where null is semantically meaningful. Don't let nullable creep in by default.
-- `ondelete="CASCADE"` on foreign keys when child rows have no meaning without the parent. Otherwise default to `RESTRICT`.
-- Store money as `Integer` cents (or `Numeric(12, 2)` if you must), never as `Float`.
-- Index foreign keys explicitly (`index=True`). Postgres does not auto-index FKs.
-- The `metadata_` column with `key="metadata"` trick: SQLAlchemy attribute names can't be `metadata` (it shadows the Table attribute), but `key="metadata"` lets the Python identifier differ from the column name.
+from app.db.metadata import metadata
+
+lv_items = Table(
+    "lv_items", metadata,
+    Column("lv_item_uuid", UUID(as_uuid=True), primary_key=True,
+           server_default=text("gen_random_uuid()")),
+    Column("document_uuid", UUID(as_uuid=True),
+           ForeignKey("documents.document_uuid", ondelete="CASCADE"),
+           nullable=False, index=True),
+    Column("oz", Text, nullable=False),
+    Column("kurztext", Text, nullable=False),
+    Column("langtext", Text, nullable=False),
+    Column("langtext_resolved", Text, nullable=True),     # `?` — composed only for back-ref items
+    Column("menge", Numeric(12, 4), nullable=False),      # Decimal, never float
+    Column("einheit", Text, nullable=False),
+    Column("positionstyp", Text, nullable=False),         # consider CHECK once value set is pinned
+    Column("level", Integer, nullable=False),
+    Column("stl_nr", Text, nullable=True),
+    Column("hinweis", Text, nullable=True),
+    Column("linked_oz", Text, nullable=True),
+    Column("prev_oz", Text, nullable=True),
+    Column("next_oz", Text, nullable=True),
+    Column("parent_oz", Text, nullable=True),
+    Column("source_lines", ARRAY(UUID(as_uuid=True)), nullable=False,
+           server_default=text("'{}'::uuid[]")),
+    Column("last_ingestion", DateTime(timezone=True), nullable=False,
+           server_default=func.now(), onupdate=func.now()),
+    # (document_uuid, oz) is the composite unique from DATA_SCHEMA (oz unique within a document).
+    UniqueConstraint("document_uuid", "oz"),              # -> uq_lv_items_document_uuid
+)
+```
+
+**Notes**
+
+- `gen_random_uuid()` is built into Postgres 13+ (no `pgcrypto` needed). To get the generated key back on insert, rely on `.returning(...)` in the repository — which the pattern already does.
+- `source_lines` as a `uuid[]` array conforms to the schema, but gives up referential integrity and makes "which item owns this line" an array-containment query. The alternative is an `lv_item_uuid` FK on `source_lines`. Either is defensible at tender scale; the schema says array, so this is the array.
+- `positionstyp` left as `Text`: its value set (`Normalposition`, `Bedarfsposition`, `Wahlposition`/`Alternativposition`, `Eventualposition`, `Pauschalposition`, `Stundenlohnarbeiten`) is known but the exact stored spelling is the parser's call — add a `CheckConstraint` (or a Postgres enum) once that's fixed.
 
 ---
 
-## 3. Domain models layer (`models/`)
-
-Pure Pydantic models, no SQLAlchemy imports. These are what the application code passes around.
+## 3. Domain models (`models/`)
 
 ```python
 # models/project.py
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class Project(BaseModel):
-    model_config = ConfigDict(from_attributes=True, frozen=False)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
-    id: UUID
-    name: str
-    client: str | None = None
-    status: str = "draft"
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    project_uuid: UUID
+    vergabe_id: str
+    project_name: str
+    project_description: str
+    vergabestelle: str
     created_at: datetime
     updated_at: datetime
 
 
 class NewProject(BaseModel):
-    """The shape required to create a new Project. ID and timestamps assigned by DB."""
-    name: str
-    client: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Shape required to create a Project. PK and timestamps assigned by DB."""
+    model_config = ConfigDict(extra="forbid")
+
+    vergabe_id: str
+    project_name: str
+    project_description: str
+    vergabestelle: str
 ```
 
-**`from_attributes=True`** lets you construct these from any object with the right attributes, including SQLAlchemy `Row` objects accessed via `.mappings()`.
+```python
+# models/lv_item.py
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID
 
-**`frozen=False`** is the default; set `frozen=True` if you want immutable domain objects (often a good idea for value objects, less so for entities you update).
+from pydantic import BaseModel, ConfigDict, Field
 
-Domain models can have methods (calculated properties, validators, business logic). Just don't put persistence concerns in them.
+
+class LVItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    lv_item_uuid: UUID
+    document_uuid: UUID
+    oz: str
+    kurztext: str
+    langtext: str
+    langtext_resolved: str | None = None
+    menge: Decimal
+    einheit: str
+    positionstyp: str
+    level: int
+    stl_nr: str | None = None
+    hinweis: str | None = None
+    linked_oz: str | None = None
+    prev_oz: str | None = None
+    next_oz: str | None = None
+    parent_oz: str | None = None
+    source_lines: list[UUID] = Field(default_factory=list)
+    last_ingestion: datetime
+
+
+class NewLVItem(BaseModel):
+    """Shape required to create an LVItem. PK and last_ingestion assigned by DB."""
+    model_config = ConfigDict(extra="forbid")
+
+    document_uuid: UUID
+    oz: str
+    kurztext: str
+    langtext: str
+    langtext_resolved: str | None = None
+    menge: Decimal
+    einheit: str
+    positionstyp: str
+    level: int
+    stl_nr: str | None = None
+    hinweis: str | None = None
+    linked_oz: str | None = None
+    prev_oz: str | None = None
+    next_oz: str | None = None
+    parent_oz: str | None = None
+    source_lines: list[UUID] = Field(default_factory=list)
+```
 
 ---
 
-## 4. API schemas (`models/`)
+## 4. API schemas (`models/`, `_schema` suffix)
 
-These are request/response shapes. Often they overlap with domain models but evolve independently. They will be saved in the same folder as 'models' but they will be named with a `_schema` suffix.
+Suffixes follow the `Create / Read / Update` convention. (DATA_SCHEMA's own examples mix
+`ProjectCreateDTO` and `PromptRead` — pick one before generating the whole DTO family.)
 
 ```python
 # models/project_schema.py
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
-    client: str | None = Field(default=None, max_length=255)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    model_config = ConfigDict(extra="forbid")
+
+    vergabe_id: str = Field(min_length=1)
+    project_name: str = Field(min_length=1)
+    project_description: str
+    vergabestelle: str
 
 
 class ProjectRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
-    id: UUID
-    name: str
-    client: str | None
-    status: str
+    project_uuid: UUID
+    vergabe_id: str
+    project_name: str
+    project_description: str
+    vergabestelle: str
     created_at: datetime
     updated_at: datetime
 
 
 class ProjectUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=255)
-    client: str | None = None
-    status: str | None = None
-```
+    model_config = ConfigDict(extra="forbid")
 
-Note `ProjectRead` doesn't expose `metadata` — internal data shouldn't leak through the API by default. This is the kind of separation that breaks down when API and DB schemas are the same class.
+    project_name: str | None = Field(default=None, min_length=1)
+    project_description: str | None = None
+    vergabestelle: str | None = None
+```
 
 ---
 
 ## 5. Repository layer (`repositories/`)
 
-Repositories are where SQLAlchemy Core meets Pydantic. One repository per aggregate root, holding methods that return domain models.
+The `Project` repository is mechanically identical to the guide's, with `id` → `project_uuid`
+and the real fields. The `LVItem` repository is the interesting one — its methods line up with
+the two chat gates in the README (`LV_Item_Lookup`, `List_LV_Items_by_Parent_OZ`).
 
 ```python
-# repositories/projects.py
+# repositories/lv_items.py
 from typing import Sequence
 from uuid import UUID
 
-from sqlalchemy import select, insert, update, delete
+from sqlalchemy import select, insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.db.tables.projects import projects
-from app.domain.project import Project, NewProject
+from app.db.tables.lv_items import lv_items
+from app.db.tables.documents import documents
+from app.domain.lv_item import LVItem, NewLVItem
 
 
-class ProjectRepository:
+class LVItemRepository:
     def __init__(self, conn: AsyncConnection):
         self.conn = conn
 
-    async def get(self, id: UUID) -> Project | None:
+    async def get(self, lv_item_uuid: UUID) -> LVItem | None:
         row = (await self.conn.execute(
-            select(projects).where(projects.c.id == id)
+            select(lv_items).where(lv_items.c.lv_item_uuid == lv_item_uuid)
         )).mappings().first()
-        return Project.model_validate(dict(row)) if row else None
+        return LVItem.model_validate(dict(row)) if row else None
 
-    async def list(
-        self,
-        *,
-        client: str | None = None,
-        status: str | None = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> Sequence[Project]:
-        stmt = select(projects)
-        if client is not None:
-            stmt = stmt.where(projects.c.client == client)
-        if status is not None:
-            stmt = stmt.where(projects.c.status == status)
-        stmt = stmt.order_by(projects.c.created_at.desc()).limit(limit).offset(offset)
-
-        rows = (await self.conn.execute(stmt)).mappings().all()
-        return [Project.model_validate(dict(r)) for r in rows]
-
-    async def add(self, new: NewProject) -> Project:
+    async def get_by_project_and_oz(self, project_uuid: UUID, oz: str) -> LVItem | None:
+        """Backs the LV_Item_Lookup gate. The schema's unique key is (document_uuid, oz),
+        so a project+oz lookup resolves through the project's LV document."""
         stmt = (
-            insert(projects)
-            .values(**new.model_dump())
-            .returning(projects)
-        )
-        row = (await self.conn.execute(stmt)).mappings().one()
-        return Project.model_validate(dict(row))
-
-    async def update(self, id: UUID, **changes) -> Project | None:
-        if not changes:
-            return await self.get(id)
-        stmt = (
-            update(projects)
-            .where(projects.c.id == id)
-            .values(**changes)
-            .returning(projects)
+            select(lv_items)
+            .join(documents, documents.c.document_uuid == lv_items.c.document_uuid)
+            .where(
+                documents.c.project_uuid == project_uuid,
+                documents.c.document_type == "LV_DOCUMENT",
+                lv_items.c.oz == oz,
+            )
         )
         row = (await self.conn.execute(stmt)).mappings().first()
-        return Project.model_validate(dict(row)) if row else None
+        return LVItem.model_validate(dict(row)) if row else None
 
-    async def delete(self, id: UUID) -> bool:
-        result = await self.conn.execute(
-            delete(projects).where(projects.c.id == id)
+    async def list_by_parent_oz(
+        self, project_uuid: UUID, parent_oz: str
+    ) -> Sequence[LVItem]:
+        """Backs the List_LV_Items_by_Parent_OZ gate."""
+        stmt = (
+            select(lv_items)
+            .join(documents, documents.c.document_uuid == lv_items.c.document_uuid)
+            .where(
+                documents.c.project_uuid == project_uuid,
+                documents.c.document_type == "LV_DOCUMENT",
+                lv_items.c.parent_oz == parent_oz,
+            )
+            .order_by(lv_items.c.oz)
         )
-        return result.rowcount > 0
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [LVItem.model_validate(dict(r)) for r in rows]
+
+    async def add(self, new: NewLVItem) -> LVItem:
+        stmt = insert(lv_items).values(**new.model_dump()).returning(lv_items)
+        row = (await self.conn.execute(stmt)).mappings().one()
+        return LVItem.model_validate(dict(row))
+
+    async def add_many(self, items: Sequence[NewLVItem]) -> list[LVItem]:
+        """Bulk insert for the LV parse output. Relies on SQLAlchemy 2.0
+        insertmanyvalues, which supports RETURNING for executemany."""
+        if not items:
+            return []
+        rows = (await self.conn.execute(
+            insert(lv_items).returning(lv_items),
+            [i.model_dump() for i in items],
+        )).mappings().all()
+        return [LVItem.model_validate(dict(r)) for r in rows]
 ```
 
-**Design notes:**
-
-- **Repository takes a connection, not the engine.** This is what enables transaction composition across multiple repositories (see Unit of Work below). It's the single most important architectural choice in this layer.
-- **`.mappings()`** gives you dict-like row access. Use it for Pydantic mapping. Without it, you get tuples and have to index by position.
-- **`.returning(projects)`** is Postgres-specific (also works in newer SQL Server, etc.) and is the right way to get back the inserted/updated row in one query.
-- **No `from_attributes=True` shortcut here** — we use `model_validate(dict(row))` because Row mappings are dict-like but not always picked up by Pydantic's attribute access. Being explicit is safer.
-
-**Optional base class** if you want to factor out the common pattern:
-
-```python
-# repositories/base.py
-from typing import Generic, TypeVar
-from sqlalchemy.ext.asyncio import AsyncConnection
-from pydantic import BaseModel
-
-DomainT = TypeVar("DomainT", bound=BaseModel)
-
-
-class Repository(Generic[DomainT]):
-    def __init__(self, conn: AsyncConnection):
-        self.conn = conn
-```
-
-I'd resist the urge to put generic CRUD methods in the base class. They're rarely reusable in practice because filtering, joining, and projection differ enough per aggregate that the abstraction leaks. Better to write the methods you actually need.
+`select(lv_items).join(documents, ...)` projects only the `lv_items` columns, so the row maps
+cleanly onto `LVItem` even under `extra="forbid"`.
 
 ---
 
@@ -513,7 +577,7 @@ async def list(self, ..., include_deleted: bool = False):
 
 ---
 
-## 9. FastAPI integration (`api/deps.py`)
+## 8. FastAPI integration (`api/deps.py`)
 
 ```python
 from typing import AsyncIterator
@@ -555,10 +619,10 @@ from app.repositories.projects import ProjectRepository
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.get("/{project_id}", response_model=ProjectRead)
-async def read_project(project_id: UUID, conn: AsyncConnection = Depends(get_connection)):
+@router.get("/{project_uuid}", response_model=ProjectRead)
+async def read_project(project_uuid: UUID, conn: AsyncConnection = Depends(get_connection)):
     repo = ProjectRepository(conn)
-    project = await repo.get(project_id)
+    project = await repo.get(project_uuid)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
@@ -614,7 +678,7 @@ async def conn(engine):
 
 The rollback-per-test pattern is fast (no schema reset between tests) and gives perfect isolation.
 
-```python
+````python
 # tests/integration/test_project_repository.py
 import pytest
 from app.repositories.projects import ProjectRepository
@@ -624,11 +688,15 @@ from app.domain.project import NewProject
 @pytest.mark.asyncio
 async def test_add_and_get(conn):
     repo = ProjectRepository(conn)
-    created = await repo.add(NewProject(name="Test Site"))
-    fetched = await repo.get(created.id)
+    created = await repo.add(NewProject(
+        vergabe_id="VG-2026-0042",
+        project_name="B247 OD Test",
+        project_description="Test tender",
+        vergabestelle="LRA Test",
+    ))
+    fetched = await repo.get(created.project_uuid)
     assert fetched is not None
-    assert fetched.name == "Test Site"
-```
+    assert fetched.project_name == "B247 OD Test"
 
 ### End-to-end API tests
 
@@ -672,7 +740,7 @@ def _after(conn, cursor, statement, parameters, context, executemany):
     elapsed = time.perf_counter() - context._query_start_time
     if elapsed > SLOW_QUERY_THRESHOLD:
         logger.warning("Slow query (%.3fs): %s", elapsed, statement[:200])
-```
+````
 
 For deeper observability use OpenTelemetry's SQLAlchemy instrumentation, which produces spans per query and integrates with traces.
 

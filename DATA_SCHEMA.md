@@ -24,7 +24,7 @@ These rules are non-negotiable; they are how the ambiguity gets removed.
   Field names stay `snake_case` (they mirror the JSON wire shape).
 - **Elasticsearch** — index and field names are `snake_case` (`roadbuilders_text`, `project_uuid`).
 - **German domain terms are never translated.** `lv_item` not `bill_item`, `kurztext` not
-  `short_text`, `vergabe_stelle` not `awarding_authority`, `menge`/`einheit`/`positionstyp` as-is.
+  `short_text`, `vergabestelle` not `awarding_authority`, `menge`/`einheit`/`positionstyp` as-is.
   `GLOSSARY.md` is the source of truth for spelling.
 
 # Data Model/Schema
@@ -64,8 +64,8 @@ classDiagram
     class SourceLine {
         <<postgres>>
         +uuid source_line_uuid PK
-        +uuid document_uuid FK, UK
-        +int line_id UK
+        +uuid document_uuid FK, UK_COMPOSITE
+        +int line_id UK_COMPOSITE
         +int page
         +tuple~float float float float~ bbox
         +str line_text
@@ -114,11 +114,11 @@ classDiagram
     class LVItem {
         <<postgres>>
         +uuid lv_item_uuid PK
-        +uuid document_uuid UK, FK
-        +str oz UK
+        +uuid document_uuid UK_COMPOSITE, FK
+        +str oz UK_COMPOSITE
         +str kurztext
         +str langtext
-        +number menge
+        +numeric menge
         +str einheit
         +str positionstyp
         +int level
@@ -139,15 +139,14 @@ classDiagram
     class SimpleChunk {
         <<elasticsearch>>
         +uuid chunk_uuid PK
-        +uuid project_uuid "Denormalized; project scoping"
         +uuid source_doc_uuid "Document or LVItem; resolved by source_doc_type"
         +str source_doc_type "LV_ITEM | DOCUMENT"
         +str source_doc_field "e.g. langtext or langtext_resolved, kurztext, sourcelines.line_text"
-        +str source_doc_language "e.g. en, de, fr, cn"
+        +str source_doc_language "default to 'de'"
         +list~int~ source_doc_pages "chunks may cross pages"
         +int chunk_index "order within source_doc_field"
-        +str oz "denormalized; LV_Item only, else null"
-        +str stl_nr "denormalized; LV_Item only, for dedup"
+        +str? oz "denormalized; LV_Item only, else null"
+        +str? stl_nr "denormalized; LV_Item only, for dedup"
         +uuid project_uuid "denormalized; project scoping"
         +str chunk_text "the embedded text"
         +vector embedding

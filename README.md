@@ -19,12 +19,6 @@ The documents are long, redundant, and densely cross-referenced. Specifications 
 
 Roadbuilders Assistant exists to take the retrieval load off and let the Kalkulator spend their time on judgment.
 
-## Project Scope
-
-This is **Sprint 2** of a multi-sprint build. The capabilities currently in scope are intentionally narrow: ingest tender documents into a per-project knowledge base, answer chat questions about them with page-level citations, and provide a small set of operational tools. Workflow-deep features — subcontractor outreach, bid assembly, multi-project viability triage — are explicit goals for the Capstone and are not part of the current build.
-
-The Phase Roadmap section below lays out exactly which capabilities ship when.
-
 ## Who Uses It
 
 Three user groups, each with a defined permission scope. Permissions are role-based and project-scoped: once a project is ingested, every authorised user of every role can access it. Fine-grained per-user permissioning is a Capstone concern, not a current one.
@@ -37,59 +31,53 @@ Three user groups, each with a defined permission scope. Permissions are role-ba
 
 ## What It Does
 
-The system has five functional surfaces.
+The system has 2 distinct functional surfaces, and 2 auxiliary surfaces, all driven by a front-end UI chat dispatcher interface.
 
 ### 1. Project Ingestion
 
 A project corresponds to one tender. Creating a project means establishing a per-project knowledge base into which the tender documents are ingested. The system ingests two categories of input:
 
-- **LV PDFs** — the contractually binding human-readable form of the Leistungsverzeichnis. These are parsed deterministically from the embedded PDF text layer (pdfplumber), with vision used only as a fallback for pages that lack a usable text layer; each LV Position is linked back to its source page.
-- **Prose documents** (Baubeschreibung, Vertragsbedingungen, Besondere Vertragsbedingungen, ZTV, Vorzulegende Unterlagen, and similar) — ingested with a default prose pipeline that decomposes each document into two parallel chunk sets (`SimpleChunk`, fixed-size; and `ProseChunk`, section-aware). Paragraph/assertion extraction is deferred to a later sprint.
+- **Prose documents** (All Documents) — all documents will be ingested with a simple chunking system into a SimpleChunk structure in the vector store.
+- **Leistungsverzeichnis** - LV documents will have a special parsing step that extracts LV Items into structured storage (db) and then SimpleChunks will be generated on those LV Items.
 
-### 2. Chat
+This approach allows us to run a "simple" retreival and an "plus" retrieval. As more document parsers are created, the "enhanced" gets better and better. But for now, we stick with just LV.
 
-The Kalkulator asks questions about an active project. Answers are RAG-grounded and carry page-level source citations back to the documents in that project's knowledge base. Conversations are scoped to a project, persist across sessions, and are visible to all users with access to that project. Conversations can be exported as Markdown.
+### 2. Project Chat
 
-### 3. Tools
+This is a chat system driven by RAG retrieval. The retrieval system has options that can be set in the UI. These options include:
 
-Three tools are exposed to the chat in the current sprint:
+- Query Techniques: Single or Multi
+- Retrieval Method: Simple or Plus (LV Special)
+- Options: BM25, Cross-Encoder
 
-- **LV Item Lookup** — the user can look up a specific LV Item. resolve a question about a specific LV item by OZ or description, returning the structured item plus its source page.
-- **Ingest Project** — kick off ingestion of a full document set for a new project.
-- **Add Document to Project** — append a single document to an existing project's knowledge base.
-- **Add Project** - create a new project, ostensibly to ingest project documents.
-- **View Prompts** - list prompts in the system.
+The user chats with the system and it uses RAG to answer the questions where appropriate. A simple gate is if there is a question about a SPECIFIC OZ in the project. There we should provide an LVItem lookup tool (by project_uuid and OZ). Another gate would be, "Show me the LV Items for {Section}", which would be a listing of OZ for a given parent OZ. But those are the only gates besides saying "I can't help you" if the question is completely irrelevant. This gating should be an LLM prompt called "ClassifyProjectChatUserMessage". Possible outputs would be:
 
-Tool-call results are surfaced ON TOP of the chat interface as a modal dialog. The chat has two modalities:
+- tool_call: LV_Item_Lookup
+- tool_call: List_LV_Items_by_Parent_OZ
+- tool_call: RAG_Context_Retreival (with UI-defined options)
+- "I can't help you, sorry."
 
-- Dispatch: the primary default modality, where the tool calls surface the component dialogs.
-- Discuss Project: when a user selects a project from the dialog, a conversation with that project is initiated. A user may also select an existing project-level conversation. Here, the LLM agent is a RAG-based agent.
+### 3. Project Management - React UI Component ModalDialog Overlay
 
-### 4. Evaluation
+This is a React UI Component (overlayed as ModalDialog) that allows the user to manage projects. This includes viewing a list of project cards, modifying projects, creating projects, viewing documents in projects, adding/removing documents in projects. There should be the ability to launch a chat from a specific project.
 
-The system ships with an evaluation harness. The eval set itself (target: 50 questions) is authored separately and stored as a project artifact. Each eval record carries:
+### 4. Prompt Management - React UI Component ModalDialog Overlay
 
-- `question` — the natural-language query
-- `expected_retrieval` — page-level references to the documents that should be retrieved
-- `expected_answer` — the ground-truth answer
-- `category` — question type (factual lookup, cross-document conflict, calculation, summary, missing-information detection, and so on)
-- `difficulty` — easy, medium, or hard
-- `scope` — single-document or multi-document
-- `tool_call_expectation` — whether the question should trigger a specific tool; tool-call-targeted questions form a distinct eval category
+Every LLM call in the system is dispatched through the **Prompt Library**: a versioned store of system prompts, each pinned to a specific model, temperature, sampling settings, and (where structured output is required) a response schema. Editing a prompt creates a new immutable version; call sites stay on whichever version they reference until explicitly migrated, so a prompt change cannot silently destabilise an upstream pipeline. A small UI surfaces the prompts and their version timelines, and lets authorised users read, edit, and version AND test the prompts.
 
-The runner integrates with RAGAs and produces tracked results across runs, supporting comparison between RAG configurations.
+---
 
-### 5. Prompt Library
+### **_Dispatcher/Tools_**
 
-Every LLM call in the system — vision extraction during ingest, paragraph-to-assertion extraction, chat answer synthesis, eval grading — is dispatched through the **Prompt Library**: a versioned store of system prompts, each pinned to a specific model, temperature, sampling settings, and (where structured output is required) a response schema. Editing a prompt creates a new immutable version; call sites stay on whichever version they reference until explicitly migrated, so a prompt change cannot silently destabilise an upstream pipeline. A small UI surfaces the prompts and their version timelines, and lets authorised users read, edit, and version them.
+The default UI chat modality. This chat interface tries to determine what the user wants to do:
+
+- Project Chat: the user wants to talk about a project, brings up the Project Interface so the user can choose a Project to talk about.
+- Prompt Management: the user wants to manage prompts, brings up the Prompt Management interface.
+- New Project Ingestion: brings up the Add Project interface, which is in and of itself a part of the entire Project Management system.
 
 ## Knowledge Representation, at a Glance
 
-The system uses two stores. Neo4j holds the **knowledge graph**: documents, their internal structure, and the relationships between elements. LV items are first-class nodes carrying their structured GAEB attributes; sibling edges (`next_item`, `prev_item`) form a doubly-linked traversal of the LV in original order, and source edges link each item to its corresponding page in the LV PDF. Prose documents decompose into `SimpleChunk` and `ProseChunk` nodes; paragraph/assertion nodes and cross-document reference edges are deferred to a later sprint.
-
-Postgres holds the **operational data**: project metadata, conversation history, token-usage and cost logs, eval records and run results, and the Prompt Library. Identity (users, roles, OAuth clients, refresh tokens) lives in a separate Postgres database owned by the `auth/` service and is never queried directly by the rest of the system — user identity flows in via OAuth2 tokens.
-
-Elasticsearch holds the vector stores. It also stores structured LV Items and has "graph-like" attributes such as \_parent, \_sibling_previous and \_sibling_next.
+See DATA_SCHEMA.md.
 
 ## Getting Started
 
@@ -107,6 +95,9 @@ Single-tenant. Each contracting company runs its own instance. There is no multi
 
 ## Companion Documents
 
-- `docs/GLOSSARY.md` — German construction-domain terms used throughout (LV, GAEB, ZTV, OZ, Vergabe, Auftraggeber, Bauleiter, Kalkulator, Bautagebuch, and others)
-- `docs/DATA_SCHEMA.md` — the canonical data model: entity names, fields, types, enums, and cross-store identity (the source of truth coding agents build against)
-- `docs/DATA_ARCHITECTURE.md` — SQLAlchemy Core + Pydantic implementation guide for the Postgres data layer
+- `GLOSSARY.md` — German construction-domain terms used throughout (LV, GAEB, ZTV, OZ, Vergabe, Auftraggeber, Bauleiter, Kalkulator, Bautagebuch, and others)
+- `DATA_SCHEMA.md` — the canonical data model: entity names, fields, types, enums, and cross-store identity (the source of truth coding agents build against)
+- `DATA_ARCHITECTURE.md` — SQLAlchemy Core + Pydantic implementation guide for the Postgres data layer
+- `INGESTION.md` - details about the INGESTION process.
+- `RETRIEVAL.md` - details about the RETRIEVAL process (surfaced in Project Chat).
+- `LV_PARSE.md` - companion to INGESTION.md.

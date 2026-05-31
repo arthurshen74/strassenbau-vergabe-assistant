@@ -28,7 +28,7 @@ async def _seed(conn: AsyncConnection):
         NewProject(
             project_id="VS-RES-001",
             project_name="P",
-            vergabe_stelle="VS",
+            vergabestelle="VS",
             project_location="X",
         )
     )

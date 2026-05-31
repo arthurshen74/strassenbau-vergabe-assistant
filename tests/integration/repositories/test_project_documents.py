@@ -21,7 +21,7 @@ async def _make_project(conn: AsyncConnection) -> UUID:
         NewProject(
             project_id="VS-2026-0042",
             project_name="Autobahn A1 Brückensanierung",
-            vergabe_stelle="Autobahn GmbH des Bundes",
+            vergabestelle="Autobahn GmbH des Bundes",
             project_location="Niedersachsen",
         )
     )
