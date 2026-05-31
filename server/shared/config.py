@@ -21,10 +21,6 @@ class Settings(BaseSettings):
     postgres_host: str = "localhost"
     postgres_port: int = 5432
 
-    neo4j_auth: str
-    neo4j_host: str = "localhost"
-    neo4j_bolt_port: int = 7687
-
     minio_root_user: str
     minio_root_password: str
     s3_host: str = "localhost"
@@ -62,18 +58,6 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}_test"
         )
-
-    @property
-    def neo4j_uri(self) -> str:
-        return f"bolt://{self.neo4j_host}:{self.neo4j_bolt_port}"
-
-    @property
-    def neo4j_user(self) -> str:
-        return self.neo4j_auth.split("/", 1)[0]
-
-    @property
-    def neo4j_password(self) -> str:
-        return self.neo4j_auth.split("/", 1)[1]
 
     @property
     def elasticsearch_url(self) -> str:

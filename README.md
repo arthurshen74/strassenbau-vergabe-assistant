@@ -2,7 +2,7 @@
 
 A domain-focused RAG system that helps cost calculators (Kalkulatoren) at road construction contracting companies work through public-tender (Vergabe) documents and prepare bids. The system ingests the full document set for a tender, builds a structured knowledge representation, and answers grounded, citation-backed questions about it.
 
-This README explains what the system is and what it does. Architecture decisions and code-level guidance live in `docs/ARCHITECTURE.md` and `CLAUDE.local.md`. German construction-domain terms used throughout are defined in `docs/GLOSSARY.md`.
+This README explains what the system is and what it does. Architecture decisions and code-level guidance live in `ARCHITECTURE.md` and `CLAUDE.local.md`. German construction-domain terms used throughout are defined in `GLOSSARY.md`.
 
 ## The Problem
 

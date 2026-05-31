@@ -62,7 +62,6 @@ services:
       - ../.env
     environment:
       POSTGRES_HOST: postgres
-      NEO4J_HOST: neo4j
       ELASTICSEARCH_HOST: elasticsearch
       S3_HOST: minio
     ports:
@@ -72,8 +71,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      neo4j:
-        condition: service_started
       elasticsearch:
         condition: service_healthy
       minio:
@@ -98,7 +95,6 @@ services:
       - ../.env
     environment:
       POSTGRES_HOST: postgres
-      NEO4J_HOST: neo4j
       ELASTICSEARCH_HOST: elasticsearch
       S3_HOST: minio
     volumes:
@@ -106,8 +102,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      neo4j:
-        condition: service_started
       elasticsearch:
         condition: service_healthy
       minio:

@@ -1,6 +1,6 @@
 # SQLAlchemy Core + Pydantic Architecture Guide
 
-A reference architecture for Python + Postgres services using SQLAlchemy Core (no ORM), Pydantic v2 for domain and API models, Alembic for migrations, and asyncpg as the driver. Designed for async services (FastAPI / Litestar) but the same patterns apply synchronously.
+A reference architecture for Python + Postgres services using SQLAlchemy Core (no ORM), Pydantic v2 for domain and API models, and asyncpg as the driver. Designed for async services (FastAPI / Litestar) but the same patterns apply synchronously.
 
 The example domain throughout is a small slice of construction project management — `projects`, `estimates`, `line_items` — chosen because it has realistic relationships, JSONB use, and decimal precision concerns.
 
@@ -31,7 +31,6 @@ The example domain throughout is a small slice of construction project managemen
 │  Persistence layer                                      │
 │  - SQLAlchemy Core: Table definitions, MetaData         │
 │  - AsyncEngine, connection pool                         │
-│  - Alembic migrations (autogenerate as verifier)        │
 └─────────────────────────────────────────────────────────┘
                           ↓
                   PostgreSQL (asyncpg)
