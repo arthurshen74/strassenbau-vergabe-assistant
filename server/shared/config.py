@@ -34,9 +34,20 @@ class Settings(BaseSettings):
     embedding_model: str = "openai/text-embedding-3-small"
     embedding_dim: int = 512
 
+    cross_encoder_model: str = "cohere/rerank-v3.5"
+
     openrouter_api_key: str | None = None
     anthropic_api_key: str | None = None
     jwt_secret: str | None = None
+
+    openrouter_api_url_chat: str = "https://openrouter.ai/api/v1/chat/completions"
+    openrouter_api_url_rerank: str = "https://openrouter.ai/api/v1/rerank"
+    openrouter_api_url_embedding: str = "https://openrouter.ai/api/v1/embeddings"
+
+    multi_query_model: str = "anthropic/claude-sonnet-4.6"
+    multi_query_n: int = 5
+    retriever_candidate_k: int = 50
+    retriever_top_k: int = 10
 
     @property
     def database_url(self) -> str:

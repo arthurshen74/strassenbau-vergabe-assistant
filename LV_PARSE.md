@@ -36,4 +36,4 @@ flowchart TD
 7. **Slice verbatim + map to pages** — cut the exact text out of `SourceLine` by line span, and resolve each span to its page(s).
 8. **Resolve back-refs + attach Hinweise** — for "wie in voriger Position" items, compose `langtext_resolved` (predecessor body + delta, recursively for chains) while keeping `langtext` verbatim; attach each Hinweis to the OZ or Titel it names.
 9. **LVItem (Postgres)** — emit one record per position: `oz`, `kurztext`, `langtext`, `langtext_resolved`, `menge`, `einheit`, `positionstyp`, `level`, `stl_nr`, `hinweis`, and the `linked_oz` / `prev_oz` / `next_oz` / `parent_oz` links.
-10. **Chunk → SimpleChunk (Elasticsearch)** — chunk `langtext_resolved` (sub-splitting long positions) into `SimpleChunk`s with `source_doc_type = LV_ITEM`, carrying the denormalized `oz` and `stl_nr`.
+10. **Chunk → SimpleChunk (Elasticsearch)** — chunk (`langtext_resolved` || `langtext`) (sub-splitting long positions) into `SimpleChunk`s with `source_doc_type = LV_ITEM`, carrying the denormalized `oz` and `stl_nr`.

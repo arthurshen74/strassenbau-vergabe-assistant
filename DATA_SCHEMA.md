@@ -9,9 +9,7 @@ this doc owns the _what is it called and what shape is it_.
 
 These rules are non-negotiable; they are how the ambiguity gets removed.
 
-- **Postgres** — tables and columns are `snake_case`, plural table names (`projects`,
-  `eval_items`). Surrogate primary keys are named `{singular_table}_uuid` (`project_uuid`,
-  `eval_item_uuid`, `prompt_version_uuid`) — **not** `id`. Type is `UUID` with
+- **Postgres** — tables and columns are `snake_case`, plural table names (i.e. `projects`). Surrogate primary keys are named `{singular_table}_uuid` (i.e. `project_uuid`) — **not** `id`. Type is `UUID` with
   `server_default gen_random_uuid()`. Timestamps are `TIMESTAMPTZ`, `server_default now()`;
   mutable rows also carry `updated_at` with `onupdate now()`.
 - **Pydantic domain models** — `PascalCase` class per aggregate, fields `snake_case` matching the
@@ -134,7 +132,7 @@ classDiagram
     }
 
     Document *-- LVItem : one_to_many
-    SourceLine *-- LVItem: one_to_many
+    LVItem *-- SourceLine: one_to_many
 
     class SimpleChunk {
         <<elasticsearch>>

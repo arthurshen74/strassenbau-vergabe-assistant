@@ -40,7 +40,7 @@ A project corresponds to one tender. Creating a project means establishing a per
 - **Prose documents** (All Documents) — all documents will be ingested with a simple chunking system into a SimpleChunk structure in the vector store.
 - **Leistungsverzeichnis** - LV documents will have a special parsing step that extracts LV Items into structured storage (db) and then SimpleChunks will be generated on those LV Items.
 
-This approach allows us to run a "simple" retreival and an "plus" retrieval. As more document parsers are created, the "enhanced" gets better and better. But for now, we stick with just LV.
+This approach allows us to run a "simple" retreival and an "plus" retrieval. As more document parsers are created, the "plus" gets better and better. But for now, we stick with just LV.
 
 ### 2. Project Chat
 
