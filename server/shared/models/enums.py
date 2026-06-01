@@ -33,3 +33,9 @@ class PromptType(StrEnum):
     CLASSIFY_PROJECT_CHAT_USER_MESSAGE = "classify_project_chat_user_message"
     MULTI_QUESTION_GENERATOR = "multi_question_generator"
     LV_EXTRACTION = "lv_extraction"
+
+
+class UsageOperation(StrEnum):
+    CHAT = "CHAT"
+    EMBEDDING = "EMBEDDING"
+    RERANK = "RERANK"

@@ -12,12 +12,15 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeVar, overload
+from uuid import UUID
 
 import httpx
 from pydantic import BaseModel
 
+from shared.clients.openrouter.usage import LoggingUsageSink, UsageSink, parse_usage
 from shared.config import settings
 from shared.models.chat_message import ChatMessage
+from shared.models.enums import UsageOperation
 from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
 
 logger = logging.getLogger(__name__)
@@ -86,11 +89,13 @@ class LLMClient:
         chat_url: str | None = None,
         client: httpx.AsyncClient | None = None,
         timeout: float = DEFAULT_TIMEOUT,
+        usage_sink: UsageSink | None = None,
     ) -> None:
         self._api_key = api_key if api_key is not None else settings.openrouter_api_key
         self._chat_url = chat_url or settings.openrouter_api_url_chat
         self._owns_client = client is None
         self._client = client if client is not None else httpx.AsyncClient(timeout=timeout)
+        self._usage_sink = usage_sink or LoggingUsageSink()
 
     async def __aenter__(self) -> LLMClient:
         return self
@@ -112,6 +117,10 @@ class LLMClient:
         temperature: float = ...,
         top_p: float | None = ...,
         max_tokens: int | None = ...,
+        chat_prompt_type: str | None = ...,
+        chat_prompt_version: int | None = ...,
+        project_uuid: UUID | None = ...,
+        ingest_job_uuid: UUID | None = ...,
     ) -> str: ...
 
     @overload
@@ -124,6 +133,10 @@ class LLMClient:
         temperature: float = ...,
         top_p: float | None = ...,
         max_tokens: int | None = ...,
+        chat_prompt_type: str | None = ...,
+        chat_prompt_version: int | None = ...,
+        project_uuid: UUID | None = ...,
+        ingest_job_uuid: UUID | None = ...,
     ) -> T: ...
 
     async def chat(
@@ -135,6 +148,10 @@ class LLMClient:
         temperature: float = 0.0,
         top_p: float | None = None,
         max_tokens: int | None = None,
+        chat_prompt_type: str | None = None,
+        chat_prompt_version: int | None = None,
+        project_uuid: UUID | None = None,
+        ingest_job_uuid: UUID | None = None,
     ) -> str | T:
         """Run a chat completion. With `output_model`, request JSON-schema-constrained output
         and return a validated instance; without it, return the raw assistant text."""
@@ -152,7 +169,20 @@ class LLMClient:
 
         response = await self._client.post(self._chat_url, headers=self._headers(), json=payload)
         response.raise_for_status()
-        choice = response.json()[RESPONSE_CHOICES][0]
+        body = response.json()
+
+        # Emit usage before the refusal/truncation checks: a content-filtered or length-truncated
+        # 200 still bills tokens, so the cost must be recorded even though chat() then raises.
+        await self._emit_usage(
+            body,
+            model=model,
+            chat_prompt_type=chat_prompt_type,
+            chat_prompt_version=chat_prompt_version,
+            project_uuid=project_uuid,
+            ingest_job_uuid=ingest_job_uuid,
+        )
+
+        choice = body[RESPONSE_CHOICES][0]
         message = choice[RESPONSE_MESSAGE]
         finish_reason = choice.get(RESPONSE_FINISH_REASON)
 
@@ -181,6 +211,33 @@ class LLMClient:
         ]
         result = await self.chat(model=model, messages=messages, output_model=MultiQueryRewrite)
         return result.queries[:n]
+
+    async def _emit_usage(
+        self,
+        body: dict[str, Any],
+        *,
+        model: str,
+        chat_prompt_type: str | None,
+        chat_prompt_version: int | None,
+        project_uuid: UUID | None,
+        ingest_job_uuid: UUID | None,
+    ) -> None:
+        # Usage recording must never fail the chat call: swallow and log any error.
+        try:
+            event = parse_usage(
+                body,
+                operation=UsageOperation.CHAT,
+                model=model,
+                project_uuid=project_uuid,
+                ingest_job_uuid=ingest_job_uuid,
+                chat_prompt_type=chat_prompt_type,
+                chat_prompt_version=chat_prompt_version,
+            )
+            if event.cost is None:
+                logger.warning("OpenRouter usage missing cost for model %s", event.model)
+            await self._usage_sink.emit(event)
+        except Exception:
+            logger.exception("Failed to record chat usage; continuing")
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._api_key}"}

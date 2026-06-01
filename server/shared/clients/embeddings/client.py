@@ -9,10 +9,13 @@ before being handed back to the caller.
 from __future__ import annotations
 
 import logging
+from uuid import UUID
 
 import httpx
 
+from shared.clients.openrouter.usage import LoggingUsageSink, UsageSink, parse_usage
 from shared.config import settings
+from shared.models.enums import UsageOperation
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +38,22 @@ REQUEST_TIMEOUT_SECONDS = 60.0
 class EmbeddingsClient:
     """Embeds batches of text via the OpenRouter embeddings API."""
 
-    def __init__(self, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        client: httpx.AsyncClient | None = None,
+        usage_sink: UsageSink | None = None,
+    ) -> None:
         self._client = client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS)
         self._owns_client = client is None
+        self._usage_sink = usage_sink or LoggingUsageSink()
 
-    async def embed(self, texts: list[str]) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: list[str],
+        *,
+        project_uuid: UUID | None = None,
+        ingest_job_uuid: UUID | None = None,
+    ) -> list[list[float]]:
         if not texts:
             return []
 
@@ -63,7 +77,8 @@ class EmbeddingsClient:
             logger.exception("Embeddings request failed for batch of %d", len(texts))
             raise
 
-        items = sorted(response.json()[FIELD_DATA], key=lambda item: item[FIELD_INDEX])
+        body = response.json()
+        items = sorted(body[FIELD_DATA], key=lambda item: item[FIELD_INDEX])
         vectors = [item[FIELD_EMBEDDING] for item in items]
 
         for index, vector in enumerate(vectors):
@@ -73,7 +88,29 @@ class EmbeddingsClient:
                     f"expected {settings.embedding_dim}"
                 )
 
+        await self._emit_usage(body, project_uuid, ingest_job_uuid)
         return vectors
+
+    async def _emit_usage(
+        self,
+        body: dict,
+        project_uuid: UUID | None,
+        ingest_job_uuid: UUID | None,
+    ) -> None:
+        # Usage recording must never fail the embedding call: swallow and log any error.
+        try:
+            event = parse_usage(
+                body,
+                operation=UsageOperation.EMBEDDING,
+                model=settings.embedding_model,
+                project_uuid=project_uuid,
+                ingest_job_uuid=ingest_job_uuid,
+            )
+            if event.cost is None:
+                logger.warning("OpenRouter usage missing cost for model %s", event.model)
+            await self._usage_sink.emit(event)
+        except Exception:
+            logger.exception("Failed to record embeddings usage; continuing")
 
     async def aclose(self) -> None:
         if self._owns_client:

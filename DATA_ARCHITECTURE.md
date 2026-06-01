@@ -420,6 +420,16 @@ async with unit_of_work(engine) as uow:
 
 For read-only operations, use `engine.connect()` instead of `engine.begin()` — no transaction overhead.
 
+### Exception: `DatabaseUsageSink` writes outside the request Unit of Work
+
+`OpenRouterUsageRepository` is registered on the `UnitOfWork` (so cost-reporting reads compose with other
+repositories), but the **write path deliberately bypasses the UoW**. `DatabaseUsageSink` (in
+`clients/openrouter/usage/sinks.py`) owns its own `AsyncEngine` and persists each usage row in its own
+short `engine.begin()` transaction. The reason: the OpenRouter call already incurred real spend, so the
+cost record must survive even if the surrounding business transaction (e.g. persisting ingested chunks)
+later rolls back. Tying the usage write to the request UoW would erase the cost on rollback while the money
+was still spent. This is the one intentional place a write does not enlist in the caller's transaction.
+
 ---
 
 ## 7. Common query patterns

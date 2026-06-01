@@ -16,17 +16,46 @@ def _chat_response(
     *,
     finish_reason: str = "stop",
     refusal: str | None = None,
+    usage: dict[str, Any] | None = None,
+    response_id: str | None = None,
 ) -> httpx.Response:
     message: dict[str, Any] = {"role": "assistant", "content": content}
     if refusal is not None:
         message["refusal"] = refusal
-    body = {"choices": [{"finish_reason": finish_reason, "message": message}]}
+    body: dict[str, Any] = {"choices": [{"finish_reason": finish_reason, "message": message}]}
+    if usage is not None:
+        body["usage"] = usage
+    if response_id is not None:
+        body["id"] = response_id
     return httpx.Response(200, json=body)
 
 
-def _client(handler: Callable[[httpx.Request], httpx.Response]) -> LLMClient:
+def _client(handler: Callable[[httpx.Request], httpx.Response], usage_sink=None) -> LLMClient:
     http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return LLMClient(api_key="test-key", client=http)
+    return LLMClient(api_key="test-key", client=http, usage_sink=usage_sink)
+
+
+class _RecordingSink:
+    def __init__(self) -> None:
+        self.events: list = []
+
+    async def emit(self, event) -> None:
+        self.events.append(event)
+
+
+class _RaisingSink:
+    async def emit(self, event) -> None:
+        raise RuntimeError("sink is down")
+
+
+_CHAT_USAGE = {
+    "prompt_tokens": 100,
+    "completion_tokens": 40,
+    "total_tokens": 140,
+    "cost": 0.0021,
+    "prompt_tokens_details": {"cached_tokens": 64},
+    "completion_tokens_details": {"reasoning_tokens": 12},
+}
 
 
 async def test_chat_returns_raw_text_without_output_model() -> None:
@@ -114,4 +143,94 @@ async def test_multi_query_returns_n_strings() -> None:
     assert len(out) == 3
     assert all(isinstance(q, str) for q in out)
     assert captured["payload"]["model"] == settings.multi_query_model
+    await client.aclose()
+
+
+async def test_chat_emits_usage_event() -> None:
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from shared.models.enums import UsageOperation
+
+    sink = _RecordingSink()
+    project_uuid = uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _chat_response("hi", usage=_CHAT_USAGE, response_id="gen-xyz")
+
+    client = _client(handler, usage_sink=sink)
+    await client.chat(
+        model="x/y",
+        messages=[{"role": "user", "content": "hi"}],
+        chat_prompt_type="project_chat",
+        chat_prompt_version=3,
+        project_uuid=project_uuid,
+    )
+
+    assert len(sink.events) == 1
+    event = sink.events[0]
+    assert event.operation is UsageOperation.CHAT
+    assert event.model == "x/y"
+    assert event.prompt_tokens == 100
+    assert event.completion_tokens == 40
+    assert event.cost == Decimal("0.0021")
+    assert event.cached_tokens == 64
+    assert event.reasoning_tokens == 12
+    assert event.request_id == "gen-xyz"
+    assert event.chat_prompt_type == "project_chat"
+    assert event.chat_prompt_version == 3
+    assert event.project_uuid == project_uuid
+    await client.aclose()
+
+
+async def test_chat_refusal_still_emits_usage_before_raising() -> None:
+    sink = _RecordingSink()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _chat_response("", refusal="no", usage=_CHAT_USAGE)
+
+    client = _client(handler, usage_sink=sink)
+    with pytest.raises(RefusalError):
+        await client.chat(model="x/y", messages=[{"role": "user", "content": "hi"}])
+
+    assert len(sink.events) == 1
+    assert sink.events[0].total_tokens == 140
+    await client.aclose()
+
+
+async def test_chat_truncated_still_emits_usage_before_raising() -> None:
+    sink = _RecordingSink()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _chat_response("partial", finish_reason="length", usage=_CHAT_USAGE)
+
+    client = _client(handler, usage_sink=sink)
+    with pytest.raises(OutputTruncatedError):
+        await client.chat(model="x/y", messages=[{"role": "user", "content": "hi"}])
+
+    assert len(sink.events) == 1
+    await client.aclose()
+
+
+async def test_chat_sink_failure_is_isolated() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _chat_response("hello", usage=_CHAT_USAGE)
+
+    client = _client(handler, usage_sink=_RaisingSink())
+    out = await client.chat(model="x/y", messages=[{"role": "user", "content": "hi"}])
+
+    assert out == "hello"
+    await client.aclose()
+
+
+async def test_chat_no_usage_emit_on_http_error() -> None:
+    sink = _RecordingSink()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"error": "boom"})
+
+    client = _client(handler, usage_sink=sink)
+    with pytest.raises(httpx.HTTPStatusError):
+        await client.chat(model="x/y", messages=[{"role": "user", "content": "hi"}])
+    assert sink.events == []
     await client.aclose()

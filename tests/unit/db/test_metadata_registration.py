@@ -12,6 +12,7 @@ EXPECTED_TABLES = {
     "ingest_job_events",
     "lv_items",
     "prompt_versions",
+    "openrouter_usage",
 }
 
 

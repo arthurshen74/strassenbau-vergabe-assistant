@@ -24,9 +24,34 @@ def _embeddings_response(vectors: list[list[float]]) -> httpx.Response:
     return httpx.Response(200, json={"object": "list", "data": data})
 
 
-def _client_with_handler(handler) -> EmbeddingsClient:
+def _client_with_handler(handler, usage_sink=None) -> EmbeddingsClient:
     transport = httpx.MockTransport(handler)
-    return EmbeddingsClient(client=httpx.AsyncClient(transport=transport))
+    return EmbeddingsClient(
+        client=httpx.AsyncClient(transport=transport), usage_sink=usage_sink
+    )
+
+
+class _RecordingSink:
+    def __init__(self) -> None:
+        self.events: list = []
+
+    async def emit(self, event) -> None:
+        self.events.append(event)
+
+
+class _RaisingSink:
+    async def emit(self, event) -> None:
+        raise RuntimeError("sink is down")
+
+
+def _response_with_usage(vectors, usage) -> httpx.Response:
+    data = [
+        {"object": "embedding", "index": i, "embedding": v} for i, v in enumerate(vectors)
+    ]
+    body: dict = {"object": "list", "id": "emb-1", "data": data}
+    if usage is not None:
+        body["usage"] = usage
+    return httpx.Response(200, json=body)
 
 
 async def test_embed_returns_vectors_and_sends_expected_request() -> None:
@@ -97,12 +122,89 @@ async def test_embed_empty_batch_makes_no_request() -> None:
     assert await client.embed([]) == []
 
 
+async def test_embed_emits_usage_event_to_sink() -> None:
+    sink = _RecordingSink()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vectors = [[0.1] * settings.embedding_dim]
+        usage = {"prompt_tokens": 8, "total_tokens": 8, "cost": 0.0000004}
+        return _response_with_usage(vectors, usage)
+
+    client = _client_with_handler(handler, usage_sink=sink)
+    await client.embed(["alpha"])
+
+    assert len(sink.events) == 1
+    from decimal import Decimal
+
+    from shared.models.enums import UsageOperation
+
+    event = sink.events[0]
+    assert event.operation is UsageOperation.EMBEDDING
+    assert event.model == settings.embedding_model
+    assert event.prompt_tokens == 8
+    assert event.total_tokens == 8
+    assert event.cost == Decimal("0.0000004")
+    assert event.request_id == "emb-1"
+
+
+async def test_embed_missing_cost_records_none_and_warns(caplog) -> None:
+    sink = _RecordingSink()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vectors = [[0.1] * settings.embedding_dim]
+        return _response_with_usage(vectors, {"prompt_tokens": 8, "total_tokens": 8})
+
+    client = _client_with_handler(handler, usage_sink=sink)
+    with caplog.at_level("WARNING", logger="shared.clients.embeddings.client"):
+        await client.embed(["alpha"])
+
+    assert sink.events[0].cost is None
+    assert any("missing cost" in r.getMessage() for r in caplog.records)
+
+
+async def test_embed_missing_usage_does_not_emit_or_crash() -> None:
+    sink = _RecordingSink()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _response_with_usage([[0.1] * settings.embedding_dim], usage=None)
+
+    client = _client_with_handler(handler, usage_sink=sink)
+    result = await client.embed(["alpha"])
+
+    assert len(result) == 1
+    assert sink.events == []
+
+
+async def test_embed_sink_failure_is_isolated() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        vectors = [[0.1] * settings.embedding_dim]
+        return _response_with_usage(vectors, {"prompt_tokens": 8, "total_tokens": 8, "cost": 0.1})
+
+    client = _client_with_handler(handler, usage_sink=_RaisingSink())
+    result = await client.embed(["alpha"])
+
+    assert len(result) == 1
+
+
+async def test_embed_no_usage_emit_on_http_error() -> None:
+    sink = _RecordingSink()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"error": "boom"})
+
+    client = _client_with_handler(handler, usage_sink=sink)
+    with pytest.raises(httpx.HTTPStatusError):
+        await client.embed(["alpha"])
+    assert sink.events == []
+
+
 @pytest.mark.skipif(
     not os.environ.get("OPENROUTER_LIVE_TEST"),
     reason="set OPENROUTER_LIVE_TEST=1 (with OPENROUTER_API_KEY) to run the live call",
 )
 async def test_embed_live() -> None:
-    client = EmbeddingsClient()
+    sink = _RecordingSink()
+    client = EmbeddingsClient(usage_sink=sink)
     try:
         result = await client.embed(["hello world", "second input"])
     finally:
@@ -110,3 +212,8 @@ async def test_embed_live() -> None:
 
     assert len(result) == 2
     assert all(len(vector) == settings.embedding_dim for vector in result)
+
+    # Confirms the OpenAPI spec empirically: embeddings responses carry usage.cost + total_tokens.
+    assert len(sink.events) == 1
+    assert sink.events[0].cost is not None
+    assert sink.events[0].total_tokens is not None

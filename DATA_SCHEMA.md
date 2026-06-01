@@ -188,7 +188,59 @@ classDiagram
     PromptType *-- PromptVersion : classifies_on_prompt_type
     ChatMessage *-- PromptVersion : can_have_many_initial_messages
 
+    class UsageOperation {
+        <<enumeration>>
+        CHAT
+        EMBEDDING
+        RERANK
+    }
+
+    class OpenRouterUsage {
+        <<postgres>>
+        +uuid usage_uuid PK
+        +UsageOperation operation
+        +text model
+        +int? prompt_tokens
+        +int? completion_tokens
+        +int? total_tokens
+        +decimal? cost
+        +int? cached_tokens
+        +int? reasoning_tokens
+        +int? search_units
+        +uuid? project_uuid FK
+        +uuid? ingest_job_uuid FK
+        +text? request_id
+        +text? chat_prompt_type
+        +int? chat_prompt_version
+        +timestamptz created_at postgres_only
+    }
+
+    UsageOperation *-- OpenRouterUsage : discriminates_on_operation
+    Project o-- OpenRouterUsage : cost_attributed_to_nullable
+    IngestJob o-- OpenRouterUsage : cost_attributed_to_nullable
+
 ```
+
+## OpenRouter usage and cost (`openrouter_usage`)
+
+Every OpenRouter API call (chat/embeddings/rerank) records one `OpenRouterUsage` row capturing tokens and
+`cost`. **`cost` is OpenRouter credits, which are USD-denominated**, stored `Numeric(18, 8)` and **nullable**
+(recorded null on the rare response that omits it). Every metric column is nullable because the three
+endpoints return different `usage` shapes:
+
+| Field | Chat | Embeddings | Rerank |
+| --- | :-: | :-: | :-: |
+| `prompt_tokens` | yes | yes | — |
+| `completion_tokens` | yes | — | — |
+| `total_tokens` | yes | yes | yes |
+| `cost` (credits == USD) | yes | yes | yes |
+| `cached_tokens` | yes | — | — |
+| `reasoning_tokens` | yes | — | — |
+| `search_units` (Cohere rerank billing) | — | — | yes |
+
+Attribution columns (`project_uuid`, `ingest_job_uuid` — FKs with `ON DELETE SET NULL` so cost history
+outlives a deleted parent; `request_id`; `chat_prompt_type`/`chat_prompt_version` for CHAT) are all
+optional. See `tasks/retrofit_clients_for_usage.md` for how clients populate these.
 
 # Postgres constraints not expressible in the class diagram
 

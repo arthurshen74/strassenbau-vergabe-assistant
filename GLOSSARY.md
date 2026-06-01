@@ -119,6 +119,18 @@ These are not directly ingested but appear constantly in the ZTV and Baubeschrei
 
 **RAS** — Richtlinien für die Anlage von Straßen. Road design guidelines covering geometric design, alignment, and intersections.
 
+## System and Infrastructure Terms
+
+These are not domain terms; they recur in the codebase around OpenRouter cost tracking.
+
+**OpenRouter credits** — The unit OpenRouter reports `cost` in. Credits are USD-denominated (1 credit = 1 USD), so the `cost` column is treated as USD. Recorded per API call in `openrouter_usage`.
+
+**Token usage** — Per-call token counts returned by OpenRouter: `prompt_tokens`, `completion_tokens`, `total_tokens`, plus `cached_tokens` (prompt tokens served from cache) and `reasoning_tokens` (chat reasoning) where applicable. Shapes differ per endpoint (chat vs embeddings vs rerank).
+
+**Search units** — Cohere's rerank billing unit, returned as `search_units` on rerank responses. Rerank reports no prompt/completion tokens.
+
+**Usage sink** — A small async interface (`UsageSink`) an OpenRouter client emits a `UsageEvent` to after each call. `LoggingUsageSink` logs one line (default); `DatabaseUsageSink` persists to `openrouter_usage`. See `tasks/retrofit_clients_for_usage.md`.
+
 ---
 
 See also `README.md` for the project's functional scope and `ARCHITECTURE.md` for how these concepts map to the system's data model.
