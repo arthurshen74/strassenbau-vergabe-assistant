@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, create_model
 
 from shared.models.chat_message import ChatMessage
+from shared.models.conversation_schema import ConversationCreate, ConversationRead
 from shared.models.document_schema import DocumentCreate, DocumentRead
 from shared.models.ingest_schema import (
     IngestCompleted,
@@ -19,6 +20,7 @@ from shared.models.ingest_schema import (
     IngestStarted,
     IngestStatusRead,
 )
+from shared.models.message_schema import MessageRead
 from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from shared.models.prompt_version_schema import PromptVersionCreate, PromptVersionRead
 
@@ -46,6 +48,9 @@ BODY_MODELS: list[type[BaseModel]] = [
     ChatMessage,
     PromptVersionRead,
     PromptVersionCreate,
+    ConversationRead,
+    ConversationCreate,
+    MessageRead,
 ]
 
 # SSE payloads pinned for the discriminated union, in this exact order.

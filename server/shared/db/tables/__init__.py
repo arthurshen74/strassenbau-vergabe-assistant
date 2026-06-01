@@ -6,23 +6,29 @@ process that builds the schema (tests, bootstrap) must import this package first
 
 from __future__ import annotations
 
+from shared.db.tables.conversations import conversations
 from shared.db.tables.documents import documents
 from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
 from shared.db.tables.lv_items import lv_items
+from shared.db.tables.messages import messages
 from shared.db.tables.openrouter_usage import openrouter_usage
 from shared.db.tables.projects import projects
+from shared.db.tables.prompt_execution_log import prompt_execution_log
 from shared.db.tables.prompt_versions import prompt_versions
 from shared.db.tables.source_lines import source_lines
 from shared.db.tables.thumbnails import thumbnails
 
 __all__ = [
+    "conversations",
     "documents",
     "ingest_job_events",
     "ingest_jobs",
     "lv_items",
+    "messages",
     "openrouter_usage",
     "projects",
+    "prompt_execution_log",
     "prompt_versions",
     "source_lines",
     "thumbnails",

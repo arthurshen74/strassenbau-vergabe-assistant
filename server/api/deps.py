@@ -23,11 +23,24 @@ from fastapi import Depends, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
+from shared.clients.llm.client import LLMClient
 from shared.db.unit_of_work import UnitOfWork
+from shared.services.dispatcher import Dispatcher
 
 
 def get_engine(request: Request) -> AsyncEngine:
     return request.app.state.engine
+
+
+def get_llm_client(request: Request) -> LLMClient:
+    return request.app.state.llm_client
+
+
+def get_dispatcher(
+    engine: AsyncEngine = Depends(get_engine),
+    llm: LLMClient = Depends(get_llm_client),
+) -> Dispatcher:
+    return Dispatcher(llm, engine)
 
 
 async def get_connection(

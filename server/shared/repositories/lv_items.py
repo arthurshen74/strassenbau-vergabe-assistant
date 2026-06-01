@@ -41,6 +41,20 @@ class LVItemRepository:
         row = (await self.conn.execute(stmt)).mappings().first()
         return LVItem.model_validate(dict(row)) if row else None
 
+    async def list_by_project(self, project_uuid: UUID) -> list[LVItem]:
+        """All LV items for a project's LV document, ordered by oz."""
+        stmt = (
+            select(lv_items)
+            .join(documents, documents.c.document_uuid == lv_items.c.document_uuid)
+            .where(
+                documents.c.project_uuid == project_uuid,
+                documents.c.document_type == DocumentType.LV_DOCUMENT,
+            )
+            .order_by(lv_items.c.oz)
+        )
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [LVItem.model_validate(dict(r)) for r in rows]
+
     async def list_by_parent_oz(
         self, project_uuid: UUID, parent_oz: str
     ) -> list[LVItem]:

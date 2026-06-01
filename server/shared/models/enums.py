@@ -39,3 +39,10 @@ class UsageOperation(StrEnum):
     CHAT = "CHAT"
     EMBEDDING = "EMBEDDING"
     RERANK = "RERANK"
+
+
+class MessageKind(StrEnum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    FUNCTION_CALL = "function_call"
+    FUNCTION_CALL_OUTPUT = "function_call_output"

@@ -18,12 +18,15 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
+from shared.repositories.conversations import ConversationRepository
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
+from shared.repositories.messages import MessageRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.repositories.projects import ProjectRepository
+from shared.repositories.prompt_execution_log import PromptExecutionLogRepository
 from shared.repositories.prompt_versions import PromptVersionRepository
 from shared.repositories.source_lines import SourceLineRepository
 from shared.repositories.thumbnails import ThumbnailRepository
@@ -42,8 +45,11 @@ class UnitOfWork:
         self.ingest_job_events = IngestJobEventRepository(conn)
         self.lv_items = LVItemRepository(conn)
         self.prompt_versions = PromptVersionRepository(conn)
-        # Registered for read/report composition; the DatabaseUsageSink writes independently.
+        self.conversations = ConversationRepository(conn)
+        self.messages = MessageRepository(conn)
+        # Registered for read/report composition; the Database*Sinks write independently.
         self.openrouter_usage = OpenRouterUsageRepository(conn)
+        self.prompt_execution_log = PromptExecutionLogRepository(conn)
 
 
 @asynccontextmanager

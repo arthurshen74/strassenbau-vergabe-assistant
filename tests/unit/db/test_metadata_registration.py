@@ -13,6 +13,9 @@ EXPECTED_TABLES = {
     "lv_items",
     "prompt_versions",
     "openrouter_usage",
+    "prompt_execution_log",
+    "conversations",
+    "messages",
 }
 
 

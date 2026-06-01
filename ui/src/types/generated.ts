@@ -88,7 +88,7 @@ export interface PromptVersionRead {
   version: number;
   model_name: string;
   system_prompt: string;
-  temperature: number;
+  temperature?: number | null;
   top_p?: number | null;
   created_at: string;
 }
@@ -102,8 +102,50 @@ export interface PromptVersionCreate {
     | "lv_extraction";
   model_name: string;
   system_prompt: string;
-  temperature?: number;
+  temperature?: number | null;
   top_p?: number | null;
+}
+
+export interface ConversationRead {
+  conversation_uuid: string;
+  user_uuid: string;
+  project_uuid?: string | null;
+  prompt_type:
+    | "dispatcher"
+    | "project_chat"
+    | "classify_project_chat_user_message"
+    | "multi_question_generator"
+    | "lv_extraction";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationCreate {
+  prompt_type:
+    | "dispatcher"
+    | "project_chat"
+    | "classify_project_chat_user_message"
+    | "multi_question_generator"
+    | "lv_extraction";
+  project_uuid?: string | null;
+}
+
+export interface MessageRead {
+  message_uuid: string;
+  conversation_uuid: string;
+  kind: "user" | "assistant" | "function_call" | "function_call_output";
+  content?: string | null;
+  call_id?: string | null;
+  tool_name?: string | null;
+  arguments?: {
+    [k: string]: unknown;
+  } | null;
+  success?: boolean | null;
+  data?: {
+    [k: string]: unknown;
+  } | null;
+  errors?: string[] | null;
+  created_at: string;
 }
 
 // ---- Types pinned by scripts/export_schema.py ----
