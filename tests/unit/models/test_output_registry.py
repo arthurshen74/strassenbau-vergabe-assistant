@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from shared.clients.llm.prompt_registry import PROMPT_OUTPUT_MODELS, output_model_for
 from shared.models.enums import PromptType
-from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
+from shared.models.llm_output_schemas import (
+    PROMPT_OUTPUT_MODELS,
+    MultiQueryRewrite,
+    output_model_for,
+)
 
 
 def test_mapped_prompt_type_returns_its_model() -> None:

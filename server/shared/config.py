@@ -44,7 +44,6 @@ class Settings(BaseSettings):
     openrouter_api_url_rerank: str = "https://openrouter.ai/api/v1/rerank"
     openrouter_api_url_embedding: str = "https://openrouter.ai/api/v1/embeddings"
 
-    multi_query_model: str = "anthropic/claude-sonnet-4.6"
     multi_query_n: int = 5
     retriever_candidate_k: int = 50
     retriever_top_k: int = 10

@@ -3,9 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-from shared.models.chat_message import ChatMessage
 from shared.models.enums import PromptType
 
 
@@ -19,8 +18,6 @@ class PromptVersion(BaseModel):
     system_prompt: str
     temperature: float
     top_p: float | None = None
-    min_p: float | None = None
-    initial_messages: list[ChatMessage] = Field(default_factory=list)
     created_at: datetime
 
 
@@ -35,5 +32,3 @@ class NewPromptVersion(BaseModel):
     system_prompt: str
     temperature: float = 0.0
     top_p: float | None = None
-    min_p: float | None = None
-    initial_messages: list[ChatMessage] = Field(default_factory=list)

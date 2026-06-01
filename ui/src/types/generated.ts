@@ -90,8 +90,6 @@ export interface PromptVersionRead {
   system_prompt: string;
   temperature: number;
   top_p?: number | null;
-  min_p?: number | null;
-  initial_messages?: ChatMessage[];
   created_at: string;
 }
 
@@ -106,8 +104,6 @@ export interface PromptVersionCreate {
   system_prompt: string;
   temperature?: number;
   top_p?: number | null;
-  min_p?: number | null;
-  initial_messages?: ChatMessage[];
 }
 
 // ---- Types pinned by scripts/export_schema.py ----

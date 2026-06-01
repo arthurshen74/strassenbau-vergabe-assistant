@@ -7,7 +7,6 @@ import httpx
 import pytest
 
 from shared.clients.llm.client import LLMClient, OutputTruncatedError, RefusalError
-from shared.config import settings
 from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
 
 
@@ -72,6 +71,7 @@ async def test_chat_returns_raw_text_without_output_model() -> None:
     assert out == "hello there"
     assert captured["auth"] == "Bearer test-key"
     assert "response_format" not in captured["payload"]
+    assert "provider" not in captured["payload"]
     await client.aclose()
 
 
@@ -96,6 +96,7 @@ async def test_chat_structured_output_returns_validated_model() -> None:
     assert response_format["json_schema"]["name"] == "MultiQueryRewrite"
     assert response_format["json_schema"]["strict"] is True
     assert response_format["json_schema"]["schema"]["additionalProperties"] is False
+    assert captured["payload"]["provider"] == {"require_parameters": True}
     await client.aclose()
 
 
@@ -126,23 +127,6 @@ async def test_chat_length_finish_raises_output_truncated_error() -> None:
     client = _client(handler)
     with pytest.raises(OutputTruncatedError):
         await client.chat(model="x/y", messages=[{"role": "user", "content": "hi"}])
-    await client.aclose()
-
-
-async def test_multi_query_returns_n_strings() -> None:
-    captured: dict[str, Any] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        captured["payload"] = json.loads(request.content)
-        return _chat_response(json.dumps({"queries": ["q1", "q2", "q3", "q4", "q5"]}))
-
-    client = _client(handler)
-    out = await client.multi_query("how to pour concrete", n=3)
-
-    assert isinstance(out, list)
-    assert len(out) == 3
-    assert all(isinstance(q, str) for q in out)
-    assert captured["payload"]["model"] == settings.multi_query_model
     await client.aclose()
 
 

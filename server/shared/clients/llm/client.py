@@ -21,7 +21,6 @@ from shared.clients.openrouter.usage import LoggingUsageSink, UsageSink, parse_u
 from shared.config import settings
 from shared.models.chat_message import ChatMessage
 from shared.models.enums import UsageOperation
-from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +39,15 @@ JSON_SCHEMA_NAME = "name"
 JSON_SCHEMA_STRICT = "strict"
 JSON_SCHEMA_SCHEMA = "schema"
 
-# Message object keys and roles.
-MESSAGE_ROLE = "role"
+# Provider routing preferences (OpenRouter). require_parameters makes OpenRouter fail the request
+# if the routed provider can't honor response_format, rather than silently returning unconstrained
+# text; only meaningful when we send a schema.
+REQUEST_PROVIDER = "provider"
+PROVIDER_REQUIRE_PARAMETERS = "require_parameters"
+
+# Message and response object keys.
 MESSAGE_CONTENT = "content"
 MESSAGE_REFUSAL = "refusal"
-ROLE_SYSTEM = "system"
-ROLE_USER = "user"
 
 # Response object keys.
 RESPONSE_CHOICES = "choices"
@@ -57,12 +59,6 @@ FINISH_REASON_LENGTH = "length"
 FINISH_REASON_CONTENT_FILTER = "content_filter"
 
 DEFAULT_TIMEOUT = 60.0
-
-MULTI_QUERY_SYSTEM_PROMPT = (
-    "You rewrite a search query into {n} diverse alternative phrasings that a retrieval system "
-    "can use to find relevant passages. Preserve the original intent while varying wording, "
-    "specificity, and synonyms. Return exactly {n} variants."
-)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -166,6 +162,7 @@ class LLMClient:
             payload[REQUEST_MAX_TOKENS] = max_tokens
         if output_model is not None:
             payload[REQUEST_RESPONSE_FORMAT] = _json_schema_response_format(output_model)
+            payload[REQUEST_PROVIDER] = {PROVIDER_REQUIRE_PARAMETERS: True}
 
         response = await self._client.post(self._chat_url, headers=self._headers(), json=payload)
         response.raise_for_status()
@@ -198,19 +195,6 @@ class LLMClient:
         if output_model is None:
             return content
         return output_model.model_validate_json(content)
-
-    async def multi_query(
-        self, query: str, *, model: str | None = None, n: int | None = None
-    ) -> list[str]:
-        """Generate `n` query variants for retrieval (defaults from settings); return them as strings."""
-        model = model or settings.multi_query_model
-        n = n if n is not None else settings.multi_query_n
-        messages: list[Mapping[str, Any]] = [
-            {MESSAGE_ROLE: ROLE_SYSTEM, MESSAGE_CONTENT: MULTI_QUERY_SYSTEM_PROMPT.format(n=n)},
-            {MESSAGE_ROLE: ROLE_USER, MESSAGE_CONTENT: query},
-        ]
-        result = await self.chat(model=model, messages=messages, output_model=MultiQueryRewrite)
-        return result.queries[:n]
 
     async def _emit_usage(
         self,

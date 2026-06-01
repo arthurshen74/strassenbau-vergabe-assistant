@@ -7,7 +7,6 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from shared.models.chat_message import ChatMessage
 from shared.models.document import NewDocument
 from shared.models.enums import DocumentType, IngestStatus, PromptType, SourceDocType
 from shared.models.lv_item import NewLVItem
@@ -105,19 +104,20 @@ def test_source_line_bbox_is_fixed_tuple() -> None:
         )
 
 
-def test_prompt_version_initial_messages_jsonb_round_trip() -> None:
+def test_prompt_version_round_trip() -> None:
     new = NewPromptVersion(
         prompt_type=PromptType.PROJECT_CHAT,
         model_name="anthropic/claude-sonnet-4.6",
         system_prompt="You answer.",
-        initial_messages=[ChatMessage(role="user", content="hi")],
+        temperature=0.2,
+        top_p=0.9,
     )
-    dumped = new.model_dump()
-    assert dumped["initial_messages"] == [{"role": "user", "content": "hi"}]
     version = PromptVersion(
-        prompt_version_uuid=uuid4(), version=1, created_at=_now(), **dumped
+        prompt_version_uuid=uuid4(), version=1, created_at=_now(), **new.model_dump()
     )
-    assert version.initial_messages[0].role == "user"
+    assert version.prompt_type is PromptType.PROJECT_CHAT
+    assert version.temperature == 0.2
+    assert version.top_p == 0.9
 
 
 def test_simple_chunk_defaults() -> None:

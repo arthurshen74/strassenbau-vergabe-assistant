@@ -6,7 +6,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.prompt_versions import prompt_versions
-from shared.models.chat_message import ChatMessage
 from shared.models.enums import PromptType
 from shared.models.prompt_version import NewPromptVersion
 from shared.repositories.prompt_versions import PromptVersionRepository
@@ -53,22 +52,6 @@ async def test_get_latest_and_by_type_and_version(conn: AsyncConnection) -> None
 async def test_get_latest_none_when_absent(conn: AsyncConnection) -> None:
     repo = PromptVersionRepository(conn)
     assert await repo.get_latest(PromptType.LV_EXTRACTION) is None
-
-
-async def test_initial_messages_jsonb_round_trip(conn: AsyncConnection) -> None:
-    repo = PromptVersionRepository(conn)
-    messages = [
-        ChatMessage(role="user", content="Wie hoch ist die Menge?"),
-        ChatMessage(role="assistant", content="1,5 m"),
-    ]
-    created = await repo.add(
-        _new(PromptType.MULTI_QUESTION_GENERATOR, initial_messages=messages)
-    )
-    fetched = await repo.get_by_type_and_version(
-        PromptType.MULTI_QUESTION_GENERATOR, created.version
-    )
-    assert fetched is not None
-    assert fetched.initial_messages == messages
 
 
 async def test_prompt_type_version_unique(conn: AsyncConnection) -> None:

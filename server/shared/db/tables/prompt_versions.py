@@ -12,7 +12,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 
 from shared.db.metadata import metadata
 from shared.models.enums import PromptType
@@ -34,13 +34,6 @@ prompt_versions = Table(
     Column("system_prompt", Text, nullable=False),
     Column("temperature", Float, nullable=False),
     Column("top_p", Float, nullable=True),
-    Column("min_p", Float, nullable=True),
-    Column(
-        "initial_messages",
-        JSONB,
-        nullable=False,
-        server_default=text("'[]'::jsonb"),
-    ),
     Column(
         "created_at",
         DateTime(timezone=True),

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ChatMessage(BaseModel):
-    """A seed message stored on a PromptVersion (JSONB), not its own table."""
+    """A single user/assistant turn passed to the LLM transport."""
 
     model_config = ConfigDict(extra="forbid")
 

@@ -33,7 +33,9 @@ SYSTEM_PROMPTS: dict[PromptType, str] = {
         "You classify a user's chat message into the correct project-chat intent."
     ),
     PromptType.MULTI_QUESTION_GENERATOR: (
-        "You expand a single user question into several focused retrieval queries."
+        "You rewrite a search query into {{n}} diverse alternative phrasings that a "
+        "retrieval system can use to find relevant passages. Preserve the original intent "
+        "while varying wording, specificity, and synonyms. Return exactly {{n}} variants."
     ),
     PromptType.LV_EXTRACTION: (
         "You extract Leistungsverzeichnis items from a document page as "
