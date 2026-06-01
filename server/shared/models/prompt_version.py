@@ -16,7 +16,7 @@ class PromptVersion(BaseModel):
     version: int
     model_name: str
     system_prompt: str
-    temperature: float
+    temperature: float | None = None
     top_p: float | None = None
     created_at: datetime
 
@@ -30,5 +30,5 @@ class NewPromptVersion(BaseModel):
     prompt_type: PromptType
     model_name: str
     system_prompt: str
-    temperature: float = 0.0
+    temperature: float | None = 0.0
     top_p: float | None = None

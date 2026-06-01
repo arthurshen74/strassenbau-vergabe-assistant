@@ -1,7 +1,7 @@
 ---
-model_name: anthropic/claude-sonnet-4.6
+model_name: openai/gpt-5.4-nano
 temperature: 0.0
-top_p: null
+top_p: 0.9
 ---
 You are the routing gate for the project chat in Roadbuilders Assistant, a tool
 that helps a Kalkulator work through the documents of a single German road-

@@ -75,6 +75,38 @@ async def test_chat_returns_raw_text_without_output_model() -> None:
     await client.aclose()
 
 
+async def test_chat_omits_temperature_when_none() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content)
+        return _chat_response("ok")
+
+    client = _client(handler)
+    await client.chat(
+        model="x/y", messages=[{"role": "user", "content": "hi"}], temperature=None
+    )
+
+    assert "temperature" not in captured["payload"]
+    await client.aclose()
+
+
+async def test_chat_sends_temperature_when_set() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content)
+        return _chat_response("ok")
+
+    client = _client(handler)
+    await client.chat(
+        model="x/y", messages=[{"role": "user", "content": "hi"}], temperature=0.0
+    )
+
+    assert captured["payload"]["temperature"] == 0.0
+    await client.aclose()
+
+
 async def test_chat_structured_output_returns_validated_model() -> None:
     captured: dict[str, Any] = {}
 

@@ -110,7 +110,7 @@ class LLMClient:
         model: str,
         messages: Sequence[ChatMessage | Mapping[str, Any]],
         output_model: None = ...,
-        temperature: float = ...,
+        temperature: float | None = ...,
         top_p: float | None = ...,
         max_tokens: int | None = ...,
         chat_prompt_type: str | None = ...,
@@ -126,7 +126,7 @@ class LLMClient:
         model: str,
         messages: Sequence[ChatMessage | Mapping[str, Any]],
         output_model: type[T],
-        temperature: float = ...,
+        temperature: float | None = ...,
         top_p: float | None = ...,
         max_tokens: int | None = ...,
         chat_prompt_type: str | None = ...,
@@ -141,7 +141,7 @@ class LLMClient:
         model: str,
         messages: Sequence[ChatMessage | Mapping[str, Any]],
         output_model: type[T] | None = None,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         top_p: float | None = None,
         max_tokens: int | None = None,
         chat_prompt_type: str | None = None,
@@ -154,8 +154,12 @@ class LLMClient:
         payload: dict[str, Any] = {
             REQUEST_MODEL: model,
             REQUEST_MESSAGES: [_serialize_message(m) for m in messages],
-            REQUEST_TEMPERATURE: temperature,
         }
+        # Omit temperature when None: reasoning models (e.g. gpt-5.x) don't accept the
+        # parameter, and with provider.require_parameters set, sending it makes OpenRouter
+        # drop every endpoint that can't honor it.
+        if temperature is not None:
+            payload[REQUEST_TEMPERATURE] = temperature
         if top_p is not None:
             payload[REQUEST_TOP_P] = top_p
         if max_tokens is not None:

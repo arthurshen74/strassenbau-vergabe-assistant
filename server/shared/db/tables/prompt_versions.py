@@ -32,7 +32,7 @@ prompt_versions = Table(
     Column("version", Integer, nullable=False),
     Column("model_name", Text, nullable=False),
     Column("system_prompt", Text, nullable=False),
-    Column("temperature", Float, nullable=False),
+    Column("temperature", Float, nullable=True),
     Column("top_p", Float, nullable=True),
     Column(
         "created_at",

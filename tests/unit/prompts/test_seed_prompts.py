@@ -44,6 +44,11 @@ def test_optional_fields_default(tmp_path: Path) -> None:
     assert pv.top_p is None
 
 
+def test_null_temperature_parses_to_none(tmp_path: Path) -> None:
+    f = _write(tmp_path, "dispatcher.prompt", "---\nmodel_name: m\ntemperature: null\n---\nBody.\n")
+    assert parse_prompt_file(f).temperature is None
+
+
 def test_body_preserved_verbatim_with_outer_whitespace_stripped(tmp_path: Path) -> None:
     body = "Rewrite into {{n}} phrasings.\nReturn exactly {{n}} variants."
     f = _write(
