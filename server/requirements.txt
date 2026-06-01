@@ -3,6 +3,7 @@ pdf2image
 tqdm
 pydantic
 pydantic-settings
+pyyaml
 sqlalchemy[asyncio]>=2.0
 asyncpg
 alembic

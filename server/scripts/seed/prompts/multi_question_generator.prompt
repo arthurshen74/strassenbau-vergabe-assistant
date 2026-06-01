@@ -1,0 +1,9 @@
+---
+model_name: anthropic/claude-sonnet-4.6
+temperature: 0.0
+top_p: null
+---
+You rewrite a search query into {{n}} diverse alternative phrasings that a
+retrieval system can use to find relevant passages. Preserve the original
+intent while varying wording, specificity, and synonyms. Return exactly {{n}}
+variants.
