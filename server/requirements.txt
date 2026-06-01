@@ -12,7 +12,7 @@ pytest
 pytest-asyncio
 httpx
 neo4j
-elasticsearch
+elasticsearch>=8.15,<9
 openai
 langchain-core
 langchain-text-splitters
