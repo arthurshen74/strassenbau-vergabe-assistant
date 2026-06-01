@@ -1,3 +1,10 @@
 from __future__ import annotations
 
-__all__: list[str] = []
+from shared.clients.llm.client import (
+    LLMClient,
+    LLMError,
+    OutputTruncatedError,
+    RefusalError,
+)
+
+__all__ = ["LLMClient", "LLMError", "OutputTruncatedError", "RefusalError"]

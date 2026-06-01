@@ -256,6 +256,47 @@ class ProjectUpdate(BaseModel):
 
 ---
 
+## 4a. LLM output schemas (`models/llm_output_schemas/`)
+
+Structured LLM output is **schema-in-code**: a `PromptType` maps to an optional Pydantic model,
+never a DB column. The schema _classes_ live in `models/llm_output_schemas/` (one module per
+feature/prompt); the _wiring_ lives in `clients/llm/prompt_registry.py`. A `PromptType` with no
+entry is free-form — the call returns raw text with no structured-output enforcement.
+
+### Adding / updating an output schema
+
+1. **Define the model** in `models/llm_output_schemas/<feature>.py` and re-export it from the
+   package `__init__`. Use `ConfigDict(extra="forbid")` and keep every field required (no
+   defaults): OpenRouter strict `json_schema` needs `additionalProperties: false` and all
+   properties in `required`, both of which Pydantic emits from that shape.
+2. **Wire it** in `clients/llm/prompt_registry.py` — import the class and add one line to
+   `PROMPT_OUTPUT_MODELS` keyed by its `PromptType`. To make a type free-form, leave it out.
+3. **Update** an existing schema by editing the model in place; the registry entry and the
+   `PromptType` are unchanged. There is no migration — schemas are code, not a DB column.
+
+The registry never holds class bodies; it only imports and maps. `LLMClient` validates the
+response against the model at the boundary (`model_validate_json`), so a malformed LLM response
+raises rather than flowing downstream. Callers resolve the model with `output_model_for(prompt_type)`.
+
+```python
+# models/llm_output_schemas/multi_query.py
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class MultiQueryRewrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    queries: list[str] = Field(description="Reworded variants of the user's query.")
+
+
+# clients/llm/prompt_registry.py — wiring only, one line per mapped type
+PROMPT_OUTPUT_MODELS: dict[PromptType, type[BaseModel]] = {
+    PromptType.MULTI_QUESTION_GENERATOR: MultiQueryRewrite,
+}
+```
+
+---
+
 ## 5. Repository layer (`repositories/`)
 
 The `Project` repository is mechanically identical to the guide's, with `id` → `project_uuid`
