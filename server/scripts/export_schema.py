@@ -8,18 +8,19 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, create_model
 
-from api.schemas.document import DocumentTypeDTO, ProjectDocumentDTO
-from api.schemas.ingest import (
+from shared.models.chat_message import ChatMessage
+from shared.models.document_schema import DocumentCreate, DocumentRead
+from shared.models.ingest_schema import (
     IngestCompleted,
     IngestError,
-    IngestJobDTO,
-    IngestJobEventDTO,
+    IngestJobEventRead,
+    IngestJobRead,
     IngestProgress,
     IngestStarted,
-    IngestStatusDTO,
+    IngestStatusRead,
 )
-from api.schemas.project import ProjectCreateDTO, ProjectDTO
-from api.schemas.upload import UploadResponseDTO
+from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from shared.models.prompt_version_schema import PromptVersionCreate, PromptVersionRead
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = REPO_ROOT / "ui" / "src" / "types" / "generated.ts"
@@ -34,14 +35,17 @@ BANNER = """/* tslint:disable */
 
 # Interfaces emitted in the main body, in this exact order.
 BODY_MODELS: list[type[BaseModel]] = [
-    ProjectDTO,
-    ProjectCreateDTO,
-    DocumentTypeDTO,
-    ProjectDocumentDTO,
-    UploadResponseDTO,
-    IngestJobDTO,
-    IngestStatusDTO,
-    IngestJobEventDTO,
+    ProjectRead,
+    ProjectCreate,
+    ProjectUpdate,
+    DocumentRead,
+    DocumentCreate,
+    IngestJobRead,
+    IngestStatusRead,
+    IngestJobEventRead,
+    ChatMessage,
+    PromptVersionRead,
+    PromptVersionCreate,
 ]
 
 # SSE payloads pinned for the discriminated union, in this exact order.
@@ -68,6 +72,36 @@ def _strip_titles(node: Any) -> None:
             _strip_titles(value)
 
 
+def _inline_enums(schema: dict[str, Any]) -> dict[str, Any]:
+    """Replace $refs to pure-enum $defs with the enum inline, so json2ts emits a
+    string-literal union (e.g. "queued" | "running") rather than a named type.
+    Only the rendered models are kept downstream, so a named-type $def would dangle;
+    inlining matches the established generated.ts convention. Object $defs (e.g.
+    ChatMessage) keep their $ref and are emitted as their own interface."""
+    defs = schema.get("$defs", {})
+    enum_defs = {
+        name: {k: v for k, v in body.items() if k != "title"}
+        for name, body in defs.items()
+        if "enum" in body and "properties" not in body
+    }
+
+    def walk(node: Any) -> Any:
+        if isinstance(node, dict):
+            ref = node.get("$ref", "")
+            name = ref.removeprefix("#/$defs/")
+            if name in enum_defs:
+                return dict(enum_defs[name])
+            return {key: walk(value) for key, value in node.items()}
+        if isinstance(node, list):
+            return [walk(value) for value in node]
+        return node
+
+    rewritten = walk(schema)
+    for name in enum_defs:
+        rewritten.get("$defs", {}).pop(name, None)
+    return rewritten
+
+
 def _bundle_schema(models: list[type[BaseModel]], root_name: str) -> dict[str, Any]:
     fields = {model.__name__: (model, ...) for model in models}
     bundle = create_model(root_name, __config__=ConfigDict(extra="forbid"), **fields)
@@ -76,7 +110,7 @@ def _bundle_schema(models: list[type[BaseModel]], root_name: str) -> dict[str, A
     for key, definition in schema.get("$defs", {}).items():
         definition["title"] = key
     schema["title"] = root_name
-    return schema
+    return _inline_enums(schema)
 
 
 def _run_json2ts(schema: dict[str, Any]) -> str:
