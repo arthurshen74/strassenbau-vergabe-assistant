@@ -8,9 +8,19 @@ transport validates responses against it at the boundary.
 from __future__ import annotations
 
 from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
+from shared.models.llm_output_schemas.project_chat_route import (
+    ProjectChatAction,
+    ProjectChatRoute,
+)
 from shared.models.llm_output_schemas.registry import (
     PROMPT_OUTPUT_MODELS,
     output_model_for,
 )
 
-__all__ = ["PROMPT_OUTPUT_MODELS", "MultiQueryRewrite", "output_model_for"]
+__all__ = [
+    "PROMPT_OUTPUT_MODELS",
+    "MultiQueryRewrite",
+    "ProjectChatAction",
+    "ProjectChatRoute",
+    "output_model_for",
+]

@@ -16,9 +16,11 @@ from pydantic import BaseModel
 
 from shared.models.enums import PromptType
 from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
+from shared.models.llm_output_schemas.project_chat_route import ProjectChatRoute
 
 PROMPT_OUTPUT_MODELS: dict[PromptType, type[BaseModel]] = {
     PromptType.MULTI_QUESTION_GENERATOR: MultiQueryRewrite,
+    PromptType.CLASSIFY_PROJECT_CHAT_USER_MESSAGE: ProjectChatRoute,
 }
 
 
