@@ -7,6 +7,7 @@ hierarchy. Everything here is pure (LV_PARSE.md step 5)."""
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import replace
 from decimal import Decimal
 
 from shared.models.llm_output_schemas.lv_extraction import POSITIONSTYP_TITEL, LVExtraction
@@ -34,9 +35,12 @@ def run(extraction: LVExtraction, source_lines: list[SourceLine]) -> LVParseResu
     # position it split into fragments; coalesce those into one (union of lines, max menge,
     # last einheit) rather than failing the overlap check or colliding on persistence.
     parsed, coalesce_warnings = _coalesce_by_oz(parsed)
+    # The finer lines also make a position's langtext span overshoot into the *next* position's
+    # header (or a neighbour's body); trim those cross-OZ overlaps before the overlap check.
+    parsed, overlap_warnings = _resolve_overlaps(parsed)
     src = {line.line_id: line for line in source_lines}
 
-    warnings = coalesce_warnings + validate(parsed, src)
+    warnings = coalesce_warnings + overlap_warnings + validate(parsed, src)
     sliced = slice_positions(parsed, src)
     resolved = resolve_backrefs(sliced)
     links = link_positions(sliced)
@@ -65,6 +69,41 @@ def _coalesce_by_oz(parsed: list[ParsedPosition]) -> tuple[list[ParsedPosition],
         warnings.append(f"coalesced {len(entries)} entries for OZ {oz}")
         coalesced.append(_merge(entries))
     return coalesced, warnings
+
+
+def _resolve_overlaps(parsed: list[ParsedPosition]) -> tuple[list[ParsedPosition], list[str]]:
+    """Trim a position's langtext where another OZ already owns the line.
+
+    A kurztext line is a hard boundary that defines ownership, so a langtext line coinciding
+    with another OZ's kurztext line -- or already claimed by an earlier position's langtext --
+    is dropped from the later claimant (no contractual text is lost: the line stays with the
+    position that owns it). Cross-OZ conflicts that can't be resolved this way (e.g. two OZs
+    sharing one kurztext line) still fail loudly in validate()."""
+    headers = {position.kurztext_line: position.oz for position in parsed}
+    owner: dict[int, str] = {}
+    resolved: list[ParsedPosition] = []
+    warnings: list[str] = []
+    for position in parsed:
+        kept: list[int] = []
+        for line_id in position.langtext_lines:
+            header_oz = headers.get(line_id)
+            if header_oz is not None and header_oz != position.oz:
+                warnings.append(
+                    f"position {position.oz}: dropped langtext line {line_id} (header of {header_oz})"
+                )
+                continue
+            claim_oz = owner.get(line_id)
+            if claim_oz is not None and claim_oz != position.oz:
+                warnings.append(
+                    f"position {position.oz}: dropped langtext line {line_id} "
+                    f"(already claimed by {claim_oz})"
+                )
+                continue
+            owner[line_id] = position.oz
+            kept.append(line_id)
+        owner[position.kurztext_line] = position.oz
+        resolved.append(replace(position, langtext_lines=kept))
+    return resolved, warnings
 
 
 def _merge(entries: list[ParsedPosition]) -> ParsedPosition:

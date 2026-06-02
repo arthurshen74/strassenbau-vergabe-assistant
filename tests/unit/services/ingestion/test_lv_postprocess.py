@@ -176,12 +176,54 @@ def test_out_of_range_span_is_hard_failure() -> None:
         postprocess.run(extraction, src)
 
 
-def test_overlapping_bodies_are_hard_failure() -> None:
+def test_next_position_header_in_langtext_is_resolved() -> None:
+    # The finer pdftotext lines make one position's langtext span overshoot into the next
+    # position's header (the production failure: "line_id N claimed by both X and Y" for
+    # consecutive OZs). The header is a hard boundary, so the overshoot is trimmed -- the
+    # contested line stays with the position whose header it is.
     src = [_line(i, 1, f"line {i}") for i in range(4)]
     extraction = LVExtraction(
         positions=[
+            _pos("1.1", 0, langtext=(1, 2), menge="1,00", einheit="m"),  # overshoots into 1.2
+            _pos("1.2", 2, langtext=(3, 3), menge="1,00", einheit="m"),
+        ]
+    )
+
+    result = postprocess.run(extraction, src)
+
+    first, second = result.items
+    assert first.langtext == "line 1"  # line 2 (1.2's header) trimmed off
+    assert second.kurztext == "line 2" and second.langtext == "line 3"
+    assert any("dropped langtext line 2 (header of 1.2)" in w for w in result.warnings)
+
+
+def test_overlapping_langtext_keeps_earliest_position() -> None:
+    # Neither position owns the contested line as a header: the earlier OZ in document order
+    # keeps it, the later one drops it.
+    src = [_line(i, 1, f"line {i}") for i in range(5)]
+    extraction = LVExtraction(
+        positions=[
             _pos("1.1", 0, langtext=(1, 2), menge="1,00", einheit="m"),
-            _pos("1.2", 2, langtext=(3, 3), menge="1,00", einheit="m"),  # claims line 2 again
+            _pos("1.2", 3, langtext=(2, 4), menge="1,00", einheit="m"),  # langtext reaches back to 2
+        ]
+    )
+
+    result = postprocess.run(extraction, src)
+
+    first, second = result.items
+    assert first.langtext == "line 1\nline 2"  # 1.1 keeps the shared line
+    assert second.langtext == "line 4"  # 1.2 drops line 2, keeps line 4 (3 is its own header)
+    assert any("dropped langtext line 2 (already claimed by 1.1)" in w for w in result.warnings)
+
+
+def test_shared_kurztext_line_is_hard_failure() -> None:
+    # Two distinct OZs claiming the same header line is an irreconcilable conflict; the overlap
+    # check still fails loudly rather than guessing which position owns the line.
+    src = [_line(i, 1, f"line {i}") for i in range(3)]
+    extraction = LVExtraction(
+        positions=[
+            _pos("1.1", 0, langtext=(1, 1), menge="1,00", einheit="m"),
+            _pos("1.2", 0, langtext=(2, 2), menge="1,00", einheit="m"),  # same kurztext line
         ]
     )
     with pytest.raises(LVValidationError):
