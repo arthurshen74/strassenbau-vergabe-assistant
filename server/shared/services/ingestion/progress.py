@@ -1,16 +1,20 @@
-"""Ingest-job progress events.
+"""Ingest-job progress.
 
-A thin helper over IngestJobEventRepository that records one IngestJobEvent per pipeline
-milestone. When the pipeline runs jobless (no job_uuid, e.g. in isolated tests or the dev
-script) recording is a no-op."""
+Two complementary emitters for one pipeline milestone: `log_progress` writes a line to the
+module logger (which a harness routes to stdout), and `record_event` persists an
+IngestJobEvent. Logging always happens; persistence is a no-op when the pipeline runs jobless
+(no job_uuid, e.g. in isolated tests or the dev script)."""
 
 from __future__ import annotations
 
+import logging
 from enum import StrEnum
 from uuid import UUID
 
 from shared.models.ingest_job_event import NewIngestJobEvent
 from shared.repositories.ingest_job_events import IngestJobEventRepository
+
+logger = logging.getLogger(__name__)
 
 
 class IngestPhase(StrEnum):
@@ -28,6 +32,11 @@ class IngestEvent(StrEnum):
     DOCUMENT_CHUNKS_INDEXED = "document_chunks_indexed"
     LV_ITEMS_INDEXED = "lv_items_indexed"
     COMPLETED = "completed"
+
+
+def log_progress(*, event: IngestEvent, phase: IngestPhase, message: str) -> None:
+    """Emit a progress line to the module logger; a harness routes this logger to stdout."""
+    logger.info("[ingest:%s] %s - %s", phase.value, event.value, message)
 
 
 async def record_event(

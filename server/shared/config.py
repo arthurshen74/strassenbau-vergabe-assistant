@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     embedding_model: str = "openai/text-embedding-3-small"
     embedding_dim: int = 512
 
-    cross_encoder_model: str = "cohere/rerank-v3.5"
+    cross_encoder_model: str = "cohere/rerank-4-fast"
 
     openrouter_api_key: str | None = None
     anthropic_api_key: str | None = None

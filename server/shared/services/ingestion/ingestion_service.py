@@ -36,7 +36,12 @@ from shared.services.ingestion.chunking import ChunkDraft, chunk_document, chunk
 from shared.services.ingestion.extraction import extract_source_lines
 from shared.services.ingestion.lv import postprocess
 from shared.services.ingestion.lv.rendering import render_line_numbered
-from shared.services.ingestion.progress import IngestEvent, IngestPhase, record_event
+from shared.services.ingestion.progress import (
+    IngestEvent,
+    IngestPhase,
+    log_progress,
+    record_event,
+)
 from shared.services.ingestion.thumbnails import render_thumbnails
 from shared.services.prompt_runner import PromptRunner
 
@@ -80,8 +85,8 @@ class IngestionService:
             document = await uow.documents.get(document_uuid)
             if document is None:
                 raise DocumentNotFoundError(str(document_uuid))
-            await record_event(
-                uow.ingest_job_events,
+            await self._emit_in_uow(
+                uow,
                 job_uuid,
                 event=IngestEvent.STARTED,
                 phase=IngestPhase.INGEST,
@@ -92,24 +97,24 @@ class IngestionService:
             self._storage.get_object, raw_object_key(document_uuid)
         )
 
-        new_lines = extract_source_lines(pdf_bytes, document_uuid)
-        async with self._uow_factory() as uow:
-            source_lines = await uow.source_lines.add_many(new_lines)
-            await record_event(
-                uow.ingest_job_events,
-                job_uuid,
-                event=IngestEvent.SOURCE_LINES_PERSISTED,
-                phase=IngestPhase.EXTRACT,
-                message=f"{len(source_lines)} source lines",
-            )
-
         thumbnails = await self._generate_thumbnails(document_uuid, pdf_bytes)
-        await self._progress(
+        await self._emit(
             job_uuid,
             event=IngestEvent.THUMBNAILS_GENERATED,
             phase=IngestPhase.THUMBNAILS,
             message=f"{thumbnails} thumbnails",
         )
+
+        new_lines = extract_source_lines(pdf_bytes, document_uuid)
+        async with self._uow_factory() as uow:
+            source_lines = await uow.source_lines.add_many(new_lines)
+            await self._emit_in_uow(
+                uow,
+                job_uuid,
+                event=IngestEvent.SOURCE_LINES_PERSISTED,
+                phase=IngestPhase.EXTRACT,
+                message=f"{len(source_lines)} source lines",
+            )
 
         doc_drafts = chunk_document(
             source_lines,
@@ -119,7 +124,7 @@ class IngestionService:
         document_chunks = await self._embed_and_index(
             doc_drafts, document_uuid, SourceDocType.DOCUMENT, document.project_uuid, job_uuid
         )
-        await self._progress(
+        await self._emit(
             job_uuid,
             event=IngestEvent.DOCUMENT_CHUNKS_INDEXED,
             phase=IngestPhase.CHUNK,
@@ -130,14 +135,14 @@ class IngestionService:
         lv_chunks = 0
         if document.document_type == DocumentType.LV_DOCUMENT:
             lv_items, lv_chunks = await self._ingest_lv(document, source_lines, job_uuid)
-            await self._progress(
+            await self._emit(
                 job_uuid,
                 event=IngestEvent.LV_ITEMS_INDEXED,
                 phase=IngestPhase.LV,
                 message=f"{lv_items} LV items, {lv_chunks} chunks",
             )
 
-        await self._progress(
+        await self._emit(
             job_uuid,
             event=IngestEvent.COMPLETED,
             phase=IngestPhase.INGEST,
@@ -240,7 +245,7 @@ class IngestionService:
         await self._search.index_chunks(chunks)
         return len(chunks)
 
-    async def _progress(
+    async def _emit(
         self,
         job_uuid: UUID | None,
         *,
@@ -248,10 +253,28 @@ class IngestionService:
         phase: IngestPhase,
         message: str,
     ) -> None:
-        """Record a progress event in its own transaction; skip entirely when running jobless."""
+        """Log progress to stdout (always) and persist it in its own transaction when there is
+        a job; jobless runs only log."""
+        log_progress(event=event, phase=phase, message=message)
         if job_uuid is None:
             return
         async with self._uow_factory() as uow:
             await record_event(
                 uow.ingest_job_events, job_uuid, event=event, phase=phase, message=message
             )
+
+    async def _emit_in_uow(
+        self,
+        uow: UnitOfWork,
+        job_uuid: UUID | None,
+        *,
+        event: IngestEvent,
+        phase: IngestPhase,
+        message: str,
+    ) -> None:
+        """Log progress to stdout and persist it within an already-open transaction (so the
+        event commits atomically with that stage's writes)."""
+        log_progress(event=event, phase=phase, message=message)
+        await record_event(
+            uow.ingest_job_events, job_uuid, event=event, phase=phase, message=message
+        )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -14,10 +15,13 @@ from shared.db.unit_of_work import UnitOfWork
 from shared.models.document import NewDocument
 from shared.models.enums import DocumentType, SourceDocType
 from shared.models.llm_output_schemas import LVExtraction, LVPosition
+from shared.models.ingest_job import NewIngestJob
 from shared.models.project import NewProject
 from shared.models.simple_chunk import NewSimpleChunk
 from shared.models.source_line import NewSourceLine
 from shared.repositories.documents import DocumentRepository
+from shared.repositories.ingest_job_events import IngestJobEventRepository
+from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.source_lines import SourceLineRepository
@@ -314,6 +318,34 @@ async def test_thumbnails_rendered_stored_and_persisted(
         (thumbnail_object_key(document_uuid, 1), "image/jpeg"),
         (thumbnail_object_key(document_uuid, 2), "image/jpeg"),
     ]
+
+
+async def test_progress_events_persisted_and_logged(
+    conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _project_uuid, document_uuid = await _document(conn, DocumentType.LV_DOCUMENT)
+    monkeypatch.setattr(service_module, "extract_source_lines", lambda _b, doc: _lv_lines(doc))
+    job = await IngestJobRepository(conn).add(NewIngestJob(document_uuid=document_uuid))
+    service = IngestionService(
+        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction())  # type: ignore[arg-type]
+    )
+
+    with caplog.at_level(logging.INFO, logger="shared.services.ingestion.progress"):
+        await service.ingest_document(document_uuid, job_uuid=job.job_uuid)
+
+    # Every milestone is persisted as a job event (ts ties within one test txn, so compare the set).
+    events = await IngestJobEventRepository(conn).list_for_job(job.job_uuid)
+    assert {e.event for e in events} == {
+        "started",
+        "thumbnails_generated",
+        "source_lines_persisted",
+        "document_chunks_indexed",
+        "lv_items_indexed",
+        "completed",
+    }
+    # ...and mirrored to the logger the harness routes to stdout.
+    logged = " ".join(r.getMessage() for r in caplog.records)
+    assert "started" in logged and "completed" in logged
 
 
 async def test_missing_document_raises(conn: AsyncConnection) -> None:
