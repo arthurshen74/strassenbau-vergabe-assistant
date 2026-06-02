@@ -55,10 +55,17 @@ class _FakeEmbeddings:
 
 class _FakeLangchain:
     def __init__(self) -> None:
-        self.calls: list[tuple[UUID, UUID]] = []
+        self.calls: list[tuple[UUID, UUID, UUID | None]] = []
 
-    async def ingest(self, document_uuid: UUID, project_uuid: UUID, pdf_bytes: bytes) -> int:
-        self.calls.append((document_uuid, project_uuid))
+    async def ingest(
+        self,
+        document_uuid: UUID,
+        project_uuid: UUID,
+        pdf_bytes: bytes,
+        *,
+        ingest_job_uuid: UUID | None = None,
+    ) -> int:
+        self.calls.append((document_uuid, project_uuid, ingest_job_uuid))
         return 0
 
 
@@ -335,12 +342,18 @@ async def test_progress_events_persisted_and_logged(
     _project_uuid, document_uuid = await _document(conn, DocumentType.LV_DOCUMENT)
     monkeypatch.setattr(service_module, "extract_source_lines", lambda _b, doc: _lv_lines(doc))
     job = await IngestJobRepository(conn).add(NewIngestJob(document_uuid=document_uuid))
+    langchain = _FakeLangchain()
     service = IngestionService(
-        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction()), _FakeLangchain()  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction()), langchain  # type: ignore[arg-type]
     )
 
     with caplog.at_level(logging.INFO, logger="shared.services.ingestion.progress"):
         await service.ingest_document(document_uuid, job_uuid=job.job_uuid)
+
+    # The langchain ingestor receives the job uuid so its embedding usage is attributed to the job.
+    assert len(langchain.calls) == 1
+    assert langchain.calls[0][0] == document_uuid
+    assert langchain.calls[0][2] == job.job_uuid
 
     # Every milestone is persisted as a job event (ts ties within one test txn, so compare the set).
     events = await IngestJobEventRepository(conn).list_for_job(job.job_uuid)

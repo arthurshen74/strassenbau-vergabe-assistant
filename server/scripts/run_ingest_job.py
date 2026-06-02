@@ -21,8 +21,11 @@ import sys
 from functools import partial
 from uuid import UUID
 
-from shared.clients.embeddings.client import EmbeddingsClient
-from shared.clients.llm.client import LLMClient
+from shared.clients.factory import (
+    build_embeddings_client,
+    build_llm_client,
+    build_telemetry_sinks,
+)
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import build_storage_client
 from shared.config import settings
@@ -41,9 +44,10 @@ async def run_ingest_job(job_uuid: UUID) -> None:
     engine = make_engine(settings.database_url, pool_size=5, application_name="run-ingest-job")
     storage = build_storage_client()
     search = SearchClient.from_settings()
-    embeddings = EmbeddingsClient()
-    llm = LLMClient()
-    langchain_ingestor = LangchainIngestor()
+    sinks = build_telemetry_sinks(engine)
+    embeddings = build_embeddings_client(sinks)
+    llm = build_llm_client(sinks)
+    langchain_ingestor = LangchainIngestor(embeddings)
     try:
         await search.ensure_index()
 

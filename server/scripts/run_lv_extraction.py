@@ -2,8 +2,8 @@
 
 For iterating on the lv_extraction prompt in isolation: it reads the PDF straight off disk,
 runs the common extraction + line-numbered rendering, calls the seeded LV_EXTRACTION prompt,
-and prints each resolved item plus any validation warnings. It writes nothing -- the only
-database access is a read to load the current prompt version.
+and prints each resolved item plus any validation warnings. It reads the current prompt version
+and persists the prompt call's usage + execution log to Postgres (via the shared client factory).
 
     python -m scripts.run_lv_extraction eval/context/P0372026/P0372026_LV.pdf
 
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
-from shared.clients.llm.client import LLMClient
+from shared.clients.factory import build_llm_client, build_telemetry_sinks
 from shared.config import settings
 from shared.db.engine import make_engine
 from shared.models.source_line import NewSourceLine, SourceLine
@@ -36,11 +36,13 @@ async def main(pdf_path: str) -> None:
     print(f"{len(source_lines)} source lines, {len(kept)} after furniture strip")
 
     engine = make_engine(settings.database_url, pool_size=2, application_name="run-lv")
+    llm = build_llm_client(build_telemetry_sinks(engine))
     try:
         async with engine.connect() as conn:
-            runner = PromptRunner(PromptVersionRepository(conn), LLMClient())
+            runner = PromptRunner(PromptVersionRepository(conn), llm)
             extraction = await runner.run_lv_extraction(rendered)
     finally:
+        await llm.aclose()
         await engine.dispose()
 
     result = postprocess.run(extraction, source_lines)

@@ -47,6 +47,14 @@ class IngestStatusRead(BaseModel):
     counts: dict[str, int]
 
 
+class IngestQueued(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["ingest_queued"]
+    job_uuid: UUID
+    document_uuid: UUID
+
+
 class IngestStarted(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -60,6 +68,7 @@ class IngestProgress(BaseModel):
 
     event: Literal["ingest_progress"]
     job_uuid: UUID
+    document_uuid: UUID
     phase: str
     message: str
 
@@ -69,6 +78,7 @@ class IngestCompleted(BaseModel):
 
     event: Literal["ingest_completed"]
     job_uuid: UUID
+    document_uuid: UUID
 
 
 class IngestError(BaseModel):
@@ -76,11 +86,12 @@ class IngestError(BaseModel):
 
     event: Literal["ingest_error"]
     job_uuid: UUID
+    document_uuid: UUID
     phase: str | None
     message: str
 
 
 IngestEvent = Annotated[
-    IngestStarted | IngestProgress | IngestCompleted | IngestError,
+    IngestQueued | IngestStarted | IngestProgress | IngestCompleted | IngestError,
     Field(discriminator="event"),
 ]

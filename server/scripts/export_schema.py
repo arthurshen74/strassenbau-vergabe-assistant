@@ -17,6 +17,7 @@ from shared.models.ingest_schema import (
     IngestJobEventRead,
     IngestJobRead,
     IngestProgress,
+    IngestQueued,
     IngestStarted,
     IngestStatusRead,
 )
@@ -70,6 +71,7 @@ BODY_MODELS: list[type[BaseModel]] = [
 
 # SSE payloads pinned for the discriminated unions, in this exact order.
 INGEST_EVENT_MODELS: list[type[BaseModel]] = [
+    IngestQueued,
     IngestStarted,
     IngestProgress,
     IngestCompleted,

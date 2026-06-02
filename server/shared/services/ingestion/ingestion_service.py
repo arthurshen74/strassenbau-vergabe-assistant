@@ -111,7 +111,7 @@ class IngestionService:
         )
 
         langchain_chunks = await self._langchain.ingest(
-            document_uuid, document.project_uuid, pdf_bytes
+            document_uuid, document.project_uuid, pdf_bytes, ingest_job_uuid=job_uuid
         )
         await self._emit(
             job_uuid,

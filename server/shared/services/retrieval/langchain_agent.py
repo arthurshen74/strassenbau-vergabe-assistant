@@ -21,6 +21,9 @@ from langchain_core.tools import tool
 from langchain_core.utils import convert_to_secret_str
 from langchain_openai import ChatOpenAI
 
+from shared.clients.llm.execution_log import ExecutionLogEvent
+from shared.clients.llm.langchain_callback import TelemetryCallbackHandler
+from shared.clients.openrouter.usage import UsageEvent
 from shared.clients.search.langchain_store import (
     META_PROJECT_UUID,
     OPENROUTER_BASE_URL,
@@ -32,6 +35,9 @@ from shared.config import settings
 
 # Passages the retrieve_context tool pulls per call.
 RETRIEVE_K = 50
+
+# OpenRouter usage-accounting opt-in; without it the chat response carries no cost.
+USAGE_ACCOUNTING_EXTRA_BODY = {"usage": {"include": True}}
 
 # Header that opens the project_chat evidence block; everything from here is dropped for the agent.
 _EVIDENCE_HEADER = "Evidence sources:"
@@ -54,10 +60,17 @@ class LangchainRetriever:
         chat_model: str,
         temperature: float | None,
         system_prompt: str,
+        prompt_type: str,
     ) -> None:
         self._client = build_elasticsearch_client()
         vector_store = build_langchain_vector_store(
             build_langchain_embeddings(), self._client
+        )
+        self._telemetry = TelemetryCallbackHandler(
+            project_uuid=project_uuid,
+            prompt_type=prompt_type,
+            provider_url=OPENROUTER_BASE_URL,
+            chat_model=chat_model,
         )
 
         @tool(response_format="content_and_artifact")
@@ -78,6 +91,8 @@ class LangchainRetriever:
             base_url=OPENROUTER_BASE_URL,
             api_key=convert_to_secret_str(settings.openrouter_api_key or ""),
             temperature=temperature,
+            extra_body=USAGE_ACCOUNTING_EXTRA_BODY,
+            callbacks=[self._telemetry],
         )
         self._agent = create_agent(
             model, [retrieve_context], system_prompt=_strip_context_block(system_prompt)
@@ -90,6 +105,13 @@ class LangchainRetriever:
             stream_mode="values",
         ):
             yield state["messages"][-1]
+
+    def drain_telemetry(self) -> tuple[list[UsageEvent], list[ExecutionLogEvent]]:
+        """Return the usage + execution-log events buffered since the last drain, and clear them.
+
+        The agent runs inside a worker thread, so the caller drains here and emits to the DB sinks
+        on the main event loop (the engine is bound to that loop)."""
+        return self._telemetry.drain()
 
     def close(self) -> None:
         self._client.close()

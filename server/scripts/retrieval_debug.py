@@ -30,9 +30,13 @@ import sys
 import traceback
 from uuid import UUID
 
-from shared.clients.embeddings import EmbeddingsClient
-from shared.clients.llm.client import LLMClient
-from shared.clients.rerank import RerankClient
+from shared.clients.factory import (
+    TelemetrySinks,
+    build_embeddings_client,
+    build_llm_client,
+    build_rerank_client,
+    build_telemetry_sinks,
+)
 from shared.clients.search import SearchClient
 from shared.config import settings
 from shared.db.engine import make_engine
@@ -101,10 +105,11 @@ async def main() -> None:
     engine = make_engine(
         settings.database_url, pool_size=2, application_name="retrieval-debug"
     )
-    llm = LLMClient()
-    embeddings = EmbeddingsClient()
+    sinks = build_telemetry_sinks(engine)
+    llm = build_llm_client(sinks)
+    embeddings = build_embeddings_client(sinks)
     search = SearchClient.from_settings()
-    reranker = RerankClient()
+    reranker = build_rerank_client(sinks)
     service = RetrievalService(
         engine=engine, llm=llm, embeddings=embeddings, search=search, reranker=reranker
     )
@@ -137,6 +142,7 @@ async def _run_langchain(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
     engine = make_engine(settings.database_url, pool_size=2, application_name="retrieval-debug")
+    sinks = build_telemetry_sinks(engine)
     try:
         async with engine.connect() as conn:
             prompt = await PromptVersionRepository(conn).get_latest(PromptType.PROJECT_CHAT)
@@ -151,16 +157,33 @@ async def _run_langchain(args: argparse.Namespace) -> None:
             chat_model=prompt.model_name,
             temperature=prompt.temperature,
             system_prompt=prompt.system_prompt,
+            prompt_type=PromptType.PROJECT_CHAT.value,
         )
         try:
             if args.question is not None:
                 await asyncio.to_thread(_print_langchain_stream, retriever, args.question)
+                await _drain_langchain_telemetry(retriever, sinks)
             else:
-                await _langchain_repl(retriever, args.project)
+                await _langchain_repl(retriever, args.project, sinks)
         finally:
             retriever.close()
     finally:
         await engine.dispose()
+
+
+async def _drain_langchain_telemetry(retriever: LangchainRetriever, sinks: TelemetrySinks) -> None:
+    """Persist the events the agent buffered on the worker thread, on the engine's own loop."""
+    usage_events, log_events = retriever.drain_telemetry()
+    for usage_event in usage_events:
+        try:
+            await sinks.usage.emit(usage_event)
+        except Exception:
+            traceback.print_exc()
+    for log_event in log_events:
+        try:
+            await sinks.execution_log.emit(log_event)
+        except Exception:
+            traceback.print_exc()
 
 
 def _print_langchain_stream(retriever: LangchainRetriever, question: str) -> None:
@@ -169,7 +192,9 @@ def _print_langchain_stream(retriever: LangchainRetriever, question: str) -> Non
         message.pretty_print()
 
 
-async def _langchain_repl(retriever: LangchainRetriever, project: UUID) -> None:
+async def _langchain_repl(
+    retriever: LangchainRetriever, project: UUID, sinks: TelemetrySinks
+) -> None:
     print(f"Interactive LANGCHAIN retrieval - project {project}")
     print("Type a question and press Enter. Ctrl-D or 'quit' to exit.")
     while True:
@@ -186,6 +211,8 @@ async def _langchain_repl(retriever: LangchainRetriever, project: UUID) -> None:
             await asyncio.to_thread(_print_langchain_stream, retriever, question)
         except Exception:
             traceback.print_exc()
+        finally:
+            await _drain_langchain_telemetry(retriever, sinks)
 
 
 async def _run_once(

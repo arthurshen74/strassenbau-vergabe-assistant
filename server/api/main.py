@@ -14,9 +14,7 @@ from api.routes import (
     prompts,
     usage,
 )
-from shared.clients.llm.client import LLMClient
-from shared.clients.llm.execution_log_sinks import DatabaseExecutionLogSink
-from shared.clients.openrouter.usage import DatabaseUsageSink
+from shared.clients.factory import build_llm_client, build_telemetry_sinks
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import build_storage_client
 from shared.config import settings
@@ -35,10 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.search = SearchClient.from_settings()
     # One shared LLM client for the process, persisting usage + execution logs to Postgres in
     # their own transactions (independent of any request UnitOfWork).
-    app.state.llm_client = LLMClient(
-        usage_sink=DatabaseUsageSink(engine),
-        execution_log_sink=DatabaseExecutionLogSink(engine),
-    )
+    app.state.llm_client = build_llm_client(build_telemetry_sinks(engine))
     try:
         yield
     finally:
