@@ -6,6 +6,7 @@ hierarchy. Everything here is pure (LV_PARSE.md step 5)."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from decimal import Decimal
 
 from shared.models.llm_output_schemas.lv_extraction import POSITIONSTYP_TITEL, LVExtraction
@@ -14,7 +15,13 @@ from shared.services.ingestion.lv.backrefs import resolve_backrefs
 from shared.services.ingestion.lv.linking import link_positions
 from shared.services.ingestion.lv.schema_io import to_parsed_positions
 from shared.services.ingestion.lv.slice_pages import slice_positions
-from shared.services.ingestion.lv.types import LinkInfo, LVParseResult, ResolvedItem, SlicedPosition
+from shared.services.ingestion.lv.types import (
+    LinkInfo,
+    LVParseResult,
+    ParsedPosition,
+    ResolvedItem,
+    SlicedPosition,
+)
 from shared.services.ingestion.lv.validate import validate
 from shared.services.ingestion.numbers import parse_german_decimal
 
@@ -23,15 +30,99 @@ TITEL_MENGE = Decimal(0)
 
 def run(extraction: LVExtraction, source_lines: list[SourceLine]) -> LVParseResult:
     parsed = to_parsed_positions(extraction)
+    # OZ is the LV item's natural key, so the LLM emitting one OZ more than once is a single
+    # position it split into fragments; coalesce those into one (union of lines, max menge,
+    # last einheit) rather than failing the overlap check or colliding on persistence.
+    parsed, coalesce_warnings = _coalesce_by_oz(parsed)
     src = {line.line_id: line for line in source_lines}
 
-    warnings = validate(parsed, src)
+    warnings = coalesce_warnings + validate(parsed, src)
     sliced = slice_positions(parsed, src)
     resolved = resolve_backrefs(sliced)
     links = link_positions(sliced)
 
     items = [_build(position, resolved.get(position.oz), links[position.oz]) for position in sliced]
     return LVParseResult(items=items, warnings=warnings)
+
+
+def _coalesce_by_oz(parsed: list[ParsedPosition]) -> tuple[list[ParsedPosition], list[str]]:
+    """Merge entries that share an OZ into one position, preserving first-seen order."""
+    groups: dict[str, list[ParsedPosition]] = {}
+    order: list[str] = []
+    for position in parsed:
+        if position.oz not in groups:
+            groups[position.oz] = []
+            order.append(position.oz)
+        groups[position.oz].append(position)
+
+    coalesced: list[ParsedPosition] = []
+    warnings: list[str] = []
+    for oz in order:
+        entries = groups[oz]
+        if len(entries) == 1:
+            coalesced.append(entries[0])
+            continue
+        warnings.append(f"coalesced {len(entries)} entries for OZ {oz}")
+        coalesced.append(_merge(entries))
+    return coalesced, warnings
+
+
+def _merge(entries: list[ParsedPosition]) -> ParsedPosition:
+    """Coalesce same-OZ entries: union the body/hinweis lines (a shared line appears once),
+    take the highest menge, the last einheit, and the first stated value for the rest."""
+    first = entries[0]
+    body: set[int] = set()
+    hinweis: set[int] = set()
+    for entry in entries:
+        body.update(entry.langtext_lines)
+        body.add(entry.kurztext_line)  # keep a fragment's header line as body content
+        hinweis.update(entry.hinweis_lines)
+    body.discard(first.kurztext_line)  # the chosen kurztext is not repeated in the body
+
+    return ParsedPosition(
+        oz=first.oz,
+        is_title=first.is_title,
+        kurztext_line=first.kurztext_line,
+        langtext_lines=sorted(body),
+        hinweis_lines=sorted(hinweis),
+        stl_nr=_first_set(entry.stl_nr for entry in entries),
+        menge=_max_menge(entries),
+        einheit=_last_set(entry.einheit for entry in entries),
+        linked_oz=_first_set(entry.linked_oz for entry in entries),
+        positionstyp=_first_set(entry.positionstyp for entry in entries),
+    )
+
+
+def _first_set(values: Iterable[str | None]) -> str | None:
+    for value in values:
+        if value:
+            return value
+    return None
+
+
+def _last_set(values: Iterable[str | None]) -> str | None:
+    result: str | None = None
+    for value in values:
+        if value:
+            result = value
+    return result
+
+
+def _max_menge(entries: list[ParsedPosition]) -> str | None:
+    """The menge token with the highest numeric value; falls back to the first stated token
+    if none parse (validation then flags it)."""
+    best_token: str | None = None
+    best_value: Decimal | None = None
+    for entry in entries:
+        if entry.menge is None:
+            continue
+        try:
+            value = parse_german_decimal(entry.menge)
+        except ValueError:
+            continue
+        if best_value is None or value > best_value:
+            best_value, best_token = value, entry.menge
+    return best_token if best_token is not None else _first_set(e.menge for e in entries)
 
 
 def _build(

@@ -15,13 +15,16 @@ from shared.models.lv_item import NewLVItem
 
 @dataclass(frozen=True)
 class ParsedPosition:
-    """One position as the LLM segmented it: line references plus verbatim header tokens."""
+    """One position as the LLM segmented it: line references plus verbatim header tokens.
+
+    Body/hinweis are explicit sorted line_id lists (not a single span) so that coalescing
+    duplicate entries for one OZ can take the union of their lines."""
 
     oz: str
     is_title: bool
     kurztext_line: int
-    langtext_span: tuple[int, int] | None
-    hinweis_span: tuple[int, int] | None
+    langtext_lines: list[int]
+    hinweis_lines: list[int]
     stl_nr: str | None
     menge: str | None
     einheit: str | None

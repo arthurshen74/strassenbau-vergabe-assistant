@@ -102,6 +102,73 @@ def test_source_line_uuids_track_covered_lines() -> None:
     assert item.source_line_uuids == [src[1].source_line_uuid, src[2].source_line_uuid, src[3].source_line_uuid, src[4].source_line_uuid]
 
 
+def test_duplicate_oz_is_coalesced_not_fatal() -> None:
+    # The LLM split one position into two entries sharing line 2; coalescing unions their lines
+    # (the shared line appears once), takes the highest menge and the last einheit. Without it,
+    # the overlap check fails (the production failure: "line_id N claimed by both X and X").
+    src = [
+        _line(0, 1, "1.5.30 header"),
+        _line(1, 1, "Verify"),
+        _line(2, 1, "the Frostschutzschicht with a"),
+        _line(3, 1, "water drainage test"),
+    ]
+    extraction = LVExtraction(
+        positions=[
+            _pos("1.5.30", 0, langtext=(1, 2), menge="25,00", einheit="m"),
+            _pos("1.5.30", 0, langtext=(2, 3), menge="2.400,00", einheit="m2"),
+        ]
+    )
+
+    result = postprocess.run(extraction, src)
+
+    assert [item.oz for item in result.items] == ["1.5.30"]  # collapsed to one
+    item = result.items[0]
+    assert item.kurztext == "1.5.30 header"
+    # union of lines {1,2,3}; the shared line 2 appears exactly once
+    assert item.langtext == "Verify\nthe Frostschutzschicht with a\nwater drainage test"
+    assert item.menge == Decimal("2400")  # highest wins
+    assert item.einheit == "m2"  # last wins
+    assert any("coalesced 2 entries for OZ 1.5.30" in w for w in result.warnings)
+
+
+def test_triplicate_oz_coalesces_all_fragments() -> None:
+    src = [_line(i, 1, f"frag {i}") for i in range(5)]
+    extraction = LVExtraction(
+        positions=[
+            _pos("2.1", 0, langtext=(1, 1), menge="1,00", einheit="m"),
+            _pos("2.1", 0, langtext=(2, 2), menge="3,00", einheit="St"),
+            _pos("2.1", 0, langtext=(3, 4), menge="2,00", einheit=None),
+        ]
+    )
+
+    result = postprocess.run(extraction, src)
+
+    item = result.items[0]
+    assert item.langtext == "frag 1\nfrag 2\nfrag 3\nfrag 4"  # union of all three fragments
+    assert item.menge == Decimal("3")  # highest across the three
+    assert item.einheit == "St"  # last non-empty (third entry's einheit is None)
+
+
+def test_kurztext_line_inside_langtext_span_is_not_self_overlap() -> None:
+    # The finer pdftotext lines make the LLM start the langtext span at the kurztext line
+    # (the production failure: "line_id 654 claimed by both 1.5.30 and 1.5.30"). That must not
+    # trip the overlap check, and the header line must not be duplicated into langtext.
+    src = [
+        _line(0, 1, "1.5.30 header"),
+        _line(1, 1, "body line one"),
+        _line(2, 1, "body line two"),
+    ]
+    extraction = LVExtraction(
+        positions=[_pos("1.5.30", 0, langtext=(0, 2), menge="1,00", einheit="m")]
+    )
+
+    result = postprocess.run(extraction, src)
+
+    item = result.items[0]
+    assert item.kurztext == "1.5.30 header"
+    assert item.langtext == "body line one\nbody line two"  # header excluded, not duplicated
+
+
 def test_out_of_range_span_is_hard_failure() -> None:
     src = [_line(0, 1, "1.1 x")]
     extraction = LVExtraction(positions=[_pos("1.1", 0, langtext=(5, 6), menge="1,00", einheit="m")])

@@ -18,8 +18,8 @@ def _to_parsed(position: LVPosition) -> ParsedPosition:
         oz=position.oz,
         is_title=position.is_title,
         kurztext_line=position.kurztext_line,
-        langtext_span=_span(position.langtext_start, position.langtext_end),
-        hinweis_span=_span(position.hinweis_start, position.hinweis_end),
+        langtext_lines=_lines(position.langtext_start, position.langtext_end),
+        hinweis_lines=_lines(position.hinweis_start, position.hinweis_end),
         stl_nr=position.stl_nr,
         menge=position.menge,
         einheit=position.einheit,
@@ -28,7 +28,7 @@ def _to_parsed(position: LVPosition) -> ParsedPosition:
     )
 
 
-def _span(start: int, end: int) -> tuple[int, int] | None:
+def _lines(start: int, end: int) -> list[int]:
     if start == NO_LINE or end == NO_LINE:
-        return None
-    return (start, end)
+        return []
+    return list(range(start, end + 1))

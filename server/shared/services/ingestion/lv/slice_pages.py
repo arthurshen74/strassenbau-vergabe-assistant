@@ -20,8 +20,9 @@ def slice_positions(
 
 def _slice_one(position: ParsedPosition, src: dict[int, SourceLine]) -> SlicedPosition:
     kurztext = src[position.kurztext_line].line_text
-    langtext_lines = _span_line_ids(position.langtext_span)
-    hinweis_lines = _span_line_ids(position.hinweis_span)
+    # The langtext span can begin at the kurztext line; don't repeat the header in the body.
+    langtext_lines = [lid for lid in position.langtext_lines if lid != position.kurztext_line]
+    hinweis_lines = position.hinweis_lines
 
     langtext = LINE_JOIN.join(src[line_id].line_text for line_id in langtext_lines)
     hinweis = (
@@ -30,7 +31,8 @@ def _slice_one(position: ParsedPosition, src: dict[int, SourceLine]) -> SlicedPo
         else None
     )
 
-    covered = [position.kurztext_line, *langtext_lines, *hinweis_lines]
+    # Dedupe while preserving order: the header / spans can reference a line more than once.
+    covered = list(dict.fromkeys([position.kurztext_line, *langtext_lines, *hinweis_lines]))
     pages = sorted({src[line_id].page for line_id in covered})
     source_line_uuids = [src[line_id].source_line_uuid for line_id in covered]
 
@@ -48,10 +50,3 @@ def _slice_one(position: ParsedPosition, src: dict[int, SourceLine]) -> SlicedPo
         pages=pages,
         source_line_uuids=source_line_uuids,
     )
-
-
-def _span_line_ids(span: tuple[int, int] | None) -> list[int]:
-    if span is None:
-        return []
-    start, end = span
-    return list(range(start, end + 1))

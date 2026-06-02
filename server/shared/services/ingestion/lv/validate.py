@@ -37,14 +37,17 @@ def _check_spans_in_range(parsed: list[ParsedPosition], src: dict[int, SourceLin
 
 
 def _check_no_overlap(parsed: list[ParsedPosition]) -> None:
-    occupied: dict[int, str] = {}
+    owner: dict[int, str] = {}
     for position in parsed:
-        for line_id in _body_line_ids(position):
-            if line_id in occupied:
+        # Dedupe within a position: a line may legitimately be both the kurztext line and the
+        # start of the langtext span. Only a line claimed by a *different* OZ is a real overlap.
+        for line_id in set(_body_line_ids(position)):
+            existing = owner.get(line_id)
+            if existing is not None and existing != position.oz:
                 raise LVValidationError(
-                    f"line_id {line_id} claimed by both {occupied[line_id]} and {position.oz}"
+                    f"line_id {line_id} claimed by both {existing} and {position.oz}"
                 )
-            occupied[line_id] = position.oz
+            owner[line_id] = position.oz
 
 
 def _check_oz_monotonic(parsed: list[ParsedPosition]) -> None:
@@ -78,7 +81,7 @@ def _soft_warnings(parsed: list[ParsedPosition]) -> list[str]:
     known_oz = {position.oz for position in parsed}
     warnings: list[str] = []
     for position in parsed:
-        if not position.is_title and position.langtext_span is None:
+        if not position.is_title and not position.langtext_lines:
             warnings.append(f"position {position.oz} has no langtext")
         if not position.is_title and position.menge is None:
             warnings.append(f"position {position.oz} has no menge")
@@ -90,17 +93,11 @@ def _soft_warnings(parsed: list[ParsedPosition]) -> list[str]:
 
 
 def _all_line_ids(position: ParsedPosition) -> list[int]:
-    ids = _body_line_ids(position)
-    if position.hinweis_span is not None:
-        ids.extend(range(position.hinweis_span[0], position.hinweis_span[1] + 1))
-    return ids
+    return [position.kurztext_line, *position.langtext_lines, *position.hinweis_lines]
 
 
 def _body_line_ids(position: ParsedPosition) -> list[int]:
-    ids = [position.kurztext_line]
-    if position.langtext_span is not None:
-        ids.extend(range(position.langtext_span[0], position.langtext_span[1] + 1))
-    return ids
+    return [position.kurztext_line, *position.langtext_lines]
 
 
 def _oz_key(oz: str) -> tuple[int, ...] | None:
