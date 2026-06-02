@@ -1,7 +1,7 @@
 // Upload one or more documents (PDF, or a flat ZIP of files) into a project.
 // The document type is auto-assigned from each filename: a PDF named like
 // "<name>_LV<x>.pdf" is an LV document, everything else is prose. ZIP entries
-// are recorded as PROSE_DOCUMENT server-side.
+// are auto-typed the same way server-side, by each entry's own filename.
 
 import { useState } from 'react';
 import { useUploadDocuments } from '../../api/projects';

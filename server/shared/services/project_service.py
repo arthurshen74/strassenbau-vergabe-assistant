@@ -18,6 +18,7 @@ import asyncio
 import io
 import logging
 import mimetypes
+import re
 import zipfile
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -43,6 +44,10 @@ logger = logging.getLogger(__name__)
 CONTENT_TYPE_PDF = "application/pdf"
 CONTENT_TYPE_DEFAULT = "application/octet-stream"
 ZIP_SUFFIX = ".zip"
+
+# A PDF named "<name>_LV<x>.pdf" is the Leistungsverzeichnis; everything else is prose.
+# Mirrors classifyDocumentType in ui/src/lib/documentType.ts.
+LV_FILENAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+_LV[a-zA-Z0-9]\.pdf$")
 
 
 class LVDocumentExistsError(Exception):
@@ -149,10 +154,13 @@ class ProjectService:
         created: list[DocumentRead] = []
         for upload in uploads:
             if upload.file_name.lower().endswith(ZIP_SUFFIX):
-                # ZIP entries are always prose; the single LV is uploaded on its own.
+                # A zip is a mixed batch: auto-type each entry from its own filename,
+                # since the request's document_type describes the zip, not its contents.
                 for entry in _expand_zip(upload.data):
                     created.append(
-                        await self._ingest_one(project_uuid, entry, DocumentType.PROSE_DOCUMENT)
+                        await self._ingest_one(
+                            project_uuid, entry, _classify_document_type(entry.file_name)
+                        )
                     )
             else:
                 created.append(await self._ingest_one(project_uuid, upload, document_type))
@@ -183,6 +191,13 @@ class ProjectService:
         )
         await self.ingest_jobs.add(NewIngestJob(document_uuid=doc.document_uuid))
         return DocumentRead.model_validate(doc)
+
+
+def _classify_document_type(file_name: str) -> DocumentType:
+    """Auto-assign a document type from its filename, mirroring the client-side rule."""
+    if LV_FILENAME_PATTERN.match(file_name):
+        return DocumentType.LV_DOCUMENT
+    return DocumentType.PROSE_DOCUMENT
 
 
 def _expand_zip(data: bytes) -> list[UploadInput]:

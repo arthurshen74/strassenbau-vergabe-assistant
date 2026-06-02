@@ -3,7 +3,13 @@ from __future__ import annotations
 import io
 import zipfile
 
-from shared.services.project_service import UploadInput, _count_pdf_pages, _expand_zip
+from shared.models.enums import DocumentType
+from shared.services.project_service import (
+    UploadInput,
+    _classify_document_type,
+    _count_pdf_pages,
+    _expand_zip,
+)
 
 
 def _zip(entries: dict[str, bytes]) -> bytes:
@@ -29,3 +35,13 @@ def test_expand_zip_flattens_paths_and_skips_junk() -> None:
 
 def test_count_pdf_pages_non_pdf_is_zero() -> None:
     assert _count_pdf_pages(UploadInput("notes.txt", "text/plain", b"hello")) == 0
+
+
+def test_classify_document_type_lv_filename() -> None:
+    assert _classify_document_type("Projekt_LV1.pdf") == DocumentType.LV_DOCUMENT
+
+
+def test_classify_document_type_prose_for_anything_else() -> None:
+    assert _classify_document_type("Projekt_LV1.txt") == DocumentType.PROSE_DOCUMENT
+    assert _classify_document_type("anhang.pdf") == DocumentType.PROSE_DOCUMENT
+    assert _classify_document_type("Projekt_LV.pdf") == DocumentType.PROSE_DOCUMENT
