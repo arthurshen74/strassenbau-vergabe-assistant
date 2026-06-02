@@ -1,8 +1,9 @@
 // Project Details body: header fields + document list + "Ingest New Document".
 
 import { useState } from 'react';
-import { ArrowLeftIcon, PlusIcon } from '@heroicons/react/16/solid';
+import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/react/16/solid';
 import { useProject, useProjectDocuments } from '../../api/projects';
+import type { DocumentRead } from '../../types/generated';
 import { Heading } from '../../components/ui/heading';
 import { Text } from '../../components/ui/text';
 import { Badge } from '../../components/ui/badge';
@@ -19,6 +20,7 @@ import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
 import { formatRelativeTime } from '../../lib/format';
 import { UploadDocumentDialog } from './UploadDocumentDialog';
+import { DeleteDocumentDialog } from './DeleteDocumentDialog';
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
@@ -39,6 +41,7 @@ export function ProjectDetails({
   const project = useProject(projectUuid);
   const documents = useProjectDocuments(projectUuid);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
 
   if (project.isPending) return <LoadingState label="Loading project…" />;
   if (project.isError) {
@@ -82,6 +85,9 @@ export function ProjectDetails({
               <TableHeader>Type</TableHeader>
               <TableHeader>Pages</TableHeader>
               <TableHeader>Added</TableHeader>
+              <TableHeader className="relative w-0">
+                <span className="sr-only">Actions</span>
+              </TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -95,6 +101,15 @@ export function ProjectDetails({
                 </TableCell>
                 <TableCell>{d.number_of_pages}</TableCell>
                 <TableCell className="text-zinc-500">{formatRelativeTime(d.created_at)}</TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    plain
+                    onClick={() => setDocToDelete(d)}
+                    aria-label={`Remove ${d.file_name}`}
+                  >
+                    <TrashIcon />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -105,6 +120,13 @@ export function ProjectDetails({
         projectUuid={projectUuid}
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
+      />
+
+      <DeleteDocumentDialog
+        projectUuid={projectUuid}
+        document={docToDelete}
+        open={docToDelete !== null}
+        onClose={() => setDocToDelete(null)}
       />
     </div>
   );

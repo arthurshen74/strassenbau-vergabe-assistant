@@ -201,3 +201,45 @@ async def test_archive_source_moves_chunks_and_stamps_archived_at(indexed: Index
     assert source[FIELD_CHUNK_TEXT] == "Beton und Asphalt fuer die Strasse"
     # Parses as an ISO-8601 timestamp.
     datetime.fromisoformat(source[FIELD_ARCHIVED_AT])
+
+
+async def test_archive_and_delete_document_removes_lv_document_footprint(
+    indexed: Indexed,
+) -> None:
+    # The LV document's own DOCUMENT chunk and its parsed LV_ITEM chunk go; the
+    # unrelated prose chunk stays. The LV_ITEM chunk is keyed by lv_item_uuid, not the
+    # document_uuid, so it is only matched because it is passed explicitly.
+    removed = await indexed.client.archive_and_delete_document(
+        indexed.project_uuid,
+        indexed.lv_document_uuid,
+        [indexed.lv_item_uuid],
+    )
+    assert removed == 2
+
+    live = await indexed.es.search(index=indexed.index, query={"match_all": {}})
+    live_ids = {hit["_id"] for hit in live["hits"]["hits"]}
+    assert live_ids == {str(indexed.prose_id)}
+
+    archived = await indexed.es.search(
+        index=indexed.archive_index, query={"match_all": {}}
+    )
+    archived_hits = archived["hits"]["hits"]
+    assert {hit["_id"] for hit in archived_hits} == {
+        str(indexed.lv_own_id),
+        str(indexed.lv_item_id),
+    }
+    for hit in archived_hits:
+        datetime.fromisoformat(hit["_source"][FIELD_ARCHIVED_AT])
+
+
+async def test_archive_and_delete_document_without_lv_items_keeps_other_chunks(
+    indexed: Indexed,
+) -> None:
+    removed = await indexed.client.archive_and_delete_document(
+        indexed.project_uuid, indexed.prose_uuid, []
+    )
+    assert removed == 1
+
+    live = await indexed.es.search(index=indexed.index, query={"match_all": {}})
+    live_ids = {hit["_id"] for hit in live["hits"]["hits"]}
+    assert live_ids == {str(indexed.lv_own_id), str(indexed.lv_item_id)}

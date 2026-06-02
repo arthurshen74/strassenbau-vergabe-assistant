@@ -72,6 +72,16 @@ class LVItemRepository:
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [LVItem.model_validate(dict(r)) for r in rows]
 
+    async def list_uuids_by_document(self, document_uuid: UUID) -> list[UUID]:
+        """LV item UUIDs for a document; empty for a non-LV document. Targets the ES
+        LV_ITEM chunks (keyed by lv_item_uuid) when the document is deleted, before the
+        cascade removes the rows."""
+        stmt = select(lv_items.c.lv_item_uuid).where(
+            lv_items.c.document_uuid == document_uuid
+        )
+        rows = (await self.conn.execute(stmt)).scalars().all()
+        return list(rows)
+
     async def add(self, new: NewLVItem) -> LVItem:
         stmt = insert(lv_items).values(**new.model_dump()).returning(lv_items)
         row = (await self.conn.execute(stmt)).mappings().one()

@@ -7,6 +7,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiBase } from './client';
 import type { DocumentRead, ProjectCreate, ProjectRead } from '../types/generated';
+import {
+  DOCUMENT_TYPE_LV,
+  DOCUMENT_TYPE_PROSE,
+  classifyDocumentType,
+  type DocumentType,
+} from '../lib/documentType';
 
 export const projectKeys = {
   all: ['projects'] as const,
@@ -49,7 +55,7 @@ export function useCreateProject() {
 async function postDocuments(
   projectUuid: string,
   files: File[],
-  documentType: string,
+  documentType: DocumentType,
 ): Promise<DocumentRead[]> {
   const form = new FormData();
   for (const f of files) form.append('files', f);
@@ -72,12 +78,38 @@ async function postDocuments(
   return (await res.json()) as DocumentRead[];
 }
 
+export function useDeleteDocument(projectUuid: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (documentUuid: string) =>
+      api.delete<void>(`/projects/${projectUuid}/documents/${documentUuid}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: projectKeys.documents(projectUuid) }),
+  });
+}
+
 export function useUploadDocuments(projectUuid: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ files, documentType }: { files: File[]; documentType: string }) =>
-      postDocuments(projectUuid, files, documentType),
-    onSuccess: () => {
+    mutationFn: async (files: File[]) => {
+      // The type is derived from each filename. The endpoint applies one
+      // document_type to the whole batch, so prose and LV files are sent as
+      // separate requests. Prose goes first so an LV conflict can't block it.
+      const groups: Record<DocumentType, File[]> = {
+        [DOCUMENT_TYPE_PROSE]: [],
+        [DOCUMENT_TYPE_LV]: [],
+      };
+      for (const f of files) groups[classifyDocumentType(f.name)].push(f);
+
+      const created: DocumentRead[] = [];
+      for (const documentType of [DOCUMENT_TYPE_PROSE, DOCUMENT_TYPE_LV] as const) {
+        const group = groups[documentType];
+        if (group.length > 0) {
+          created.push(...(await postDocuments(projectUuid, group, documentType)));
+        }
+      }
+      return created;
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: projectKeys.documents(projectUuid) });
     },
   });

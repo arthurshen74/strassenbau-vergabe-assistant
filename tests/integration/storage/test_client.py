@@ -4,6 +4,7 @@ import socket
 import uuid
 
 import pytest
+from botocore.exceptions import BotoCoreError, ClientError
 
 from shared.clients.storage import (
     StorageClient,
@@ -58,3 +59,26 @@ def test_presign_get_returns_url(client: StorageClient) -> None:
 
     assert url.startswith("http")
     assert key in url
+
+
+def test_delete_objects_removes_keys(client: StorageClient) -> None:
+    document_uuid = uuid.uuid4()
+    raw = raw_object_key(document_uuid)
+    thumb = thumbnail_object_key(document_uuid, page_number=1)
+    client.put_object(raw, b"raw", "application/pdf")
+    client.put_object(thumb, b"thumb", "image/png")
+
+    client.delete_objects([raw, thumb])
+
+    for key in (raw, thumb):
+        with pytest.raises((BotoCoreError, ClientError)):
+            client.get_object(key)
+
+
+def test_delete_objects_absent_key_is_not_an_error(client: StorageClient) -> None:
+    # S3 DeleteObjects reports success for keys that do not exist, so delete is idempotent.
+    client.delete_objects([raw_object_key(uuid.uuid4())])
+
+
+def test_delete_objects_empty_is_noop(client: StorageClient) -> None:
+    client.delete_objects([])

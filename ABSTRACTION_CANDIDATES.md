@@ -7,6 +7,17 @@ its extraction is complete.
 
 ## Longshots (2 instances)
 
+### ES archive-then-delete-by-query (reindex to `_archive` with `archived_at`, then `delete_by_query`)
+
+- `server/shared/clients/search/client.py` — `SearchClient.archive_source` (re-ingestion, single source)
+- `server/shared/clients/search/client.py` — `SearchClient.archive_and_delete_document` (document delete, compound footprint query)
+
+Both `_ensure_archive_index`, `reindex` the matching query into the archive index with a painless
+script stamping `archived_at`, then `delete_by_query` the same query from the live index, returning the
+deleted count. Only the query differs (single `(source_doc_uuid, source_doc_type)` vs the document
+footprint). **Do not extract yet** — same module, two callers. If a third archive-then-delete site
+appears, extract a private `_archive_and_delete_by_query(query) -> int` helper.
+
 ### Shared OpenRouter HTTP transport (auth header + POST + `raise_for_status` + boundary log)
 
 - `server/shared/clients/embeddings/client.py` — `EmbeddingsClient`

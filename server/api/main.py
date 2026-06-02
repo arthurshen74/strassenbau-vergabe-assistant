@@ -17,6 +17,7 @@ from api.routes import (
 from shared.clients.llm.client import LLMClient
 from shared.clients.llm.execution_log_sinks import DatabaseExecutionLogSink
 from shared.clients.openrouter.usage import DatabaseUsageSink
+from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import build_storage_client
 from shared.config import settings
 from shared.db.engine import make_engine
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.engine = engine
     app.state.storage = build_storage_client()
+    app.state.search = SearchClient.from_settings()
     # One shared LLM client for the process, persisting usage + execution logs to Postgres in
     # their own transactions (independent of any request UnitOfWork).
     app.state.llm_client = LLMClient(
@@ -41,6 +43,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await app.state.llm_client.aclose()
+        await app.state.search.close()
         await engine.dispose()
 
 

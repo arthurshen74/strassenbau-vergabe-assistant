@@ -5,7 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from api.deps import get_connection, get_storage, get_uow
+from api.deps import get_connection, get_search, get_storage, get_uow
+from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.document_schema import DocumentRead
@@ -36,6 +37,22 @@ def get_writable_project_service(
     storage: StorageClient = Depends(get_storage),
 ) -> ProjectService:
     return ProjectService(uow.projects, uow.documents, uow.ingest_jobs, storage=storage)
+
+
+def get_deletable_project_service(
+    uow: UnitOfWork = Depends(get_uow),
+    storage: StorageClient = Depends(get_storage),
+    search: SearchClient = Depends(get_search),
+) -> ProjectService:
+    return ProjectService(
+        uow.projects,
+        uow.documents,
+        uow.ingest_jobs,
+        storage=storage,
+        thumbnails=uow.thumbnails,
+        lv_items=uow.lv_items,
+        search=search,
+    )
 
 
 @router.get("", response_model=list[ProjectRead])
@@ -97,3 +114,19 @@ async def upload_documents(
         return await service.ingest_documents(project_uuid, uploads, document_type)
     except LVDocumentExistsError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/{project_uuid}/documents/{document_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_document(
+    project_uuid: UUID,
+    document_uuid: UUID,
+    service: ProjectService = Depends(get_deletable_project_service),
+) -> None:
+    deleted = await service.delete_document(project_uuid, document_uuid)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="document not found"
+        )

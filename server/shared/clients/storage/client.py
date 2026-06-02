@@ -9,6 +9,7 @@ and raw-file keys persisted in the database, so a layout change happens in one p
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from uuid import UUID
 
 import boto3
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
 # reader of an object key derives it from the helpers below, never an inline literal.
 RAW_KEY_PREFIX = "raw"
 THUMBNAIL_KEY_PREFIX = "thumbnails"
+
+# S3 caps a single DeleteObjects request at 1000 keys.
+DELETE_BATCH_MAX = 1000
 
 
 def raw_object_key(document_uuid: UUID) -> str:
@@ -60,6 +64,25 @@ class StorageClient:
             )
         except (BotoCoreError, ClientError):
             logger.exception("put_object failed: bucket=%s key=%s", self._bucket, key)
+            raise
+
+    def delete_objects(self, keys: Sequence[str]) -> None:
+        """Delete objects by key, batching to the S3 per-request limit. Deleting an
+        absent key is not an error, so this is safe to retry."""
+        items = list(keys)
+        if not items:
+            return
+        try:
+            for start in range(0, len(items), DELETE_BATCH_MAX):
+                batch = items[start : start + DELETE_BATCH_MAX]
+                self._client.delete_objects(
+                    Bucket=self._bucket,
+                    Delete={"Objects": [{"Key": k} for k in batch], "Quiet": True},
+                )
+        except (BotoCoreError, ClientError):
+            logger.exception(
+                "delete_objects failed: bucket=%s count=%d", self._bucket, len(items)
+            )
             raise
 
     def get_object(self, key: str) -> bytes:

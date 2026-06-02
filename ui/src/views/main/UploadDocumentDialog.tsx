@@ -1,9 +1,11 @@
 // Upload one or more documents (PDF, or a flat ZIP of files) into a project.
-// ZIP entries are recorded as PROSE_DOCUMENT server-side regardless of this
-// selection; the type applies to a single non-zip file.
+// The document type is auto-assigned from each filename: a PDF named like
+// "<name>_LV<x>.pdf" is an LV document, everything else is prose. ZIP entries
+// are recorded as PROSE_DOCUMENT server-side.
 
 import { useState } from 'react';
 import { useUploadDocuments } from '../../api/projects';
+import { DOCUMENT_TYPE_LV, classifyDocumentType } from '../../lib/documentType';
 import {
   Dialog,
   DialogActions,
@@ -11,7 +13,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { Field, Label } from '../../components/ui/fieldset';
-import { Select } from '../../components/ui/select';
+import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 
 export function UploadDocumentDialog({
@@ -25,13 +27,11 @@ export function UploadDocumentDialog({
 }) {
   const upload = useUploadDocuments(projectUuid);
   const [files, setFiles] = useState<File[]>([]);
-  const [documentType, setDocumentType] = useState('PROSE_DOCUMENT');
   const [error, setError] = useState<string | null>(null);
 
   const close = () => {
     if (upload.isPending) return;
     setFiles([]);
-    setDocumentType('PROSE_DOCUMENT');
     setError(null);
     onClose();
   };
@@ -39,7 +39,7 @@ export function UploadDocumentDialog({
   const submit = async () => {
     setError(null);
     try {
-      await upload.mutateAsync({ files, documentType });
+      await upload.mutateAsync(files);
       close();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -60,13 +60,29 @@ export function UploadDocumentDialog({
             className="mt-2 block w-full text-sm text-zinc-700 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm hover:file:bg-zinc-200 dark:text-zinc-300 dark:file:bg-zinc-800"
           />
         </Field>
-        <Field>
-          <Label>Document type (single files; ZIP entries become PROSE)</Label>
-          <Select value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
-            <option value="PROSE_DOCUMENT">PROSE_DOCUMENT</option>
-            <option value="LV_DOCUMENT">LV_DOCUMENT</option>
-          </Select>
-        </Field>
+        {files.length > 0 && (
+          <Field>
+            <Label>Auto-assigned document type</Label>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {files.map((f, i) => {
+                const type = classifyDocumentType(f.name);
+                return (
+                  <li
+                    key={`${f.name}-${i}`}
+                    className="flex items-center justify-between gap-3 text-sm"
+                  >
+                    <span className="truncate text-zinc-700 dark:text-zinc-300">
+                      {f.name}
+                    </span>
+                    <Badge color={type === DOCUMENT_TYPE_LV ? 'indigo' : 'zinc'}>
+                      {type}
+                    </Badge>
+                  </li>
+                );
+              })}
+            </ul>
+          </Field>
+        )}
         {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
       </DialogBody>
       <DialogActions>

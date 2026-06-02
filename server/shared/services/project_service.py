@@ -5,6 +5,11 @@ file (or, for a `.zip`, each flattened entry) is stored to object storage under
 `raw/{document_uuid}`, recorded as a `Document`, and enqueued as a queued `IngestJob` for the
 worker to process later. Storage writes are offloaded to a thread because the StorageClient is
 synchronous boto3.
+
+`delete_document` is the inverse: the DB row delete cascades to the document's thumbnails,
+source_lines, lv_items, and ingest_jobs, while the Elasticsearch chunks and object-storage blobs
+are removed explicitly. The external cleanup is best-effort so a transient ES/storage failure cannot
+strand the user with an undeletable document.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from uuid import UUID
 
 import pdfplumber
 
+from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient, raw_object_key
 from shared.models.document import NewDocument
 from shared.models.document_schema import DocumentRead
@@ -28,7 +34,9 @@ from shared.models.ingest_job import NewIngestJob
 from shared.models.project_schema import ProjectCreate, ProjectRead
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
+from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.projects import ProjectRepository
+from shared.repositories.thumbnails import ThumbnailRepository
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +65,17 @@ class ProjectService:
         documents: DocumentRepository,
         ingest_jobs: IngestJobRepository,
         storage: StorageClient | None = None,
+        thumbnails: ThumbnailRepository | None = None,
+        lv_items: LVItemRepository | None = None,
+        search: SearchClient | None = None,
     ) -> None:
         self.projects = projects
         self.documents = documents
         self.ingest_jobs = ingest_jobs
         self.storage = storage
+        self.thumbnails = thumbnails
+        self.lv_items = lv_items
+        self.search = search
 
     async def list(self) -> list[ProjectRead]:
         return [ProjectRead.model_validate(p) for p in await self.projects.list()]
@@ -79,6 +93,50 @@ class ProjectService:
     async def list_documents(self, project_uuid: UUID) -> list[DocumentRead]:
         docs = await self.documents.list_by_project(project_uuid)
         return [DocumentRead.model_validate(d) for d in docs]
+
+    async def delete_document(self, project_uuid: UUID, document_uuid: UUID) -> bool:
+        """Remove a document and everything derived from it. The DB delete cascades to
+        thumbnails, source_lines, lv_items, and ingest_jobs; Elasticsearch chunks and
+        object-storage blobs are cleaned up explicitly. Returns False if the document
+        does not exist in the project.
+
+        External cleanup (ES, storage) is best-effort: a failure is logged and the DB
+        delete still proceeds, so the outcome is an orphaned blob/chunk to reconcile
+        rather than a DB row pointing at data that is half-gone."""
+        assert self.storage is not None
+        assert self.thumbnails is not None
+        assert self.lv_items is not None
+        assert self.search is not None
+
+        doc = await self.documents.get(document_uuid)
+        if doc is None or doc.project_uuid != project_uuid:
+            return False
+
+        # Read derived keys before the cascade removes the rows that name them.
+        thumbnails = await self.thumbnails.list_by_document(document_uuid)
+        lv_item_uuids = await self.lv_items.list_uuids_by_document(document_uuid)
+
+        try:
+            await self.search.archive_and_delete_document(
+                project_uuid, document_uuid, lv_item_uuids
+            )
+        except Exception:
+            logger.exception(
+                "elasticsearch cleanup failed for document %s; chunks left orphaned",
+                document_uuid,
+            )
+
+        keys = [raw_object_key(document_uuid)] + [t.object_key for t in thumbnails]
+        try:
+            await asyncio.to_thread(self.storage.delete_objects, keys)
+        except Exception:
+            logger.exception(
+                "object storage cleanup failed for document %s; objects left orphaned",
+                document_uuid,
+            )
+
+        await self.documents.delete(document_uuid)
+        return True
 
     async def ingest_documents(
         self,

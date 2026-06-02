@@ -152,6 +152,41 @@ def _source_query(source_doc_uuid: UUID, source_doc_type: SourceDocType) -> dict
     }
 
 
+def _document_footprint_query(
+    project_uuid: UUID, document_uuid: UUID, lv_item_uuids: Sequence[UUID]
+) -> dict[str, Any]:
+    """Every chunk a document put in the index: its own DOCUMENT chunks (keyed by
+    document_uuid) and, for an LV document, the LV_ITEM chunks of its parsed items
+    (keyed by lv_item_uuid, not document_uuid). Scoped to project_uuid as a guard."""
+    should: list[dict[str, Any]] = [
+        {
+            "bool": {
+                "filter": [
+                    {"term": {FIELD_SOURCE_DOC_UUID: str(document_uuid)}},
+                    {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.DOCUMENT.value}},
+                ]
+            }
+        }
+    ]
+    if lv_item_uuids:
+        should.append(
+            {
+                "bool": {
+                    "filter": [
+                        {"terms": {FIELD_SOURCE_DOC_UUID: [str(u) for u in lv_item_uuids]}},
+                        {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.LV_ITEM.value}},
+                    ]
+                }
+            }
+        )
+    return {
+        "bool": {
+            "filter": [{"term": {FIELD_PROJECT_UUID: str(project_uuid)}}],
+            "must": [{"bool": {"minimum_should_match": 1, "should": should}}],
+        }
+    }
+
+
 def _hit_to_scored_chunk(hit: dict[str, Any]) -> ScoredChunk:
     chunk = SimpleChunk.model_validate({**hit["_source"], "chunk_uuid": hit["_id"]})
     return ScoredChunk(chunk=chunk, score=hit["_score"])
@@ -254,6 +289,35 @@ class SearchClient:
         Returns the number of chunks removed from the live index."""
         await self._ensure_archive_index()
         query = _source_query(source_doc_uuid, source_doc_type)
+        archived_at = datetime.now(tz=timezone.utc).isoformat()
+        await self._es.reindex(
+            source={"index": self._index, "query": query},
+            dest={"index": self._archive_index},
+            script={
+                "lang": "painless",
+                "source": f"ctx._source.{FIELD_ARCHIVED_AT} = params.{FIELD_ARCHIVED_AT}",
+                "params": {FIELD_ARCHIVED_AT: archived_at},
+            },
+            refresh=True,
+            wait_for_completion=True,
+        )
+        deleted = await self._es.delete_by_query(
+            index=self._index, query=query, refresh=True
+        )
+        return int(deleted["deleted"])
+
+    async def archive_and_delete_document(
+        self,
+        project_uuid: UUID,
+        document_uuid: UUID,
+        lv_item_uuids: Sequence[UUID],
+    ) -> int:
+        """Remove a document's whole footprint from the live index: its DOCUMENT chunks
+        and, for an LV document, its items' LV_ITEM chunks. Chunks are archived with an
+        archived_at timestamp before deletion, matching the re-ingestion flow. Returns
+        the number of chunks removed from the live index."""
+        await self._ensure_archive_index()
+        query = _document_footprint_query(project_uuid, document_uuid, lv_item_uuids)
         archived_at = datetime.now(tz=timezone.utc).isoformat()
         await self._es.reindex(
             source={"index": self._index, "query": query},
