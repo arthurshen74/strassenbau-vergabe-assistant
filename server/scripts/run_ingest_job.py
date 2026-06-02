@@ -31,6 +31,7 @@ from shared.db.unit_of_work import unit_of_work
 from shared.models.enums import IngestStatus
 from shared.repositories.prompt_versions import PromptVersionRepository
 from shared.services.ingestion import IngestionService
+from shared.services.ingestion.langchain_pipeline import LangchainIngestor
 from shared.services.prompt_runner import PromptRunner
 
 logger = logging.getLogger("scripts.run_ingest_job")
@@ -42,6 +43,7 @@ async def run_ingest_job(job_uuid: UUID) -> None:
     search = SearchClient.from_settings()
     embeddings = EmbeddingsClient()
     llm = LLMClient()
+    langchain_ingestor = LangchainIngestor()
     try:
         await search.ensure_index()
 
@@ -58,7 +60,12 @@ async def run_ingest_job(job_uuid: UUID) -> None:
         async with engine.connect() as prompt_conn:
             prompts = PromptRunner(PromptVersionRepository(prompt_conn), llm)
             service = IngestionService(
-                partial(unit_of_work, engine), storage, search, embeddings, prompts
+                partial(unit_of_work, engine),
+                storage,
+                search,
+                embeddings,
+                prompts,
+                langchain_ingestor,
             )
             try:
                 result = await service.ingest_document(document_uuid, job_uuid=job_uuid)
@@ -71,16 +78,18 @@ async def run_ingest_job(job_uuid: UUID) -> None:
         async with unit_of_work(engine) as uow:
             await uow.ingest_jobs.set_status(job_uuid, IngestStatus.DONE)
         logger.info(
-            "[ingest] job %s DONE: %d source lines, %d thumbnails, %d document chunks, "
-            "%d LV items, %d LV chunks",
+            "[ingest] job %s DONE: %d source lines, %d thumbnails, %d langchain chunks, "
+            "%d document chunks, %d LV items, %d LV chunks",
             job_uuid,
             result.source_lines,
             result.thumbnails,
+            result.langchain_chunks,
             result.document_chunks,
             result.lv_items,
             result.lv_chunks,
         )
     finally:
+        langchain_ingestor.close()
         await search.close()
         await embeddings.aclose()
         await engine.dispose()

@@ -90,8 +90,10 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
-    container_name: ai2-worker
+    # No container_name: it would block `docker compose up --scale worker=N`, the way ingestion
+    # throughput is scaled (each replica competes for jobs via claim_next + SKIP LOCKED).
     command: ['python', '-m', 'worker.main']
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:

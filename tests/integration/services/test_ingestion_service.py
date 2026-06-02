@@ -53,6 +53,15 @@ class _FakeEmbeddings:
         return [[float(i)] for i in range(len(texts))]
 
 
+class _FakeLangchain:
+    def __init__(self) -> None:
+        self.calls: list[tuple[UUID, UUID]] = []
+
+    async def ingest(self, document_uuid: UUID, project_uuid: UUID, pdf_bytes: bytes) -> int:
+        self.calls.append((document_uuid, project_uuid))
+        return 0
+
+
 class _RecordingSearch:
     def __init__(self) -> None:
         self.calls: list[tuple[str, Any]] = []
@@ -163,7 +172,7 @@ async def test_lv_document_runs_common_and_lv_branches(
     search = _RecordingSearch()
     prompts = _FakePrompts(_lv_extraction())
     service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), prompts  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), prompts, _FakeLangchain()  # type: ignore[arg-type]
     )
 
     result = await service.ingest_document(document_uuid)
@@ -205,7 +214,7 @@ async def test_prose_document_skips_lv_branch(
     search = _RecordingSearch()
     prompts = _FakePrompts(_lv_extraction())
     service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), prompts  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), prompts, _FakeLangchain()  # type: ignore[arg-type]
     )
 
     result = await service.ingest_document(document_uuid)
@@ -263,7 +272,7 @@ async def test_reingest_is_idempotent(
     ])
     search = _RecordingSearch()
     service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakePrompts(first, second)  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakePrompts(first, second), _FakeLangchain()  # type: ignore[arg-type]
     )
     repo = LVItemRepository(conn)
 
@@ -301,7 +310,7 @@ async def test_thumbnails_rendered_stored_and_persisted(
     )
     storage = _FakeStorage()
     service = IngestionService(
-        _factory(conn), storage, _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction())  # type: ignore[arg-type]
+        _factory(conn), storage, _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction()), _FakeLangchain()  # type: ignore[arg-type]
     )
 
     result = await service.ingest_document(document_uuid)
@@ -327,7 +336,7 @@ async def test_progress_events_persisted_and_logged(
     monkeypatch.setattr(service_module, "extract_source_lines", lambda _b, doc: _lv_lines(doc))
     job = await IngestJobRepository(conn).add(NewIngestJob(document_uuid=document_uuid))
     service = IngestionService(
-        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction())  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction()), _FakeLangchain()  # type: ignore[arg-type]
     )
 
     with caplog.at_level(logging.INFO, logger="shared.services.ingestion.progress"):
@@ -338,6 +347,7 @@ async def test_progress_events_persisted_and_logged(
     assert {e.event for e in events} == {
         "started",
         "thumbnails_generated",
+        "langchain_chunks_indexed",
         "source_lines_persisted",
         "document_chunks_indexed",
         "lv_items_indexed",
@@ -351,7 +361,7 @@ async def test_progress_events_persisted_and_logged(
 async def test_missing_document_raises(conn: AsyncConnection) -> None:
     search = _RecordingSearch()
     service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakePrompts(_lv_extraction())  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakePrompts(_lv_extraction()), _FakeLangchain()  # type: ignore[arg-type]
     )
     with pytest.raises(service_module.DocumentNotFoundError):
         await service.ingest_document(uuid4())

@@ -1,13 +1,14 @@
 """Orchestrates document ingestion (INGESTION.md), end to end except job claiming.
 
-`ingest_document` runs the common extraction stage (PDF -> SourceLine), renders one page
-thumbnail per page, simple-chunks every document into DOCUMENT chunks, and for an LV document
-additionally runs the LV parse into LVItem rows and LV_ITEM chunks. It is called directly with
-a `document_uuid`; passing a `job_uuid` enables IngestJobEvent progress logging, and omitting
+`ingest_document` renders one page thumbnail per page, runs the LangChain pipeline (PDF ->
+RecursiveCharacterTextSplitter chunks in the parallel vector index), runs the common extraction
+stage (PDF -> SourceLine), simple-chunks every document into DOCUMENT chunks, and for an LV
+document additionally runs the LV parse into LVItem rows and LV_ITEM chunks. It is called directly
+with a `document_uuid`; passing a `job_uuid` enables IngestJobEvent progress logging, and omitting
 it runs jobless for isolated testing. The worker loop that claims jobs and drives this service
 is a separate step.
 
-This is the only module in the ingestion package that touches repositories or clients; the
+The repositories and clients are reached here and in the injected LangchainIngestor; the
 extraction, chunking, and LV submodules are pure."""
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from shared.models.source_line import SourceLine
 from shared.models.thumbnail import NewThumbnail
 from shared.services.ingestion.chunking import ChunkDraft, chunk_document, chunk_lv_item
 from shared.services.ingestion.extraction import extract_source_lines
+from shared.services.ingestion.langchain_pipeline import LangchainIngestor
 from shared.services.ingestion.lv import postprocess
 from shared.services.ingestion.lv.rendering import render_line_numbered
 from shared.services.ingestion.progress import (
@@ -58,6 +60,7 @@ class IngestionResult:
 
     source_lines: int
     thumbnails: int
+    langchain_chunks: int
     document_chunks: int
     lv_items: int
     lv_chunks: int
@@ -71,12 +74,14 @@ class IngestionService:
         search: SearchClient,
         embeddings: EmbeddingsClient,
         prompts: PromptRunner,
+        langchain_ingestor: LangchainIngestor,
     ) -> None:
         self._uow_factory = uow_factory
         self._storage = storage
         self._search = search
         self._embeddings = embeddings
         self._prompts = prompts
+        self._langchain = langchain_ingestor
 
     async def ingest_document(
         self, document_uuid: UUID, *, job_uuid: UUID | None = None
@@ -103,6 +108,16 @@ class IngestionService:
             event=IngestEvent.THUMBNAILS_GENERATED,
             phase=IngestPhase.THUMBNAILS,
             message=f"{thumbnails} thumbnails",
+        )
+
+        langchain_chunks = await self._langchain.ingest(
+            document_uuid, document.project_uuid, pdf_bytes
+        )
+        await self._emit(
+            job_uuid,
+            event=IngestEvent.LANGCHAIN_CHUNKS_INDEXED,
+            phase=IngestPhase.LANGCHAIN,
+            message=f"{langchain_chunks} langchain chunks",
         )
 
         new_lines = extract_source_lines(pdf_bytes, document_uuid)
@@ -151,6 +166,7 @@ class IngestionService:
         return IngestionResult(
             source_lines=len(source_lines),
             thumbnails=thumbnails,
+            langchain_chunks=langchain_chunks,
             document_chunks=document_chunks,
             lv_items=lv_items,
             lv_chunks=lv_chunks,

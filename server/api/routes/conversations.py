@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from api.deps import (
@@ -27,6 +27,7 @@ from shared.repositories.messages import MessageRepository
 from shared.services.conversation_naming import ConversationNamingService
 from shared.services.dispatcher import Dispatcher
 from shared.services.prompt_runner import PromptRunner
+from shared.services.security import InputRejectedError, guard_user_input
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -36,7 +37,7 @@ SSE_MEDIA_TYPE = "text/event-stream"
 class TurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    content: str
+    content: str = Field(min_length=1)
 
 
 def get_conversation_naming_service(
@@ -85,6 +86,13 @@ async def run_turn(
     conn: AsyncConnection = Depends(get_connection),
     dispatcher: Dispatcher = Depends(get_dispatcher),
 ) -> StreamingResponse:
+    try:
+        guard_user_input(payload.content)
+    except InputRejectedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
     conversation = await ConversationRepository(conn).get(conversation_uuid)
     if conversation is None or conversation.user_uuid != principal.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")

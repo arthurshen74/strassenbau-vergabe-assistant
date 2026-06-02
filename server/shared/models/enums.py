@@ -23,6 +23,7 @@ class SourceDocType(StrEnum):
 class RetrievalModality(StrEnum):
     SIMPLE = "SIMPLE"
     PLUS = "PLUS"
+    LANGCHAIN = "LANGCHAIN"
 
 
 class IngestStatus(StrEnum):

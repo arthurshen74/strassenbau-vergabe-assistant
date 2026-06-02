@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     elasticsearch_host: str = "localhost"
     elasticsearch_port: int = 9200
     elasticsearch_index: str = "roadbuilders_text"
+    langchain_index: str = "idx-langchain-roadbuilders"
 
     embedding_model: str = "openai/text-embedding-3-small"
     embedding_dim: int = 512
@@ -47,6 +48,8 @@ class Settings(BaseSettings):
     multi_query_n: int = 5
     retriever_candidate_k: int = 50
     retriever_top_k: int = 10
+
+    worker_poll_interval_seconds: float = 2.0
 
     @property
     def database_url(self) -> str:

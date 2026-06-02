@@ -36,13 +36,15 @@ from shared.clients.rerank import RerankClient
 from shared.clients.search import SearchClient
 from shared.config import settings
 from shared.db.engine import make_engine
-from shared.models.enums import RetrievalModality
+from shared.models.enums import PromptType, RetrievalModality
+from shared.repositories.prompt_versions import PromptVersionRepository
 from shared.services.retrieval import (
     RetrievalConfig,
     RetrievalError,
     RetrievalResult,
     RetrievalService,
 )
+from shared.services.retrieval.langchain_agent import LangchainRetriever
 from shared.services.retrieval.models import HitTrace
 
 SECTION_WIDTH = 64
@@ -57,7 +59,10 @@ def _parse_args() -> argparse.Namespace:
         "--question", help="the user question; omit to enter an interactive question loop"
     )
     parser.add_argument(
-        "--modality", choices=["simple", "plus"], default="simple", help="retrieval scope"
+        "--modality",
+        choices=["simple", "plus", "langchain"],
+        default="simple",
+        help="retrieval scope (langchain runs the agentic RAG path)",
     )
     parser.add_argument(
         "--multi-query",
@@ -80,6 +85,9 @@ def _parse_args() -> argparse.Namespace:
 
 async def main() -> None:
     args = _parse_args()
+    if RetrievalModality(args.modality.upper()) is RetrievalModality.LANGCHAIN:
+        await _run_langchain(args)
+        return
     config = RetrievalConfig(
         modality=RetrievalModality(args.modality.upper()),
         multi_query=args.multi_query,
@@ -116,6 +124,68 @@ async def main() -> None:
         await llm.aclose()
         await search.close()
         await engine.dispose()
+
+
+async def _run_langchain(args: argparse.Namespace) -> None:
+    """LANGCHAIN modality: build the RAG agent from the latest project_chat prompt and stream it.
+
+    The Simple/Plus stage toggles do not apply here, so they are ignored with a note. The agent's
+    chat model and system prompt come from the seeded project_chat prompt version."""
+    if args.multi_query or args.bm25 or args.cross_encoder:
+        print(
+            "note: multi-query / bm25 / cross-encoder are ignored for the langchain modality",
+            file=sys.stderr,
+        )
+    engine = make_engine(settings.database_url, pool_size=2, application_name="retrieval-debug")
+    try:
+        async with engine.connect() as conn:
+            prompt = await PromptVersionRepository(conn).get_latest(PromptType.PROJECT_CHAT)
+        if prompt is None:
+            print(
+                "no project_chat prompt seeded; run `python -m scripts.seed.prompts`",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        retriever = LangchainRetriever(
+            project_uuid=args.project,
+            chat_model=prompt.model_name,
+            temperature=prompt.temperature,
+            system_prompt=prompt.system_prompt,
+        )
+        try:
+            if args.question is not None:
+                await asyncio.to_thread(_print_langchain_stream, retriever, args.question)
+            else:
+                await _langchain_repl(retriever, args.project)
+        finally:
+            retriever.close()
+    finally:
+        await engine.dispose()
+
+
+def _print_langchain_stream(retriever: LangchainRetriever, question: str) -> None:
+    print(_banner("LANGCHAIN AGENT"))
+    for message in retriever.stream(question):
+        message.pretty_print()
+
+
+async def _langchain_repl(retriever: LangchainRetriever, project: UUID) -> None:
+    print(f"Interactive LANGCHAIN retrieval - project {project}")
+    print("Type a question and press Enter. Ctrl-D or 'quit' to exit.")
+    while True:
+        try:
+            question = (await asyncio.to_thread(input, "\nquestion> ")).strip()
+        except EOFError:
+            print()
+            return
+        if not question:
+            continue
+        if question.lower() in {"quit", "exit"}:
+            return
+        try:
+            await asyncio.to_thread(_print_langchain_stream, retriever, question)
+        except Exception:
+            traceback.print_exc()
 
 
 async def _run_once(

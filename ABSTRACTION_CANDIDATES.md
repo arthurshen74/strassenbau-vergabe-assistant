@@ -33,6 +33,19 @@ dimensions), and forcing the not-yet-written rerank client through a base would 
 its consumer exists. Revisit when rerank lands (the 3rd copy) — if the auth+POST shell is still uniform,
 extract a thin transport then.
 
+### Ingestion bootstrap + run-one-job lifecycle (build clients, construct IngestionService, set DONE/FAILED)
+
+- `server/scripts/run_ingest_job.py` — `run_ingest_job` (manual single job by uuid; gets the job, marks RUNNING)
+- `server/worker/main.py` — `process_one` (worker loop; claims the job, which marks RUNNING)
+
+Both build the same client stack (`build_storage_client`, `SearchClient.from_settings`,
+`EmbeddingsClient`, `LLMClient`, `LangchainIngestor`) + `ensure_index`, open a prompt connection to
+construct `IngestionService`, run `ingest_document`, then `set_status` DONE / FAILED with the same
+result-count log line. They differ in how the job is obtained (get-by-uuid vs `claim_next`) and in
+failure behaviour (the script re-raises; the worker swallows to keep looping). **Do not extract yet** —
+two callers. If a third runner appears, extract a shared `run_ingest(stack, job)` (and a stack builder)
+into `shared/services/ingestion`.
+
 > Note: the usage parser + sink (`server/shared/clients/openrouter/usage/`) was already extracted — not on
 > count, but because it crosses a module boundary (clients -> persistence) and is a single orthogonal
 > concern shared verbatim by every OpenRouter client.

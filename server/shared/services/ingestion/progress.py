@@ -21,6 +21,7 @@ class IngestPhase(StrEnum):
     INGEST = "ingest"
     EXTRACT = "extract"
     THUMBNAILS = "thumbnails"
+    LANGCHAIN = "langchain"
     CHUNK = "chunk"
     LV = "lv"
 
@@ -29,6 +30,7 @@ class IngestEvent(StrEnum):
     STARTED = "started"
     SOURCE_LINES_PERSISTED = "source_lines_persisted"
     THUMBNAILS_GENERATED = "thumbnails_generated"
+    LANGCHAIN_CHUNKS_INDEXED = "langchain_chunks_indexed"
     DOCUMENT_CHUNKS_INDEXED = "document_chunks_indexed"
     LV_ITEMS_INDEXED = "lv_items_indexed"
     COMPLETED = "completed"
