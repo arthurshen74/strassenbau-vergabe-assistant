@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import insert, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.thumbnails import thumbnails
@@ -17,6 +19,25 @@ class ThumbnailRepository:
         stmt = insert(thumbnails).values(**new.model_dump()).returning(thumbnails)
         row = (await self.conn.execute(stmt)).mappings().one()
         return Thumbnail.model_validate(dict(row))
+
+    async def add_many(self, items: Sequence[NewThumbnail]) -> list[Thumbnail]:
+        """Bulk upsert on the (document_uuid, page_number) natural key; a re-ingestion
+        replays a document's page thumbnails and updates them in place."""
+        if not items:
+            return []
+        stmt = pg_insert(thumbnails).values([item.model_dump() for item in items])
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["document_uuid", "page_number"],
+            set_={
+                "object_key": stmt.excluded.object_key,
+                "bucket": stmt.excluded.bucket,
+                "width": stmt.excluded.width,
+                "height": stmt.excluded.height,
+                "content_type": stmt.excluded.content_type,
+            },
+        ).returning(thumbnails)
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [Thumbnail.model_validate(dict(r)) for r in rows]
 
     async def list_by_document(self, document_uuid: UUID) -> list[Thumbnail]:
         stmt = (

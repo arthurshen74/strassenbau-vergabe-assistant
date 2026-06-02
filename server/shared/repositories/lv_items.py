@@ -3,13 +3,18 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import insert, select
+from sqlalchemy import delete, func, insert, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.documents import documents
 from shared.db.tables.lv_items import lv_items
 from shared.models.enums import DocumentType
 from shared.models.lv_item import LVItem, NewLVItem
+
+# Natural key the LV parse output upserts on; everything else is overwritten on conflict.
+LV_NATURAL_KEY = ("document_uuid", "oz")
+COL_LAST_INGESTION = "last_ingestion"
 
 
 class LVItemRepository:
@@ -88,14 +93,33 @@ class LVItemRepository:
         return LVItem.model_validate(dict(row))
 
     async def add_many(self, items: Sequence[NewLVItem]) -> list[LVItem]:
-        """Bulk insert for the LV parse output. Relies on SQLAlchemy 2.0
-        insertmanyvalues, which supports RETURNING for executemany."""
+        """Bulk upsert the LV parse output on the (document_uuid, oz) natural key, bumping
+        last_ingestion. A re-ingestion replays a document's LV items and updates them in
+        place, so each lv_item_uuid stays stable and its Elasticsearch chunks (keyed by that
+        uuid) remain addressable for re-archival."""
         if not items:
             return []
-        rows = (
-            await self.conn.execute(
-                insert(lv_items).returning(lv_items),
-                [item.model_dump() for item in items],
-            )
-        ).mappings().all()
+        stmt = pg_insert(lv_items).values([item.model_dump() for item in items])
+        overwrite = {
+            name: stmt.excluded[name]
+            for name in NewLVItem.model_fields
+            if name not in LV_NATURAL_KEY
+        }
+        overwrite[COL_LAST_INGESTION] = func.now()
+        stmt = stmt.on_conflict_do_update(
+            index_elements=list(LV_NATURAL_KEY), set_=overwrite
+        ).returning(lv_items)
+        rows = (await self.conn.execute(stmt)).mappings().all()
         return [LVItem.model_validate(dict(r)) for r in rows]
+
+    async def delete_missing(
+        self, document_uuid: UUID, keep_ozs: Sequence[str]
+    ) -> list[UUID]:
+        """Delete a document's LV items whose oz is not in keep_ozs, returning the removed
+        lv_item_uuids so the caller can archive their Elasticsearch chunks. Used by
+        re-ingestion to drop positions that no longer appear; an empty keep_ozs removes all."""
+        condition = lv_items.c.document_uuid == document_uuid
+        if keep_ozs:
+            condition = condition & lv_items.c.oz.notin_(keep_ozs)
+        stmt = delete(lv_items).where(condition).returning(lv_items.c.lv_item_uuid)
+        return list((await self.conn.execute(stmt)).scalars().all())

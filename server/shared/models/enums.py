@@ -20,6 +20,11 @@ class SourceDocType(StrEnum):
     DOCUMENT = "DOCUMENT"
 
 
+class RetrievalModality(StrEnum):
+    SIMPLE = "SIMPLE"
+    PLUS = "PLUS"
+
+
 class IngestStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"

@@ -18,7 +18,11 @@ from shared.clients.llm import LLMClient
 from shared.config import settings
 from shared.models.chat_message import ChatMessage
 from shared.models.enums import PromptType
-from shared.models.llm_output_schemas import MultiQueryRewrite, output_model_for
+from shared.models.llm_output_schemas import (
+    LVExtraction,
+    MultiQueryRewrite,
+    output_model_for,
+)
 from shared.repositories.prompt_versions import PromptVersionRepository
 
 # OpenRouter message keys and the system role. ChatMessage only models user/assistant turns,
@@ -67,6 +71,25 @@ class PromptRunner:
         )
         assert isinstance(result, MultiQueryRewrite)
         return result.queries[:count]
+
+    async def run_lv_extraction(
+        self,
+        numbered_document: str,
+        *,
+        version: int | None = None,
+        project_uuid: UUID | None = None,
+        ingest_job_uuid: UUID | None = None,
+    ) -> LVExtraction:
+        """Segment a line-numbered LV rendering into positions (LV_PARSE.md step 3)."""
+        result = await self._run(
+            PromptType.LV_EXTRACTION,
+            variables={"numbered_document": numbered_document},
+            version=version,
+            project_uuid=project_uuid,
+            ingest_job_uuid=ingest_job_uuid,
+        )
+        assert isinstance(result, LVExtraction)
+        return result
 
     async def run_text(
         self,

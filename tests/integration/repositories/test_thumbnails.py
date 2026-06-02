@@ -62,3 +62,30 @@ async def test_add_returns_persisted_row(conn: AsyncConnection) -> None:
     created = await repo.add(_thumb(doc, 1))
     assert created.thumbnail_uuid is not None
     assert created.content_type == "image/png"
+
+
+async def test_add_many_upserts_on_document_and_page(conn: AsyncConnection) -> None:
+    repo = ThumbnailRepository(conn)
+    doc = await _document(conn)
+    first = await repo.add_many([_thumb(doc, 1), _thumb(doc, 2)])
+
+    # Re-ingest page 1 with new dimensions/key: it updates in place, keeping the uuid.
+    again = await repo.add_many(
+        [
+            NewThumbnail(
+                document_uuid=doc,
+                page_number=1,
+                object_key=f"thumbs/{doc}/1.jpg",
+                bucket="roadbuilders",
+                width=400,
+                height=560,
+                content_type="image/jpeg",
+            )
+        ]
+    )
+
+    by_page = {t.page_number: t for t in first}
+    assert again[0].thumbnail_uuid == by_page[1].thumbnail_uuid
+    rows = await repo.list_by_document(doc)
+    assert [r.page_number for r in rows] == [1, 2]  # still two rows, not three
+    assert rows[0].content_type == "image/jpeg" and rows[0].width == 400

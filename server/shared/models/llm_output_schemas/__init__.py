@@ -7,6 +7,10 @@ transport validates responses against it at the boundary.
 
 from __future__ import annotations
 
+from shared.models.llm_output_schemas.lv_extraction import (
+    LVExtraction,
+    LVPosition,
+)
 from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
 from shared.models.llm_output_schemas.project_chat_route import (
     ProjectChatAction,
@@ -19,6 +23,8 @@ from shared.models.llm_output_schemas.registry import (
 
 __all__ = [
     "PROMPT_OUTPUT_MODELS",
+    "LVExtraction",
+    "LVPosition",
     "MultiQueryRewrite",
     "ProjectChatAction",
     "ProjectChatRoute",

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from shared.models.enums import PromptType
 from shared.models.llm_output_schemas import (
     PROMPT_OUTPUT_MODELS,
+    LVExtraction,
     MultiQueryRewrite,
     ProjectChatRoute,
     output_model_for,
@@ -17,6 +18,7 @@ from shared.models.llm_output_schemas import (
 def test_mapped_prompt_type_returns_its_model() -> None:
     assert output_model_for(PromptType.MULTI_QUESTION_GENERATOR) is MultiQueryRewrite
     assert output_model_for(PromptType.CLASSIFY_PROJECT_CHAT_USER_MESSAGE) is ProjectChatRoute
+    assert output_model_for(PromptType.LV_EXTRACTION) is LVExtraction
 
 
 def test_unmapped_prompt_type_returns_none() -> None:

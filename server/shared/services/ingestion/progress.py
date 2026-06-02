@@ -1,0 +1,51 @@
+"""Ingest-job progress events.
+
+A thin helper over IngestJobEventRepository that records one IngestJobEvent per pipeline
+milestone. When the pipeline runs jobless (no job_uuid, e.g. in isolated tests or the dev
+script) recording is a no-op."""
+
+from __future__ import annotations
+
+from enum import StrEnum
+from uuid import UUID
+
+from shared.models.ingest_job_event import NewIngestJobEvent
+from shared.repositories.ingest_job_events import IngestJobEventRepository
+
+
+class IngestPhase(StrEnum):
+    INGEST = "ingest"
+    EXTRACT = "extract"
+    THUMBNAILS = "thumbnails"
+    CHUNK = "chunk"
+    LV = "lv"
+
+
+class IngestEvent(StrEnum):
+    STARTED = "started"
+    SOURCE_LINES_PERSISTED = "source_lines_persisted"
+    THUMBNAILS_GENERATED = "thumbnails_generated"
+    DOCUMENT_CHUNKS_INDEXED = "document_chunks_indexed"
+    LV_ITEMS_INDEXED = "lv_items_indexed"
+    COMPLETED = "completed"
+
+
+async def record_event(
+    events: IngestJobEventRepository,
+    job_uuid: UUID | None,
+    *,
+    event: IngestEvent,
+    phase: IngestPhase,
+    message: str,
+) -> None:
+    """Append one progress event for the job; no-op when running jobless."""
+    if job_uuid is None:
+        return
+    await events.add(
+        NewIngestJobEvent(
+            job_uuid=job_uuid,
+            event=event.value,
+            pipeline_phase=phase.value,
+            message=message,
+        )
+    )

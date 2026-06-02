@@ -8,7 +8,7 @@ import pytest
 
 from shared.models.chat_message import ChatMessage
 from shared.models.enums import PromptType
-from shared.models.llm_output_schemas import MultiQueryRewrite
+from shared.models.llm_output_schemas import LVExtraction, MultiQueryRewrite
 from shared.models.prompt_version import PromptVersion
 from shared.services.prompt_runner import (
     PromptRenderError,
@@ -126,6 +126,23 @@ async def test_generate_query_variants_pins_version() -> None:
 
     assert repo.latest_calls == []
     assert repo.pinned_calls == [(PromptType.MULTI_QUESTION_GENERATOR, 4)]
+
+
+# --- run_lv_extraction ---------------------------------------------------
+
+
+async def test_run_lv_extraction_renders_document_and_requests_schema() -> None:
+    pv = _pv(PromptType.LV_EXTRACTION, system_prompt="Segment:\n{{numbered_document}}")
+    runner, repo, llm = _runner(pv, LVExtraction(positions=[]))
+
+    out = await runner.run_lv_extraction("0\tfirst line", project_uuid=None)
+
+    assert isinstance(out, LVExtraction)
+    assert repo.latest_calls == [PromptType.LV_EXTRACTION]
+    call = llm.calls[0]
+    assert call["output_model"] is LVExtraction
+    assert call["chat_prompt_type"] == PromptType.LV_EXTRACTION.value
+    assert call["messages"][0] == {"role": "system", "content": "Segment:\n0\tfirst line"}
 
 
 # --- run_text ------------------------------------------------------------

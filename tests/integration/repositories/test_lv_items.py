@@ -123,3 +123,55 @@ async def test_add_many_returns_all(conn: AsyncConnection) -> None:
     assert len(created) == 3
     assert {c.oz for c in created} == {"03.0001", "03.0002", "03.0003"}
     assert await repo.add_many([]) == []
+
+
+async def test_add_many_upserts_on_natural_key(conn: AsyncConnection) -> None:
+    repo = LVItemRepository(conn)
+    fx = await _fixture(conn)
+    first = await repo.add_many([_item(fx.lv_document_uuid, "04.0010")])
+
+    # Re-ingest the same oz with changed content: it updates in place, keeping the uuid.
+    again = await repo.add_many(
+        [
+            NewLVItem(
+                document_uuid=fx.lv_document_uuid,
+                oz="04.0010",
+                kurztext="updated kurz",
+                langtext="updated lang",
+                menge=Decimal("9.0000"),
+                einheit="St",
+            )
+        ]
+    )
+
+    assert again[0].lv_item_uuid == first[0].lv_item_uuid
+    assert await repo.list_by_project(fx.project_uuid) == again  # exactly one row
+    refetched = await repo.get(first[0].lv_item_uuid)
+    assert refetched is not None
+    assert refetched.kurztext == "updated kurz" and refetched.menge == Decimal("9.0000")
+
+
+async def test_delete_missing_removes_absent_ozs(conn: AsyncConnection) -> None:
+    repo = LVItemRepository(conn)
+    fx = await _fixture(conn)
+    created = await repo.add_many(
+        [_item(fx.lv_document_uuid, oz) for oz in ("05.0010", "05.0020", "05.0030")]
+    )
+    by_oz = {c.oz: c.lv_item_uuid for c in created}
+
+    removed = await repo.delete_missing(fx.lv_document_uuid, ["05.0010"])
+
+    assert set(removed) == {by_oz["05.0020"], by_oz["05.0030"]}
+    remaining = await repo.list_by_project(fx.project_uuid)
+    assert [r.oz for r in remaining] == ["05.0010"]
+
+
+async def test_delete_missing_empty_keep_removes_all(conn: AsyncConnection) -> None:
+    repo = LVItemRepository(conn)
+    fx = await _fixture(conn)
+    await repo.add_many([_item(fx.lv_document_uuid, oz) for oz in ("06.0010", "06.0020")])
+
+    removed = await repo.delete_missing(fx.lv_document_uuid, [])
+
+    assert len(removed) == 2
+    assert await repo.list_by_project(fx.project_uuid) == []
