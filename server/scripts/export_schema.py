@@ -21,7 +21,12 @@ from shared.models.ingest_schema import (
     IngestStatusRead,
 )
 from shared.models.message_schema import MessageRead
+from shared.models.openrouter_usage_schema import OpenRouterUsageRead
 from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from shared.models.prompt_execution_log_schema import (
+    PromptExecutionLogRead,
+    PromptExecutionLogSummary,
+)
 from shared.models.prompt_version_schema import PromptVersionCreate, PromptVersionRead
 from shared.models.sse_schema import (
     SSEDone,
@@ -58,6 +63,9 @@ BODY_MODELS: list[type[BaseModel]] = [
     ConversationRead,
     ConversationCreate,
     MessageRead,
+    PromptExecutionLogSummary,
+    PromptExecutionLogRead,
+    OpenRouterUsageRead,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

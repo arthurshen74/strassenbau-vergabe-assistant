@@ -50,6 +50,8 @@ export const useMainWindowStore = create<MainWindowState & MainWindowActions>()(
 const TOOL_VIEW_KIND: Record<string, MainWindowKind> = {
   view_prompts: 'prompts',
   view_projects: 'projects',
+  view_prompt_execution_log: 'prompt_execution_log',
+  view_prompt_usage_log: 'prompt_usage_log',
 };
 
 export function viewKindForTool(

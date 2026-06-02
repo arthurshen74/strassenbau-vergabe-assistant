@@ -8,6 +8,7 @@ sqlalchemy[asyncio]>=2.0
 asyncpg
 alembic
 fastapi
+python-multipart
 uvicorn[standard]
 pytest
 pytest-asyncio

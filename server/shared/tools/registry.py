@@ -14,7 +14,12 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from shared.models.enums import PromptType
+from shared.models.openrouter_usage_schema import OpenRouterUsageRead
+from shared.models.prompt_execution_log_schema import PromptExecutionLogSummary
 from shared.tools._base import ToolContext, ToolDefinition
+
+# Rows a log tool surfaces to the dispatcher (recent-first); the UI views page/filter via REST.
+_LOG_TOOL_LIMIT = 50
 
 
 class _NoArgs(BaseModel):
@@ -62,6 +67,20 @@ async def _view_prompts(_args: _NoArgs, ctx: ToolContext) -> dict[str, object]:
     return {"prompts": latest}
 
 
+async def _view_prompt_execution_log(_args: _NoArgs, ctx: ToolContext) -> dict[str, object]:
+    rows = await ctx.uow.prompt_execution_log.list(limit=_LOG_TOOL_LIMIT)
+    return {
+        "logs": [
+            PromptExecutionLogSummary.model_validate(r).model_dump(mode="json") for r in rows
+        ]
+    }
+
+
+async def _view_prompt_usage_log(_args: _NoArgs, ctx: ToolContext) -> dict[str, object]:
+    rows = await ctx.uow.openrouter_usage.list(limit=_LOG_TOOL_LIMIT)
+    return {"usage": [OpenRouterUsageRead.model_validate(r).model_dump(mode="json") for r in rows]}
+
+
 async def _view_lvitems(args: ViewLvItemsArgs, ctx: ToolContext) -> dict[str, object]:
     _require_project(ctx)
     assert ctx.project_uuid is not None
@@ -100,6 +119,20 @@ view_prompts_tool = ToolDefinition(
     handler=_view_prompts,
 )
 
+view_prompt_execution_log_tool = ToolDefinition(
+    name="view_prompt_execution_log",
+    description="List recent prompt execution log entries (LLM calls: model, tokens, latency, success).",
+    input_model=_NoArgs,
+    handler=_view_prompt_execution_log,
+)
+
+view_prompt_usage_log_tool = ToolDefinition(
+    name="view_prompt_usage_log",
+    description="List recent OpenRouter usage entries (operation, model, tokens, cost).",
+    input_model=_NoArgs,
+    handler=_view_prompt_usage_log,
+)
+
 view_lvitems_tool = ToolDefinition(
     name="view_lvitems",
     description=(
@@ -125,7 +158,12 @@ get_context_tool = ToolDefinition(
 )
 
 TOOL_CATALOGS: dict[PromptType, list[ToolDefinition]] = {
-    PromptType.DISPATCHER: [view_prompts_tool, view_projects_tool],
+    PromptType.DISPATCHER: [
+        view_prompts_tool,
+        view_projects_tool,
+        view_prompt_execution_log_tool,
+        view_prompt_usage_log_tool,
+    ],
     PromptType.PROJECT_CHAT: [
         view_lvitems_tool,
         view_lvitem_tool,

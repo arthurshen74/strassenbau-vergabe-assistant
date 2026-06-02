@@ -7,7 +7,9 @@
 import { XMarkIcon } from '@heroicons/react/20/solid';
 import { useMainWindowStore, type MainWindowView } from '../../store/mainWindow';
 import { PromptList } from '../../views/workspace/tools/PromptList';
-import { EmptyState } from '../feedback/EmptyState';
+import { ProjectsView } from '../../views/main/ProjectsView';
+import { ExecutionLogView } from '../../views/main/ExecutionLogView';
+import { UsageLogView } from '../../views/main/UsageLogView';
 
 const TITLES: Record<MainWindowView['kind'], string> = {
   prompts: 'Prompts',
@@ -46,11 +48,11 @@ function MainWindowBody({ view }: { view: MainWindowView }) {
     case 'prompts':
       return <PromptList data={view.data} />;
     case 'projects':
+      return <ProjectsView data={view.data} />;
     case 'prompt_execution_log':
+      return <ExecutionLogView />;
     case 'prompt_usage_log':
-      return (
-        <EmptyState title={TITLES[view.kind]} description="Coming soon." />
-      );
+      return <UsageLogView />;
     default: {
       const _exhaustive: never = view.kind;
       void _exhaustive;

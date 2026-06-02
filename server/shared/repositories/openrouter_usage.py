@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.openrouter_usage import openrouter_usage
+from shared.models.enums import UsageOperation
 from shared.models.openrouter_usage import NewOpenRouterUsage, OpenRouterUsage
 
 
@@ -37,6 +39,29 @@ class OpenRouterUsageRepository:
             select(openrouter_usage)
             .where(openrouter_usage.c.ingest_job_uuid == ingest_job_uuid)
             .order_by(openrouter_usage.c.created_at)
+        )
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [OpenRouterUsage.model_validate(dict(r)) for r in rows]
+
+    async def list(
+        self,
+        *,
+        operation: UsageOperation | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[OpenRouterUsage]:
+        """Most-recent-first usage rows, optionally filtered by operation and date range."""
+        stmt = select(openrouter_usage)
+        if operation is not None:
+            stmt = stmt.where(openrouter_usage.c.operation == operation)
+        if start is not None:
+            stmt = stmt.where(openrouter_usage.c.created_at >= start)
+        if end is not None:
+            stmt = stmt.where(openrouter_usage.c.created_at < end)
+        stmt = (
+            stmt.order_by(openrouter_usage.c.created_at.desc()).limit(limit).offset(offset)
         )
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [OpenRouterUsage.model_validate(dict(r)) for r in rows]

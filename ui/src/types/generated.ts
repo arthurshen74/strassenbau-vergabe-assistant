@@ -157,6 +157,80 @@ export interface MessageRead {
   created_at: string;
 }
 
+export interface PromptExecutionLogSummary {
+  log_uuid: string;
+  prompt_type?: string | null;
+  prompt_version?: number | null;
+  model: string;
+  success: boolean;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  latency_ms?: number | null;
+  finish_reason?: string | null;
+  error_message?: string | null;
+  created_at: string;
+}
+
+export interface PromptExecutionLogRead {
+  log_uuid: string;
+  prompt_type?: string | null;
+  prompt_version?: number | null;
+  model: string;
+  provider_url?: string | null;
+  system_prompt?: string | null;
+  messages: {
+    [k: string]: unknown;
+  }[];
+  tools?:
+    | {
+        [k: string]: unknown;
+      }[]
+    | null;
+  response_format?: {
+    [k: string]: unknown;
+  } | null;
+  response_text?: string | null;
+  response_tool_calls?:
+    | {
+        [k: string]: unknown;
+      }[]
+    | null;
+  response_structured?: {
+    [k: string]: unknown;
+  } | null;
+  finish_reason?: string | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  latency_ms?: number | null;
+  request_id?: string | null;
+  project_uuid?: string | null;
+  ingest_job_uuid?: string | null;
+  success: boolean;
+  error_message?: string | null;
+  sent_at?: string | null;
+  returned_at?: string | null;
+  created_at: string;
+}
+
+export interface OpenRouterUsageRead {
+  usage_uuid: string;
+  operation: "CHAT" | "EMBEDDING" | "RERANK";
+  model: string;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  cost?: number | string | null;
+  cached_tokens?: number | null;
+  reasoning_tokens?: number | null;
+  search_units?: number | null;
+  project_uuid?: string | null;
+  ingest_job_uuid?: string | null;
+  request_id?: string | null;
+  chat_prompt_type?: string | null;
+  chat_prompt_version?: number | null;
+  created_at: string;
+}
+
 // ---- Types pinned by scripts/export_schema.py ----
 
 export interface IngestStarted {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import insert, select
@@ -37,6 +38,31 @@ class PromptExecutionLogRepository:
             select(prompt_execution_log)
             .where(prompt_execution_log.c.project_uuid == project_uuid)
             .order_by(prompt_execution_log.c.created_at)
+        )
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [PromptExecutionLog.model_validate(dict(r)) for r in rows]
+
+    async def list(
+        self,
+        *,
+        prompt_type: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[PromptExecutionLog]:
+        """Most-recent-first execution logs, optionally filtered by prompt type and date range."""
+        stmt = select(prompt_execution_log)
+        if prompt_type is not None:
+            stmt = stmt.where(prompt_execution_log.c.prompt_type == prompt_type)
+        if start is not None:
+            stmt = stmt.where(prompt_execution_log.c.created_at >= start)
+        if end is not None:
+            stmt = stmt.where(prompt_execution_log.c.created_at < end)
+        stmt = (
+            stmt.order_by(prompt_execution_log.c.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [PromptExecutionLog.model_validate(dict(r)) for r in rows]

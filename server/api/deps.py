@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from shared.clients.llm.client import LLMClient
+from shared.clients.storage.client import StorageClient
 from shared.db.unit_of_work import UnitOfWork
 from shared.services.dispatcher import Dispatcher
 
@@ -34,6 +35,10 @@ def get_engine(request: Request) -> AsyncEngine:
 
 def get_llm_client(request: Request) -> LLMClient:
     return request.app.state.llm_client
+
+
+def get_storage(request: Request) -> StorageClient:
+    return request.app.state.storage
 
 
 def get_dispatcher(

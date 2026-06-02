@@ -8,6 +8,8 @@ def test_catalogs_per_prompt_type() -> None:
     assert [t.name for t in catalog_for(PromptType.DISPATCHER)] == [
         "view_prompts",
         "view_projects",
+        "view_prompt_execution_log",
+        "view_prompt_usage_log",
     ]
     assert [t.name for t in catalog_for(PromptType.PROJECT_CHAT)] == [
         "view_lvitems",
