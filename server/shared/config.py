@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     retriever_top_k: int = 10
 
     worker_poll_interval_seconds: float = 2.0
+    ingest_status_poll_interval_seconds: float = 1.5
 
     @property
     def database_url(self) -> str:

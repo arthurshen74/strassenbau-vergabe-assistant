@@ -6,7 +6,12 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiBase } from './client';
-import type { DocumentRead, ProjectCreate, ProjectRead } from '../types/generated';
+import type {
+  DocumentRead,
+  IngestJobRead,
+  ProjectCreate,
+  ProjectRead,
+} from '../types/generated';
 import {
   DOCUMENT_TYPE_LV,
   DOCUMENT_TYPE_PROSE,
@@ -76,6 +81,15 @@ async function postDocuments(
     throw new Error(`Upload failed: ${detail}`);
   }
   return (await res.json()) as DocumentRead[];
+}
+
+export function useIngestDocument(projectUuid: string) {
+  // Queues a (re-)ingest; progress is reflected by the project's ingest status stream, so there's
+  // nothing to invalidate here.
+  return useMutation({
+    mutationFn: (documentUuid: string) =>
+      api.post<IngestJobRead>(`/projects/${projectUuid}/documents/${documentUuid}/ingest`),
+  });
 }
 
 export function useDeleteDocument(projectUuid: string) {

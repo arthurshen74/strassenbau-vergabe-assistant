@@ -24,13 +24,16 @@ from shared.services.ingestion.lv.types import (
     SlicedPosition,
 )
 from shared.services.ingestion.lv.validate import validate
-from shared.services.ingestion.numbers import parse_german_decimal
+from shared.services.ingestion.numbers import is_placeholder_menge, parse_german_decimal
 
 TITEL_MENGE = Decimal(0)
 
 
 def run(extraction: LVExtraction, source_lines: list[SourceLine]) -> LVParseResult:
     parsed = to_parsed_positions(extraction)
+    # A blank form prints an unfilled quantity as an 'xxxxxx,xx' placeholder; read it as a
+    # missing menge (a soft warning) rather than letting the numeric check fail the document.
+    parsed, placeholder_warnings = _drop_placeholder_menge(parsed)
     # OZ is the LV item's natural key, so the LLM emitting one OZ more than once is a single
     # position it split into fragments; coalesce those into one (union of lines, max menge,
     # last einheit) rather than failing the overlap check or colliding on persistence.
@@ -40,13 +43,26 @@ def run(extraction: LVExtraction, source_lines: list[SourceLine]) -> LVParseResu
     parsed, overlap_warnings = _resolve_overlaps(parsed)
     src = {line.line_id: line for line in source_lines}
 
-    warnings = coalesce_warnings + overlap_warnings + validate(parsed, src)
+    warnings = placeholder_warnings + coalesce_warnings + overlap_warnings + validate(parsed, src)
     sliced = slice_positions(parsed, src)
     resolved = resolve_backrefs(sliced)
     links = link_positions(sliced)
 
     items = [_build(position, resolved.get(position.oz), links[position.oz]) for position in sliced]
     return LVParseResult(items=items, warnings=warnings)
+
+
+def _drop_placeholder_menge(parsed: list[ParsedPosition]) -> tuple[list[ParsedPosition], list[str]]:
+    """Null out unfilled 'xxxxxx,xx' placeholder mengen so they read as a missing quantity."""
+    out: list[ParsedPosition] = []
+    warnings: list[str] = []
+    for position in parsed:
+        if position.menge is not None and is_placeholder_menge(position.menge):
+            warnings.append(f"position {position.oz}: placeholder menge {position.menge!r} dropped")
+            out.append(replace(position, menge=None))
+        else:
+            out.append(position)
+    return out, warnings
 
 
 def _coalesce_by_oz(parsed: list[ParsedPosition]) -> tuple[list[ParsedPosition], list[str]]:

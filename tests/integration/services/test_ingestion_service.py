@@ -378,3 +378,28 @@ async def test_missing_document_raises(conn: AsyncConnection) -> None:
     )
     with pytest.raises(service_module.DocumentNotFoundError):
         await service.ingest_document(uuid4())
+
+
+async def test_failed_stage_records_failure_event(
+    conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _project_uuid, document_uuid = await _document(conn, DocumentType.PROSE_DOCUMENT)
+    job = await IngestJobRepository(conn).add(NewIngestJob(document_uuid=document_uuid))
+
+    def _boom(_b: bytes, _doc: UUID) -> list[NewSourceLine]:
+        raise RuntimeError("extract exploded")
+
+    monkeypatch.setattr(service_module, "extract_source_lines", _boom)
+    service = IngestionService(
+        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction()), _FakeLangchain()  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(RuntimeError):
+        await service.ingest_document(document_uuid, job_uuid=job.job_uuid)
+
+    events = await IngestJobEventRepository(conn).list_for_job(job.job_uuid)
+    failed = [e for e in events if e.event == "failed"]
+    assert len(failed) == 1
+    # Failure names the phase it broke in (EXTRACT) and carries the exception text.
+    assert failed[0].pipeline_phase == "extract"
+    assert "extract exploded" in failed[0].message

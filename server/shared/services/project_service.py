@@ -31,7 +31,7 @@ from shared.clients.storage.client import StorageClient, raw_object_key
 from shared.models.document import NewDocument
 from shared.models.document_schema import DocumentRead
 from shared.models.enums import DocumentType
-from shared.models.ingest_job import NewIngestJob
+from shared.models.ingest_job import IngestJob, NewIngestJob
 from shared.models.project_schema import ProjectCreate, ProjectRead
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
@@ -142,6 +142,19 @@ class ProjectService:
 
         await self.documents.delete(document_uuid)
         return True
+
+    async def enqueue_ingest(
+        self, project_uuid: UUID, document_uuid: UUID
+    ) -> IngestJob | None:
+        """Queue a fresh ingest job for an existing document (a re-ingest), returning the job.
+
+        The raw PDF already lives in object storage from the upload, so the worker reprocesses it
+        in place; ingestion is idempotent (it archives/replaces the document's prior chunks).
+        Returns None if the document does not exist in the project."""
+        doc = await self.documents.get(document_uuid)
+        if doc is None or doc.project_uuid != project_uuid:
+            return None
+        return await self.ingest_jobs.add(NewIngestJob(document_uuid=document_uuid))
 
     async def ingest_documents(
         self,

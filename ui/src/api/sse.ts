@@ -1,41 +1,44 @@
-// POST-then-stream SSE consumer.
+// Fetch-based SSE consumers.
 //
-// EventSource only supports GET, but our protocol is "POST a message,
-// receive a stream". So we use fetch + ReadableStream and parse the SSE
-// wire format by hand. The parser handles multi-line events and dispatches
-// each parsed envelope through the provided onEvent callback.
+// EventSource only supports GET with no custom headers; our streams are either
+// "POST a message, receive a stream" (chat) or a long-lived GET (ingest status).
+// So we use fetch + ReadableStream and parse the SSE wire format by hand. Both
+// share one reader (`runStream`); the chat and ingest entry points differ only in
+// method and in the typed parser they hand it.
 //
-// This is NOT a hook — it's a function you call inside a mutation or
-// effect. Hooks would force us to model "stream is starting" as React
-// state, which fights the imperative nature of submit-then-consume.
+// These are NOT hooks — call them inside a mutation or an effect.
 
 import { apiBase } from './client';
 import { log } from '../lib/logger';
 import { parseSSEPayload } from '../lib/sse-events';
 import type { SSEEvent } from '../types/generated';
 
-export interface PostStreamOptions {
+interface RunStreamOptions<T extends { event: string }> {
   path: string;
-  body: unknown;
-  onEvent: (event: SSEEvent) => void;
+  method: 'GET' | 'POST';
+  body?: unknown;
+  parse: (eventName: string, dataJson: string) => T | null;
+  onEvent: (event: T) => void;
   signal?: AbortSignal;
 }
 
-export async function postStream({
+async function runStream<T extends { event: string }>({
   path,
+  method,
   body,
+  parse,
   onEvent,
   signal,
-}: PostStreamOptions): Promise<void> {
+}: RunStreamOptions<T>): Promise<void> {
   const startedAt = performance.now();
   log.sse('stream_start', { path });
   const res = await fetch(`${apiBase}${path}`, {
-    method: 'POST',
+    method,
     headers: {
-      'Content-Type': 'application/json',
       Accept: 'text/event-stream',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
-    body: JSON.stringify(body),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     signal,
   });
   if (!res.ok || !res.body) {
@@ -62,15 +65,11 @@ export async function postStream({
       while ((separatorIdx = buffer.indexOf('\n\n')) !== -1) {
         const raw = buffer.slice(0, separatorIdx);
         buffer = buffer.slice(separatorIdx + 2);
-        const parsed = parseSSEMessage(raw);
+        const parsed = parseSSEMessage(raw, parse);
         if (parsed) {
           eventCount += 1;
           // text_delta is per-token; logging each one drowns the firehose.
-          // Aggregate-only signals (start/end of stream) are enough for that
-          // event, the rest get full payloads.
-          if (parsed.event !== 'text_delta') {
-            log.sse(parsed.event, parsed);
-          }
+          if (parsed.event !== 'text_delta') log.sse(parsed.event, parsed);
           onEvent(parsed);
         }
       }
@@ -81,10 +80,12 @@ export async function postStream({
   }
 }
 
-function parseSSEMessage(raw: string): SSEEvent | null {
+function parseSSEMessage<T extends { event: string }>(
+  raw: string,
+  parse: (eventName: string, dataJson: string) => T | null,
+): T | null {
   // Parse `event: NAME` and `data: {...}` lines. Multiple `data:` lines
-  // would concatenate with newlines per spec, but our backend writes a
-  // single data line per message.
+  // concatenate with newlines per spec; our backend writes one data line.
   let eventName = 'message';
   const dataLines: string[] = [];
   for (const line of raw.split('\n')) {
@@ -99,5 +100,39 @@ function parseSSEMessage(raw: string): SSEEvent | null {
     else if (field === 'data') dataLines.push(value);
   }
   if (dataLines.length === 0) return null;
-  return parseSSEPayload(eventName, dataLines.join('\n'));
+  return parse(eventName, dataLines.join('\n'));
+}
+
+export interface PostStreamOptions {
+  path: string;
+  body: unknown;
+  onEvent: (event: SSEEvent) => void;
+  signal?: AbortSignal;
+}
+
+// Chat: POST a turn, consume the SSEEvent stream.
+export function postStream({
+  path,
+  body,
+  onEvent,
+  signal,
+}: PostStreamOptions): Promise<void> {
+  return runStream<SSEEvent>({ path, method: 'POST', body, parse: parseSSEPayload, onEvent, signal });
+}
+
+export interface EventStreamOptions<T extends { event: string }> {
+  path: string;
+  parse: (eventName: string, dataJson: string) => T | null;
+  onEvent: (event: T) => void;
+  signal?: AbortSignal;
+}
+
+// Long-lived GET stream (e.g. ingest status), parsed into a caller-supplied union.
+export function openEventStream<T extends { event: string }>({
+  path,
+  parse,
+  onEvent,
+  signal,
+}: EventStreamOptions<T>): Promise<void> {
+  return runStream<T>({ path, method: 'GET', parse, onEvent, signal });
 }

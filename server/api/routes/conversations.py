@@ -16,7 +16,7 @@ from api.deps import (
     get_llm_client,
     get_uow,
 )
-from api.sse import format_sse
+from api.sse import SSE_MEDIA_TYPE, format_sse
 from shared.clients.llm.client import LLMClient
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.conversation import NewConversation
@@ -30,8 +30,6 @@ from shared.services.prompt_runner import PromptRunner
 from shared.services.security import InputRejectedError, guard_user_input
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
-
-SSE_MEDIA_TYPE = "text/event-stream"
 
 
 class TurnRequest(BaseModel):

@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/react/16/solid';
 import { useProject, useProjectDocuments } from '../../api/projects';
+import { useProjectIngestStatus } from '../../api/ingest';
 import type { DocumentRead } from '../../types/generated';
+import { IngestStatusCell } from './IngestStatusCell';
+import { IngestButton } from './IngestButton';
 import { Heading } from '../../components/ui/heading';
 import { Text } from '../../components/ui/text';
 import { Badge } from '../../components/ui/badge';
@@ -40,6 +43,7 @@ export function ProjectDetails({
 }) {
   const project = useProject(projectUuid);
   const documents = useProjectDocuments(projectUuid);
+  const ingestStatus = useProjectIngestStatus(projectUuid);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
 
@@ -83,6 +87,7 @@ export function ProjectDetails({
             <TableRow>
               <TableHeader>File</TableHeader>
               <TableHeader>Type</TableHeader>
+              <TableHeader>Status</TableHeader>
               <TableHeader>Pages</TableHeader>
               <TableHeader>Added</TableHeader>
               <TableHeader className="relative w-0">
@@ -99,16 +104,29 @@ export function ProjectDetails({
                     {d.document_type}
                   </Badge>
                 </TableCell>
+                <TableCell>
+                  <IngestStatusCell status={ingestStatus[d.document_uuid]} />
+                </TableCell>
                 <TableCell>{d.number_of_pages}</TableCell>
                 <TableCell className="text-zinc-500">{formatRelativeTime(d.created_at)}</TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    plain
-                    onClick={() => setDocToDelete(d)}
-                    aria-label={`Remove ${d.file_name}`}
-                  >
-                    <TrashIcon />
-                  </Button>
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <IngestButton
+                      projectUuid={projectUuid}
+                      documentUuid={d.document_uuid}
+                      active={
+                        ingestStatus[d.document_uuid]?.status === 'queued' ||
+                        ingestStatus[d.document_uuid]?.status === 'running'
+                      }
+                    />
+                    <Button
+                      plain
+                      onClick={() => setDocToDelete(d)}
+                      aria-label={`Remove ${d.file_name}`}
+                    >
+                      <TrashIcon />
+                    </Button>
+                  </span>
                 </TableCell>
               </TableRow>
             ))}

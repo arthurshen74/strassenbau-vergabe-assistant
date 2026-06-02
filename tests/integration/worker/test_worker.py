@@ -64,7 +64,14 @@ class _FakeLangchain:
     def __init__(self) -> None:
         self.calls: list[tuple[UUID, UUID]] = []
 
-    async def ingest(self, document_uuid: UUID, project_uuid: UUID, pdf_bytes: bytes) -> int:
+    async def ingest(
+        self,
+        document_uuid: UUID,
+        project_uuid: UUID,
+        pdf_bytes: bytes,
+        *,
+        ingest_job_uuid: UUID | None = None,
+    ) -> int:
         self.calls.append((document_uuid, project_uuid))
         return 0
 

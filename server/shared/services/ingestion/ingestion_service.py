@@ -49,6 +49,9 @@ from shared.services.prompt_runner import PromptRunner
 
 UnitOfWorkFactory = Callable[[], AbstractAsyncContextManager[UnitOfWork]]
 
+# Cap on the exception text persisted in a failure event (surfaced to the UI).
+FAILURE_MESSAGE_LIMIT = 500
+
 
 class DocumentNotFoundError(Exception):
     """No Document exists for the requested document_uuid."""
@@ -98,64 +101,80 @@ class IngestionService:
                 message=document.file_name,
             )
 
-        pdf_bytes = await asyncio.to_thread(
-            self._storage.get_object, raw_object_key(document_uuid)
-        )
-
-        thumbnails = await self._generate_thumbnails(document_uuid, pdf_bytes)
-        await self._emit(
-            job_uuid,
-            event=IngestEvent.THUMBNAILS_GENERATED,
-            phase=IngestPhase.THUMBNAILS,
-            message=f"{thumbnails} thumbnails",
-        )
-
-        langchain_chunks = await self._langchain.ingest(
-            document_uuid, document.project_uuid, pdf_bytes, ingest_job_uuid=job_uuid
-        )
-        await self._emit(
-            job_uuid,
-            event=IngestEvent.LANGCHAIN_CHUNKS_INDEXED,
-            phase=IngestPhase.LANGCHAIN,
-            message=f"{langchain_chunks} langchain chunks",
-        )
-
-        new_lines = extract_source_lines(pdf_bytes, document_uuid)
-        async with self._uow_factory() as uow:
-            source_lines = await uow.source_lines.add_many(new_lines)
-            await self._emit_in_uow(
-                uow,
-                job_uuid,
-                event=IngestEvent.SOURCE_LINES_PERSISTED,
-                phase=IngestPhase.EXTRACT,
-                message=f"{len(source_lines)} source lines",
+        # Track the active phase so a failure event names where it broke; surfaced to the UI.
+        phase = IngestPhase.INGEST
+        try:
+            pdf_bytes = await asyncio.to_thread(
+                self._storage.get_object, raw_object_key(document_uuid)
             )
 
-        doc_drafts = chunk_document(
-            source_lines,
-            project_uuid=document.project_uuid,
-            document_uuid=document_uuid,
-        )
-        document_chunks = await self._embed_and_index(
-            doc_drafts, document_uuid, SourceDocType.DOCUMENT, document.project_uuid, job_uuid
-        )
-        await self._emit(
-            job_uuid,
-            event=IngestEvent.DOCUMENT_CHUNKS_INDEXED,
-            phase=IngestPhase.CHUNK,
-            message=f"{document_chunks} document chunks",
-        )
-
-        lv_items = 0
-        lv_chunks = 0
-        if document.document_type == DocumentType.LV_DOCUMENT:
-            lv_items, lv_chunks = await self._ingest_lv(document, source_lines, job_uuid)
+            phase = IngestPhase.THUMBNAILS
+            thumbnails = await self._generate_thumbnails(document_uuid, pdf_bytes)
             await self._emit(
                 job_uuid,
-                event=IngestEvent.LV_ITEMS_INDEXED,
-                phase=IngestPhase.LV,
-                message=f"{lv_items} LV items, {lv_chunks} chunks",
+                event=IngestEvent.THUMBNAILS_GENERATED,
+                phase=IngestPhase.THUMBNAILS,
+                message=f"{thumbnails} thumbnails",
             )
+
+            phase = IngestPhase.LANGCHAIN
+            langchain_chunks = await self._langchain.ingest(
+                document_uuid, document.project_uuid, pdf_bytes, ingest_job_uuid=job_uuid
+            )
+            await self._emit(
+                job_uuid,
+                event=IngestEvent.LANGCHAIN_CHUNKS_INDEXED,
+                phase=IngestPhase.LANGCHAIN,
+                message=f"{langchain_chunks} langchain chunks",
+            )
+
+            phase = IngestPhase.EXTRACT
+            new_lines = extract_source_lines(pdf_bytes, document_uuid)
+            async with self._uow_factory() as uow:
+                source_lines = await uow.source_lines.add_many(new_lines)
+                await self._emit_in_uow(
+                    uow,
+                    job_uuid,
+                    event=IngestEvent.SOURCE_LINES_PERSISTED,
+                    phase=IngestPhase.EXTRACT,
+                    message=f"{len(source_lines)} source lines",
+                )
+
+            phase = IngestPhase.CHUNK
+            doc_drafts = chunk_document(
+                source_lines,
+                project_uuid=document.project_uuid,
+                document_uuid=document_uuid,
+            )
+            document_chunks = await self._embed_and_index(
+                doc_drafts, document_uuid, SourceDocType.DOCUMENT, document.project_uuid, job_uuid
+            )
+            await self._emit(
+                job_uuid,
+                event=IngestEvent.DOCUMENT_CHUNKS_INDEXED,
+                phase=IngestPhase.CHUNK,
+                message=f"{document_chunks} document chunks",
+            )
+
+            lv_items = 0
+            lv_chunks = 0
+            if document.document_type == DocumentType.LV_DOCUMENT:
+                phase = IngestPhase.LV
+                lv_items, lv_chunks = await self._ingest_lv(document, source_lines, job_uuid)
+                await self._emit(
+                    job_uuid,
+                    event=IngestEvent.LV_ITEMS_INDEXED,
+                    phase=IngestPhase.LV,
+                    message=f"{lv_items} LV items, {lv_chunks} chunks",
+                )
+        except Exception as exc:
+            await self._emit(
+                job_uuid,
+                event=IngestEvent.FAILED,
+                phase=phase,
+                message=str(exc)[:FAILURE_MESSAGE_LIMIT],
+            )
+            raise
 
         await self._emit(
             job_uuid,

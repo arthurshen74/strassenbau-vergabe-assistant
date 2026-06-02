@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from shared.services.ingestion.numbers import parse_german_decimal
+from shared.services.ingestion.numbers import is_placeholder_menge, parse_german_decimal
 
 
 @pytest.mark.parametrize(
@@ -26,3 +26,13 @@ def test_parses_german_format(token: str, expected: Decimal) -> None:
 def test_rejects_garbage(token: str) -> None:
     with pytest.raises(ValueError):
         parse_german_decimal(token)
+
+
+@pytest.mark.parametrize("token", ["xxxxxx,xx", "XXXXXX,XX", "x.xxx,xx", " xx,x "])
+def test_detects_placeholder_menge(token: str) -> None:
+    assert is_placeholder_menge(token)
+
+
+@pytest.mark.parametrize("token", ["25,00", "2.400,00", "zwei", "12,xx", ""])
+def test_rejects_non_placeholder_menge(token: str) -> None:
+    assert not is_placeholder_menge(token)

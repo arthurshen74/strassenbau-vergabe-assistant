@@ -23,3 +23,17 @@ class NewIngestJob(BaseModel):
 
     document_uuid: UUID
     status: IngestStatus = IngestStatus.QUEUED
+
+
+class IngestJobStatusRow(BaseModel):
+    """A document's job status plus its latest progress event (one row per job)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    document_uuid: UUID
+    job_uuid: UUID
+    status: IngestStatus
+    latest_event: str | None = None
+    latest_phase: str | None = None
+    latest_message: str | None = None
+    latest_ts: datetime | None = None

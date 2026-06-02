@@ -34,6 +34,7 @@ class IngestEvent(StrEnum):
     DOCUMENT_CHUNKS_INDEXED = "document_chunks_indexed"
     LV_ITEMS_INDEXED = "lv_items_indexed"
     COMPLETED = "completed"
+    FAILED = "failed"
 
 
 def log_progress(*, event: IngestEvent, phase: IngestPhase, message: str) -> None:

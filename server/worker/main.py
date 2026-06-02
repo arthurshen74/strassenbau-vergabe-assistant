@@ -90,7 +90,7 @@ async def run_worker() -> None:
     search = SearchClient.from_settings()
     embeddings = EmbeddingsClient()
     llm = LLMClient()
-    langchain_ingestor = LangchainIngestor()
+    langchain_ingestor = LangchainIngestor(embeddings)
 
     shutdown = asyncio.Event()
     loop = asyncio.get_running_loop()

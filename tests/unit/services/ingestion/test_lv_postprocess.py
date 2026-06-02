@@ -244,6 +244,20 @@ def test_unparseable_menge_is_hard_failure() -> None:
         postprocess.run(extraction, src)
 
 
+def test_placeholder_menge_is_soft_warning() -> None:
+    # A blank form leaves an 'xxxxxx,xx' placeholder where the quantity would go; that is a
+    # missing menge (persisted as 0), not a hard failure of the whole document.
+    src = [_line(0, 1, "00.00.0002 header"), _line(1, 1, "body")]
+    extraction = LVExtraction(
+        positions=[_pos("00.00.0002", 0, langtext=(1, 1), menge="xxxxxx,xx", einheit="m")]
+    )
+
+    result = postprocess.run(extraction, src)
+
+    assert result.items[0].menge == Decimal(0)
+    assert any("placeholder menge 'xxxxxx,xx' dropped" in w for w in result.warnings)
+
+
 def test_missing_langtext_and_menge_are_soft_warnings() -> None:
     src = [_line(0, 1, "1.1 only a header line")]
     extraction = LVExtraction(positions=[_pos("1.1", 0)])  # priced position, no langtext/menge

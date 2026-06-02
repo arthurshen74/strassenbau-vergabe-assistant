@@ -233,6 +233,12 @@ export interface OpenRouterUsageRead {
 
 // ---- Types pinned by scripts/export_schema.py ----
 
+export interface IngestQueued {
+  event: "ingest_queued";
+  job_uuid: string;
+  document_uuid: string;
+}
+
 export interface IngestStarted {
   event: "ingest_started";
   job_uuid: string;
@@ -242,6 +248,7 @@ export interface IngestStarted {
 export interface IngestProgress {
   event: "ingest_progress";
   job_uuid: string;
+  document_uuid: string;
   phase: string;
   message: string;
 }
@@ -249,11 +256,13 @@ export interface IngestProgress {
 export interface IngestCompleted {
   event: "ingest_completed";
   job_uuid: string;
+  document_uuid: string;
 }
 
 export interface IngestError {
   event: "ingest_error";
   job_uuid: string;
+  document_uuid: string;
   phase: string | null;
   message: string;
 }
@@ -295,6 +304,7 @@ export interface SSEDone {
 // ---- Discriminated unions (appended by scripts/export_schema.py) ----
 
 export type IngestEvent =
+  | IngestQueued
   | IngestStarted
   | IngestProgress
   | IngestCompleted
