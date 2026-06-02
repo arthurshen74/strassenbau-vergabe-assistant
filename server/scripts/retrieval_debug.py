@@ -1,14 +1,21 @@
-"""Run one scoped RAG retrieval from the command line and trace every stage to STDOUT.
+"""Run a scoped RAG retrieval from the command line and trace every stage to STDOUT.
 
-A thin harness over RetrievalService: it parses a question + project_uuid and the stage
-toggles, bootstraps the clients, runs the pipeline, and prints the trace. All the logic
-lives in shared/services/retrieval; this module only prints.
+A thin harness over RetrievalService: it parses a project_uuid and the stage toggles,
+bootstraps the clients once, runs the pipeline, and prints the trace. All the logic lives
+in shared/services/retrieval; this module only prints.
 
-Run from the server/ directory:
+One-shot (pass --question):
 
-    conda run -n ai-engineering-2 python -m scripts.retrieval_debug \
+    python -m scripts.retrieval_debug \
       --project <uuid> --question "Welche Anforderungen gelten fuer die Tragschicht?" \
       --modality plus --multi-query --bm25 --cross-encoder
+
+Interactive (omit --question): bootstraps once with the given options, then loops reading
+questions from stdin, running each with the same options and printing the trace. Ctrl-D or
+'quit' exits. Needs a TTY, so under Docker run without -T:
+
+    docker compose exec worker python -m scripts.retrieval_debug \
+      --project <uuid> --modality plus --multi-query --bm25 --cross-encoder
 
 NOTE: PLUS modality and the answer step read the latest seeded prompts. If you edit a
 .prompt file, re-run `python -m scripts.seed.prompts` first so get_latest() sees it.
@@ -20,6 +27,7 @@ import argparse
 import asyncio
 import json
 import sys
+import traceback
 from uuid import UUID
 
 from shared.clients.embeddings import EmbeddingsClient
@@ -45,7 +53,9 @@ UUID_ABBREV_LENGTH = 8
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Debug a scoped RAG retrieval, tracing to STDOUT.")
     parser.add_argument("--project", type=UUID, required=True, help="project_uuid to scope to")
-    parser.add_argument("--question", required=True, help="the user question")
+    parser.add_argument(
+        "--question", help="the user question; omit to enter an interactive question loop"
+    )
     parser.add_argument(
         "--modality", choices=["simple", "plus"], default="simple", help="retrieval scope"
     )
@@ -92,20 +102,62 @@ async def main() -> None:
     )
 
     try:
-        result = await service.retrieve(args.question, args.project, config)
-        if args.json:
-            print(json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False))
+        if args.question is not None:
+            try:
+                await _run_once(service, args.question, args.project, config, args.json)
+            except RetrievalError as exc:
+                print(f"retrieval error: {exc}", file=sys.stderr)
+                raise SystemExit(1) from exc
         else:
-            _print_trace(result)
-    except RetrievalError as exc:
-        print(f"retrieval error: {exc}", file=sys.stderr)
-        raise SystemExit(1) from exc
+            await _repl(service, args.project, config, args.json)
     finally:
         await reranker.aclose()
         await embeddings.aclose()
         await llm.aclose()
         await search.close()
         await engine.dispose()
+
+
+async def _run_once(
+    service: RetrievalService,
+    question: str,
+    project: UUID,
+    config: RetrievalConfig,
+    as_json: bool,
+) -> None:
+    result = await service.retrieve(question, project, config)
+    if as_json:
+        print(json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False))
+    else:
+        _print_trace(result)
+
+
+async def _repl(
+    service: RetrievalService, project: UUID, config: RetrievalConfig, as_json: bool
+) -> None:
+    print(
+        f"Interactive retrieval — project {project}, modality={config.modality.value}, "
+        f"multi_query={config.multi_query} bm25={config.use_bm25} "
+        f"cross_encoder={config.use_cross_encoder} top_k={config.top_k}"
+    )
+    print("Type a question and press Enter. Ctrl-D or 'quit' to exit.")
+    while True:
+        try:
+            question = (await asyncio.to_thread(input, "\nquestion> ")).strip()
+        except EOFError:
+            print()
+            return
+        if not question:
+            continue
+        if question.lower() in {"quit", "exit"}:
+            return
+        # Keep the session alive: a bad question (or a transient API error) shouldn't end it.
+        try:
+            await _run_once(service, question, project, config, as_json)
+        except RetrievalError as exc:
+            print(f"retrieval error: {exc}", file=sys.stderr)
+        except Exception:
+            traceback.print_exc()
 
 
 def _banner(title: str) -> str:
