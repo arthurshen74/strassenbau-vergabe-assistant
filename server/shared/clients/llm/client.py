@@ -208,6 +208,15 @@ class LLMClient:
 
         sent_at = datetime.now(UTC)
         response = await self._client.post(self._chat_url, headers=self._headers(), json=payload)
+        if response.is_error:
+            # Surface the provider's error body (model/routing/schema reason) at the boundary;
+            # raise_for_status() otherwise discards it, leaving callers a bare status code.
+            logger.error(
+                "chat request failed: model=%s status=%s body=%s",
+                model,
+                response.status_code,
+                response.text,
+            )
         response.raise_for_status()
         body = response.json()
         returned_at = datetime.now(UTC)
