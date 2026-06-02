@@ -23,6 +23,13 @@ from shared.models.ingest_schema import (
 from shared.models.message_schema import MessageRead
 from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from shared.models.prompt_version_schema import PromptVersionCreate, PromptVersionRead
+from shared.models.sse_schema import (
+    SSEDone,
+    SSEFunctionCall,
+    SSEFunctionCallOutput,
+    SSETextDelta,
+    SSEUiNotice,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = REPO_ROOT / "ui" / "src" / "types" / "generated.ts"
@@ -53,23 +60,39 @@ BODY_MODELS: list[type[BaseModel]] = [
     MessageRead,
 ]
 
-# SSE payloads pinned for the discriminated union, in this exact order.
-PINNED_MODELS: list[type[BaseModel]] = [
+# SSE payloads pinned for the discriminated unions, in this exact order.
+INGEST_EVENT_MODELS: list[type[BaseModel]] = [
     IngestStarted,
     IngestProgress,
     IngestCompleted,
     IngestError,
 ]
 
+SSE_EVENT_MODELS: list[type[BaseModel]] = [
+    SSETextDelta,
+    SSEFunctionCall,
+    SSEFunctionCallOutput,
+    SSEUiNotice,
+    SSEDone,
+]
+
+PINNED_MODELS: list[type[BaseModel]] = [*INGEST_EVENT_MODELS, *SSE_EVENT_MODELS]
+
 # Discriminated unions appended after the pinned block; member order is fixed.
 UNIONS: list[tuple[str, list[str]]] = [
-    ("IngestEvent", [m.__name__ for m in PINNED_MODELS]),
+    ("IngestEvent", [m.__name__ for m in INGEST_EVENT_MODELS]),
+    ("SSEEvent", [m.__name__ for m in SSE_EVENT_MODELS]),
 ]
 
 
 def _strip_titles(node: Any) -> None:
+    # Strip only the JSON-schema `title` *metadata* (always a string), never a model
+    # field literally named `title` (whose value is its sub-schema dict, e.g.
+    # ConversationRead.title). Popping the latter silently drops the field from the
+    # generated types.
     if isinstance(node, dict):
-        node.pop("title", None)
+        if isinstance(node.get("title"), str):
+            node.pop("title", None)
         for value in node.values():
             _strip_titles(value)
     elif isinstance(node, list):

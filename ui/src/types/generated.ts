@@ -11,6 +11,7 @@ export interface ProjectRead {
   project_name: string;
   project_description: string;
   vergabestelle: string;
+  location?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -20,12 +21,14 @@ export interface ProjectCreate {
   project_name: string;
   project_description: string;
   vergabestelle: string;
+  location?: string | null;
 }
 
 export interface ProjectUpdate {
   project_name?: string | null;
   project_description?: string | null;
   vergabestelle?: string | null;
+  location?: string | null;
 }
 
 export interface DocumentRead {
@@ -84,7 +87,8 @@ export interface PromptVersionRead {
     | "project_chat"
     | "classify_project_chat_user_message"
     | "multi_question_generator"
-    | "lv_extraction";
+    | "lv_extraction"
+    | "conversation_name";
   version: number;
   model_name: string;
   system_prompt: string;
@@ -99,7 +103,8 @@ export interface PromptVersionCreate {
     | "project_chat"
     | "classify_project_chat_user_message"
     | "multi_question_generator"
-    | "lv_extraction";
+    | "lv_extraction"
+    | "conversation_name";
   model_name: string;
   system_prompt: string;
   temperature?: number | null;
@@ -115,7 +120,9 @@ export interface ConversationRead {
     | "project_chat"
     | "classify_project_chat_user_message"
     | "multi_question_generator"
-    | "lv_extraction";
+    | "lv_extraction"
+    | "conversation_name";
+  title?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -126,8 +133,10 @@ export interface ConversationCreate {
     | "project_chat"
     | "classify_project_chat_user_message"
     | "multi_question_generator"
-    | "lv_extraction";
+    | "lv_extraction"
+    | "conversation_name";
   project_uuid?: string | null;
+  title?: string | null;
 }
 
 export interface MessageRead {
@@ -175,6 +184,40 @@ export interface IngestError {
   message: string;
 }
 
+export interface SSETextDelta {
+  event: "text_delta";
+  content: string;
+}
+
+export interface SSEFunctionCall {
+  event: "function_call";
+  call_id: string;
+  name: string;
+  arguments: {
+    [k: string]: unknown;
+  };
+}
+
+export interface SSEFunctionCallOutput {
+  event: "function_call_output";
+  call_id: string;
+  tool_name: string;
+  success: boolean;
+  data?: {
+    [k: string]: unknown;
+  } | null;
+  errors?: string[] | null;
+}
+
+export interface SSEUiNotice {
+  event: "ui_notice";
+  content: string;
+}
+
+export interface SSEDone {
+  event: "done";
+}
+
 // ---- Discriminated unions (appended by scripts/export_schema.py) ----
 
 export type IngestEvent =
@@ -182,3 +225,9 @@ export type IngestEvent =
   | IngestProgress
   | IngestCompleted
   | IngestError;
+export type SSEEvent =
+  | SSETextDelta
+  | SSEFunctionCall
+  | SSEFunctionCallOutput
+  | SSEUiNotice
+  | SSEDone;

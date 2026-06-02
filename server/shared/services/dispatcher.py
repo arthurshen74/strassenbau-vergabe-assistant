@@ -25,6 +25,23 @@ from shared.models.conversation import Conversation
 from shared.models.enums import MessageKind
 from shared.models.message import Message, NewMessage
 from shared.models.prompt_version import PromptVersion
+from shared.models.sse_schema import (
+    DATA,
+    DATA_ARGUMENTS,
+    DATA_CALL_ID,
+    DATA_CONTENT,
+    DATA_ERRORS,
+    DATA_NAME,
+    DATA_RESULT,
+    DATA_SUCCESS,
+    DATA_TOOL_NAME,
+    EVENT,
+    EVENT_DONE,
+    EVENT_FUNCTION_CALL,
+    EVENT_FUNCTION_CALL_OUTPUT,
+    EVENT_TEXT_DELTA,
+    EVENT_UI_NOTICE,
+)
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
 from shared.repositories.prompt_versions import PromptVersionRepository
@@ -46,25 +63,6 @@ logger = logging.getLogger(__name__)
 _MAX_TOOL_TURNS = 8
 
 ROLE_SYSTEM = "system"
-
-# SSE event envelope + names (a contract with the frontend).
-EVENT = "event"
-DATA = "data"
-EVENT_TEXT_DELTA = "text_delta"
-EVENT_FUNCTION_CALL = "function_call"
-EVENT_FUNCTION_CALL_OUTPUT = "function_call_output"
-EVENT_UI_NOTICE = "ui_notice"
-EVENT_DONE = "done"
-
-# function_call / function_call_output event data keys.
-DATA_CALL_ID = "call_id"
-DATA_NAME = "name"
-DATA_ARGUMENTS = "arguments"
-DATA_TOOL_NAME = "tool_name"
-DATA_SUCCESS = "success"
-DATA_RESULT = "data"
-DATA_ERRORS = "errors"
-DATA_CONTENT = "content"
 
 # A resolved tool call: the call plus its execution result.
 _ToolResult = tuple[ToolCall, bool, dict[str, Any] | None, list[str] | None]

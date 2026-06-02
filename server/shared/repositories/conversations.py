@@ -34,6 +34,16 @@ class ConversationRepository:
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [Conversation.model_validate(dict(r)) for r in rows]
 
+    async def set_title(self, conversation_uuid: UUID, title: str) -> Conversation | None:
+        stmt = (
+            update(conversations)
+            .where(conversations.c.conversation_uuid == conversation_uuid)
+            .values(title=title, updated_at=func.now())
+            .returning(conversations)
+        )
+        row = (await self.conn.execute(stmt)).mappings().first()
+        return Conversation.model_validate(dict(row)) if row else None
+
     async def touch(self, conversation_uuid: UUID) -> None:
         """Bump updated_at so the conversation re-sorts to the top of the list."""
         stmt = (

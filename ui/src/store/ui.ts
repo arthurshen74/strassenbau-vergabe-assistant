@@ -13,15 +13,11 @@ type UIState = {
    * "thinking…" indicators in the sidebar / message list.
    */
   activeStreamIds: Record<string, boolean>;
-  /** Whether the prompt-execution-log drawer is open. */
-  promptLogDrawerOpen: boolean;
 };
 
 type UIActions = {
   toggleSidebar: () => void;
   setStreamActive: (cid: string, active: boolean) => void;
-  openPromptLogDrawer: () => void;
-  closePromptLogDrawer: () => void;
 };
 
 type UIStore = UIState & UIActions;
@@ -31,7 +27,6 @@ export const useUIStore = create<UIStore>()(
     immer((set) => ({
       sidebarCollapsed: false,
       activeStreamIds: {},
-      promptLogDrawerOpen: false,
 
       toggleSidebar: () =>
         set((state) => {
@@ -42,16 +37,6 @@ export const useUIStore = create<UIStore>()(
         set((state) => {
           if (active) state.activeStreamIds[cid] = true;
           else delete state.activeStreamIds[cid];
-        }),
-
-      openPromptLogDrawer: () =>
-        set((state) => {
-          state.promptLogDrawerOpen = true;
-        }),
-
-      closePromptLogDrawer: () =>
-        set((state) => {
-          state.promptLogDrawerOpen = false;
         }),
     })),
     {

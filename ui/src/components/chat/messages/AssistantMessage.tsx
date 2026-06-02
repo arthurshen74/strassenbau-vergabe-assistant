@@ -1,16 +1,15 @@
-import type { AssistantMessageDTO } from '../../../types/generated';
 import { StreamingText } from '../StreamingText';
 
 interface AssistantMessageProps {
-  m: AssistantMessageDTO;
+  content: string;
   streaming?: boolean;
 }
 
-export function AssistantMessage({ m, streaming = false }: AssistantMessageProps) {
+export function AssistantMessage({ content, streaming = false }: AssistantMessageProps) {
   return (
     <div className="flex justify-start">
       <div className="max-w-2xl text-sm whitespace-pre-wrap text-zinc-900 dark:text-zinc-100">
-        <StreamingText text={m.content} streaming={streaming} />
+        <StreamingText text={content} streaming={streaming} />
       </div>
     </div>
   );

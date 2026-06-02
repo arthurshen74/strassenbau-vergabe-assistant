@@ -21,6 +21,15 @@ class PromptService:
         versions = await self.prompt_versions.list_by_type(prompt_type)
         return [PromptVersionRead.model_validate(v) for v in versions]
 
+    async def list_latest(self) -> list[PromptVersionRead]:
+        """Latest version of every prompt type that has one (skips unseeded types)."""
+        latest: list[PromptVersionRead] = []
+        for prompt_type in PromptType:
+            found = await self.prompt_versions.get_latest(prompt_type)
+            if found is not None:
+                latest.append(PromptVersionRead.model_validate(found))
+        return latest
+
     async def get_version(
         self, prompt_type: PromptType, version: int
     ) -> PromptVersionRead | None:

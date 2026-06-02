@@ -1,82 +1,58 @@
-// Inline renderer for `list_prompts`. Compact clickable card per group.
+// Renders the latest version of each configured prompt.
 //
-// When `interactive` is true, clicking a row fetches the full
-// PromptGroupDTO and renders PromptGroupCard inline in the container.
-// The list subscribes to live server state so it reflects edits and
-// archives without needing a dispatcher round-trip.
-//
-// When `interactive` is false (historical message snapshots), rows
-// render as static summaries with no actions.
+// Dual-sourced: when `data` is supplied (a dispatcher `view_prompts` tool
+// result, shaped `{prompts: [...]}` or a bare array) it renders that; when
+// absent (opened from the sidebar command) it fetches GET /prompts itself.
 
-import { useState } from 'react';
-import type { IPAPrompt, PromptSummaryDTO } from '../../../types/generated';
-import { usePrompts, usePromptGroup } from '../../../api/prompts';
-import { PromptGroupCard } from './PromptGroupCard';
+import type { PromptVersionRead } from '../../../types/generated';
+import { usePromptsLatest } from '../../../api/prompts';
 import { Heading } from '../../../components/ui/heading';
 import { Text } from '../../../components/ui/text';
 import { Badge } from '../../../components/ui/badge';
 import { formatRelativeTime } from '../../../lib/format';
 import { LoadingState } from '../../../components/feedback/LoadingState';
+import { ErrorState } from '../../../components/feedback/ErrorState';
 
-interface PromptListProps {
-  // The route returns a bare list, but if the wire shape evolves to
-  // ``{prompts: [...]}`` we'll keep working.
-  data:
-    | { prompts: PromptSummaryDTO[] }
-    | { result: PromptSummaryDTO[] }
-    | PromptSummaryDTO[];
-  /**
-   * When true, each row is a button that opens PromptGroupCard inline.
-   * The list subscribes to live server state to reflect mutations.
-   * When false (historical snapshot), rows render as static summaries.
-   */
-  interactive?: boolean;
-}
+type BadgeColor = 'zinc' | 'blue' | 'purple' | 'amber' | 'green' | 'sky' | 'rose';
 
-const TYPE_COLOR: Record<
-  PromptSummaryDTO['prompt_type'],
-  'zinc' | 'blue' | 'purple' | 'amber' | 'green'
-> = {
+const TYPE_COLOR: Record<PromptVersionRead['prompt_type'], BadgeColor> = {
   dispatcher: 'purple',
-  interviewer: 'blue',
-  evaluator: 'amber',
-  judge: 'green',
-  utility: 'zinc',
+  project_chat: 'blue',
+  classify_project_chat_user_message: 'amber',
+  multi_question_generator: 'green',
+  lv_extraction: 'sky',
+  conversation_name: 'rose',
 };
 
-type Selected = { prompt_type: IPAPrompt; name: string } | null;
+// The route returns a bare array; the dispatcher tool returns `{prompts: [...]}`.
+function normalize(data: unknown): PromptVersionRead[] | null {
+  if (data == null) return null;
+  if (Array.isArray(data)) return data as PromptVersionRead[];
+  if (typeof data === 'object' && 'prompts' in (data as Record<string, unknown>)) {
+    const prompts = (data as { prompts: unknown }).prompts;
+    return Array.isArray(prompts) ? (prompts as PromptVersionRead[]) : [];
+  }
+  return [];
+}
 
-export function PromptList({ data, interactive }: PromptListProps) {
-  const [selected, setSelected] = useState<Selected>(null);
-  const liveQuery = usePrompts();
-  const groupQuery = usePromptGroup(selected?.prompt_type, selected?.name);
+export function PromptList({ data }: { data?: unknown }) {
+  const provided = normalize(data);
+  const query = usePromptsLatest();
 
-  const propPrompts =
-    Array.isArray(data) ? data
-    : 'prompts' in data ? data.prompts
-    : 'result' in data ? data.result
-    : [];
-
-  const prompts =
-    interactive && liveQuery.data ? liveQuery.data : propPrompts;
-
-  // Detail view
-  if (selected !== null) {
-    if (groupQuery.isPending) {
-      return <LoadingState label="Loading prompt…" />;
-    }
-    if (groupQuery.data) {
+  if (provided === null) {
+    if (query.isPending) return <LoadingState label="Loading prompts…" />;
+    if (query.isError) {
       return (
-        <PromptGroupCard
-          data={groupQuery.data}
-          variant="view"
-          onBack={() => setSelected(null)}
+        <ErrorState
+          message={(query.error as Error).message}
+          onRetry={() => query.refetch()}
         />
       );
     }
   }
 
-  // List view
+  const prompts = provided ?? query.data ?? [];
+
   if (prompts.length === 0) {
     return (
       <div className="flex flex-col gap-1">
@@ -90,50 +66,31 @@ export function PromptList({ data, interactive }: PromptListProps) {
     <div className="flex flex-col gap-3">
       <Heading level={4}>Prompts ({prompts.length})</Heading>
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
-        {prompts.map((p) => {
-          const inner = (
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Text className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {p.name}
-                </Text>
-                <Badge color={TYPE_COLOR[p.prompt_type]}>
-                  {p.prompt_type}
-                </Badge>
-                <Badge color="zinc">v{p.version}</Badge>
-                {p.archived && <Badge color="zinc">archived</Badge>}
-              </div>
-              <Text className="text-xs">{p.model_name}</Text>
-              <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-                {formatRelativeTime(p.created_at)}
-              </Text>
+        {prompts.map((p) => (
+          <div
+            key={p.prompt_version_uuid}
+            className="flex flex-col gap-2 rounded-md border border-zinc-950/5 p-3 dark:border-white/10"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge color={TYPE_COLOR[p.prompt_type]}>{p.prompt_type}</Badge>
+              <Badge color="zinc">v{p.version}</Badge>
             </div>
-          );
-
-          if (interactive) {
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() =>
-                  setSelected({ prompt_type: p.prompt_type, name: p.name })
-                }
-                className="flex w-full flex-col gap-2 rounded-md border border-zinc-950/5 p-3 text-left transition-colors hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-white/10 dark:hover:bg-white/5 cursor-pointer"
-              >
-                {inner}
-              </button>
-            );
-          }
-
-          return (
-            <div
-              key={p.id}
-              className="flex flex-col gap-2 rounded-md border border-zinc-950/5 p-3 dark:border-white/10"
-            >
-              {inner}
+            <Text className="text-xs">{p.model_name}</Text>
+            <div className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              {p.temperature != null && <span>temp {p.temperature}</span>}
+              {p.top_p != null && <span>top_p {p.top_p}</span>}
+              <span>{formatRelativeTime(p.created_at)}</span>
             </div>
-          );
-        })}
+            <details className="text-xs">
+              <summary className="cursor-pointer text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                System prompt
+              </summary>
+              <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-2 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                {p.system_prompt}
+              </pre>
+            </details>
+          </div>
+        ))}
       </div>
     </div>
   );

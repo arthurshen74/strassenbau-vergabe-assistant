@@ -20,6 +20,7 @@ class ProjectCreate(BaseModel):
     project_name: str = Field(min_length=1)
     project_description: str
     vergabestelle: str
+    location: str | None = None
 
 
 class ProjectRead(BaseModel):
@@ -30,6 +31,7 @@ class ProjectRead(BaseModel):
     project_name: str
     project_description: str
     vergabestelle: str
+    location: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -40,3 +42,4 @@ class ProjectUpdate(BaseModel):
     project_name: str | None = Field(default=None, min_length=1)
     project_description: str | None = None
     vergabestelle: str | None = None
+    location: str | None = None

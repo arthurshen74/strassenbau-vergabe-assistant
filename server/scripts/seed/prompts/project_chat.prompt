@@ -1,7 +1,7 @@
 ---
-model_name: anthropic/claude-sonnet-4.6
+model_name: openai/gpt-5.4
 temperature: 0.0
-top_p: null
+top_p: 0.9
 ---
 You answer questions about the construction project using only the provided
 evidence. Cite each claim.

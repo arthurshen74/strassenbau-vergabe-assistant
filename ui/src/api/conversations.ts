@@ -1,74 +1,64 @@
-// Query/mutation hooks for conversations. Workspace-only at this stage;
-// judge_run hooks will plug in later as that view lands.
+// Query/mutation hooks for conversations, wired to the real backend.
+//
+// The backend exposes a flat list of the user's conversations (no per-type
+// filter, no GET-by-uuid, no rename/delete). The dispatcher vs. project-chat
+// split is derived client-side from `prompt_type`. A conversation's title is
+// generated server-side from its first message (see useNameConversation).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type {
-  ConversationDTO,
-  ConversationSummaryDTO,
-  MessageDTO,
-} from '../types/generated';
+import type { ConversationRead, MessageRead } from '../types/generated';
+
+export const PROMPT_TYPE_DISPATCHER = 'dispatcher';
+export const PROMPT_TYPE_PROJECT_CHAT = 'project_chat';
 
 export const conversationKeys = {
   all: ['conversations'] as const,
-  list: (type?: string) => [...conversationKeys.all, { type }] as const,
-  detail: (id: string) => ['conversation', id] as const,
-  messages: (id: string) => ['conversation', id, 'messages'] as const,
+  list: () => [...conversationKeys.all, 'list'] as const,
+  messages: (uuid: string) => ['conversation', uuid, 'messages'] as const,
 };
 
-export function useConversationList(
-  type?: 'workspace' | 'judge_run',
-) {
+export function useConversationList() {
   return useQuery({
-    queryKey: conversationKeys.list(type),
-    queryFn: () =>
-      api.get<ConversationSummaryDTO[]>(
-        `/conversations${type ? `?type=${type}` : ''}`,
-      ),
+    queryKey: conversationKeys.list(),
+    queryFn: () => api.get<ConversationRead[]>('/conversations'),
   });
 }
 
-export function useConversation(id: string | undefined) {
+// There is no GET /conversations/{uuid}; resolve from the list cache so we
+// don't add a redundant backend route just to read one row.
+export function useConversation(uuid: string | undefined) {
+  const list = useConversationList();
+  const data = uuid
+    ? list.data?.find((c) => c.conversation_uuid === uuid)
+    : undefined;
+  return { ...list, data };
+}
+
+export function useConversationMessages(uuid: string | undefined) {
   return useQuery({
-    queryKey: id ? conversationKeys.detail(id) : ['conversation', 'none'],
-    queryFn: () => api.get<ConversationDTO>(`/conversations/${id}`),
-    enabled: !!id,
+    queryKey: uuid
+      ? conversationKeys.messages(uuid)
+      : ['conversation', 'none', 'messages'],
+    queryFn: () => api.get<MessageRead[]>(`/conversations/${uuid}/messages`),
+    enabled: !!uuid,
   });
 }
 
-export function useConversationMessages(id: string | undefined) {
-  return useQuery({
-    queryKey: id ? conversationKeys.messages(id) : ['conversation', 'none', 'messages'],
-    queryFn: () => api.get<MessageDTO[]>(`/conversations/${id}/messages`),
-    enabled: !!id,
+export function createConversation(): Promise<ConversationRead> {
+  return api.post<ConversationRead>('/conversations', {
+    prompt_type: PROMPT_TYPE_DISPATCHER,
   });
 }
 
-export function useRenameConversation() {
+// Generate a title from the conversation's first message and persist it.
+// The backend derives the first message itself, so no body is sent.
+export function useNameConversation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, title }: { id: string; title: string }) =>
-      api.patch<ConversationDTO>(`/conversations/${id}`, { title }),
-    onSuccess: (updated) => {
-      // Refresh the sidebar list so the new title shows immediately.
-      qc.invalidateQueries({ queryKey: conversationKeys.all });
-      // Update the cached detail so the conversation view header stays in sync.
-      qc.setQueryData(conversationKeys.detail(updated.id), updated);
-    },
-  });
-}
-
-export function useDeleteConversation() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.delete<void>(`/conversations/${id}`),
-    onSuccess: (_data, id) => {
-      // Drop cached detail/messages for the deleted thread and refresh
-      // the sidebar list. Removing (vs. invalidating) the detail keys
-      // avoids a flash of stale data if the user is currently viewing
-      // the thread being deleted.
-      qc.removeQueries({ queryKey: conversationKeys.detail(id) });
-      qc.removeQueries({ queryKey: conversationKeys.messages(id) });
+    mutationFn: (uuid: string) =>
+      api.post<ConversationRead>(`/conversations/${uuid}/name`),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: conversationKeys.all });
     },
   });

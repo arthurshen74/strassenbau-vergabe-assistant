@@ -1,5 +1,5 @@
 ---
-model_name: anthropic/claude-sonnet-4.6
+model_name: anthropic/openai/gpt-5.4-nano
 temperature: 0.0
 top_p: null
 ---

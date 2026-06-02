@@ -18,6 +18,7 @@ projects = Table(
     Column("project_name", Text, nullable=False),
     Column("project_description", Text, nullable=False),
     Column("vergabestelle", Text, nullable=False),
+    Column("location", Text, nullable=True),
     Column(
         "created_at",
         DateTime(timezone=True),

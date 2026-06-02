@@ -27,5 +27,5 @@ export function HomeRedirect() {
     );
   }
   // Sidebar list is already sorted by updated_at descending (server-side).
-  return <Navigate to={`/c/${items[0].id}`} replace />;
+  return <Navigate to={`/c/${items[0].conversation_uuid}`} replace />;
 }

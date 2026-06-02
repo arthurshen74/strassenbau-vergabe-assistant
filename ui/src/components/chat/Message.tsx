@@ -1,39 +1,31 @@
-// Discriminated-union dispatch on message kind. The `never`-assignment
-// in the default branch is the compile-time exhaustiveness check: when
-// a new message kind lands in generated.ts and we forget to handle it,
-// the build fails here.
+// Discriminated-union dispatch on message kind. The `never`-assignment in
+// the default branch is the compile-time exhaustiveness check: when a new
+// kind lands and we forget to handle it, the build fails here.
+//
+// Tool messages (function_call / function_call_output) are protocol-only and
+// never rendered inline — successful tool output surfaces in the main window.
 
-import type {
-  FunctionCallOutputMessageDTO,
-  MessageDTO,
-} from '../../types/generated';
+import type { DisplayMessage } from './types';
 import { UserMessage } from './messages/UserMessage';
 import { AssistantMessage } from './messages/AssistantMessage';
 import { UINoticeMessage } from './messages/UINoticeMessage';
-import { FunctionCallOutputMessage } from './messages/FunctionCallOutputMessage';
 
 interface MessageProps {
-  m: MessageDTO;
-  /** Optional flag indicating this message is currently being streamed. */
+  m: DisplayMessage;
   streaming?: boolean;
-  renderToolResult?: (msg: FunctionCallOutputMessageDTO) => React.ReactNode;
 }
 
-export function Message({ m, streaming, renderToolResult }: MessageProps) {
+export function Message({ m, streaming }: MessageProps) {
   switch (m.kind) {
-    case 'user_message':
-      return <UserMessage m={m} />;
-    case 'assistant_message':
-      return <AssistantMessage m={m} streaming={streaming} />;
+    case 'user':
+      return <UserMessage content={m.content ?? ''} />;
+    case 'assistant':
+      return <AssistantMessage content={m.content ?? ''} streaming={streaming} />;
     case 'ui_notice':
-      return <UINoticeMessage m={m} />;
+      return <UINoticeMessage content={m.content} />;
     case 'function_call':
-      // Protocol-only; not rendered. See FRONTEND.md §4.
-      return null;
     case 'function_call_output':
-      return (
-        <FunctionCallOutputMessage m={m} renderToolResult={renderToolResult} />
-      );
+      return null;
     default: {
       const _exhaustive: never = m;
       void _exhaustive;

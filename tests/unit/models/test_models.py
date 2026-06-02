@@ -30,6 +30,7 @@ def test_enum_values() -> None:
         "classify_project_chat_user_message",
         "multi_question_generator",
         "lv_extraction",
+        "conversation_name",
     }
 
 

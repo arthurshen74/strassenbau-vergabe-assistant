@@ -14,6 +14,7 @@ class Project(BaseModel):
     project_name: str
     project_description: str
     vergabestelle: str
+    location: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -27,3 +28,4 @@ class NewProject(BaseModel):
     project_name: str
     project_description: str
     vergabestelle: str
+    location: str | None = None

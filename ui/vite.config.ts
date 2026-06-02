@@ -11,7 +11,14 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': apiTarget,
+      // The frontend calls `/api/*`, but the backend serves routes at the
+      // root (`/conversations`, `/prompts`). Strip the `/api` prefix so the
+      // proxied request matches a real backend path.
+      '/api': {
+        target: apiTarget,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
     },
   },
 });

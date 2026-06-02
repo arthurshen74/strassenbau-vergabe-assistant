@@ -25,6 +25,14 @@ def get_writable_prompt_service(
     return PromptService(uow.prompt_versions)
 
 
+@router.get("", response_model=list[PromptVersionRead])
+async def list_latest(
+    service: PromptService = Depends(get_prompt_service),
+) -> list[PromptVersionRead]:
+    """Latest version of each configured prompt type (the ViewPrompts command)."""
+    return await service.list_latest()
+
+
 @router.get("/{prompt_type}", response_model=list[PromptVersionRead])
 async def list_versions(
     prompt_type: PromptType,
