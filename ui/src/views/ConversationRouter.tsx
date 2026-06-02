@@ -4,7 +4,7 @@
 // both render WorkspaceView. Lives at the views layer because the dispatch
 // depends on async server state, not just the URL.
 
-import { useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { useConversation } from '../api/conversations';
 import { WorkspaceView } from './workspace/WorkspaceView';
 import { LoadingState } from '../components/feedback/LoadingState';
@@ -29,7 +29,10 @@ export function ConversationRouter() {
     // List loaded but this id isn't in it yet (e.g. a fresh create still
     // settling) — keep showing a spinner while a refetch is in flight.
     if (isFetching) return <LoadingState />;
-    return <EmptyState title="Conversation not found" />;
+    // The id is gone for good (deleted, or wiped from the DB). Rather than
+    // strand the user on a dead URL, start a fresh thread. `replace` drops the
+    // invalid id from history so back/refresh don't bounce back to it.
+    return <Navigate to="/c/new" replace />;
   }
 
   switch (data.prompt_type) {
