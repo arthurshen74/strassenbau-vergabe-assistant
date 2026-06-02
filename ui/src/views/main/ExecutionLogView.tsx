@@ -1,6 +1,7 @@
 // Prompt execution log: filterable, paged table + a detail modal per row.
 
 import { useState } from 'react';
+import { ArrowPathIcon } from '@heroicons/react/16/solid';
 import {
   usePromptExecutionLog,
   usePromptExecutionLogs,
@@ -67,7 +68,18 @@ export function ExecutionLogView() {
 
   return (
     <div className="flex flex-col gap-3">
-      <Heading level={4}>Prompt Execution Log</Heading>
+      <div className="flex items-center justify-between">
+        <Heading level={4}>Prompt Execution Log</Heading>
+        <Button
+          plain
+          disabled={query.isFetching}
+          onClick={() => query.refetch()}
+          aria-label="Refresh logs"
+        >
+          <ArrowPathIcon className={query.isFetching ? 'animate-spin' : undefined} />
+          Refresh
+        </Button>
+      </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs text-zinc-500">

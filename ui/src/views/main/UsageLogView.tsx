@@ -1,6 +1,7 @@
 // OpenRouter usage log: filterable, paged table.
 
 import { useState } from 'react';
+import { ArrowPathIcon } from '@heroicons/react/16/solid';
 import { useUsageLogs, type UsageFilters } from '../../api/logs';
 import { Heading } from '../../components/ui/heading';
 import { Text } from '../../components/ui/text';
@@ -58,7 +59,18 @@ export function UsageLogView() {
 
   return (
     <div className="flex flex-col gap-3">
-      <Heading level={4}>Prompt Usage Log</Heading>
+      <div className="flex items-center justify-between">
+        <Heading level={4}>Prompt Usage Log</Heading>
+        <Button
+          plain
+          disabled={query.isFetching}
+          onClick={() => query.refetch()}
+          aria-label="Refresh usage"
+        >
+          <ArrowPathIcon className={query.isFetching ? 'animate-spin' : undefined} />
+          Refresh
+        </Button>
+      </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs text-zinc-500">
