@@ -1,9 +1,8 @@
 """Render PDF pages to per-page thumbnail images.
 
 Every ingested PDF gets one thumbnail per page (INGESTION.md). pdf2image rasterises each page
-(poppler under the hood); we downscale to a fixed width keeping aspect ratio, encode as JPEG,
-and report the stored dimensions. Rendering is CPU/IO bound and synchronous, so the service
-offloads it to a thread."""
+(poppler under the hood) at a fixed DPI, encode as JPEG, and report the stored dimensions.
+Rendering is CPU/IO bound and synchronous, so the service offloads it to a thread."""
 
 from __future__ import annotations
 
@@ -12,8 +11,8 @@ from dataclasses import dataclass
 
 from pdf2image import convert_from_bytes
 
-# Target width in pixels; height scales to preserve the page aspect ratio.
-THUMBNAIL_WIDTH = 400
+# Rasterisation resolution; poppler renders each page at this DPI preserving aspect ratio.
+THUMBNAIL_DPI = 200
 THUMBNAIL_FORMAT = "JPEG"
 THUMBNAIL_CONTENT_TYPE = "image/jpeg"
 JPEG_QUALITY = 80
@@ -33,7 +32,7 @@ class RenderedPage:
 
 def render_thumbnails(pdf_bytes: bytes) -> list[RenderedPage]:
     """Render every page of a PDF to a downscaled JPEG thumbnail, page numbers 1-based."""
-    images = convert_from_bytes(pdf_bytes, size=(THUMBNAIL_WIDTH, None))
+    images = convert_from_bytes(pdf_bytes, dpi=THUMBNAIL_DPI)
     pages: list[RenderedPage] = []
     for page_number, image in enumerate(images, start=1):
         rgb = image.convert(RGB_MODE)  # JPEG has no alpha channel
