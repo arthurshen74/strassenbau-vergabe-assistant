@@ -27,7 +27,7 @@ def test_enum_values() -> None:
     assert {p.value for p in PromptType} == {
         "dispatcher",
         "project_chat",
-        "classify_project_chat_user_message",
+        "aggregate_lv_membership",
         "multi_question_generator",
         "lv_extraction",
         "conversation_name",

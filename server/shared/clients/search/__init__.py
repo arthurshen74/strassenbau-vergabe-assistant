@@ -3,6 +3,7 @@ from __future__ import annotations
 from shared.clients.search.client import (
     ScoredChunk,
     SearchClient,
+    lv_items_filter,
     plus_filter,
     simple_filter,
 )
@@ -10,6 +11,7 @@ from shared.clients.search.client import (
 __all__ = [
     "ScoredChunk",
     "SearchClient",
+    "lv_items_filter",
     "plus_filter",
     "simple_filter",
 ]

@@ -22,7 +22,7 @@ type BadgeColor = 'zinc' | 'blue' | 'purple' | 'amber' | 'green' | 'sky' | 'rose
 const TYPE_COLOR: Record<PromptVersionRead['prompt_type'], BadgeColor> = {
   dispatcher: 'purple',
   project_chat: 'blue',
-  classify_project_chat_user_message: 'amber',
+  aggregate_lv_membership: 'amber',
   multi_question_generator: 'green',
   lv_extraction: 'sky',
   conversation_name: 'rose',

@@ -1,11 +1,11 @@
 """Captures LangChain chat-model telemetry into the same events the LLMClient emits.
 
-LangChain's `ChatOpenAI` (used by the LANGCHAIN retrieval agent) bypasses `LLMClient`, so its usage
-and execution records would otherwise be invisible. `TelemetryCallbackHandler` is a synchronous
+LangChain's `ChatOpenAI` (used by the project-chat agent) bypasses `LLMClient`, so its usage and
+execution records would otherwise be invisible. `TelemetryCallbackHandler` is a synchronous
 `BaseCallbackHandler` that buffers a `UsageEvent` and an `ExecutionLogEvent` per model call. It does
-NOT touch the database: the agent runs inside `asyncio.to_thread`, and the DB sinks' engine is bound
-to the main event loop, so the caller drains `usage_events` / `execution_log_events` and emits them
-on the main loop after the agent run (see `LangchainRetriever.drain_telemetry`).
+NOT touch the database: the caller drains `usage_events` / `execution_log_events` and emits them to
+the DB sinks after the agent run (see `ProjectChatAgent.drain_telemetry`), keeping the writes on the
+main event loop the sinks' engine is bound to.
 
 `ChatOpenAI` places OpenRouter's raw `usage` object verbatim at `LLMResult.llm_output["token_usage"]`
 (with `cost` when usage accounting is enabled via `extra_body`), so the same `parse_usage` the

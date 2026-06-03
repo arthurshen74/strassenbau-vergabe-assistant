@@ -1,7 +1,6 @@
 // The verbose retrieval trace, rendered ABOVE the assistant answer behind a collapsed
 // chevron Disclosure (retrieval_debug-style: queries, fused pool, rerank). The retrieved
-// sources themselves render below the answer (see CitationsPanel). LANGCHAIN turns carry
-// no trace, so this renders nothing for them.
+// sources themselves render below the answer (see CitationsPanel).
 
 import clsx from 'clsx';
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react';
@@ -89,7 +88,7 @@ function TraceDetails({
 }
 
 export function RetrievalTraceMessage({ data }: { data: Record<string, unknown> | null }) {
-  // No trace without a fused pool (e.g. the LANGCHAIN agent emits sources only).
+  // No trace to show if the result carries no query set.
   const queries = asArray<QueryTrace>(data?.queries);
   if (!queries) return null;
   const ctx = data as unknown as RetrievalContext;

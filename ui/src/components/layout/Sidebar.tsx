@@ -1,10 +1,7 @@
 // App-level sidebar:
-//   - Commands: open a component into the dispatcher's main window
-//   - Conversations: dispatcher threads
-//   - Project Conversations: project-chat threads
-//
-// The single GET /conversations list is split by prompt_type here — purely a
-// presentation choice for this surface.
+//   - a single-shot dispatcher command bar
+//   - Commands: open a component into the global main window
+//   - Project Conversations: project-chat threads (the only persistent conversations)
 
 import {
   ChartBarIcon,
@@ -13,13 +10,12 @@ import {
   FolderIcon,
 } from '@heroicons/react/20/solid';
 import {
-  PROMPT_TYPE_DISPATCHER,
   PROMPT_TYPE_PROJECT_CHAT,
   useConversationList,
 } from '../../api/conversations';
 import { useMainWindowStore, type MainWindowKind } from '../../store/mainWindow';
 import { ConversationList } from './ConversationList';
-import { NewThreadButton } from './NewThreadButton';
+import { DispatchBar } from './DispatchBar';
 
 type CommandIcon = typeof DocumentTextIcon;
 
@@ -46,9 +42,6 @@ export function Sidebar() {
   const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
 
   const all = data ?? [];
-  const dispatcherConvos = all.filter(
-    (c) => c.prompt_type === PROMPT_TYPE_DISPATCHER,
-  );
   const projectConvos = all.filter(
     (c) => c.prompt_type === PROMPT_TYPE_PROJECT_CHAT,
   );
@@ -59,7 +52,7 @@ export function Sidebar() {
         <div className="mb-3 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
           Roadbuilders Assistant
         </div>
-        <NewThreadButton />
+        <DispatchBar />
       </div>
 
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-3">
@@ -79,7 +72,7 @@ export function Sidebar() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <div className={SECTION_LABEL}>Conversations</div>
+          <div className={SECTION_LABEL}>Project Conversations</div>
           {isLoading && (
             <div className="px-1 text-xs text-zinc-500">Loading…</div>
           )}
@@ -88,16 +81,6 @@ export function Sidebar() {
               Failed to load conversations.
             </div>
           )}
-          {!isLoading && !isError && (
-            <ConversationList
-              items={dispatcherConvos}
-              emptyHint="No conversations yet."
-            />
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <div className={SECTION_LABEL}>Project Conversations</div>
           {!isLoading && !isError && (
             <ConversationList
               items={projectConvos}

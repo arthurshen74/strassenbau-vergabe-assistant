@@ -9,15 +9,15 @@ from shared.models.enums import PromptType
 from shared.models.llm_output_schemas import (
     PROMPT_OUTPUT_MODELS,
     LVExtraction,
+    LVMembership,
     MultiQueryRewrite,
-    ProjectChatRoute,
     output_model_for,
 )
 
 
 def test_mapped_prompt_type_returns_its_model() -> None:
     assert output_model_for(PromptType.MULTI_QUESTION_GENERATOR) is MultiQueryRewrite
-    assert output_model_for(PromptType.CLASSIFY_PROJECT_CHAT_USER_MESSAGE) is ProjectChatRoute
+    assert output_model_for(PromptType.AGGREGATE_LV_MEMBERSHIP) is LVMembership
     assert output_model_for(PromptType.LV_EXTRACTION) is LVExtraction
 
 

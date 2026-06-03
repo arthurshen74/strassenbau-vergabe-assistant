@@ -20,8 +20,8 @@ from shared.models.chat_message import ChatMessage
 from shared.models.enums import PromptType
 from shared.models.llm_output_schemas import (
     LVExtraction,
+    LVMembership,
     MultiQueryRewrite,
-    ProjectChatRoute,
     output_model_for,
 )
 from shared.repositories.prompt_versions import PromptVersionRepository
@@ -73,21 +73,23 @@ class PromptRunner:
         assert isinstance(result, MultiQueryRewrite)
         return result.queries[:count]
 
-    async def classify_project_chat(
+    async def run_lv_membership(
         self,
-        messages: Sequence[ChatMessage],
+        predicate: str,
+        listing: str,
         *,
         version: int | None = None,
         project_uuid: UUID | None = None,
-    ) -> ProjectChatRoute:
-        """Route one project-chat user message to an action (LV lookup / list / RAG / refuse)."""
+    ) -> LVMembership:
+        """Decide which LV positions in `listing` match an aggregation `predicate` (membership
+        only; the caller sums the matched items deterministically)."""
         result = await self._run(
-            PromptType.CLASSIFY_PROJECT_CHAT_USER_MESSAGE,
-            messages=messages,
+            PromptType.AGGREGATE_LV_MEMBERSHIP,
+            variables={"predicate": predicate, "listing": listing},
             version=version,
             project_uuid=project_uuid,
         )
-        assert isinstance(result, ProjectChatRoute)
+        assert isinstance(result, LVMembership)
         return result
 
     async def run_lv_extraction(

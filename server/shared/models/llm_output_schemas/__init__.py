@@ -11,11 +11,11 @@ from shared.models.llm_output_schemas.lv_extraction import (
     LVExtraction,
     LVPosition,
 )
-from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
-from shared.models.llm_output_schemas.project_chat_route import (
-    ProjectChatAction,
-    ProjectChatRoute,
+from shared.models.llm_output_schemas.lv_membership import (
+    LVMembership,
+    LVMembershipItem,
 )
+from shared.models.llm_output_schemas.multi_query import MultiQueryRewrite
 from shared.models.llm_output_schemas.registry import (
     PROMPT_OUTPUT_MODELS,
     output_model_for,
@@ -24,9 +24,9 @@ from shared.models.llm_output_schemas.registry import (
 __all__ = [
     "PROMPT_OUTPUT_MODELS",
     "LVExtraction",
+    "LVMembership",
+    "LVMembershipItem",
     "LVPosition",
     "MultiQueryRewrite",
-    "ProjectChatAction",
-    "ProjectChatRoute",
     "output_model_for",
 ]

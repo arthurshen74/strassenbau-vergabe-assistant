@@ -1,23 +1,21 @@
-"""End-to-end dispatcher loop against real Postgres with a scripted LLM.
+"""End-to-end single-shot dispatcher loop against real Postgres with a scripted LLM.
 
-The fake LLM scripts two turns: first a tool call (view_projects), then a text answer. We assert
-the SSE event sequence and that every turn shape is persisted, then clean up (the conversation
-and the seeded prompt commit through the dispatcher's own short transactions)."""
+The fake LLM scripts two turns: first a tool call (view_projects), then a text answer. The dispatcher
+is stateless -- it persists nothing and has no conversation -- so we assert only the SSE event
+sequence and the tool result, then clean up the seeded prompt (committed through the dispatcher's own
+short transaction)."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from uuid import uuid4
 
 from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.llm.events import Done, StreamEvent, TextDelta, ToolCall, ToolCallsReady
-from shared.db.tables.conversations import conversations
 from shared.db.tables.prompt_versions import prompt_versions
-from shared.models.conversation import Conversation
-from shared.models.enums import MessageKind, PromptType
-from shared.repositories.messages import MessageRepository
+from shared.models.enums import PromptType
+from shared.models.sse_schema import DATA_RESULT, DATA_SUCCESS, DATA_TOOL_NAME
 from shared.services.dispatcher import (
     DATA,
     EVENT,
@@ -49,7 +47,6 @@ class _FakeLLM:
 
 
 async def test_dispatcher_tool_then_text(engine: AsyncEngine) -> None:
-    user = uuid4()
     async with engine.begin() as conn:
         await conn.execute(
             insert(prompt_versions).values(
@@ -60,18 +57,10 @@ async def test_dispatcher_tool_then_text(engine: AsyncEngine) -> None:
                 temperature=0.0,
             )
         )
-        row = (
-            await conn.execute(
-                insert(conversations)
-                .values(user_uuid=user, prompt_type=PromptType.DISPATCHER.value)
-                .returning(conversations)
-            )
-        ).mappings().one()
-    conversation = Conversation.model_validate(dict(row))
 
     dispatcher = Dispatcher(_FakeLLM(), engine)  # type: ignore[arg-type]
     try:
-        events = [ev async for ev in dispatcher.run_turn(conversation, "list my projects")]
+        events = [ev async for ev in dispatcher.dispatch("list my projects")]
 
         names = [e[EVENT] for e in events]
         assert EVENT_FUNCTION_CALL in names
@@ -82,26 +71,12 @@ async def test_dispatcher_tool_then_text(engine: AsyncEngine) -> None:
         )
         assert text == "Here are the projects."
 
-        async with engine.connect() as conn:
-            msgs = await MessageRepository(conn).list_for_conversation(
-                conversation.conversation_uuid
-            )
-        kinds = [m.kind for m in msgs]
-        assert MessageKind.USER in kinds
-        assert MessageKind.FUNCTION_CALL in kinds
-        assert MessageKind.FUNCTION_CALL_OUTPUT in kinds
-        assert MessageKind.ASSISTANT in kinds
-
-        output = next(m for m in msgs if m.kind == MessageKind.FUNCTION_CALL_OUTPUT)
-        assert output.success is True
-        assert output.data == {"projects": []}
+        output = next(e for e in events if e[EVENT] == EVENT_FUNCTION_CALL_OUTPUT)
+        assert output[DATA][DATA_TOOL_NAME] == "view_projects"
+        assert output[DATA][DATA_SUCCESS] is True
+        assert output[DATA][DATA_RESULT]["projects"] == []
     finally:
         async with engine.begin() as conn:
-            await conn.execute(
-                delete(conversations).where(
-                    conversations.c.conversation_uuid == conversation.conversation_uuid
-                )
-            )
             await conn.execute(
                 delete(prompt_versions).where(
                     prompt_versions.c.prompt_type == PromptType.DISPATCHER.value,

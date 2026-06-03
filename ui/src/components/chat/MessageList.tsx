@@ -9,8 +9,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ContextChunk } from '../../types/generated';
 import type { DisplayMessage } from './types';
 import { Message } from './Message';
-import { TOOL_GET_CONTEXT } from './messages/ToolResultMessage';
-import type { CitationData, LangchainSource } from './messages/CitationsPanel';
+import {
+  TOOL_GET_LV_CONTEXT,
+  TOOL_GET_PROJECT_CONTEXT,
+} from './messages/ToolResultMessage';
+import type { CitationData } from './messages/CitationsPanel';
+
+// The two retrieval tools whose results feed the answer's citations panel.
+const CONTEXT_TOOLS: string[] = [TOOL_GET_PROJECT_CONTEXT, TOOL_GET_LV_CONTEXT];
 import { ThinkingIndicator } from '../feedback/ThinkingIndicator';
 
 function asArray<T>(value: unknown): T[] | null {
@@ -66,22 +72,22 @@ export function MessageList({
 
   const visible = messages.filter((m) => m.kind !== 'function_call');
 
-  // A turn's get_context tool result(s) feed the next assistant answer's citations panel,
-  // merged so the answer's [n] citations resolve across multiple retrieve calls (LANGCHAIN).
+  // A turn's context tool result(s) feed the next assistant answer's citations panel, merged so the
+  // answer's [n] citations resolve across multiple retrieve calls (project + LV context).
   const citationByAssistant = useMemo(() => {
     const map = new Map<string, CitationData>();
     let context: ContextChunk[] = [];
-    let sources: LangchainSource[] = [];
     for (const m of visible) {
-      if (m.kind === 'function_call_output' && m.tool_name === TOOL_GET_CONTEXT) {
+      if (
+        m.kind === 'function_call_output' &&
+        m.tool_name != null &&
+        CONTEXT_TOOLS.includes(m.tool_name)
+      ) {
         const c = asArray<ContextChunk>(m.data?.context);
-        const s = asArray<LangchainSource>(m.data?.sources);
         if (c) context = context.concat(c);
-        if (s) sources = sources.concat(s);
-      } else if (m.kind === 'assistant' && (context.length || sources.length)) {
-        map.set(m.message_uuid, { context, sources });
+      } else if (m.kind === 'assistant' && context.length) {
+        map.set(m.message_uuid, { context });
         context = [];
-        sources = [];
       }
     }
     return map;

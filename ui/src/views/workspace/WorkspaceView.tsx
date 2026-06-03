@@ -1,7 +1,6 @@
-// The dispatcher chat view. The conversation fills the area above the chat
-// input; when a tool result or sidebar command opens the main window, it
-// replaces the message list (the input stays pinned so the conversation
-// continues). Closing the window returns the conversation to full height.
+// The project-chat view: the conversation fills the area above the chat input. Sidebar commands
+// open the global main window at the shell level (it overlays this view), so this component only
+// renders the thread.
 //
 // The display list is server messages + local stream messages, deduped by
 // message_uuid (server wins) so placeholders fall away once the server
@@ -9,18 +8,12 @@
 
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-  PROMPT_TYPE_PROJECT_CHAT,
-  useConversation,
-  useConversationMessages,
-} from '../../api/conversations';
+import { useConversation, useConversationMessages } from '../../api/conversations';
 import { useProject } from '../../api/projects';
 import { useWorkspaceConversation } from './hooks/useWorkspaceConversation';
 import { MessageList } from '../../components/chat/MessageList';
 import { ChatInput } from '../../components/chat/ChatInput';
 import { RetrievalConfigBar } from '../../components/chat/RetrievalConfigBar';
-import { MainWindow } from '../../components/mainwindow/MainWindow';
-import { useMainWindowStore } from '../../store/mainWindow';
 import { useRetrievalConfig } from '../../store/retrievalConfig';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
@@ -36,18 +29,12 @@ export function WorkspaceView() {
 
 function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
   const conversation = useConversation(conversationId);
-  const isProjectChat =
-    conversation.data?.prompt_type === PROMPT_TYPE_PROJECT_CHAT;
   const projectUuid = conversation.data?.project_uuid ?? undefined;
-  const project = useProject(isProjectChat ? projectUuid : undefined);
+  const project = useProject(projectUuid);
   const retrievalConfig = useRetrievalConfig(conversationId);
   const messagesQuery = useConversationMessages(conversationId);
   const { streamMessages, streamingMessageId, isStreaming, sendMessage } =
-    useWorkspaceConversation(
-      conversationId,
-      isProjectChat ? retrievalConfig : undefined,
-    );
-  const mainView = useMainWindowStore((s) => s.view);
+    useWorkspaceConversation(conversationId, retrievalConfig);
 
   const merged: DisplayMessage[] = useMemo(() => {
     const byId = new Map<string, DisplayMessage>();
@@ -62,7 +49,7 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
   }, [messagesQuery.data, streamMessages]);
 
   // Show the ThinkingIndicator after the last user message while the
-  // dispatcher is processing but hasn't emitted visible output yet.
+  // agent is processing but hasn't emitted visible output yet.
   const lastVisibleKind = [...merged]
     .reverse()
     .find(
@@ -84,39 +71,27 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     );
   }
 
-  const title = isProjectChat
-    ? (project.data?.project_name ?? conversation.data?.title ?? 'Project chat')
-    : (conversation.data?.title ?? 'Dispatcher');
-  const placeholder = isProjectChat ? 'Ask about this project…' : 'Ask the dispatcher…';
+  const title =
+    project.data?.project_name ?? conversation.data?.title ?? 'Project chat';
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col">
-        {mainView ? (
-          <MainWindow view={mainView} />
-        ) : (
-          <>
-            <header className="flex h-12 shrink-0 items-center border-b border-zinc-950/5 px-4 dark:border-white/5">
-              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                {title}
-              </div>
-            </header>
-            <MessageList
-              messages={merged}
-              streamingMessageId={streamingMessageId}
-              isThinking={isThinking}
-              projectUuid={projectUuid}
-            />
-          </>
-        )}
-      </div>
+      <header className="flex h-12 shrink-0 items-center border-b border-zinc-950/5 px-4 dark:border-white/5">
+        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</div>
+      </header>
+      <MessageList
+        messages={merged}
+        streamingMessageId={streamingMessageId}
+        isThinking={isThinking}
+        projectUuid={projectUuid}
+      />
 
-      {isProjectChat && <RetrievalConfigBar conversationId={conversationId} />}
+      <RetrievalConfigBar conversationId={conversationId} />
 
       <ChatInput
         onSend={sendMessage}
         disabled={isStreaming}
-        placeholder={placeholder}
+        placeholder="Ask about this project…"
         draftKey={`ws:${conversationId}`}
         hint={isStreaming ? 'Thinking…' : undefined}
       />

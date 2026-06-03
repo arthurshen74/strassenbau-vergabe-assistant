@@ -3,9 +3,9 @@
 // opens it and scrolls to the matching source. Each source shows the page thumbnail it
 // came from (click to enlarge) and expands to the full chunk text.
 //
-// Two source shapes, both numbered to match the answer's [n] citations: SIMPLE/PLUS ships
-// ContextChunk[] (with thumbnails); the LANGCHAIN agent ships LangchainSource[] (no
-// thumbnails). MessageList merges a turn's retrieval results into the CitationData passed in.
+// Sources are ContextChunk[], numbered to match the answer's [n] citations. MessageList merges
+// a turn's retrieval results (across get_project_context / get_lv_context calls) into the
+// CitationData passed in.
 
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -13,16 +13,8 @@ import { ChevronRightIcon } from '@heroicons/react/16/solid';
 import { apiBase } from '../../../api/client';
 import type { ContextChunk, ThumbnailRef } from '../../../types/generated';
 
-export interface LangchainSource {
-  number: number;
-  source_doc_uuid: string | null;
-  source_doc_type: string | null;
-  text: string;
-}
-
 export interface CitationData {
   context: ContextChunk[];
-  sources: LangchainSource[];
 }
 
 function thumbnailUrl(projectUuid: string, thumbnail: ThumbnailRef): string {
@@ -105,27 +97,6 @@ function ContextSourceRow({
   );
 }
 
-function LangchainSourceRow({ source }: { source: LangchainSource }) {
-  return (
-    <div
-      data-source-number={source.number}
-      className="flex gap-3 rounded-md border border-zinc-200 p-2 dark:border-zinc-700"
-    >
-      <SourceNumber n={source.number} />
-      <div className="min-w-0 flex-1">
-        {source.source_doc_type && (
-          <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-            {source.source_doc_type}
-          </div>
-        )}
-        <div className="mt-0.5 text-xs text-zinc-700 line-clamp-3 dark:text-zinc-300">
-          {source.text}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function CitationsPanel({
   data,
   projectUuid,
@@ -138,7 +109,7 @@ export function CitationsPanel({
   onToggle: (open: boolean) => void;
 }) {
   const [zoom, setZoom] = useState<string | null>(null);
-  const count = data.context.length || data.sources.length;
+  const count = data.context.length;
   if (count === 0) return null;
 
   return (
@@ -155,16 +126,14 @@ export function CitationsPanel({
       </button>
       {open && (
         <div className="mt-2 space-y-2">
-          {data.context.length
-            ? data.context.map((c) => (
-                <ContextSourceRow
-                  key={c.source_number}
-                  chunk={c}
-                  projectUuid={projectUuid}
-                  onZoom={setZoom}
-                />
-              ))
-            : data.sources.map((s) => <LangchainSourceRow key={s.number} source={s} />)}
+          {data.context.map((c) => (
+            <ContextSourceRow
+              key={c.source_number}
+              chunk={c}
+              projectUuid={projectUuid}
+              onZoom={setZoom}
+            />
+          ))}
         </div>
       )}
       {zoom && (

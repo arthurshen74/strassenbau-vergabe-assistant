@@ -1,9 +1,9 @@
 // Query/mutation hooks for conversations, wired to the real backend.
 //
 // The backend exposes a flat list of the user's conversations (no per-type
-// filter, no GET-by-uuid, no rename/delete). The dispatcher vs. project-chat
-// split is derived client-side from `prompt_type`. A conversation's title is
-// generated server-side from its first message (see useNameConversation).
+// filter, no GET-by-uuid, no rename/delete). Conversations are project chats;
+// a conversation's title is generated server-side from its first message (see
+// useNameConversation).
 
 import {
   useMutation,
@@ -18,7 +18,6 @@ import type {
   MessageRead,
 } from '../types/generated';
 
-export const PROMPT_TYPE_DISPATCHER = 'dispatcher';
 export const PROMPT_TYPE_PROJECT_CHAT = 'project_chat';
 
 export const conversationKeys = {
@@ -54,13 +53,12 @@ export function useConversationMessages(uuid: string | undefined) {
   });
 }
 
-// Create a conversation, defaulting to a dispatcher thread. Pass prompt_type +
-// project_uuid to start a project chat scoped to a project.
+// Create a conversation. Conversations are project chats; pass project_uuid to scope it.
 export function createConversation(
   body: Partial<ConversationCreate> = {},
 ): Promise<ConversationRead> {
   return api.post<ConversationRead>('/conversations', {
-    prompt_type: PROMPT_TYPE_DISPATCHER,
+    prompt_type: PROMPT_TYPE_PROJECT_CHAT,
     ...body,
   });
 }

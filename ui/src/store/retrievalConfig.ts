@@ -19,8 +19,7 @@ export const DEFAULT_RETRIEVAL_CONFIG: RetrievalConfig = {
   use_cross_encoder: true,
 };
 
-// LANGCHAIN is an agentic path that ignores the stage toggles; the UI disables them.
-export const MODALITY_OPTIONS: RetrievalModality[] = ['SIMPLE', 'PLUS', 'LANGCHAIN'];
+export const MODALITY_OPTIONS: RetrievalModality[] = ['SIMPLE', 'PLUS'];
 
 type RetrievalConfigState = {
   byConversation: Record<string, RetrievalConfig>;

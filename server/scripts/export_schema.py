@@ -38,6 +38,12 @@ from shared.models.sse_schema import (
     SSETextDelta,
     SSEUiNotice,
 )
+from shared.services.aggregate_lv_models import (
+    AggregateCoverage,
+    AggregateLineItem,
+    AggregateResult,
+    UnitSubtotal,
+)
 from shared.services.retrieval.config import RetrievalConfig
 from shared.services.retrieval.models import (
     ContextChunk,
@@ -94,6 +100,11 @@ BODY_MODELS: list[type[BaseModel]] = [
     RerankTrace,
     RetrievalConfig,
     RetrievalContext,
+    # aggregate_lv_items result: per-unit subtotals + itemized breakdown the chat renders.
+    UnitSubtotal,
+    AggregateLineItem,
+    AggregateCoverage,
+    AggregateResult,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

@@ -74,8 +74,9 @@ def tool_reply_message(call_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def to_user_assistant_messages(stored: Sequence[Message]) -> list[ChatMessage]:
-    """The user/assistant turns only, for the project-chat classifier: it routes on the
-    conversation, and the tool rows (LV results, retrieval traces) would only add noise."""
+    """The user/assistant turns only, replayed into the project-chat agent as prior history:
+    the tool rows (LV results, retrieval traces) are re-derived each turn, so they would only
+    add noise and stale context."""
     out: list[ChatMessage] = []
     for m in stored:
         if m.kind == MessageKind.USER:

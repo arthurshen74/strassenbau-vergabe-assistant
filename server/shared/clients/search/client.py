@@ -141,6 +141,19 @@ def plus_filter(project_uuid: UUID, lv_document_uuid: UUID) -> dict[str, Any]:
     }
 
 
+def lv_items_filter(project_uuid: UUID) -> dict[str, Any]:
+    """LV scope: only the project's parsed LV_ITEM chunks (the structured positions), excluding
+    prose DOCUMENT chunks. Backs the agent's get_lv_context tool."""
+    return {
+        "bool": {
+            "filter": [
+                {"term": {FIELD_PROJECT_UUID: str(project_uuid)}},
+                {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.LV_ITEM.value}},
+            ]
+        }
+    }
+
+
 def _source_query(source_doc_uuid: UUID, source_doc_type: SourceDocType) -> dict[str, Any]:
     return {
         "bool": {

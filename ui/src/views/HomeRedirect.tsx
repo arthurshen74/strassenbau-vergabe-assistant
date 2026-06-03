@@ -1,17 +1,13 @@
-// Lands at "/". If the user has any prior conversation, jump to the most
-// recent. Otherwise show the empty state encouraging them to start a new
-// thread. Keeps the root URL meaningful without hard-coding /c/new.
+// Lands at "/". If the user has any prior conversation, jump to the most recent. Otherwise show an
+// empty state: conversations are project chats, started by opening a project from the sidebar.
 
 import { Navigate } from 'react-router-dom';
 import { useConversationList } from '../api/conversations';
 import { LoadingState } from '../components/feedback/LoadingState';
 import { EmptyState } from '../components/feedback/EmptyState';
-import { Button } from '../components/ui/button';
-import { useNavigate } from 'react-router-dom';
 
 export function HomeRedirect() {
   const { data, isLoading } = useConversationList();
-  const navigate = useNavigate();
 
   if (isLoading) return <LoadingState />;
   const items = data ?? [];
@@ -19,10 +15,7 @@ export function HomeRedirect() {
     return (
       <EmptyState
         title="No conversations yet"
-        description="Start a new thread to chat with the dispatcher."
-        action={
-          <Button onClick={() => navigate('/c/new')}>New thread</Button>
-        }
+        description='Open "View Project" in the sidebar, choose a project, and start a chat to ask about its documents.'
       />
     );
   }

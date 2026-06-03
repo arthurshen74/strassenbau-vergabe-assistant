@@ -31,7 +31,6 @@ import traceback
 from uuid import UUID
 
 from shared.clients.factory import (
-    TelemetrySinks,
     build_embeddings_client,
     build_llm_client,
     build_rerank_client,
@@ -40,15 +39,13 @@ from shared.clients.factory import (
 from shared.clients.search import SearchClient
 from shared.config import settings
 from shared.db.engine import make_engine
-from shared.models.enums import PromptType, RetrievalModality
-from shared.repositories.prompt_versions import PromptVersionRepository
+from shared.models.enums import RetrievalModality
 from shared.services.retrieval import (
     RetrievalConfig,
     RetrievalError,
     RetrievalResult,
     RetrievalService,
 )
-from shared.services.retrieval.langchain_agent import LangchainRetriever
 from shared.services.retrieval.models import HitTrace
 
 SECTION_WIDTH = 64
@@ -64,9 +61,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--modality",
-        choices=["simple", "plus", "langchain"],
+        choices=["simple", "plus"],
         default="simple",
-        help="retrieval scope (langchain runs the agentic RAG path)",
+        help="retrieval scope",
     )
     parser.add_argument(
         "--multi-query",
@@ -89,9 +86,6 @@ def _parse_args() -> argparse.Namespace:
 
 async def main() -> None:
     args = _parse_args()
-    if RetrievalModality(args.modality.upper()) is RetrievalModality.LANGCHAIN:
-        await _run_langchain(args)
-        return
     config = RetrievalConfig(
         modality=RetrievalModality(args.modality.upper()),
         multi_query=args.multi_query,
@@ -129,90 +123,6 @@ async def main() -> None:
         await llm.aclose()
         await search.close()
         await engine.dispose()
-
-
-async def _run_langchain(args: argparse.Namespace) -> None:
-    """LANGCHAIN modality: build the RAG agent from the latest project_chat prompt and stream it.
-
-    The Simple/Plus stage toggles do not apply here, so they are ignored with a note. The agent's
-    chat model and system prompt come from the seeded project_chat prompt version."""
-    if args.multi_query or args.bm25 or args.cross_encoder:
-        print(
-            "note: multi-query / bm25 / cross-encoder are ignored for the langchain modality",
-            file=sys.stderr,
-        )
-    engine = make_engine(settings.database_url, pool_size=2, application_name="retrieval-debug")
-    sinks = build_telemetry_sinks(engine)
-    try:
-        async with engine.connect() as conn:
-            prompt = await PromptVersionRepository(conn).get_latest(PromptType.PROJECT_CHAT)
-        if prompt is None:
-            print(
-                "no project_chat prompt seeded; run `python -m scripts.seed.prompts`",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
-        retriever = LangchainRetriever(
-            project_uuid=args.project,
-            chat_model=prompt.model_name,
-            temperature=prompt.temperature,
-            system_prompt=prompt.system_prompt,
-            prompt_type=PromptType.PROJECT_CHAT.value,
-        )
-        try:
-            if args.question is not None:
-                await asyncio.to_thread(_print_langchain_stream, retriever, args.question)
-                await _drain_langchain_telemetry(retriever, sinks)
-            else:
-                await _langchain_repl(retriever, args.project, sinks)
-        finally:
-            retriever.close()
-    finally:
-        await engine.dispose()
-
-
-async def _drain_langchain_telemetry(retriever: LangchainRetriever, sinks: TelemetrySinks) -> None:
-    """Persist the events the agent buffered on the worker thread, on the engine's own loop."""
-    usage_events, log_events = retriever.drain_telemetry()
-    for usage_event in usage_events:
-        try:
-            await sinks.usage.emit(usage_event)
-        except Exception:
-            traceback.print_exc()
-    for log_event in log_events:
-        try:
-            await sinks.execution_log.emit(log_event)
-        except Exception:
-            traceback.print_exc()
-
-
-def _print_langchain_stream(retriever: LangchainRetriever, question: str) -> None:
-    print(_banner("LANGCHAIN AGENT"))
-    for message in retriever.stream(question):
-        message.pretty_print()
-
-
-async def _langchain_repl(
-    retriever: LangchainRetriever, project: UUID, sinks: TelemetrySinks
-) -> None:
-    print(f"Interactive LANGCHAIN retrieval - project {project}")
-    print("Type a question and press Enter. Ctrl-D or 'quit' to exit.")
-    while True:
-        try:
-            question = (await asyncio.to_thread(input, "\nquestion> ")).strip()
-        except EOFError:
-            print()
-            return
-        if not question:
-            continue
-        if question.lower() in {"quit", "exit"}:
-            return
-        try:
-            await asyncio.to_thread(_print_langchain_stream, retriever, question)
-        except Exception:
-            traceback.print_exc()
-        finally:
-            await _drain_langchain_telemetry(retriever, sinks)
 
 
 async def _run_once(

@@ -85,7 +85,7 @@ export interface PromptVersionRead {
   prompt_type:
     | "dispatcher"
     | "project_chat"
-    | "classify_project_chat_user_message"
+    | "aggregate_lv_membership"
     | "multi_question_generator"
     | "lv_extraction"
     | "conversation_name";
@@ -101,7 +101,7 @@ export interface PromptVersionCreate {
   prompt_type:
     | "dispatcher"
     | "project_chat"
-    | "classify_project_chat_user_message"
+    | "aggregate_lv_membership"
     | "multi_question_generator"
     | "lv_extraction"
     | "conversation_name";
@@ -118,7 +118,7 @@ export interface ConversationRead {
   prompt_type:
     | "dispatcher"
     | "project_chat"
-    | "classify_project_chat_user_message"
+    | "aggregate_lv_membership"
     | "multi_question_generator"
     | "lv_extraction"
     | "conversation_name";
@@ -131,7 +131,7 @@ export interface ConversationCreate {
   prompt_type:
     | "dispatcher"
     | "project_chat"
-    | "classify_project_chat_user_message"
+    | "aggregate_lv_membership"
     | "multi_question_generator"
     | "lv_extraction"
     | "conversation_name";
@@ -232,7 +232,7 @@ export interface OpenRouterUsageRead {
 }
 
 export interface TurnRetrievalConfig {
-  modality?: "SIMPLE" | "PLUS" | "LANGCHAIN";
+  modality?: "SIMPLE" | "PLUS";
   multi_query?: boolean;
   use_bm25?: boolean;
   use_cross_encoder?: boolean;
@@ -277,7 +277,7 @@ export interface ContextChunk {
 }
 
 export interface ScopeTrace {
-  modality: "SIMPLE" | "PLUS" | "LANGCHAIN";
+  modality: "SIMPLE" | "PLUS";
   project_uuid: string;
   lv_document_uuid?: string | null;
   es_filter: {
@@ -320,7 +320,7 @@ export interface RerankTrace {
 }
 
 export interface RetrievalConfig {
-  modality?: "SIMPLE" | "PLUS" | "LANGCHAIN";
+  modality?: "SIMPLE" | "PLUS";
   multi_query?: boolean;
   use_bm25?: boolean;
   use_cross_encoder?: boolean;
@@ -339,6 +339,36 @@ export interface RetrievalContext {
   context: ContextChunk[];
   rrf_applied: boolean;
   rerank_applied: boolean;
+}
+
+export interface UnitSubtotal {
+  einheit: string;
+  total: number | string;
+  count: number;
+}
+
+export interface AggregateLineItem {
+  lv_item_uuid: string;
+  oz: string;
+  kurztext: string;
+  menge: number | string;
+  einheit: string;
+  positionstyp?: string | null;
+  rationale?: string | null;
+}
+
+export interface AggregateCoverage {
+  matched: number;
+  total: number;
+}
+
+export interface AggregateResult {
+  predicate: string;
+  unit?: string | null;
+  per_unit: UnitSubtotal[];
+  breakdown: AggregateLineItem[];
+  bedarfs_eventual: AggregateLineItem[];
+  coverage: AggregateCoverage;
 }
 
 // ---- Types pinned by scripts/export_schema.py ----

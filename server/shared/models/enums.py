@@ -23,7 +23,6 @@ class SourceDocType(StrEnum):
 class RetrievalModality(StrEnum):
     SIMPLE = "SIMPLE"
     PLUS = "PLUS"
-    LANGCHAIN = "LANGCHAIN"
 
 
 class IngestStatus(StrEnum):
@@ -36,7 +35,7 @@ class IngestStatus(StrEnum):
 class PromptType(StrEnum):
     DISPATCHER = "dispatcher"
     PROJECT_CHAT = "project_chat"
-    CLASSIFY_PROJECT_CHAT_USER_MESSAGE = "classify_project_chat_user_message"
+    AGGREGATE_LV_MEMBERSHIP = "aggregate_lv_membership"
     MULTI_QUESTION_GENERATOR = "multi_question_generator"
     LV_EXTRACTION = "lv_extraction"
     CONVERSATION_NAME = "conversation_name"

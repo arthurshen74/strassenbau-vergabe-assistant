@@ -56,12 +56,12 @@ async def test_get_latest_none_when_absent(conn: AsyncConnection) -> None:
 
 async def test_prompt_type_version_unique(conn: AsyncConnection) -> None:
     repo = PromptVersionRepository(conn)
-    await repo.add(_new(PromptType.CLASSIFY_PROJECT_CHAT_USER_MESSAGE))
+    await repo.add(_new(PromptType.AGGREGATE_LV_MEMBERSHIP))
     # A hand-rolled duplicate of (prompt_type, version) must violate the unique.
     with pytest.raises(IntegrityError):
         await conn.execute(
             insert(prompt_versions).values(
-                prompt_type=PromptType.CLASSIFY_PROJECT_CHAT_USER_MESSAGE.value,
+                prompt_type=PromptType.AGGREGATE_LV_MEMBERSHIP.value,
                 version=1,
                 model_name="m",
                 system_prompt="s",

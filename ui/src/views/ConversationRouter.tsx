@@ -1,8 +1,6 @@
-// Routes an /c/:conversationId URL to the right view based on the
-// conversation's `prompt_type`. Both dispatcher and project-chat conversations
-// run the same streaming loop (the backend selects tools by prompt_type), so
-// both render WorkspaceView. Lives at the views layer because the dispatch
-// depends on async server state, not just the URL.
+// Routes an /c/:conversationId URL to the project-chat workspace. Conversations are project chats
+// only (the dispatcher is a stateless command bar with no thread). Lives at the views layer because
+// the lookup depends on async server state, not just the URL.
 
 import { Navigate, useParams } from 'react-router-dom';
 import { useConversation } from '../api/conversations';
@@ -29,22 +27,18 @@ export function ConversationRouter() {
     // List loaded but this id isn't in it yet (e.g. a fresh create still
     // settling) — keep showing a spinner while a refetch is in flight.
     if (isFetching) return <LoadingState />;
-    // The id is gone for good (deleted, or wiped from the DB). Rather than
-    // strand the user on a dead URL, start a fresh thread. `replace` drops the
-    // invalid id from history so back/refresh don't bounce back to it.
-    return <Navigate to="/c/new" replace />;
+    // The id is gone for good (deleted, or wiped from the DB). Send the user home
+    // rather than strand them on a dead URL; `replace` drops the invalid id from history.
+    return <Navigate to="/" replace />;
   }
 
-  switch (data.prompt_type) {
-    case 'dispatcher':
-    case 'project_chat':
-      return <WorkspaceView />;
-    default:
-      return (
-        <EmptyState
-          title="Unsupported conversation type"
-          description={`prompt_type: ${data.prompt_type}`}
-        />
-      );
+  if (data.prompt_type === 'project_chat') {
+    return <WorkspaceView />;
   }
+  return (
+    <EmptyState
+      title="Unsupported conversation type"
+      description={`prompt_type: ${data.prompt_type}`}
+    />
+  );
 }

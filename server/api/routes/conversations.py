@@ -12,7 +12,6 @@ from api.deps import (
     Principal,
     get_connection,
     get_current_user,
-    get_dispatcher,
     get_llm_client,
     get_project_chat_service,
     get_uow,
@@ -28,7 +27,6 @@ from shared.models.retrieval_request_schema import TurnRetrievalConfig
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
 from shared.services.conversation_naming import ConversationNamingService
-from shared.services.dispatcher import Dispatcher
 from shared.services.project_chat import ProjectChatService, config_from_request
 from shared.services.prompt_runner import PromptRunner
 from shared.services.security import InputRejectedError, guard_user_input
@@ -87,7 +85,6 @@ async def run_turn(
     payload: TurnRequest,
     principal: Principal = Depends(get_current_user),
     conn: AsyncConnection = Depends(get_connection),
-    dispatcher: Dispatcher = Depends(get_dispatcher),
     project_chat: ProjectChatService = Depends(get_project_chat_service),
 ) -> StreamingResponse:
     try:
@@ -101,14 +98,15 @@ async def run_turn(
     if conversation is None or conversation.user_uuid != principal.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
 
-    # Project chat runs the classify -> retrieve -> answer pipeline; everything else (the dispatcher)
-    # runs the generic tool-loop. Both yield the same SSE envelopes.
-    if conversation.prompt_type == PromptType.PROJECT_CHAT:
-        events = project_chat.run_turn(
-            conversation, payload.content, config_from_request(payload.retrieval)
+    # Conversations are project chats only; the single-shot dispatcher has its own stateless endpoint.
+    if conversation.prompt_type != PromptType.PROJECT_CHAT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="conversation is not a project chat"
         )
-    else:
-        events = dispatcher.run_turn(conversation, payload.content)
+
+    events = project_chat.run_turn(
+        conversation, payload.content, config_from_request(payload.retrieval)
+    )
 
     async def event_stream() -> AsyncIterator[str]:
         async for event in events:

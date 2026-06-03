@@ -11,6 +11,7 @@ stays at the boundary. DB reads use short connections, mirroring the Dispatcher 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -88,10 +89,21 @@ class RetrievalService:
         )
 
     async def retrieve_context(
-        self, question: str, project_uuid: UUID, config: RetrievalConfig
+        self,
+        question: str,
+        project_uuid: UUID,
+        config: RetrievalConfig,
+        *,
+        scope_override: dict[str, Any] | None = None,
     ) -> RetrievalContext:
-        """The full pipeline up to the numbered context, without generating an answer."""
-        es_filter, lv_document_uuid = await self._resolve_scope(project_uuid, config)
+        """The full pipeline up to the numbered context, without generating an answer.
+
+        `scope_override` substitutes a caller-built ES filter for the Simple/Plus scope (e.g. the
+        agent's LV-only `get_lv_context`); the rest of the pipeline is unchanged."""
+        if scope_override is not None:
+            es_filter, lv_document_uuid = scope_override, None
+        else:
+            es_filter, lv_document_uuid = await self._resolve_scope(project_uuid, config)
         scope = ScopeTrace(
             modality=config.modality,
             project_uuid=project_uuid,
