@@ -20,7 +20,7 @@ from shared.clients.llm.client import LLMClient
 from shared.clients.rerank import RerankClient
 from shared.clients.search import ScoredChunk, SearchClient, plus_filter, simple_filter
 from shared.models.chat_message import ChatMessage
-from shared.models.enums import PromptType, RetrievalModality
+from shared.models.enums import PromptType, RetrievalModality, SourceDocType
 from shared.models.simple_chunk import SimpleChunk
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.prompt_versions import PromptVersionRepository
@@ -32,8 +32,10 @@ from shared.services.retrieval.models import (
     HitTrace,
     QueryTrace,
     RerankTrace,
+    RetrievalContext,
     RetrievalResult,
     ScopeTrace,
+    ThumbnailRef,
 )
 from shared.services.retrieval.rrf import FusedChunk, reciprocal_rank_fusion
 
@@ -70,6 +72,25 @@ class RetrievalService:
     async def retrieve(
         self, question: str, project_uuid: UUID, config: RetrievalConfig
     ) -> RetrievalResult:
+        ctx = await self.retrieve_context(question, project_uuid, config)
+        answer = await self._answer(question, ctx.context, project_uuid)
+        return RetrievalResult(
+            config=ctx.config,
+            question=ctx.question,
+            scope=ctx.scope,
+            queries=ctx.queries,
+            fused=ctx.fused,
+            reranked=ctx.reranked,
+            context=ctx.context,
+            rrf_applied=ctx.rrf_applied,
+            rerank_applied=ctx.rerank_applied,
+            answer=answer,
+        )
+
+    async def retrieve_context(
+        self, question: str, project_uuid: UUID, config: RetrievalConfig
+    ) -> RetrievalContext:
+        """The full pipeline up to the numbered context, without generating an answer."""
         es_filter, lv_document_uuid = await self._resolve_scope(project_uuid, config)
         scope = ScopeTrace(
             modality=config.modality,
@@ -108,11 +129,17 @@ class RetrievalService:
         final_chunks, rerank_traces, rerank_applied = await self._select_context(
             question, fused, project_uuid, config
         )
-        context = [_context_chunk(i + 1, chunk) for i, chunk in enumerate(final_chunks)]
+        # LV_ITEM sources point at the LV item, not a document; their page thumbnails live on the
+        # project's LV document, so resolve it once (already known under PLUS).
+        thumbnail_doc_uuid = await self._thumbnail_document_uuid(
+            project_uuid, lv_document_uuid, final_chunks
+        )
+        context = [
+            _context_chunk(i + 1, chunk, thumbnail_doc_uuid)
+            for i, chunk in enumerate(final_chunks)
+        ]
 
-        answer = await self._answer(question, context, project_uuid)
-
-        return RetrievalResult(
+        return RetrievalContext(
             config=config,
             question=question,
             scope=scope,
@@ -120,10 +147,25 @@ class RetrievalService:
             fused=[_fused_trace(f) for f in fused],
             reranked=rerank_traces,
             context=context,
-            answer=answer,
             rrf_applied=rrf_applied,
             rerank_applied=rerank_applied,
         )
+
+    async def _thumbnail_document_uuid(
+        self,
+        project_uuid: UUID,
+        lv_document_uuid: UUID | None,
+        chunks: Sequence[SimpleChunk],
+    ) -> UUID | None:
+        """The LV document to source LV_ITEM page thumbnails from. Known already under PLUS;
+        looked up only when SIMPLE produced LV_ITEM chunks."""
+        if lv_document_uuid is not None:
+            return lv_document_uuid
+        if not any(c.source_doc_type is SourceDocType.LV_ITEM for c in chunks):
+            return None
+        async with self._engine.connect() as conn:
+            lv_document = await DocumentRepository(conn).get_lv_document(project_uuid)
+        return lv_document.document_uuid if lv_document is not None else None
 
     async def _resolve_scope(
         self, project_uuid: UUID, config: RetrievalConfig
@@ -180,7 +222,7 @@ class RetrievalService:
     async def _answer(
         self, question: str, context: list[ContextChunk], project_uuid: UUID
     ) -> str:
-        context_block = _format_context(context)
+        context_block = format_context(context)
         async with self._engine.connect() as conn:
             runner = PromptRunner(PromptVersionRepository(conn), self._llm)
             return await runner.run_text(
@@ -223,7 +265,9 @@ def _fused_trace(fused: FusedChunk) -> FusedTrace:
     )
 
 
-def _context_chunk(source_number: int, chunk: SimpleChunk) -> ContextChunk:
+def _context_chunk(
+    source_number: int, chunk: SimpleChunk, thumbnail_document_uuid: UUID | None
+) -> ContextChunk:
     return ContextChunk(
         source_number=source_number,
         chunk_uuid=chunk.chunk_uuid,
@@ -233,7 +277,23 @@ def _context_chunk(source_number: int, chunk: SimpleChunk) -> ContextChunk:
         stl_nr=chunk.stl_nr,
         source_doc_pages=chunk.source_doc_pages,
         chunk_text=chunk.chunk_text,
+        thumbnail=_thumbnail_ref(chunk, thumbnail_document_uuid),
     )
+
+
+def _thumbnail_ref(
+    chunk: SimpleChunk, thumbnail_document_uuid: UUID | None
+) -> ThumbnailRef | None:
+    """The page thumbnail for a context source: a DOCUMENT chunk's own document, or the LV
+    document for an LV_ITEM chunk. None when the chunk has no page or the document is unknown."""
+    if not chunk.source_doc_pages:
+        return None
+    page = chunk.source_doc_pages[0]
+    if chunk.source_doc_type is SourceDocType.DOCUMENT:
+        return ThumbnailRef(document_uuid=chunk.source_doc_uuid, page_number=page)
+    if thumbnail_document_uuid is None:
+        return None
+    return ThumbnailRef(document_uuid=thumbnail_document_uuid, page_number=page)
 
 
 def _format_pages(pages: list[int]) -> str:
@@ -258,5 +318,6 @@ def _source_header(chunk: ContextChunk) -> str:
     return f"[{chunk.source_number}] ({', '.join(parts)})"
 
 
-def _format_context(context: list[ContextChunk]) -> str:
+def format_context(context: list[ContextChunk]) -> str:
+    """Render the numbered evidence block the project_chat answer prompt expects under {{context}}."""
     return "\n\n".join(f"{_source_header(c)}\n{c.chunk_text}" for c in context)

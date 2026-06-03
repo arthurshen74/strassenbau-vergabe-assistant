@@ -1,13 +1,21 @@
 // Scrollable message list with auto-scroll-to-bottom that pauses when the
 // user has scrolled away. We intentionally do NOT virtualize yet.
 //
-// Filtering: tool messages (function_call / function_call_output) are
-// protocol-only and never rendered — tool output surfaces in the main window.
+// Filtering: function_call is protocol-only and never rendered. function_call_output
+// is kept — project-chat tools render inline (Message decides; the dispatcher's render
+// nothing). A get_context result feeds the following assistant answer's citations panel.
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ContextChunk } from '../../types/generated';
 import type { DisplayMessage } from './types';
 import { Message } from './Message';
+import { TOOL_GET_CONTEXT } from './messages/ToolResultMessage';
+import type { CitationData, LangchainSource } from './messages/CitationsPanel';
 import { ThinkingIndicator } from '../feedback/ThinkingIndicator';
+
+function asArray<T>(value: unknown): T[] | null {
+  return Array.isArray(value) ? (value as T[]) : null;
+}
 
 interface MessageListProps {
   messages: DisplayMessage[];
@@ -19,6 +27,8 @@ interface MessageListProps {
    * output yet.
    */
   isThinking?: boolean;
+  /** Project scope, for project-chat tool results that fetch page thumbnails. */
+  projectUuid?: string;
   className?: string;
 }
 
@@ -28,6 +38,7 @@ export function MessageList({
   messages,
   streamingMessageId,
   isThinking,
+  projectUuid,
   className,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -53,9 +64,28 @@ export function MessageList({
     el.scrollTop = el.scrollHeight;
   }, []);
 
-  const visible = messages.filter(
-    (m) => m.kind !== 'function_call' && m.kind !== 'function_call_output',
-  );
+  const visible = messages.filter((m) => m.kind !== 'function_call');
+
+  // A turn's get_context tool result(s) feed the next assistant answer's citations panel,
+  // merged so the answer's [n] citations resolve across multiple retrieve calls (LANGCHAIN).
+  const citationByAssistant = useMemo(() => {
+    const map = new Map<string, CitationData>();
+    let context: ContextChunk[] = [];
+    let sources: LangchainSource[] = [];
+    for (const m of visible) {
+      if (m.kind === 'function_call_output' && m.tool_name === TOOL_GET_CONTEXT) {
+        const c = asArray<ContextChunk>(m.data?.context);
+        const s = asArray<LangchainSource>(m.data?.sources);
+        if (c) context = context.concat(c);
+        if (s) sources = sources.concat(s);
+      } else if (m.kind === 'assistant' && (context.length || sources.length)) {
+        map.set(m.message_uuid, { context, sources });
+        context = [];
+        sources = [];
+      }
+    }
+    return map;
+  }, [visible]);
 
   return (
     <div
@@ -69,6 +99,8 @@ export function MessageList({
             key={m.message_uuid}
             m={m}
             streaming={m.message_uuid === streamingMessageId}
+            citationData={citationByAssistant.get(m.message_uuid)}
+            projectUuid={projectUuid}
           />
         ))}
         {isThinking && <ThinkingIndicator size="lg" label="Thinking" />}

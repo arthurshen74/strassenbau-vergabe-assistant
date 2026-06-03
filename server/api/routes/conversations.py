@@ -14,6 +14,7 @@ from api.deps import (
     get_current_user,
     get_dispatcher,
     get_llm_client,
+    get_project_chat_service,
     get_uow,
 )
 from api.sse import SSE_MEDIA_TYPE, format_sse
@@ -21,11 +22,14 @@ from shared.clients.llm.client import LLMClient
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.conversation import NewConversation
 from shared.models.conversation_schema import ConversationCreate, ConversationRead
+from shared.models.enums import PromptType
 from shared.models.message_schema import MessageRead
+from shared.models.retrieval_request_schema import TurnRetrievalConfig
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
 from shared.services.conversation_naming import ConversationNamingService
 from shared.services.dispatcher import Dispatcher
+from shared.services.project_chat import ProjectChatService, config_from_request
 from shared.services.prompt_runner import PromptRunner
 from shared.services.security import InputRejectedError, guard_user_input
 
@@ -36,6 +40,7 @@ class TurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     content: str = Field(min_length=1)
+    retrieval: TurnRetrievalConfig | None = None
 
 
 def get_conversation_naming_service(
@@ -83,6 +88,7 @@ async def run_turn(
     principal: Principal = Depends(get_current_user),
     conn: AsyncConnection = Depends(get_connection),
     dispatcher: Dispatcher = Depends(get_dispatcher),
+    project_chat: ProjectChatService = Depends(get_project_chat_service),
 ) -> StreamingResponse:
     try:
         guard_user_input(payload.content)
@@ -95,8 +101,17 @@ async def run_turn(
     if conversation is None or conversation.user_uuid != principal.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
 
+    # Project chat runs the classify -> retrieve -> answer pipeline; everything else (the dispatcher)
+    # runs the generic tool-loop. Both yield the same SSE envelopes.
+    if conversation.prompt_type == PromptType.PROJECT_CHAT:
+        events = project_chat.run_turn(
+            conversation, payload.content, config_from_request(payload.retrieval)
+        )
+    else:
+        events = dispatcher.run_turn(conversation, payload.content)
+
     async def event_stream() -> AsyncIterator[str]:
-        async for event in dispatcher.run_turn(conversation, payload.content):
+        async for event in events:
             yield format_sse(event)
 
     return StreamingResponse(event_stream(), media_type=SSE_MEDIA_TYPE)

@@ -14,7 +14,12 @@ from api.routes import (
     prompts,
     usage,
 )
-from shared.clients.factory import build_llm_client, build_telemetry_sinks
+from shared.clients.factory import (
+    build_embeddings_client,
+    build_llm_client,
+    build_rerank_client,
+    build_telemetry_sinks,
+)
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import build_storage_client
 from shared.config import settings
@@ -31,12 +36,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.engine = engine
     app.state.storage = build_storage_client()
     app.state.search = SearchClient.from_settings()
-    # One shared LLM client for the process, persisting usage + execution logs to Postgres in
-    # their own transactions (independent of any request UnitOfWork).
-    app.state.llm_client = build_llm_client(build_telemetry_sinks(engine))
+    # One shared telemetry-sink set per process, reused by every OpenRouter client so usage +
+    # execution logs land in Postgres the same way (in their own transactions, independent of any
+    # request UnitOfWork). The embeddings + reranker clients back project-chat RAG retrieval.
+    sinks = build_telemetry_sinks(engine)
+    app.state.telemetry_sinks = sinks
+    app.state.llm_client = build_llm_client(sinks)
+    app.state.embeddings = build_embeddings_client(sinks)
+    app.state.reranker = build_rerank_client(sinks)
     try:
         yield
     finally:
+        await app.state.reranker.aclose()
+        await app.state.embeddings.aclose()
         await app.state.llm_client.aclose()
         await app.state.search.close()
         await engine.dispose()

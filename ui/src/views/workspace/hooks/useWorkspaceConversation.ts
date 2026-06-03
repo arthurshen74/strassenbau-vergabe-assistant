@@ -24,7 +24,7 @@ import { promptKeys } from '../../../api/prompts';
 import { log } from '../../../lib/logger';
 import { useUIStore } from '../../../store/ui';
 import { useMainWindowStore, viewKindForTool } from '../../../store/mainWindow';
-import type { MessageRead } from '../../../types/generated';
+import type { MessageRead, TurnRetrievalConfig } from '../../../types/generated';
 import type { DisplayMessage } from '../../../components/chat/types';
 
 // IDs prefixed `local-` are placeholders until the server reconciles. The
@@ -59,7 +59,10 @@ interface StreamState {
   toolNameByCallId: Record<string, string>;
 }
 
-export function useWorkspaceConversation(conversationId: string) {
+export function useWorkspaceConversation(
+  conversationId: string,
+  retrievalConfig?: TurnRetrievalConfig,
+) {
   const qc = useQueryClient();
   const setStreamActive = useUIStore((s) => s.setStreamActive);
   const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
@@ -117,7 +120,9 @@ export function useWorkspaceConversation(conversationId: string) {
       try {
         await postStream({
           path: `/conversations/${conversationId}/turn`,
-          body: { content: text },
+          body: retrievalConfig
+            ? { content: text, retrieval: retrievalConfig }
+            : { content: text },
           signal: ctrl.signal,
           onEvent: (e) => {
             switch (e.event) {
@@ -169,8 +174,26 @@ export function useWorkspaceConversation(conversationId: string) {
                 }
                 if (e.success) {
                   const kind = viewKindForTool(toolName);
-                  if (kind) openMainWindow({ kind, data: e.data ?? undefined });
-                  invalidateForTool(toolName);
+                  if (kind) {
+                    // Dispatcher tools open the main window instead of rendering inline.
+                    openMainWindow({ kind, data: e.data ?? undefined });
+                    invalidateForTool(toolName);
+                  } else {
+                    // Project-chat tools (LV results, retrieval sources) render in the thread.
+                    setStreamMessages((prev) => [
+                      ...prev,
+                      newMessage({
+                        message_uuid: localId('tool'),
+                        conversation_uuid: conversationId,
+                        kind: 'function_call_output',
+                        call_id: e.call_id,
+                        tool_name: toolName,
+                        success: e.success,
+                        data: e.data ?? null,
+                        errors: e.errors ?? null,
+                      }),
+                    ]);
+                  }
                 }
                 break;
               }
@@ -235,7 +258,15 @@ export function useWorkspaceConversation(conversationId: string) {
         if (isFirstTurn) nameConversation.mutate(conversationId);
       }
     },
-    [conversationId, qc, setStreamActive, invalidateForTool, openMainWindow, nameConversation],
+    [
+      conversationId,
+      retrievalConfig,
+      qc,
+      setStreamActive,
+      invalidateForTool,
+      openMainWindow,
+      nameConversation,
+    ],
   );
 
   return { streamMessages, streamingMessageId, isStreaming, sendMessage };

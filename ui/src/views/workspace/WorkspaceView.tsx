@@ -10,14 +10,18 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import {
+  PROMPT_TYPE_PROJECT_CHAT,
   useConversation,
   useConversationMessages,
 } from '../../api/conversations';
+import { useProject } from '../../api/projects';
 import { useWorkspaceConversation } from './hooks/useWorkspaceConversation';
 import { MessageList } from '../../components/chat/MessageList';
 import { ChatInput } from '../../components/chat/ChatInput';
+import { RetrievalConfigBar } from '../../components/chat/RetrievalConfigBar';
 import { MainWindow } from '../../components/mainwindow/MainWindow';
 import { useMainWindowStore } from '../../store/mainWindow';
+import { useRetrievalConfig } from '../../store/retrievalConfig';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
 import type { DisplayMessage } from '../../components/chat/types';
@@ -32,9 +36,17 @@ export function WorkspaceView() {
 
 function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
   const conversation = useConversation(conversationId);
+  const isProjectChat =
+    conversation.data?.prompt_type === PROMPT_TYPE_PROJECT_CHAT;
+  const projectUuid = conversation.data?.project_uuid ?? undefined;
+  const project = useProject(isProjectChat ? projectUuid : undefined);
+  const retrievalConfig = useRetrievalConfig(conversationId);
   const messagesQuery = useConversationMessages(conversationId);
   const { streamMessages, streamingMessageId, isStreaming, sendMessage } =
-    useWorkspaceConversation(conversationId);
+    useWorkspaceConversation(
+      conversationId,
+      isProjectChat ? retrievalConfig : undefined,
+    );
   const mainView = useMainWindowStore((s) => s.view);
 
   const merged: DisplayMessage[] = useMemo(() => {
@@ -72,7 +84,10 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     );
   }
 
-  const title = conversation.data?.title ?? 'Dispatcher';
+  const title = isProjectChat
+    ? (project.data?.project_name ?? conversation.data?.title ?? 'Project chat')
+    : (conversation.data?.title ?? 'Dispatcher');
+  const placeholder = isProjectChat ? 'Ask about this project…' : 'Ask the dispatcher…';
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -90,15 +105,18 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
               messages={merged}
               streamingMessageId={streamingMessageId}
               isThinking={isThinking}
+              projectUuid={projectUuid}
             />
           </>
         )}
       </div>
 
+      {isProjectChat && <RetrievalConfigBar conversationId={conversationId} />}
+
       <ChatInput
         onSend={sendMessage}
         disabled={isStreaming}
-        placeholder="Ask the dispatcher…"
+        placeholder={placeholder}
         draftKey={`ws:${conversationId}`}
         hint={isStreaming ? 'Thinking…' : undefined}
       />

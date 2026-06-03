@@ -14,7 +14,7 @@ from shared.services.prompt_runner import (
     PromptRenderError,
     PromptRunner,
     PromptVersionNotFoundError,
-    _render,
+    render_template,
 )
 
 
@@ -76,19 +76,19 @@ def _runner(pv: PromptVersion | None, result: Any) -> tuple[PromptRunner, _StubR
 
 
 def test_render_substitutes_double_braces() -> None:
-    assert _render("Give {{n}} variants", {"n": "3"}) == "Give 3 variants"
-    assert _render("Give {{ n }} variants", {"n": "3"}) == "Give 3 variants"
+    assert render_template("Give {{n}} variants", {"n": "3"}) == "Give 3 variants"
+    assert render_template("Give {{ n }} variants", {"n": "3"}) == "Give 3 variants"
 
 
 def test_render_without_placeholders_is_unchanged() -> None:
-    assert _render("plain text", None) == "plain text"
+    assert render_template("plain text", None) == "plain text"
 
 
 def test_render_raises_on_missing_variable() -> None:
     with pytest.raises(PromptRenderError):
-        _render("Hello {{name}}", {})
+        render_template("Hello {{name}}", {})
     with pytest.raises(PromptRenderError):
-        _render("Hello {{name}}", None)
+        render_template("Hello {{name}}", None)
 
 
 # --- generate_query_variants --------------------------------------------

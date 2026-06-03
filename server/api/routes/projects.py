@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from api.deps import (
@@ -28,6 +29,7 @@ from shared.models.project_schema import ProjectCreate, ProjectRead
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.projects import ProjectRepository
+from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.ingestion.status_stream import HEARTBEAT, stream_project_status
 from shared.services.project_service import (
     LVDocumentExistsError,
@@ -36,6 +38,9 @@ from shared.services.project_service import (
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+# Page thumbnails are immutable once ingested (re-ingestion replaces the row), so cache hard.
+THUMBNAIL_CACHE_CONTROL = "public, max-age=86400, immutable"
 
 
 def get_project_service(
@@ -185,3 +190,28 @@ async def delete_document(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="document not found"
         )
+
+
+@router.get("/{project_uuid}/documents/{document_uuid}/pages/{page_number}/thumbnail")
+async def get_page_thumbnail(
+    project_uuid: UUID,
+    document_uuid: UUID,
+    page_number: int,
+    conn: AsyncConnection = Depends(get_connection),
+    storage: StorageClient = Depends(get_storage),
+) -> Response:
+    """Serve a document page's thumbnail image, proxied from object storage (MinIO isn't
+    reachable from the browser in local dev). Scoped to the project so a thumbnail can't be
+    pulled across projects."""
+    document = await DocumentRepository(conn).get(document_uuid)
+    if document is None or document.project_uuid != project_uuid:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
+    thumbnail = await ThumbnailRepository(conn).get_by_page(document_uuid, page_number)
+    if thumbnail is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="thumbnail not found")
+    data = await asyncio.to_thread(storage.get_object, thumbnail.object_key)
+    return Response(
+        content=data,
+        media_type=thumbnail.content_type,
+        headers={"Cache-Control": THUMBNAIL_CACHE_CONTROL},
+    )

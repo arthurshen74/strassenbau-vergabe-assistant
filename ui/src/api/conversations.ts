@@ -5,9 +5,18 @@
 // split is derived client-side from `prompt_type`. A conversation's title is
 // generated server-side from its first message (see useNameConversation).
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { api } from './client';
-import type { ConversationRead, MessageRead } from '../types/generated';
+import type {
+  ConversationCreate,
+  ConversationRead,
+  MessageRead,
+} from '../types/generated';
 
 export const PROMPT_TYPE_DISPATCHER = 'dispatcher';
 export const PROMPT_TYPE_PROJECT_CHAT = 'project_chat';
@@ -45,10 +54,29 @@ export function useConversationMessages(uuid: string | undefined) {
   });
 }
 
-export function createConversation(): Promise<ConversationRead> {
+// Create a conversation, defaulting to a dispatcher thread. Pass prompt_type +
+// project_uuid to start a project chat scoped to a project.
+export function createConversation(
+  body: Partial<ConversationCreate> = {},
+): Promise<ConversationRead> {
   return api.post<ConversationRead>('/conversations', {
     prompt_type: PROMPT_TYPE_DISPATCHER,
+    ...body,
   });
+}
+
+// Create a conversation and seed the list cache so ConversationRouter resolves
+// the new thread immediately (no "not found" flash). Callers navigate to it.
+export async function createAndSeedConversation(
+  qc: QueryClient,
+  body: Partial<ConversationCreate> = {},
+): Promise<ConversationRead> {
+  const created = await createConversation(body);
+  qc.setQueryData<ConversationRead[]>(conversationKeys.list(), (old) =>
+    old ? [created, ...old] : [created],
+  );
+  qc.invalidateQueries({ queryKey: conversationKeys.all });
+  return created;
 }
 
 // Generate a title from the conversation's first message and persist it.

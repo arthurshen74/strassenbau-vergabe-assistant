@@ -21,9 +21,11 @@ from shared.models.ingest_schema import (
     IngestStarted,
     IngestStatusRead,
 )
+from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
 from shared.models.openrouter_usage_schema import OpenRouterUsageRead
 from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from shared.models.retrieval_request_schema import TurnRetrievalConfig
 from shared.models.prompt_execution_log_schema import (
     PromptExecutionLogRead,
     PromptExecutionLogSummary,
@@ -35,6 +37,17 @@ from shared.models.sse_schema import (
     SSEFunctionCallOutput,
     SSETextDelta,
     SSEUiNotice,
+)
+from shared.services.retrieval.config import RetrievalConfig
+from shared.services.retrieval.models import (
+    ContextChunk,
+    FusedTrace,
+    HitTrace,
+    QueryTrace,
+    RerankTrace,
+    RetrievalContext,
+    ScopeTrace,
+    ThumbnailRef,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -67,6 +80,20 @@ BODY_MODELS: list[type[BaseModel]] = [
     PromptExecutionLogSummary,
     PromptExecutionLogRead,
     OpenRouterUsageRead,
+    # Project-chat retrieval: the turn config the UI sends, and the structured tool-result shapes
+    # the chat renders (LV items, retrieval sources, and the verbose trace). All nested models must
+    # be listed so json2ts emits each interface rather than leaving a dangling reference.
+    TurnRetrievalConfig,
+    LVItem,
+    ThumbnailRef,
+    ContextChunk,
+    ScopeTrace,
+    HitTrace,
+    QueryTrace,
+    FusedTrace,
+    RerankTrace,
+    RetrievalConfig,
+    RetrievalContext,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

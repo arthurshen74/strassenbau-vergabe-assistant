@@ -231,6 +231,116 @@ export interface OpenRouterUsageRead {
   created_at: string;
 }
 
+export interface TurnRetrievalConfig {
+  modality?: "SIMPLE" | "PLUS" | "LANGCHAIN";
+  multi_query?: boolean;
+  use_bm25?: boolean;
+  use_cross_encoder?: boolean;
+}
+
+export interface LVItem {
+  lv_item_uuid: string;
+  document_uuid: string;
+  oz: string;
+  kurztext: string;
+  langtext: string;
+  langtext_resolved?: string | null;
+  menge: number | string;
+  einheit: string;
+  positionstyp?: string | null;
+  level?: number | null;
+  stl_nr?: string | null;
+  hinweis?: string | null;
+  linked_oz?: string | null;
+  prev_oz?: string | null;
+  next_oz?: string | null;
+  parent_oz?: string | null;
+  source_lines?: string[];
+  last_ingestion: string;
+}
+
+export interface ThumbnailRef {
+  document_uuid: string;
+  page_number: number;
+}
+
+export interface ContextChunk {
+  source_number: number;
+  chunk_uuid: string;
+  source_doc_type: "LV_ITEM" | "DOCUMENT";
+  source_doc_uuid: string;
+  oz?: string | null;
+  stl_nr?: string | null;
+  source_doc_pages: number[];
+  chunk_text: string;
+  thumbnail?: ThumbnailRef | null;
+}
+
+export interface ScopeTrace {
+  modality: "SIMPLE" | "PLUS" | "LANGCHAIN";
+  project_uuid: string;
+  lv_document_uuid?: string | null;
+  es_filter: {
+    [k: string]: unknown;
+  };
+}
+
+export interface HitTrace {
+  chunk_uuid: string;
+  score: number;
+  source_doc_type: "LV_ITEM" | "DOCUMENT";
+  source_doc_uuid: string;
+  oz?: string | null;
+  source_doc_pages: number[];
+  text_preview: string;
+}
+
+export interface QueryTrace {
+  query_text: string;
+  is_original: boolean;
+  dense_hits: HitTrace[];
+  lexical_hits?: HitTrace[];
+}
+
+export interface FusedTrace {
+  chunk_uuid: string;
+  rrf_score: number;
+  contributing_ranks: {
+    [k: string]: number;
+  };
+  oz?: string | null;
+  source_doc_uuid: string;
+  text_preview: string;
+}
+
+export interface RerankTrace {
+  chunk_uuid: string;
+  relevance_score: number;
+  rank: number;
+}
+
+export interface RetrievalConfig {
+  modality?: "SIMPLE" | "PLUS" | "LANGCHAIN";
+  multi_query?: boolean;
+  use_bm25?: boolean;
+  use_cross_encoder?: boolean;
+  candidate_k?: number;
+  top_k?: number;
+  multi_query_n?: number;
+}
+
+export interface RetrievalContext {
+  config: RetrievalConfig;
+  question: string;
+  scope: ScopeTrace;
+  queries: QueryTrace[];
+  fused: FusedTrace[];
+  reranked?: RerankTrace[];
+  context: ContextChunk[];
+  rrf_applied: boolean;
+  rerank_applied: boolean;
+}
+
 // ---- Types pinned by scripts/export_schema.py ----
 
 export interface IngestQueued {

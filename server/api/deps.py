@@ -23,11 +23,16 @@ from fastapi import Depends, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
+from shared.clients.embeddings import EmbeddingsClient
+from shared.clients.factory import TelemetrySinks
 from shared.clients.llm.client import LLMClient
+from shared.clients.rerank import RerankClient
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient
 from shared.db.unit_of_work import UnitOfWork
 from shared.services.dispatcher import Dispatcher
+from shared.services.project_chat import ProjectChatService
+from shared.services.retrieval import RetrievalService
 
 
 def get_engine(request: Request) -> AsyncEngine:
@@ -46,11 +51,37 @@ def get_search(request: Request) -> SearchClient:
     return request.app.state.search
 
 
+def get_embeddings(request: Request) -> EmbeddingsClient:
+    return request.app.state.embeddings
+
+
+def get_reranker(request: Request) -> RerankClient:
+    return request.app.state.reranker
+
+
+def get_telemetry_sinks(request: Request) -> TelemetrySinks:
+    return request.app.state.telemetry_sinks
+
+
 def get_dispatcher(
     engine: AsyncEngine = Depends(get_engine),
     llm: LLMClient = Depends(get_llm_client),
 ) -> Dispatcher:
     return Dispatcher(llm, engine)
+
+
+def get_project_chat_service(
+    engine: AsyncEngine = Depends(get_engine),
+    llm: LLMClient = Depends(get_llm_client),
+    embeddings: EmbeddingsClient = Depends(get_embeddings),
+    search: SearchClient = Depends(get_search),
+    reranker: RerankClient = Depends(get_reranker),
+    sinks: TelemetrySinks = Depends(get_telemetry_sinks),
+) -> ProjectChatService:
+    retrieval = RetrievalService(
+        engine=engine, llm=llm, embeddings=embeddings, search=search, reranker=reranker
+    )
+    return ProjectChatService(llm=llm, engine=engine, retrieval=retrieval, sinks=sinks)
 
 
 async def get_connection(

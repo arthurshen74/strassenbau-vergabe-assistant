@@ -69,6 +69,17 @@ class RerankTrace(BaseModel):
     rank: int
 
 
+class ThumbnailRef(BaseModel):
+    """Points a context source at the page thumbnail it came from. For a DOCUMENT chunk the
+    document is the chunk's own source; for an LV_ITEM chunk it is the project's LV document
+    (the item's pages live there). Absent when the chunk has no page or no thumbnail applies."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_uuid: UUID
+    page_number: int
+
+
 class ContextChunk(BaseModel):
     """A final-context source, numbered to match the [n] citations in the answer."""
 
@@ -82,9 +93,14 @@ class ContextChunk(BaseModel):
     stl_nr: str | None = None
     source_doc_pages: list[int]
     chunk_text: str
+    thumbnail: ThumbnailRef | None = None
 
 
-class RetrievalResult(BaseModel):
+class RetrievalContext(BaseModel):
+    """Every retrieval stage except the answer: the scope, query set, per-query hits, the fused
+    pool, the rerank order, and the final numbered context. ProjectChatService streams the answer
+    itself, so it consumes this; `retrieve()` wraps it with the answer into a RetrievalResult."""
+
     model_config = ConfigDict(extra="forbid")
 
     config: RetrievalConfig
@@ -94,6 +110,9 @@ class RetrievalResult(BaseModel):
     fused: list[FusedTrace]
     reranked: list[RerankTrace] = []
     context: list[ContextChunk]
-    answer: str
     rrf_applied: bool
     rerank_applied: bool
+
+
+class RetrievalResult(RetrievalContext):
+    answer: str

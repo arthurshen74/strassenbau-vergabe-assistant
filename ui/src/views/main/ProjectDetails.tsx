@@ -1,9 +1,15 @@
 // Project Details body: header fields + document list + "Ingest New Document".
 
 import { useState } from 'react';
-import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/react/16/solid';
+import {
+  ArrowLeftIcon,
+  ChatBubbleLeftRightIcon,
+  PlusIcon,
+  TrashIcon,
+} from '@heroicons/react/16/solid';
 import { useProject, useProjectDocuments } from '../../api/projects';
 import { useProjectIngestStatus } from '../../api/ingest';
+import { useStartProjectChat } from './useStartProjectChat';
 import type { DocumentRead } from '../../types/generated';
 import { IngestStatusCell } from './IngestStatusCell';
 import { IngestButton } from './IngestButton';
@@ -44,6 +50,7 @@ export function ProjectDetails({
   const project = useProject(projectUuid);
   const documents = useProjectDocuments(projectUuid);
   const ingestStatus = useProjectIngestStatus(projectUuid);
+  const startProjectChat = useStartProjectChat();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
 
@@ -56,11 +63,17 @@ export function ProjectDetails({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Button plain onClick={onBack} aria-label="Back">
-          <ArrowLeftIcon />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Button plain onClick={onBack} aria-label="Back">
+            <ArrowLeftIcon />
+          </Button>
+          <Heading level={4}>{p.project_name}</Heading>
+        </div>
+        <Button onClick={() => startProjectChat(projectUuid)}>
+          <ChatBubbleLeftRightIcon />
+          Chat about this project
         </Button>
-        <Heading level={4}>{p.project_name}</Heading>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

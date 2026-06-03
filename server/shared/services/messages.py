@@ -11,6 +11,7 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
+from shared.models.chat_message import ChatMessage
 from shared.models.enums import MessageKind
 from shared.models.message import Message
 
@@ -70,6 +71,18 @@ def tool_result_payload(
 
 def tool_reply_message(call_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {ROLE: ROLE_TOOL, TOOL_CALL_ID: call_id, CONTENT: json.dumps(payload)}
+
+
+def to_user_assistant_messages(stored: Sequence[Message]) -> list[ChatMessage]:
+    """The user/assistant turns only, for the project-chat classifier: it routes on the
+    conversation, and the tool rows (LV results, retrieval traces) would only add noise."""
+    out: list[ChatMessage] = []
+    for m in stored:
+        if m.kind == MessageKind.USER:
+            out.append(ChatMessage(role="user", content=m.content or ""))
+        elif m.kind == MessageKind.ASSISTANT and m.content:
+            out.append(ChatMessage(role="assistant", content=m.content))
+    return out
 
 
 def to_chat_completions_messages(stored: Sequence[Message]) -> list[dict[str, Any]]:

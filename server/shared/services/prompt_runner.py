@@ -21,6 +21,7 @@ from shared.models.enums import PromptType
 from shared.models.llm_output_schemas import (
     LVExtraction,
     MultiQueryRewrite,
+    ProjectChatRoute,
     output_model_for,
 )
 from shared.repositories.prompt_versions import PromptVersionRepository
@@ -71,6 +72,23 @@ class PromptRunner:
         )
         assert isinstance(result, MultiQueryRewrite)
         return result.queries[:count]
+
+    async def classify_project_chat(
+        self,
+        messages: Sequence[ChatMessage],
+        *,
+        version: int | None = None,
+        project_uuid: UUID | None = None,
+    ) -> ProjectChatRoute:
+        """Route one project-chat user message to an action (LV lookup / list / RAG / refuse)."""
+        result = await self._run(
+            PromptType.CLASSIFY_PROJECT_CHAT_USER_MESSAGE,
+            messages=messages,
+            version=version,
+            project_uuid=project_uuid,
+        )
+        assert isinstance(result, ProjectChatRoute)
+        return result
 
     async def run_lv_extraction(
         self,
@@ -133,7 +151,7 @@ class PromptRunner:
                 f"no prompt version for type={prompt_type.value} version={version}"
             )
 
-        system = _render(pv.system_prompt, variables)
+        system = render_template(pv.system_prompt, variables)
         chat_messages: list[ChatMessage | Mapping[str, str]] = [
             {MESSAGE_ROLE: ROLE_SYSTEM, MESSAGE_CONTENT: system},
             *messages,
@@ -164,7 +182,7 @@ class PromptRunner:
         )
 
 
-def _render(template: str, variables: Mapping[str, str] | None) -> str:
+def render_template(template: str, variables: Mapping[str, str] | None) -> str:
     """Substitute `{{name}}` placeholders; raise if any placeholder has no supplied variable."""
     values = variables or {}
 

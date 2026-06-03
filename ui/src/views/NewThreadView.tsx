@@ -8,8 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { conversationKeys, createConversation } from '../api/conversations';
-import type { ConversationRead } from '../types/generated';
+import { createAndSeedConversation } from '../api/conversations';
 import { LoadingState } from '../components/feedback/LoadingState';
 import { ErrorState } from '../components/feedback/ErrorState';
 
@@ -23,14 +22,8 @@ export function NewThreadView() {
     if (startedRef.current) return;
     startedRef.current = true;
 
-    createConversation()
+    createAndSeedConversation(qc)
       .then((created) => {
-        // Seed the list cache so ConversationRouter finds the thread
-        // immediately (no "not found" flash), then refetch for consistency.
-        qc.setQueryData<ConversationRead[]>(conversationKeys.list(), (old) =>
-          old ? [created, ...old] : [created],
-        );
-        qc.invalidateQueries({ queryKey: conversationKeys.all });
         navigate(`/c/${created.conversation_uuid}`, { replace: true });
       })
       .catch((err: unknown) => {

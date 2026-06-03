@@ -4,9 +4,10 @@
 // or a bare array) renders directly; absent, the list fetches via REST.
 
 import { useState } from 'react';
-import { PlusIcon } from '@heroicons/react/16/solid';
+import { ChatBubbleLeftRightIcon, PlusIcon } from '@heroicons/react/16/solid';
 import type { ProjectRead } from '../../types/generated';
 import { useProjects } from '../../api/projects';
+import { useStartProjectChat } from './useStartProjectChat';
 import { Heading } from '../../components/ui/heading';
 import { Text } from '../../components/ui/text';
 import { Badge } from '../../components/ui/badge';
@@ -62,6 +63,7 @@ function ProjectListBody({
 }) {
   const provided = normalize(data);
   const query = useProjects();
+  const startProjectChat = useStartProjectChat();
 
   if (provided === null) {
     if (query.isPending) return <LoadingState label="Loading projects…" />;
@@ -87,21 +89,38 @@ function ProjectListBody({
       ) : (
         <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
           {projects.map((p) => (
-            <button
+            <div
               key={p.project_uuid}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onOpen(p.project_uuid)}
-              className="flex w-full flex-col gap-1 rounded-md border border-zinc-950/5 p-3 text-left transition-colors hover:bg-zinc-50 dark:border-white/10 dark:hover:bg-white/5"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') onOpen(p.project_uuid);
+              }}
+              className="flex cursor-pointer flex-col gap-1 rounded-md border border-zinc-950/5 p-3 text-left transition-colors hover:bg-zinc-50 dark:border-white/10 dark:hover:bg-white/5"
             >
-              <Text className="font-medium text-zinc-900 dark:text-zinc-100">
-                {p.project_name}
-              </Text>
+              <div className="flex items-start justify-between gap-2">
+                <Text className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {p.project_name}
+                </Text>
+                <button
+                  type="button"
+                  aria-label={`Chat about ${p.project_name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startProjectChat(p.project_uuid);
+                  }}
+                  className="shrink-0 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600 dark:hover:bg-white/10"
+                >
+                  <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                </button>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge color="blue">{p.vergabe_id}</Badge>
                 {p.location && <Badge color="zinc">{p.location}</Badge>}
               </div>
               <Text className="text-xs text-zinc-500 dark:text-zinc-400">{p.vergabestelle}</Text>
-            </button>
+            </div>
           ))}
         </div>
       )}
