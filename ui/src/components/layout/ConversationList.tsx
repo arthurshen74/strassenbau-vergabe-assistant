@@ -9,6 +9,7 @@ import type { ConversationRead } from '../../types/generated';
 import { formatRelativeTime } from '../../lib/format';
 import { useDeleteConversation } from '../../api/conversations';
 import { useStartProjectChat } from '../../views/main/useStartProjectChat';
+import { useMainWindowStore } from '../../store/mainWindow';
 import { Dropdown, DropdownButton, DropdownItem, DropdownMenu } from '../ui/dropdown';
 
 interface ConversationListProps {
@@ -21,6 +22,14 @@ export function ConversationList({ items, emptyHint }: ConversationListProps) {
   const navigate = useNavigate();
   const deleteConversation = useDeleteConversation();
   const startProjectChat = useStartProjectChat();
+  const closeMainWindow = useMainWindowStore((s) => s.closeMainWindow);
+
+  // A component window (View Prompts, View Project) covers the conversation view,
+  // so it must close before the clicked conversation can render.
+  const openConversation = (conversationUuid: string) => {
+    closeMainWindow();
+    navigate(`/c/${conversationUuid}`);
+  };
 
   if (items.length === 0) {
     return (
@@ -54,7 +63,7 @@ export function ConversationList({ items, emptyHint }: ConversationListProps) {
             )}
           >
             <button
-              onClick={() => navigate(`/c/${c.conversation_uuid}`)}
+              onClick={() => openConversation(c.conversation_uuid)}
               className={clsx(
                 'flex min-w-0 flex-1 flex-col items-start gap-0.5 px-2 py-1.5 text-left text-sm',
                 active
