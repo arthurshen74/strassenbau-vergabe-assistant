@@ -25,6 +25,7 @@ export function PromptEditDialog({
   onClose: () => void;
 }) {
   const create = useCreatePromptVersion();
+  const [modelName, setModelName] = useState(prompt.model_name);
   const [systemPrompt, setSystemPrompt] = useState(prompt.system_prompt);
   const [temperature, setTemperature] = useState(
     prompt.temperature == null ? '' : String(prompt.temperature),
@@ -41,6 +42,7 @@ export function PromptEditDialog({
   const temperatureInvalid =
     parsedTemperature !== null && Number.isNaN(parsedTemperature);
   const unchanged =
+    modelName === prompt.model_name &&
     systemPrompt === prompt.system_prompt &&
     parsedTemperature === (prompt.temperature ?? null);
 
@@ -49,7 +51,7 @@ export function PromptEditDialog({
     try {
       await create.mutateAsync({
         prompt_type: prompt.prompt_type,
-        model_name: prompt.model_name,
+        model_name: modelName,
         system_prompt: systemPrompt,
         temperature: parsedTemperature,
         top_p: prompt.top_p,
@@ -66,6 +68,15 @@ export function PromptEditDialog({
         Edit {prompt.prompt_type} (v{prompt.version})
       </DialogTitle>
       <DialogBody className="flex flex-col gap-4">
+        <Field>
+          <Label>Model</Label>
+          <Input
+            value={modelName}
+            placeholder="e.g. openai/gpt-5.4-mini"
+            onChange={(e) => setModelName(e.target.value)}
+            className="mt-2"
+          />
+        </Field>
         <Field>
           <Label>System prompt</Label>
           <Textarea
@@ -102,6 +113,7 @@ export function PromptEditDialog({
             create.isPending ||
             temperatureInvalid ||
             unchanged ||
+            modelName.trim() === '' ||
             systemPrompt.trim() === ''
           }
         >

@@ -15,6 +15,7 @@ import { formatRelativeTime } from '../../../lib/format';
 import { LoadingState } from '../../../components/feedback/LoadingState';
 import { ErrorState } from '../../../components/feedback/ErrorState';
 import { PromptEditDialog } from './PromptEditDialog';
+import { PromptImportDialog } from './PromptImportDialog';
 
 type BadgeColor = 'zinc' | 'blue' | 'purple' | 'amber' | 'green' | 'sky' | 'rose';
 
@@ -42,6 +43,7 @@ export function PromptList({ data }: { data?: unknown }) {
   const provided = normalize(data);
   const query = usePromptsLatest();
   const [editing, setEditing] = useState<PromptVersionRead | null>(null);
+  const [importing, setImporting] = useState(false);
 
   if (provided === null) {
     if (query.isPending) return <LoadingState label="Loading prompts…" />;
@@ -59,16 +61,29 @@ export function PromptList({ data }: { data?: unknown }) {
 
   if (prompts.length === 0) {
     return (
-      <div className="flex flex-col gap-1">
-        <Heading level={4}>Prompts</Heading>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <Heading level={4}>Prompts</Heading>
+          <Button outline onClick={() => setImporting(true)} className="text-xs">
+            Import .prompt
+          </Button>
+        </div>
         <Text>No prompts yet.</Text>
+        {importing && (
+          <PromptImportDialog open={importing} onClose={() => setImporting(false)} />
+        )}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <Heading level={4}>Prompts ({prompts.length})</Heading>
+      <div className="flex items-center justify-between gap-2">
+        <Heading level={4}>Prompts ({prompts.length})</Heading>
+        <Button outline onClick={() => setImporting(true)} className="text-xs">
+          Import .prompt
+        </Button>
+      </div>
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
         {prompts.map((p) => (
           <div
@@ -105,6 +120,9 @@ export function PromptList({ data }: { data?: unknown }) {
           open={editing !== null}
           onClose={() => setEditing(null)}
         />
+      )}
+      {importing && (
+        <PromptImportDialog open={importing} onClose={() => setImporting(false)} />
       )}
     </div>
   );
