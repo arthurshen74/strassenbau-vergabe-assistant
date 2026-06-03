@@ -39,9 +39,9 @@ def test_count_pdf_pages_non_pdf_is_zero() -> None:
 
 def test_classify_document_type_lv_filename() -> None:
     assert _classify_document_type("Projekt_LV1.pdf") == DocumentType.LV_DOCUMENT
+    assert _classify_document_type("Projekt_LV.pdf") == DocumentType.LV_DOCUMENT
 
 
 def test_classify_document_type_prose_for_anything_else() -> None:
     assert _classify_document_type("Projekt_LV1.txt") == DocumentType.PROSE_DOCUMENT
     assert _classify_document_type("anhang.pdf") == DocumentType.PROSE_DOCUMENT
-    assert _classify_document_type("Projekt_LV.pdf") == DocumentType.PROSE_DOCUMENT

@@ -47,7 +47,7 @@ ZIP_SUFFIX = ".zip"
 
 # A PDF named "<name>_LV<x>.pdf" is the Leistungsverzeichnis; everything else is prose.
 # Mirrors classifyDocumentType in ui/src/lib/documentType.ts.
-LV_FILENAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+_LV[a-zA-Z0-9]\.pdf$")
+LV_FILENAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+_LV[a-zA-Z0-9]*\.pdf$")
 
 
 class LVDocumentExistsError(Exception):
