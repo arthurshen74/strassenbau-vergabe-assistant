@@ -13,11 +13,13 @@ from PIL import Image  # noqa: E402
 
 from shared.services.ingestion.thumbnails import (  # noqa: E402
     THUMBNAIL_CONTENT_TYPE,
-    THUMBNAIL_WIDTH,
+    THUMBNAIL_DPI,
     render_thumbnails,
 )
 
 JPEG_MAGIC = b"\xff\xd8\xff"
+# Pillow writes PDF pages at 72 DPI, so a source pixel maps to one point.
+PDF_POINTS_PER_INCH = 72
 
 
 def _pdf(*sizes: tuple[int, int]) -> bytes:
@@ -33,14 +35,15 @@ def test_renders_one_thumbnail_per_page() -> None:
 
     assert [p.page_number for p in pages] == [1, 2]
     for page in pages:
-        assert page.width == THUMBNAIL_WIDTH  # downscaled to the target width
+        assert page.width > 0
         assert page.height > 0
         assert page.content_type == THUMBNAIL_CONTENT_TYPE
         assert page.data.startswith(JPEG_MAGIC)
 
 
-def test_preserves_aspect_ratio() -> None:
+def test_renders_at_target_dpi() -> None:
     [page] = render_thumbnails(_pdf((300, 600)))
-    # 300x600 source -> width 400 -> height ~800.
-    assert page.width == THUMBNAIL_WIDTH
-    assert page.height == pytest.approx(THUMBNAIL_WIDTH * 2, rel=0.05)
+    # 300x600pt source rasterised at THUMBNAIL_DPI; pixels = points / 72 * dpi.
+    scale = THUMBNAIL_DPI / PDF_POINTS_PER_INCH
+    assert page.width == pytest.approx(300 * scale, rel=0.05)
+    assert page.height == pytest.approx(600 * scale, rel=0.05)
