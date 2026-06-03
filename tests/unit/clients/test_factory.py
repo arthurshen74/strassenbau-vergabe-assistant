@@ -40,10 +40,11 @@ def test_build_telemetry_sinks_wraps_the_engine() -> None:
 
 
 def test_clients_share_one_usage_sink_and_execution_log_sink() -> None:
-    sinks = build_telemetry_sinks(_StubEngine())
+    engine = _StubEngine()
+    sinks = build_telemetry_sinks(engine)
 
     llm = build_llm_client(sinks)
-    embeddings = build_embeddings_client(sinks)
+    embeddings = build_embeddings_client(sinks, engine)
     rerank = build_rerank_client(sinks)
 
     assert llm._usage_sink is sinks.usage

@@ -107,7 +107,7 @@ async def main() -> None:
     )
     sinks = build_telemetry_sinks(engine)
     llm = build_llm_client(sinks)
-    embeddings = build_embeddings_client(sinks)
+    embeddings = build_embeddings_client(sinks, engine)
     search = SearchClient.from_settings()
     reranker = build_rerank_client(sinks)
     service = RetrievalService(

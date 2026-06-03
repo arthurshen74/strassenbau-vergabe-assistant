@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     sinks = build_telemetry_sinks(engine)
     app.state.telemetry_sinks = sinks
     app.state.llm_client = build_llm_client(sinks)
-    app.state.embeddings = build_embeddings_client(sinks)
+    app.state.embeddings = build_embeddings_client(sinks, engine)
     app.state.reranker = build_rerank_client(sinks)
     try:
         yield

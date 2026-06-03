@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from shared.db.tables.conversations import conversations
 from shared.db.tables.documents import documents
+from shared.db.tables.embedding_cache import embedding_cache
 from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
 from shared.db.tables.lv_items import lv_items
@@ -22,6 +23,7 @@ from shared.db.tables.thumbnails import thumbnails
 __all__ = [
     "conversations",
     "documents",
+    "embedding_cache",
     "ingest_job_events",
     "ingest_jobs",
     "lv_items",

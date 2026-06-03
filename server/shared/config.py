@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     embedding_model: str = "openai/text-embedding-3-small"
     embedding_dim: int = 512
+    embedding_cache_enabled: bool = True
 
     cross_encoder_model: str = "cohere/rerank-4-fast"
 

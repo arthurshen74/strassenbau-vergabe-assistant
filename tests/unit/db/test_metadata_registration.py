@@ -16,6 +16,7 @@ EXPECTED_TABLES = {
     "prompt_execution_log",
     "conversations",
     "messages",
+    "embedding_cache",
 }
 
 

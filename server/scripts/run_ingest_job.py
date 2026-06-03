@@ -45,7 +45,7 @@ async def run_ingest_job(job_uuid: UUID) -> None:
     storage = build_storage_client()
     search = SearchClient.from_settings()
     sinks = build_telemetry_sinks(engine)
-    embeddings = build_embeddings_client(sinks)
+    embeddings = build_embeddings_client(sinks, engine)
     llm = build_llm_client(sinks)
     langchain_ingestor = LangchainIngestor(embeddings)
     try:

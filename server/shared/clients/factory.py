@@ -13,11 +13,17 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from shared.clients.embeddings import EmbeddingsClient
+from shared.clients.embeddings import (
+    EmbeddingsClient,
+    NullEmbeddingCache,
+    PostgresEmbeddingCache,
+)
+from shared.clients.embeddings.cache import EmbeddingCache
 from shared.clients.llm.client import LLMClient
 from shared.clients.llm.execution_log_sinks import DatabaseExecutionLogSink
 from shared.clients.openrouter.usage import DatabaseUsageSink
 from shared.clients.rerank import RerankClient
+from shared.config import settings
 
 
 @dataclass(frozen=True)
@@ -39,8 +45,18 @@ def build_llm_client(sinks: TelemetrySinks) -> LLMClient:
     return LLMClient(usage_sink=sinks.usage, execution_log_sink=sinks.execution_log)
 
 
-def build_embeddings_client(sinks: TelemetrySinks) -> EmbeddingsClient:
-    return EmbeddingsClient(usage_sink=sinks.usage)
+def build_embedding_cache(engine: AsyncEngine) -> EmbeddingCache:
+    if not settings.embedding_cache_enabled:
+        return NullEmbeddingCache()
+    return PostgresEmbeddingCache(engine)
+
+
+def build_embeddings_client(
+    sinks: TelemetrySinks, engine: AsyncEngine
+) -> EmbeddingsClient:
+    return EmbeddingsClient(
+        usage_sink=sinks.usage, cache=build_embedding_cache(engine)
+    )
 
 
 def build_rerank_client(sinks: TelemetrySinks) -> RerankClient:
