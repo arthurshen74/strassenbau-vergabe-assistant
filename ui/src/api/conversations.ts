@@ -77,6 +77,21 @@ export async function createAndSeedConversation(
   return created;
 }
 
+export function deleteConversation(uuid: string): Promise<void> {
+  return api.delete<void>(`/conversations/${uuid}`);
+}
+
+// Delete a conversation (its messages cascade server-side) and refresh the list.
+export function useDeleteConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (uuid: string) => deleteConversation(uuid),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: conversationKeys.all });
+    },
+  });
+}
+
 // Generate a title from the conversation's first message and persist it.
 // The backend derives the first message itself, so no body is sent.
 export function useNameConversation() {

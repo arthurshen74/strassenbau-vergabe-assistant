@@ -70,6 +70,18 @@ async def list_conversations(
     return [ConversationRead.model_validate(c) for c in convos]
 
 
+@router.delete("/{conversation_uuid}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_conversation(
+    conversation_uuid: UUID,
+    principal: Principal = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow),
+) -> None:
+    conversation = await uow.conversations.get(conversation_uuid)
+    if conversation is None or conversation.user_uuid != principal.user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
+    await uow.conversations.delete(conversation_uuid)
+
+
 @router.get("/{conversation_uuid}/messages", response_model=list[MessageRead])
 async def list_messages(
     conversation_uuid: UUID,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.conversations import conversations
@@ -52,3 +52,13 @@ class ConversationRepository:
             .values(updated_at=func.now())
         )
         await self.conn.execute(stmt)
+
+    async def delete(self, conversation_uuid: UUID) -> bool:
+        """Delete a conversation; its messages cascade (messages FK ON DELETE CASCADE). Returns
+        whether a row was removed."""
+        stmt = (
+            delete(conversations)
+            .where(conversations.c.conversation_uuid == conversation_uuid)
+            .returning(conversations.c.conversation_uuid)
+        )
+        return (await self.conn.execute(stmt)).first() is not None

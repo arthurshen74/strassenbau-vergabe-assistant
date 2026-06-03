@@ -7,9 +7,14 @@
 // reconciles after a turn completes.
 
 import { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { useConversation, useConversationMessages } from '../../api/conversations';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  useConversation,
+  useConversationMessages,
+  useDeleteConversation,
+} from '../../api/conversations';
 import { useProject } from '../../api/projects';
+import { useStartProjectChat } from '../main/useStartProjectChat';
 import { useWorkspaceConversation } from './hooks/useWorkspaceConversation';
 import { MessageList } from '../../components/chat/MessageList';
 import { ChatInput } from '../../components/chat/ChatInput';
@@ -17,7 +22,18 @@ import { RetrievalConfigBar } from '../../components/chat/RetrievalConfigBar';
 import { useRetrievalConfig } from '../../store/retrievalConfig';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
+import type { SlashCommandSpec } from '../../lib/slash-commands';
 import type { DisplayMessage } from '../../components/chat/types';
+
+// Client-side slash commands for project chat (short-circuit the LLM via ChatInput.onSlashCommand).
+const SLASH_CLEAR = '/clear';
+const SLASH_CLOSE = '/close';
+const SLASH_REMOVE = '/remove';
+const PROJECT_CHAT_SLASH_COMMANDS: SlashCommandSpec[] = [
+  { name: SLASH_CLEAR, description: 'Start a fresh chat for this project' },
+  { name: SLASH_CLOSE, description: 'Back to the dispatcher home' },
+  { name: SLASH_REMOVE, description: 'Delete this conversation' },
+];
 
 export function WorkspaceView() {
   const { conversationId } = useParams<{ conversationId: string }>();
@@ -28,6 +44,9 @@ export function WorkspaceView() {
 }
 
 function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
+  const navigate = useNavigate();
+  const startProjectChat = useStartProjectChat();
+  const deleteConversation = useDeleteConversation();
   const conversation = useConversation(conversationId);
   const projectUuid = conversation.data?.project_uuid ?? undefined;
   const project = useProject(projectUuid);
@@ -35,6 +54,18 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
   const messagesQuery = useConversationMessages(conversationId);
   const { streamMessages, streamingMessageId, isStreaming, sendMessage } =
     useWorkspaceConversation(conversationId, retrievalConfig);
+
+  const onSlashCommand = (cmd: string) => {
+    if (cmd === SLASH_CLEAR) {
+      // Fresh thread, same project scope; the old conversation stays in the list.
+      if (projectUuid) void startProjectChat(projectUuid);
+    } else if (cmd === SLASH_CLOSE) {
+      navigate('/');
+    } else if (cmd === SLASH_REMOVE) {
+      // Delete this conversation and return to the dispatcher home.
+      deleteConversation.mutate(conversationId, { onSuccess: () => navigate('/') });
+    }
+  };
 
   const merged: DisplayMessage[] = useMemo(() => {
     const byId = new Map<string, DisplayMessage>();
@@ -90,8 +121,10 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
 
       <ChatInput
         onSend={sendMessage}
+        onSlashCommand={onSlashCommand}
+        slashCommands={PROJECT_CHAT_SLASH_COMMANDS}
         disabled={isStreaming}
-        placeholder="Ask about this project…"
+        placeholder="Ask about this project… (/clear, /close, /remove)"
         draftKey={`ws:${conversationId}`}
         hint={isStreaming ? 'Thinking…' : undefined}
       />

@@ -1,11 +1,15 @@
-// Flat list of conversations for one already-filtered group (the sidebar
-// renders it once per group). The backend returns a flat list sorted by
-// updated_at; grouping by prompt_type happens in the Sidebar.
+// Flat list of conversations for one already-filtered group (the sidebar renders it for project
+// chats). Each row navigates to the conversation; a right-aligned kebab menu offers "New" (a fresh
+// chat scoped to the same project) and "Remove" (delete the conversation).
 
 import { useParams, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
+import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 import type { ConversationRead } from '../../types/generated';
 import { formatRelativeTime } from '../../lib/format';
+import { useDeleteConversation } from '../../api/conversations';
+import { useStartProjectChat } from '../../views/main/useStartProjectChat';
+import { Dropdown, DropdownButton, DropdownItem, DropdownMenu } from '../ui/dropdown';
 
 interface ConversationListProps {
   items: ConversationRead[];
@@ -15,6 +19,8 @@ interface ConversationListProps {
 export function ConversationList({ items, emptyHint }: ConversationListProps) {
   const { conversationId } = useParams();
   const navigate = useNavigate();
+  const deleteConversation = useDeleteConversation();
+  const startProjectChat = useStartProjectChat();
 
   if (items.length === 0) {
     return (
@@ -24,26 +30,63 @@ export function ConversationList({ items, emptyHint }: ConversationListProps) {
     );
   }
 
+  const onRemove = (c: ConversationRead) => {
+    // If we're removing the conversation we're viewing, head back to the dispatcher home.
+    deleteConversation.mutate(c.conversation_uuid, {
+      onSuccess: () => {
+        if (c.conversation_uuid === conversationId) navigate('/');
+      },
+    });
+  };
+
   return (
     <div className="flex flex-col gap-0.5">
       {items.map((c) => {
         const active = c.conversation_uuid === conversationId;
         return (
-          <button
+          <div
             key={c.conversation_uuid}
-            onClick={() => navigate(`/c/${c.conversation_uuid}`)}
             className={clsx(
-              'flex min-w-0 flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left text-sm',
+              'flex items-center gap-1 rounded-md pr-1',
               active
-                ? 'bg-zinc-200 text-zinc-950 dark:bg-zinc-700 dark:text-white'
-                : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
+                ? 'bg-zinc-200 dark:bg-zinc-700'
+                : 'hover:bg-zinc-100 dark:hover:bg-zinc-800',
             )}
           >
-            <div className="line-clamp-1 w-full">{c.title ?? 'Untitled'}</div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              {formatRelativeTime(c.updated_at)}
-            </div>
-          </button>
+            <button
+              onClick={() => navigate(`/c/${c.conversation_uuid}`)}
+              className={clsx(
+                'flex min-w-0 flex-1 flex-col items-start gap-0.5 px-2 py-1.5 text-left text-sm',
+                active
+                  ? 'text-zinc-950 dark:text-white'
+                  : 'text-zinc-700 dark:text-zinc-300',
+              )}
+            >
+              <div className="line-clamp-1 w-full">{c.title ?? 'Untitled'}</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                {formatRelativeTime(c.updated_at)}
+              </div>
+            </button>
+            <Dropdown>
+              <DropdownButton
+                as="button"
+                aria-label="Conversation actions"
+                className="shrink-0 rounded p-1 text-zinc-400 transition hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+              >
+                <EllipsisVerticalIcon className="h-4 w-4" />
+              </DropdownButton>
+              <DropdownMenu anchor="bottom end">
+                <DropdownItem
+                  onClick={() => {
+                    if (c.project_uuid) void startProjectChat(c.project_uuid);
+                  }}
+                >
+                  New
+                </DropdownItem>
+                <DropdownItem onClick={() => onRemove(c)}>Remove</DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+          </div>
         );
       })}
     </div>

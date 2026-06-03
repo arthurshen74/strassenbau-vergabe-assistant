@@ -66,3 +66,19 @@ async def test_messages_round_trip_with_jsonb(conn: AsyncConnection) -> None:
     ]
     assert rows[1].arguments == {"parent_oz": None}
     assert rows[2].success is True and rows[2].data == {"projects": []}
+
+
+async def test_delete_removes_conversation_and_cascades_messages(conn: AsyncConnection) -> None:
+    convos = ConversationRepository(conn)
+    messages = MessageRepository(conn)
+    convo = await convos.add(
+        NewConversation(user_uuid=uuid4(), prompt_type=PromptType.PROJECT_CHAT)
+    )
+    cid = convo.conversation_uuid
+    await messages.add(NewMessage(conversation_uuid=cid, kind=MessageKind.USER, content="hi"))
+
+    assert await convos.delete(cid) is True
+    assert await convos.get(cid) is None
+    assert await messages.list_for_conversation(cid) == []  # messages cascade on delete
+    # Deleting a non-existent conversation is a no-op.
+    assert await convos.delete(uuid4()) is False

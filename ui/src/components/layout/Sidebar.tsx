@@ -16,7 +16,6 @@ import {
 } from '../../api/conversations';
 import { useMainWindowStore, type MainWindowKind } from '../../store/mainWindow';
 import { ConversationList } from './ConversationList';
-import { DispatchBar } from './DispatchBar';
 
 type CommandIcon = typeof DocumentTextIcon;
 
@@ -52,11 +51,10 @@ export function Sidebar() {
       <div className="border-b border-zinc-950/5 p-3 dark:border-white/5">
         <Link
           to="/"
-          className="mb-3 block px-1 text-sm font-semibold text-zinc-900 transition hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400"
+          className="block px-1 text-sm font-semibold text-zinc-900 transition hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400"
         >
           Roadbuilders Assistant
         </Link>
-        <DispatchBar />
       </div>
 
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-3">
