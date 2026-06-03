@@ -435,6 +435,10 @@ export interface SSEFunctionCallOutput {
 export interface SSEUiNotice {
   event: "ui_notice";
   content: string;
+  /**
+   * Severity of a ui_notice; drives whether the UI renders it muted or error-styled.
+   */
+  level?: "info" | "error";
 }
 
 export interface SSEDone {

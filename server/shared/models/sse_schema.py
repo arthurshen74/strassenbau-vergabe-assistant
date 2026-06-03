@@ -11,6 +11,7 @@ payload keys; the dispatcher imports them rather than re-typing the literals.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,6 +36,21 @@ DATA_SUCCESS = "success"
 DATA_RESULT = "data"
 DATA_ERRORS = "errors"
 DATA_CONTENT = "content"
+DATA_LEVEL = "level"
+
+
+class NoticeLevel(StrEnum):
+    """Severity of a ui_notice; drives whether the UI renders it muted or error-styled."""
+
+    INFO = "info"
+    ERROR = "error"
+
+
+# User-facing copy for a turn that failed before or during streaming. Shared by the project-chat
+# service and the streaming routes so the message reads the same wherever a turn breaks.
+NOTICE_PROCESSING_ERROR = (
+    "Sorry, something went wrong while processing your message. Please try again."
+)
 
 
 class SSETextDelta(BaseModel):
@@ -69,6 +85,7 @@ class SSEUiNotice(BaseModel):
 
     event: Literal["ui_notice"]
     content: str
+    level: NoticeLevel = NoticeLevel.INFO
 
 
 class SSEDone(BaseModel):

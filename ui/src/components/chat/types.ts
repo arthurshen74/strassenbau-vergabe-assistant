@@ -5,13 +5,14 @@
 // kind — it only ever arrives as a live SSE event and lives in the local
 // stream buffer — so it gets its own ephemeral shape here.
 
-import type { MessageRead } from '../../types/generated';
+import type { MessageRead, SSEUiNotice } from '../../types/generated';
 
 export interface UiNoticeMessage {
   message_uuid: string;
   conversation_uuid: string;
   kind: 'ui_notice';
   content: string;
+  level?: SSEUiNotice['level'];
   created_at: string;
 }
 

@@ -35,7 +35,7 @@ export function Message({ m, streaming, citationData, projectUuid }: MessageProp
         />
       );
     case 'ui_notice':
-      return <UINoticeMessage content={m.content} />;
+      return <UINoticeMessage content={m.content} level={m.level} />;
     case 'function_call':
       return null;
     case 'function_call_output':

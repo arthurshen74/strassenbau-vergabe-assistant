@@ -35,6 +35,7 @@ from shared.models.sse_schema import (
     DATA_CALL_ID,
     DATA_CONTENT,
     DATA_ERRORS,
+    DATA_LEVEL,
     DATA_NAME,
     DATA_RESULT,
     DATA_SUCCESS,
@@ -45,6 +46,8 @@ from shared.models.sse_schema import (
     EVENT_FUNCTION_CALL_OUTPUT,
     EVENT_TEXT_DELTA,
     EVENT_UI_NOTICE,
+    NOTICE_PROCESSING_ERROR,
+    NoticeLevel,
 )
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
@@ -152,7 +155,7 @@ class ProjectChatService:
                     yield _function_call_output(event.call_id, event.name, True, event.payload)
         except Exception:
             logger.exception("project chat turn failed conversation=%s", conversation_id)
-            yield _ui_notice("Bei der Beantwortung ist ein Fehler aufgetreten.")
+            yield _ui_notice(NOTICE_PROCESSING_ERROR, NoticeLevel.ERROR)
         finally:
             await self._emit_agent_telemetry(agent)
 
@@ -205,8 +208,8 @@ def _text_delta(content: str) -> dict[str, Any]:
     return {EVENT: EVENT_TEXT_DELTA, DATA: {DATA_CONTENT: content}}
 
 
-def _ui_notice(content: str) -> dict[str, Any]:
-    return {EVENT: EVENT_UI_NOTICE, DATA: {DATA_CONTENT: content}}
+def _ui_notice(content: str, level: NoticeLevel = NoticeLevel.INFO) -> dict[str, Any]:
+    return {EVENT: EVENT_UI_NOTICE, DATA: {DATA_CONTENT: content, DATA_LEVEL: level}}
 
 
 def _function_call(call_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:

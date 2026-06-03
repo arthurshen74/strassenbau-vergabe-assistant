@@ -9,7 +9,9 @@
 //   - function_call_output: on success, opens the main window for a routable
 //                           tool (view_prompts / view_projects). Not shown
 //                           inline.
-//   - ui_notice:            append an ephemeral notice
+//   - ui_notice:            append a notice (error-styled when level==='error');
+//                           never persisted, so it's retained across the refetch
+//                           and cleared on the next turn
 //   - done:                 close the stream; the messages refetch flushes
 //                           authoritative server-side ids
 //
@@ -101,7 +103,8 @@ export function useWorkspaceConversation(
         kind: 'user',
         content: text,
       });
-      setStreamMessages((prev) => [...prev, userMsg]);
+      // Drop notices retained from a prior turn so each turn starts clean.
+      setStreamMessages((prev) => [...prev.filter((m) => m.kind !== 'ui_notice'), userMsg]);
 
       streamStateRef.current = { openAssistantId: null, toolNameByCallId: {} };
       setIsStreaming(true);
@@ -205,6 +208,7 @@ export function useWorkspaceConversation(
                     conversation_uuid: conversationId,
                     kind: 'ui_notice',
                     content: e.content,
+                    level: e.level,
                     created_at: nowIso(),
                   },
                 ]);
@@ -231,7 +235,8 @@ export function useWorkspaceConversation(
               message_uuid: localId('note'),
               conversation_uuid: conversationId,
               kind: 'ui_notice',
-              content: `Stream failed: ${(err as Error).message}`,
+              content: 'Sorry, the connection was interrupted. Please try again.',
+              level: 'error',
               created_at: nowIso(),
             },
           ]);
@@ -250,8 +255,10 @@ export function useWorkspaceConversation(
 
         // Land authoritative server messages before clearing placeholders so
         // there's no flash, then refresh the sidebar list (titles/timestamps).
+        // Notices are never persisted server-side, so retain them across the
+        // refetch — otherwise an error notice flashes and vanishes.
         await qc.refetchQueries({ queryKey: conversationKeys.messages(conversationId) });
-        setStreamMessages([]);
+        setStreamMessages((prev) => prev.filter((m) => m.kind === 'ui_notice'));
         qc.invalidateQueries({ queryKey: conversationKeys.all });
 
         // Auto-name a brand-new conversation from its first message.

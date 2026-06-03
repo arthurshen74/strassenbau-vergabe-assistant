@@ -40,7 +40,8 @@ export function WorkspaceView() {
   if (!conversationId) {
     return <ErrorState message="Missing conversation id" />;
   }
-  return <WorkspaceViewInner conversationId={conversationId} />;
+  // Key by conversation so per-conversation stream state (incl. retained notices) resets on switch.
+  return <WorkspaceViewInner key={conversationId} conversationId={conversationId} />;
 }
 
 function WorkspaceViewInner({ conversationId }: { conversationId: string }) {

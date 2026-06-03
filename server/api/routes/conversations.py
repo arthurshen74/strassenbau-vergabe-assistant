@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -24,12 +25,24 @@ from shared.models.conversation_schema import ConversationCreate, ConversationRe
 from shared.models.enums import PromptType
 from shared.models.message_schema import MessageRead
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
+from shared.models.sse_schema import (
+    DATA,
+    DATA_CONTENT,
+    DATA_LEVEL,
+    EVENT,
+    EVENT_DONE,
+    EVENT_UI_NOTICE,
+    NOTICE_PROCESSING_ERROR,
+    NoticeLevel,
+)
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
 from shared.services.conversation_naming import ConversationNamingService
 from shared.services.project_chat import ProjectChatService, config_from_request
 from shared.services.prompt_runner import PromptRunner
 from shared.services.security import InputRejectedError, guard_user_input
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -121,8 +134,21 @@ async def run_turn(
     )
 
     async def event_stream() -> AsyncIterator[str]:
-        async for event in events:
-            yield format_sse(event)
+        # The 200 + headers are already committed once streaming starts, so an exception here
+        # cannot become an HTTP error. Surface it as a ui_notice + done instead of letting the
+        # connection close silently, and log the cause server-side.
+        try:
+            async for event in events:
+                yield format_sse(event)
+        except Exception:
+            logger.exception("project chat turn stream failed conversation=%s", conversation_uuid)
+            yield format_sse(
+                {
+                    EVENT: EVENT_UI_NOTICE,
+                    DATA: {DATA_CONTENT: NOTICE_PROCESSING_ERROR, DATA_LEVEL: NoticeLevel.ERROR},
+                }
+            )
+            yield format_sse({EVENT: EVENT_DONE, DATA: {}})
 
     return StreamingResponse(event_stream(), media_type=SSE_MEDIA_TYPE)
 
