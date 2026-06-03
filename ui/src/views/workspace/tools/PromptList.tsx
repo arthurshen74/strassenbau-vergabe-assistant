@@ -4,14 +4,17 @@
 // result, shaped `{prompts: [...]}` or a bare array) it renders that; when
 // absent (opened from the sidebar command) it fetches GET /prompts itself.
 
+import { useState } from 'react';
 import type { PromptVersionRead } from '../../../types/generated';
 import { usePromptsLatest } from '../../../api/prompts';
 import { Heading } from '../../../components/ui/heading';
 import { Text } from '../../../components/ui/text';
 import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
 import { formatRelativeTime } from '../../../lib/format';
 import { LoadingState } from '../../../components/feedback/LoadingState';
 import { ErrorState } from '../../../components/feedback/ErrorState';
+import { PromptEditDialog } from './PromptEditDialog';
 
 type BadgeColor = 'zinc' | 'blue' | 'purple' | 'amber' | 'green' | 'sky' | 'rose';
 
@@ -38,6 +41,7 @@ function normalize(data: unknown): PromptVersionRead[] | null {
 export function PromptList({ data }: { data?: unknown }) {
   const provided = normalize(data);
   const query = usePromptsLatest();
+  const [editing, setEditing] = useState<PromptVersionRead | null>(null);
 
   if (provided === null) {
     if (query.isPending) return <LoadingState label="Loading prompts…" />;
@@ -74,6 +78,9 @@ export function PromptList({ data }: { data?: unknown }) {
             <div className="flex flex-wrap items-center gap-2">
               <Badge color={TYPE_COLOR[p.prompt_type]}>{p.prompt_type}</Badge>
               <Badge color="zinc">v{p.version}</Badge>
+              <Button plain onClick={() => setEditing(p)} className="ml-auto text-xs">
+                Edit
+              </Button>
             </div>
             <Text className="text-xs">{p.model_name}</Text>
             <div className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -92,6 +99,13 @@ export function PromptList({ data }: { data?: unknown }) {
           </div>
         ))}
       </div>
+      {editing && (
+        <PromptEditDialog
+          prompt={editing}
+          open={editing !== null}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
