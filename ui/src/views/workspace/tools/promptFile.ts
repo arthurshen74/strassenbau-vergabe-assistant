@@ -26,7 +26,7 @@ type PromptType = PromptVersionCreate['prompt_type'];
 export const PROMPT_TYPES: readonly PromptType[] = [
   'dispatcher',
   'project_chat',
-  'classify_project_chat_user_message',
+  'aggregate_lv_membership',
   'multi_question_generator',
   'lv_extraction',
   'conversation_name',

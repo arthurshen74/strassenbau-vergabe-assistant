@@ -3,6 +3,7 @@
 //   - Commands: open a component into the global main window
 //   - Project Conversations: project-chat threads (the only persistent conversations)
 
+import { Link } from 'react-router-dom';
 import {
   ChartBarIcon,
   ClipboardDocumentListIcon,
@@ -49,9 +50,12 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-zinc-950/5 bg-zinc-50 dark:border-white/5 dark:bg-zinc-950">
       <div className="border-b border-zinc-950/5 p-3 dark:border-white/5">
-        <div className="mb-3 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <Link
+          to="/"
+          className="mb-3 block px-1 text-sm font-semibold text-zinc-900 transition hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400"
+        >
           Roadbuilders Assistant
-        </div>
+        </Link>
         <DispatchBar />
       </div>
 
