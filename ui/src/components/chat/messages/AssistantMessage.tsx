@@ -3,10 +3,12 @@
 // scroll to the matching source (data-source-number), briefly highlighting it. A thin
 // caret trails the text while the stream is open.
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { Element } from 'hast';
 import { CitationsPanel, type CitationData } from './CitationsPanel';
-
-const CITATION_RE = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
+import { rehypeCitations } from './rehypeCitations';
 
 function CitationBadge({ n, onCite }: { n: number; onCite: (n: number) => void }) {
   return (
@@ -18,25 +20,6 @@ function CitationBadge({ n, onCite }: { n: number; onCite: (n: number) => void }
       {n}
     </button>
   );
-}
-
-function renderWithCitations(text: string, onCite: (n: number) => void): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  let last = 0;
-  let key = 0;
-  for (const match of text.matchAll(CITATION_RE)) {
-    const start = match.index ?? 0;
-    if (start > last) nodes.push(text.slice(last, start));
-    const numbers = match[1]
-      .split(',')
-      .map((s) => parseInt(s.trim(), 10))
-      .filter((x) => !Number.isNaN(x));
-    for (const n of numbers)
-      nodes.push(<CitationBadge key={`c-${key++}`} n={n} onCite={onCite} />);
-    last = start + match[0].length;
-  }
-  if (last < text.length) nodes.push(text.slice(last));
-  return nodes;
 }
 
 interface AssistantMessageProps {
@@ -82,20 +65,34 @@ export function AssistantMessage({
     <div className="flex justify-start">
       <div
         ref={containerRef}
-        className="max-w-2xl text-sm whitespace-pre-wrap text-zinc-900 dark:text-zinc-100"
+        className="max-w-2xl text-sm text-zinc-900 dark:text-zinc-100"
       >
-        <span
+        <div
+          className="prose prose-sm dark:prose-invert max-w-none"
           aria-live={streaming ? 'polite' : undefined}
           aria-busy={streaming || undefined}
         >
-          {renderWithCitations(content, onCite)}
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeCitations]}
+            components={
+              {
+                // `citation` is a custom tag emitted by rehypeCitations; not in Components.
+                citation: ({ node }: { node?: Element }) => (
+                  <CitationBadge n={Number(node?.properties?.n ?? 0)} onCite={onCite} />
+                ),
+              } as Components
+            }
+          >
+            {content}
+          </ReactMarkdown>
           {streaming && (
             <span
               aria-hidden
               className="ml-0.5 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-zinc-400 dark:bg-zinc-500"
             />
           )}
-        </span>
+        </div>
         {citationData && (
           <CitationsPanel
             data={citationData}
