@@ -32,6 +32,7 @@ from shared.models.document import NewDocument
 from shared.models.document_schema import DocumentRead
 from shared.models.enums import DocumentType
 from shared.models.ingest_job import IngestJob, NewIngestJob
+from shared.models.lv_item import LVItem
 from shared.models.project_schema import ProjectCreate, ProjectRead
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
@@ -98,6 +99,10 @@ class ProjectService:
     async def list_documents(self, project_uuid: UUID) -> list[DocumentRead]:
         docs = await self.documents.list_by_project(project_uuid)
         return [DocumentRead.model_validate(d) for d in docs]
+
+    async def list_lv_items(self, project_uuid: UUID) -> list[LVItem]:
+        assert self.lv_items is not None
+        return await self.lv_items.list_by_project(project_uuid)
 
     async def delete_document(self, project_uuid: UUID, document_uuid: UUID) -> bool:
         """Remove a document and everything derived from it. The DB delete cascades to

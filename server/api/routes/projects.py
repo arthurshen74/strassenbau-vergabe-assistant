@@ -31,9 +31,11 @@ from shared.models.document_schema import (
 )
 from shared.models.enums import DocumentType, SourceDocType
 from shared.models.ingest_schema import IngestJobRead
+from shared.models.lv_item import LVItem
 from shared.models.project_schema import ProjectCreate, ProjectRead
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
+from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.document_detail import DocumentDetailService
@@ -54,7 +56,10 @@ def get_project_service(
     conn: AsyncConnection = Depends(get_connection),
 ) -> ProjectService:
     return ProjectService(
-        ProjectRepository(conn), DocumentRepository(conn), IngestJobRepository(conn)
+        ProjectRepository(conn),
+        DocumentRepository(conn),
+        IngestJobRepository(conn),
+        lv_items=LVItemRepository(conn),
     )
 
 
@@ -120,6 +125,15 @@ async def list_documents(
     service: ProjectService = Depends(get_project_service),
 ) -> list[DocumentRead]:
     return await service.list_documents(project_uuid)
+
+
+@router.get("/{project_uuid}/lv-items", response_model=list[LVItem])
+async def list_lv_items(
+    project_uuid: UUID,
+    service: ProjectService = Depends(get_project_service),
+) -> list[LVItem]:
+    """All LV positions for the project's LV document, ordered by oz."""
+    return await service.list_lv_items(project_uuid)
 
 
 @router.get("/{project_uuid}/ingest/stream")

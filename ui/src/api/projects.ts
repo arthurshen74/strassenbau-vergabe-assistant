@@ -9,6 +9,7 @@ import { api, apiBase } from './client';
 import type {
   DocumentRead,
   IngestJobRead,
+  LVItem,
   ProjectCreate,
   ProjectRead,
 } from '../types/generated';
@@ -24,6 +25,7 @@ export const projectKeys = {
   list: () => [...projectKeys.all, 'list'] as const,
   detail: (uuid: string) => ['project', uuid] as const,
   documents: (uuid: string) => ['project', uuid, 'documents'] as const,
+  lvItems: (uuid: string) => ['project', uuid, 'lv-items'] as const,
 };
 
 export function useProjects() {
@@ -45,6 +47,14 @@ export function useProjectDocuments(uuid: string | undefined) {
   return useQuery({
     queryKey: uuid ? projectKeys.documents(uuid) : ['project', 'none', 'documents'],
     queryFn: () => api.get<DocumentRead[]>(`/projects/${uuid}/documents`),
+    enabled: !!uuid,
+  });
+}
+
+export function useProjectLvItems(uuid: string | undefined) {
+  return useQuery({
+    queryKey: uuid ? projectKeys.lvItems(uuid) : ['project', 'none', 'lv-items'],
+    queryFn: () => api.get<LVItem[]>(`/projects/${uuid}/lv-items`),
     enabled: !!uuid,
   });
 }

@@ -46,6 +46,16 @@ failure behaviour (the script re-raises; the worker swallows to keep looping). *
 two callers. If a third runner appears, extract a shared `run_ingest(stack, job)` (and a stack builder)
 into `shared/services/ingestion`.
 
+### Underline tab navigation (desktop `border-b-2` button bar)
+
+- `ui/src/views/main/DocumentDetailDialog.tsx` — thumbnails / chunks / log tabs (icons + mobile `<Select>`)
+- `ui/src/views/main/ProjectDetails.tsx` — LV Positions / Documents tabs
+
+Both render the same desktop underline tab bar (`border-b` container, `-mb-px flex` nav, per-tab
+`border-b-2` button with the indigo active state). DocumentDetailDialog additionally carries per-tab
+icons and a mobile `<Select>` fallback. **Do not extract yet** — two callers and the shapes differ. If a
+third tab bar appears, extract a `Tabs` component into `ui/src/components/ui/`.
+
 > Note: the usage parser + sink (`server/shared/clients/openrouter/usage/`) was already extracted — not on
 > count, but because it crosses a module boundary (clients -> persistence) and is a single orthogonal
 > concern shared verbatim by every OpenRouter client.

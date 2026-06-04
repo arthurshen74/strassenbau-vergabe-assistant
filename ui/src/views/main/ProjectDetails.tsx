@@ -4,10 +4,11 @@ import { useState } from 'react';
 import {
   ArrowLeftIcon,
   ChatBubbleLeftRightIcon,
+  DocumentArrowDownIcon,
   MagnifyingGlassIcon,
-  PlusIcon,
   TrashIcon,
 } from '@heroicons/react/16/solid';
+import { DocumentDuplicateIcon, ListBulletIcon } from '@heroicons/react/20/solid';
 import { useProject, useProjectDocuments } from '../../api/projects';
 import { useProjectIngestStatus } from '../../api/ingest';
 import { useStartProjectChat } from './useStartProjectChat';
@@ -32,6 +33,9 @@ import { formatRelativeTime } from '../../lib/format';
 import { UploadDocumentDialog } from './UploadDocumentDialog';
 import { DeleteDocumentDialog } from './DeleteDocumentDialog';
 import { DocumentDetailDialog } from './DocumentDetailDialog';
+import { LVItemsTable } from './LVItemsTable';
+
+type ProjectTab = 'lv' | 'documents';
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
@@ -56,6 +60,7 @@ export function ProjectDetails({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
   const [docDetail, setDocDetail] = useState<DocumentRead | null>(null);
+  const [tab, setTab] = useState<ProjectTab>('lv');
 
   if (project.isPending) return <LoadingState label="Loading project…" />;
   if (project.isError) {
@@ -73,10 +78,16 @@ export function ProjectDetails({
           </Button>
           <Heading level={4}>{p.project_name}</Heading>
         </div>
-        <Button onClick={() => startProjectChat(projectUuid)}>
-          <ChatBubbleLeftRightIcon />
-          Chat about this project
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setUploadOpen(true)}>
+            <DocumentArrowDownIcon />
+            Ingest New Document
+          </Button>
+          <Button onClick={() => startProjectChat(projectUuid)}>
+            <ChatBubbleLeftRightIcon />
+            Chat about this project
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -87,85 +98,120 @@ export function ProjectDetails({
       </div>
       {p.project_description && <Text>{p.project_description}</Text>}
 
-      <div className="flex items-center justify-between">
-        <Heading level={5}>Documents</Heading>
-        <Button onClick={() => setUploadOpen(true)}>
-          <PlusIcon />
-          Ingest New Document
-        </Button>
+      <div className="border-b border-zinc-950/10 dark:border-white/10">
+        <nav aria-label="Tabs" className="-mb-px flex space-x-8">
+          {(
+            [
+              { id: 'lv', name: 'LV Positions', icon: ListBulletIcon },
+              { id: 'documents', name: 'Documents', icon: DocumentDuplicateIcon },
+            ] as const
+          ).map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                aria-current={active ? 'page' : undefined}
+                className={
+                  'group inline-flex items-center border-b-2 px-1 py-3 text-sm font-medium ' +
+                  (active
+                    ? 'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                    : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-white/20 dark:hover:text-zinc-300')
+                }
+              >
+                <t.icon
+                  aria-hidden="true"
+                  className={
+                    'mr-2 -ml-0.5 size-5 ' +
+                    (active
+                      ? 'text-indigo-500 dark:text-indigo-400'
+                      : 'text-zinc-400 group-hover:text-zinc-500 dark:text-zinc-500')
+                  }
+                />
+                <span>{t.name}</span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
-      {docs.length === 0 ? (
-        <Text>No documents yet.</Text>
-      ) : (
-        <Table dense>
-          <TableHead>
-            <TableRow>
-              <TableHeader>File</TableHeader>
-              <TableHeader>Type</TableHeader>
-              <TableHeader>Status</TableHeader>
-              <TableHeader>Pages</TableHeader>
-              <TableHeader>Added</TableHeader>
-              <TableHeader className="relative w-0">
-                <span className="sr-only">Actions</span>
-              </TableHeader>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {docs.map((d) => (
-              <TableRow key={d.document_uuid}>
-                <TableCell
-                  className="cursor-pointer font-medium text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400"
-                  onClick={() => setDocDetail(d)}
-                >
-                  {d.file_name}
-                </TableCell>
-                <TableCell>
-                  <Badge color={d.document_type === 'LV_DOCUMENT' ? 'amber' : 'zinc'}>
-                    {d.document_type}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <IngestStatusCell status={ingestStatus[d.document_uuid]} />
-                </TableCell>
-                <TableCell
-                  className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-                  onClick={() => setDocDetail(d)}
-                >
-                  {d.number_of_pages}
-                </TableCell>
-                <TableCell className="text-zinc-500">{formatRelativeTime(d.created_at)}</TableCell>
-                <TableCell className="text-right">
-                  <span className="inline-flex items-center justify-end gap-1">
-                    <Button
-                      plain
-                      onClick={() => setDocDetail(d)}
-                      aria-label={`Details for ${d.file_name}`}
-                    >
-                      <MagnifyingGlassIcon />
-                    </Button>
-                    <IngestButton
-                      projectUuid={projectUuid}
-                      documentUuid={d.document_uuid}
-                      active={
-                        ingestStatus[d.document_uuid]?.status === 'queued' ||
-                        ingestStatus[d.document_uuid]?.status === 'running'
-                      }
-                    />
-                    <Button
-                      plain
-                      onClick={() => setDocToDelete(d)}
-                      aria-label={`Remove ${d.file_name}`}
-                    >
-                      <TrashIcon />
-                    </Button>
-                  </span>
-                </TableCell>
+      {tab === 'lv' && <LVItemsTable projectUuid={projectUuid} />}
+
+      {tab === 'documents' &&
+        (docs.length === 0 ? (
+          <Text>No documents yet.</Text>
+        ) : (
+          <Table dense>
+            <TableHead>
+              <TableRow>
+                <TableHeader>File</TableHeader>
+                <TableHeader>Type</TableHeader>
+                <TableHeader>Status</TableHeader>
+                <TableHeader>Pages</TableHeader>
+                <TableHeader>Added</TableHeader>
+                <TableHeader className="relative w-0">
+                  <span className="sr-only">Actions</span>
+                </TableHeader>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            </TableHead>
+            <TableBody>
+              {docs.map((d) => (
+                <TableRow key={d.document_uuid}>
+                  <TableCell
+                    className="cursor-pointer font-medium text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400"
+                    onClick={() => setDocDetail(d)}
+                  >
+                    {d.file_name}
+                  </TableCell>
+                  <TableCell>
+                    <Badge color={d.document_type === 'LV_DOCUMENT' ? 'amber' : 'zinc'}>
+                      {d.document_type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <IngestStatusCell status={ingestStatus[d.document_uuid]} />
+                  </TableCell>
+                  <TableCell
+                    className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                    onClick={() => setDocDetail(d)}
+                  >
+                    {d.number_of_pages}
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {formatRelativeTime(d.created_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="inline-flex items-center justify-end gap-1">
+                      <Button
+                        plain
+                        onClick={() => setDocDetail(d)}
+                        aria-label={`Details for ${d.file_name}`}
+                      >
+                        <MagnifyingGlassIcon />
+                      </Button>
+                      <IngestButton
+                        projectUuid={projectUuid}
+                        documentUuid={d.document_uuid}
+                        active={
+                          ingestStatus[d.document_uuid]?.status === 'queued' ||
+                          ingestStatus[d.document_uuid]?.status === 'running'
+                        }
+                      />
+                      <Button
+                        plain
+                        onClick={() => setDocToDelete(d)}
+                        aria-label={`Remove ${d.file_name}`}
+                      >
+                        <TrashIcon />
+                      </Button>
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ))}
 
       <UploadDocumentDialog
         projectUuid={projectUuid}
