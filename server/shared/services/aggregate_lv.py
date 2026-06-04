@@ -9,6 +9,7 @@ reported separately so a conditional quantity is never folded into a headline to
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from decimal import Decimal
 from uuid import UUID
@@ -82,11 +83,27 @@ class AggregateLVService:
 
 
 def _build_listing(items: list[LVItem]) -> str:
-    """One line per position: `lv_item_uuid | OZ | Einheit | Positionstyp | Kurztext`."""
-    return "\n".join(
-        f"{i.lv_item_uuid} | OZ {i.oz} | {i.einheit} | {i.positionstyp or '-'} | {i.kurztext}"
-        for i in items
-    )
+    """One JSON object per line (JSONL). langtext newlines and pipes survive as escaped string
+    content, so they never collide with the line delimiter the way the prior `|` format let them."""
+    return "\n".join(json.dumps(_item_record(i), ensure_ascii=False) for i in items)
+
+
+def _item_record(item: LVItem) -> dict[str, str]:
+    """The judge's view of one position. langtext_resolved is preferred (STL references expanded);
+    stl_nr/hinweis are omitted when absent to keep the listing light at LV scale."""
+    record = {
+        "lv_item_uuid": str(item.lv_item_uuid),
+        "oz": item.oz,
+        "menge": str(item.menge),
+        "einheit": item.einheit,
+        "kurztext": item.kurztext,
+        "langtext": item.langtext_resolved or item.langtext,
+    }
+    if item.stl_nr is not None:
+        record["stl_nr"] = item.stl_nr
+    if item.hinweis is not None:
+        record["hinweis"] = item.hinweis
+    return record
 
 
 def _line(item: LVItem, rationale_by_uuid: dict[str, str]) -> AggregateLineItem:
