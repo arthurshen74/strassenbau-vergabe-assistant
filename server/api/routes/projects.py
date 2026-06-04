@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from typing import Literal
 from uuid import UUID
 
+from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
@@ -19,8 +20,9 @@ from api.deps import (
     get_uow,
 )
 from api.sse import SSE_HEARTBEAT, SSE_MEDIA_TYPE, format_sse
+from shared.clients.maps.client import MAP_CONTENT_TYPE
 from shared.clients.search.client import SearchClient
-from shared.clients.storage.client import StorageClient
+from shared.clients.storage.client import StorageClient, map_object_key
 from shared.config import settings
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.document_schema import (
@@ -50,6 +52,9 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 # Page thumbnails are immutable once ingested (re-ingestion replaces the row), so cache hard.
 THUMBNAIL_CACHE_CONTROL = "public, max-age=86400, immutable"
+
+# Rendered maps are addressed by a hash of their request params, so they're immutable too.
+MAP_CACHE_CONTROL = "public, max-age=86400, immutable"
 
 
 def get_project_service(
@@ -242,6 +247,27 @@ async def get_page_thumbnail(
         content=data,
         media_type=thumbnail.content_type,
         headers={"Cache-Control": THUMBNAIL_CACHE_CONTROL},
+    )
+
+
+@router.get("/{project_uuid}/maps/{map_id}")
+async def get_project_map(
+    project_uuid: UUID,
+    map_id: str,
+    storage: StorageClient = Depends(get_storage),
+) -> Response:
+    """Serve a rendered static map image, proxied from object storage (MinIO isn't reachable from
+    the browser in local dev). The map is keyed under the project, so it can't be pulled across
+    projects; a missing key is a 404."""
+    key = map_object_key(project_uuid, map_id)
+    try:
+        data = await asyncio.to_thread(storage.get_object, key)
+    except ClientError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="map not found")
+    return Response(
+        content=data,
+        media_type=MAP_CONTENT_TYPE,
+        headers={"Cache-Control": MAP_CACHE_CONTROL},
     )
 
 

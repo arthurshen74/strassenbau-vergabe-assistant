@@ -11,6 +11,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from shared.models.enums import PromptType
+from shared.models.ingest_schema import IngestJobConsoleRead
 from shared.models.openrouter_usage_schema import OpenRouterUsageRead
 from shared.models.prompt_execution_log_schema import PromptExecutionLogSummary
 from shared.tools._base import ToolContext, ToolDefinition
@@ -51,6 +52,16 @@ async def _view_prompt_usage_log(_args: _NoArgs, ctx: ToolContext) -> dict[str, 
     return {"usage": [OpenRouterUsageRead.model_validate(r).model_dump(mode="json") for r in rows]}
 
 
+async def _view_ingest_console(_args: _NoArgs, ctx: ToolContext) -> dict[str, object]:
+    rows = await ctx.uow.ingest_jobs.list_for_console()
+    return {
+        "jobs": [
+            IngestJobConsoleRead.model_validate(r).model_dump(mode="json")
+            for r in rows[:_LOG_TOOL_LIMIT]
+        ]
+    }
+
+
 view_projects_tool = ToolDefinition(
     name="view_projects",
     description="List the construction projects (vergabe id, name, description, vergabestelle).",
@@ -79,12 +90,20 @@ view_prompt_usage_log_tool = ToolDefinition(
     handler=_view_prompt_usage_log,
 )
 
+view_ingest_console_tool = ToolDefinition(
+    name="view_ingest_console",
+    description="List recent document ingestion jobs (file, project, status, attempts, worker lease).",
+    input_model=_NoArgs,
+    handler=_view_ingest_console,
+)
+
 TOOL_CATALOGS: dict[PromptType, list[ToolDefinition]] = {
     PromptType.DISPATCHER: [
         view_prompts_tool,
         view_projects_tool,
         view_prompt_execution_log_tool,
         view_prompt_usage_log_tool,
+        view_ingest_console_tool,
     ],
 }
 

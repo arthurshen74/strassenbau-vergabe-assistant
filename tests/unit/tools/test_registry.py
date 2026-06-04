@@ -10,6 +10,7 @@ def test_catalogs_per_prompt_type() -> None:
         "view_projects",
         "view_prompt_execution_log",
         "view_prompt_usage_log",
+        "view_ingest_console",
     ]
 
 

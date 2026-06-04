@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # reader of an object key derives it from the helpers below, never an inline literal.
 RAW_KEY_PREFIX = "raw"
 THUMBNAIL_KEY_PREFIX = "thumbnails"
+MAP_KEY_PREFIX = "maps"
 
 # S3 caps a single DeleteObjects request at 1000 keys.
 DELETE_BATCH_MAX = 1000
@@ -37,6 +38,11 @@ def raw_object_key(document_uuid: UUID) -> str:
 def thumbnail_object_key(document_uuid: UUID, page_number: int) -> str:
     """Storage key for a single page thumbnail of a document."""
     return f"{THUMBNAIL_KEY_PREFIX}/{document_uuid}/{page_number}"
+
+
+def map_object_key(project_uuid: UUID, map_id: str) -> str:
+    """Storage key for a rendered static map, addressed by a hash of its request params."""
+    return f"{MAP_KEY_PREFIX}/{project_uuid}/{map_id}"
 
 
 class StorageClient:

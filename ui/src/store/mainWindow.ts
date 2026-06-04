@@ -53,6 +53,7 @@ const TOOL_VIEW_KIND: Record<string, MainWindowKind> = {
   view_projects: 'projects',
   view_prompt_execution_log: 'prompt_execution_log',
   view_prompt_usage_log: 'prompt_usage_log',
+  view_ingest_console: 'ingest_console',
 };
 
 export function viewKindForTool(

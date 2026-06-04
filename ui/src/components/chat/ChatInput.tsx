@@ -22,9 +22,8 @@ interface ChatInputProps {
    * If supplied, ChatInput intercepts a submitted slash command (exact
    * match against ``slashCommands``) and routes it to this handler
    * INSTEAD of ``onSend``. Used by views that need to short-circuit the
-   * LLM. The workspace deliberately does NOT supply this — slash text
-   * falls through to ``onSend`` and is expanded server-side by the
-   * dispatcher.
+   * LLM — e.g. project chat handles ``/clear``, ``/close``, ``/remove``
+   * client-side. Omit it to let slash text fall through to ``onSend``.
    */
   onSlashCommand?: (cmd: string) => void;
   placeholder?: string;

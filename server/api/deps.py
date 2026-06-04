@@ -76,12 +76,15 @@ def get_project_chat_service(
     embeddings: EmbeddingsClient = Depends(get_embeddings),
     search: SearchClient = Depends(get_search),
     reranker: RerankClient = Depends(get_reranker),
+    storage: StorageClient = Depends(get_storage),
     sinks: TelemetrySinks = Depends(get_telemetry_sinks),
 ) -> ProjectChatService:
     retrieval = RetrievalService(
         engine=engine, llm=llm, embeddings=embeddings, search=search, reranker=reranker
     )
-    return ProjectChatService(llm=llm, engine=engine, retrieval=retrieval, sinks=sinks)
+    return ProjectChatService(
+        llm=llm, engine=engine, retrieval=retrieval, storage=storage, sinks=sinks
+    )
 
 
 async def get_connection(

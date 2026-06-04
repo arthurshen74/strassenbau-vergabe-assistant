@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.factory import TelemetrySinks
 from shared.clients.llm.client import LLMClient
+from shared.clients.storage.client import StorageClient
 from shared.models.conversation import Conversation
 from shared.models.enums import MessageKind, PromptType
 from shared.models.message import Message, NewMessage
@@ -85,11 +86,13 @@ class ProjectChatService:
         llm: LLMClient,
         engine: AsyncEngine,
         retrieval: RetrievalService,
+        storage: StorageClient,
         sinks: TelemetrySinks,
     ) -> None:
         self._llm = llm
         self._engine = engine
         self._retrieval = retrieval
+        self._storage = storage
         self._sinks = sinks
 
     async def run_turn(
@@ -118,6 +121,7 @@ class ProjectChatService:
             engine=self._engine,
             retrieval=self._retrieval,
             aggregate=AggregateLVService(engine=self._engine, llm=self._llm),
+            storage=self._storage,
             system_prompt=prompt.system_prompt,
             chat_model=prompt.model_name,
             temperature=prompt.temperature,

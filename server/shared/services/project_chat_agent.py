@@ -1,7 +1,7 @@
 """The project-chat ReAct agent.
 
 A `create_agent` tool-calling loop, scoped to one project, that streams its answer. It replaces the
-old classify -> route pipeline: the model decides which of six tools to call, in any order, across a
+old classify -> route pipeline: the model decides which of seven tools to call, in any order, across a
 multi-turn conversation. Retrieval tools reuse the Simple/Plus `RetrievalService` (honoring the
 turn's `RetrievalConfig`); LV tools read the LV item repository; `aggregate_lv_items` totals
 quantities via `AggregateLVService` (the LLM judges membership, Python sums). The answer model is a
@@ -15,6 +15,7 @@ context-tool calls so the answer's [n] references stay unique within a turn.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID, uuid4
@@ -28,8 +29,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.llm.execution_log import ExecutionLogEvent
 from shared.clients.llm.langchain_callback import TelemetryCallbackHandler
+from shared.clients.maps.client import (
+    MAP_CONTENT_TYPE,
+    MAPTYPE_ROADMAP,
+    StaticMapError,
+    fetch_static_map_png,
+    static_map_id,
+)
 from shared.clients.openrouter.usage import UsageEvent
 from shared.clients.search import lv_items_filter
+from shared.clients.storage.client import StorageClient, map_object_key
 from shared.config import settings
 from shared.models.enums import RetrievalModality
 from shared.models.lv_item import LVItem
@@ -54,10 +63,15 @@ TOOL_GET_LV_ALL = "get_lv_all"
 TOOL_GET_LV_SINGLE_ITEM = "get_lv_single_item"
 TOOL_GET_LV_GROUP_ITEMS = "get_lv_group_items"
 TOOL_AGGREGATE_LV_ITEMS = "aggregate_lv_items"
+TOOL_RENDER_MAP = "render_map"
 
 # Tool-result payload keys the UI reads out of `data`.
 RESULT_LV_ITEM = "lv_item"
 RESULT_LV_ITEMS = "lv_items"
+RESULT_MAP_ID = "map_id"
+RESULT_MAP_ADDRESS = "address"
+RESULT_MAP_ZOOM = "zoom"
+RESULT_MAP_ERROR = "error"
 
 # astream_events v2 keys we relay to SSE. run_id is shared by a tool call's start and end events,
 # so it pairs a tool call with its result even when several tools run in one assistant turn.
@@ -104,7 +118,7 @@ def _openrouter_base_url() -> str:
 
 
 class ProjectChatAgent:
-    """A project-scoped ReAct agent over six tools that streams its answer token-by-token."""
+    """A project-scoped ReAct agent over seven tools that streams its answer token-by-token."""
 
     def __init__(
         self,
@@ -114,6 +128,7 @@ class ProjectChatAgent:
         engine: AsyncEngine,
         retrieval: RetrievalService,
         aggregate: AggregateLVService,
+        storage: StorageClient,
         system_prompt: str,
         chat_model: str,
         temperature: float | None,
@@ -126,6 +141,7 @@ class ProjectChatAgent:
         self._engine = engine
         self._retrieval = retrieval
         self._aggregate = aggregate
+        self._storage = storage
         self._telemetry = TelemetryCallbackHandler(
             project_uuid=project_uuid,
             prompt_type=prompt_type,
@@ -206,6 +222,31 @@ class ProjectChatAgent:
             )
             return _format_aggregate(result), result.model_dump(mode="json")
 
+        @tool(TOOL_RENDER_MAP, response_format="content_and_artifact")
+        async def render_map(
+            address: str, zoom: int | None = None, maptype: str = MAPTYPE_ROADMAP
+        ) -> tuple[str, dict[str, Any]]:
+            """Render an 800x800 map image for a street address and show it in the chat. `zoom`
+            defaults to the configured project zoom (a ~3 km radius); pass a higher number to zoom
+            in. `maptype` is roadmap (default), satellite, hybrid, or terrain. Use whenever the
+            user asks to see, show, or render a location / site on a map."""
+            effective_zoom = zoom if zoom is not None else settings.static_map_zoom
+            try:
+                png = await fetch_static_map_png(address, zoom=effective_zoom, maptype=maptype)
+            except StaticMapError as exc:
+                return f"Karte konnte nicht erzeugt werden: {exc}", {RESULT_MAP_ERROR: str(exc)}
+            map_id = static_map_id(address, effective_zoom, maptype)
+            key = map_object_key(self._project_uuid, map_id)
+            await asyncio.to_thread(self._storage.put_object, key, png, MAP_CONTENT_TYPE)
+            return (
+                f"Karte für {address} erstellt.",
+                {
+                    RESULT_MAP_ID: map_id,
+                    RESULT_MAP_ADDRESS: address,
+                    RESULT_MAP_ZOOM: effective_zoom,
+                },
+            )
+
         return [
             get_project_context,
             get_lv_context,
@@ -213,6 +254,7 @@ class ProjectChatAgent:
             get_lv_single_item,
             get_lv_group_items,
             aggregate_lv_items,
+            render_map,
         ]
 
     async def _retrieve(

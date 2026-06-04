@@ -40,7 +40,12 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str | None = None
     anthropic_api_key: str | None = None
+    google_static_maps_api_key: str | None = None
     jwt_secret: str | None = None
+
+    # Default zoom for the render_map chat tool. 12 frames roughly a 3 km radius at German
+    # latitudes on the 800px image; higher zooms in. The model may override per call.
+    static_map_zoom: int = 12
 
     openrouter_api_url_chat: str = "https://openrouter.ai/api/v1/chat/completions"
     openrouter_api_url_rerank: str = "https://openrouter.ai/api/v1/rerank"

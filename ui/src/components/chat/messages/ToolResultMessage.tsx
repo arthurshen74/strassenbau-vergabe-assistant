@@ -6,6 +6,7 @@
 import type { MessageRead } from '../../../types/generated';
 import { AggregateResultMessage } from './AggregateResultMessage';
 import { LvResultMessage } from './LvResultMessage';
+import { MapResultMessage } from './MapResultMessage';
 import { RetrievalTraceMessage } from './RetrievalTraceMessage';
 
 // Wire tool names, matching the names the project-chat agent emits (ProjectChatAgent tools).
@@ -15,6 +16,7 @@ export const TOOL_GET_LV_ALL = 'get_lv_all';
 export const TOOL_GET_LV_SINGLE_ITEM = 'get_lv_single_item';
 export const TOOL_GET_LV_GROUP_ITEMS = 'get_lv_group_items';
 export const TOOL_AGGREGATE_LV_ITEMS = 'aggregate_lv_items';
+export const TOOL_RENDER_MAP = 'render_map';
 
 export function ToolResultMessage({
   m,
@@ -36,6 +38,8 @@ export function ToolResultMessage({
       return (
         <AggregateResultMessage data={m.data ?? null} projectUuid={projectUuid} />
       );
+    case TOOL_RENDER_MAP:
+      return <MapResultMessage data={m.data ?? null} projectUuid={projectUuid} />;
     default:
       return null;
   }
