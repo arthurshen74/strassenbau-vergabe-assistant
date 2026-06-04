@@ -5,6 +5,8 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
+    Integer,
     Table,
     Text,
     func,
@@ -52,5 +54,11 @@ ingest_jobs = Table(
         server_default=func.now(),
         onupdate=func.now(),
     ),
+    # Lease for crash recovery: claim_next stamps locked_at/locked_by and the worker's activity
+    # flush keeps locked_at fresh; an expired lease is reclaimable. attempts bounds auto-retries.
+    Column("locked_at", DateTime(timezone=True), nullable=True),
+    Column("locked_by", Text, nullable=True),
+    Column("attempts", Integer, nullable=False, server_default=text("0")),
     CheckConstraint(f"status IN ({_INGEST_STATUSES_SQL})", name="status_valid"),
+    Index("ix_ingest_jobs_status_locked_at", "status", "locked_at"),
 )

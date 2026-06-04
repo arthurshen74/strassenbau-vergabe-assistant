@@ -10,6 +10,8 @@ EXPECTED_TABLES = {
     "thumbnails",
     "ingest_jobs",
     "ingest_job_events",
+    "ingestion_activity_log",
+    "ingestion_activity_log_archive",
     "lv_items",
     "prompt_versions",
     "openrouter_usage",

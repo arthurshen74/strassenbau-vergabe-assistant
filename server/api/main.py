@@ -10,6 +10,7 @@ from api.routes import (
     conversations,
     dispatch,
     health,
+    ingest_jobs,
     projects,
     prompt_execution_logs,
     prompts,
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(projects.router)
     app.include_router(prompt_execution_logs.router)
     app.include_router(usage.router)
+    app.include_router(ingest_jobs.router)
     return app
 
 

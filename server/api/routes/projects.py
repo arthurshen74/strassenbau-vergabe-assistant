@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -22,14 +23,20 @@ from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient
 from shared.config import settings
 from shared.db.unit_of_work import UnitOfWork
-from shared.models.document_schema import DocumentRead
-from shared.models.enums import DocumentType
+from shared.models.document_schema import (
+    ChunkListRead,
+    DocumentDetailRead,
+    DocumentRead,
+)
+from shared.models.enums import DocumentType, SourceDocType
 from shared.models.ingest_schema import IngestJobRead
+from shared.models.ingestion_activity import IngestionActivity
 from shared.models.project_schema import ProjectCreate, ProjectRead
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
+from shared.services.document_detail import DocumentDetailService
 from shared.services.ingestion.status_stream import HEARTBEAT, stream_project_status
 from shared.services.project_service import (
     LVDocumentExistsError,
@@ -72,6 +79,13 @@ def get_deletable_project_service(
         lv_items=uow.lv_items,
         search=search,
     )
+
+
+def get_document_detail_service(
+    engine: AsyncEngine = Depends(get_engine),
+    search: SearchClient = Depends(get_search),
+) -> DocumentDetailService:
+    return DocumentDetailService(engine, search)
 
 
 @router.get("", response_model=list[ProjectRead])
@@ -215,3 +229,62 @@ async def get_page_thumbnail(
         media_type=thumbnail.content_type,
         headers={"Cache-Control": THUMBNAIL_CACHE_CONTROL},
     )
+
+
+@router.get(
+    "/{project_uuid}/documents/{document_uuid}/detail",
+    response_model=DocumentDetailRead,
+)
+async def get_document_detail(
+    project_uuid: UUID,
+    document_uuid: UUID,
+    _principal: Principal = Depends(get_current_user),
+    service: DocumentDetailService = Depends(get_document_detail_service),
+) -> DocumentDetailRead:
+    detail = await service.get_detail(project_uuid, document_uuid)
+    if detail is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
+    return detail
+
+
+@router.get(
+    "/{project_uuid}/documents/{document_uuid}/chunks",
+    response_model=ChunkListRead,
+)
+async def list_document_chunks(
+    project_uuid: UUID,
+    document_uuid: UUID,
+    source: Literal["simple", "langchain"] = "simple",
+    doc_type: SourceDocType | None = None,
+    q: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
+    _principal: Principal = Depends(get_current_user),
+    service: DocumentDetailService = Depends(get_document_detail_service),
+) -> ChunkListRead:
+    """A page of the document's chunks from the chosen index (doc_type/q apply to SimpleChunks)."""
+    return await service.list_chunks(
+        project_uuid,
+        document_uuid,
+        source=source,
+        source_doc_type=doc_type,
+        text=q,
+        offset=offset,
+        size=limit,
+    )
+
+
+@router.get(
+    "/{project_uuid}/documents/{document_uuid}/activity",
+    response_model=list[IngestionActivity],
+)
+async def list_document_activity(
+    project_uuid: UUID,
+    document_uuid: UUID,
+    offset: int = 0,
+    limit: int = 200,
+    _principal: Principal = Depends(get_current_user),
+    service: DocumentDetailService = Depends(get_document_detail_service),
+) -> list[IngestionActivity]:
+    """The document's ingestion activity (active then archive), oldest first, paged."""
+    return await service.list_activity(document_uuid, offset=offset, limit=limit)

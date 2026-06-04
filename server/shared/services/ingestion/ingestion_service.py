@@ -48,6 +48,9 @@ from shared.services.ingestion.thumbnails import render_thumbnails
 from shared.services.prompt_runner import PromptRunner
 
 UnitOfWorkFactory = Callable[[], AbstractAsyncContextManager[UnitOfWork]]
+# Sink for granular activity lines (message, phase value). The worker wires this to the
+# ActivityWriter, which stamps job/worker/document and persists batches.
+ActivityEmit = Callable[[str, str | None], None]
 
 # Cap on the exception text persisted in a failure event (surfaced to the UI).
 FAILURE_MESSAGE_LIMIT = 500
@@ -78,6 +81,7 @@ class IngestionService:
         embeddings: EmbeddingsClient,
         prompts: PromptRunner,
         langchain_ingestor: LangchainIngestor,
+        activity: ActivityEmit | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._storage = storage
@@ -85,6 +89,7 @@ class IngestionService:
         self._embeddings = embeddings
         self._prompts = prompts
         self._langchain = langchain_ingestor
+        self._activity_emit = activity
 
     async def ingest_document(
         self, document_uuid: UUID, *, job_uuid: UUID | None = None
@@ -118,6 +123,7 @@ class IngestionService:
             )
 
             phase = IngestPhase.LANGCHAIN
+            self._activity("running langchain pipeline", IngestPhase.LANGCHAIN)
             langchain_chunks = await self._langchain.ingest(
                 document_uuid, document.project_uuid, pdf_bytes, ingest_job_uuid=job_uuid
             )
@@ -215,13 +221,15 @@ class IngestionService:
             await self._search.archive_source(removed_uuid, SourceDocType.LV_ITEM)
 
         lv_chunks = 0
-        for item in items:
+        for index, item in enumerate(items, start=1):
             drafts = chunk_lv_item(
                 item, pages_by_oz.get(item.oz, []), project_uuid=document.project_uuid
             )
             lv_chunks += await self._embed_and_index(
                 drafts, item.lv_item_uuid, SourceDocType.LV_ITEM, document.project_uuid, job_uuid
             )
+            if index % settings.activity_lv_item_every == 0:
+                self._activity(f"LV item {item.oz} ({index}/{len(items)})", IngestPhase.LV)
         return len(items), lv_chunks
 
     async def _generate_thumbnails(self, document_uuid: UUID, pdf_bytes: bytes) -> int:
@@ -248,6 +256,11 @@ class IngestionService:
                     content_type=page.content_type,
                 )
             )
+            if page.page_number % settings.activity_thumbnail_every == 0:
+                self._activity(
+                    f"rendered thumbnail {page.page_number}/{len(rendered)}",
+                    IngestPhase.THUMBNAILS,
+                )
         async with self._uow_factory() as uow:
             await uow.thumbnails.add_many(new_thumbnails)
         return len(new_thumbnails)
@@ -268,14 +281,20 @@ class IngestionService:
             project_uuid=project_uuid,
             ingest_job_uuid=job_uuid,
         )
-        chunks = [
-            NewSimpleChunk(
-                **draft.model_dump(),
-                embedding=vector,
-                embedding_model=settings.embedding_model,
+        activity_phase = (
+            IngestPhase.LV if source_doc_type is SourceDocType.LV_ITEM else IngestPhase.CHUNK
+        )
+        chunks: list[NewSimpleChunk] = []
+        for index, (draft, vector) in enumerate(zip(drafts, vectors), start=1):
+            chunks.append(
+                NewSimpleChunk(
+                    **draft.model_dump(),
+                    embedding=vector,
+                    embedding_model=settings.embedding_model,
+                )
             )
-            for draft, vector in zip(drafts, vectors)
-        ]
+            if index % settings.activity_embed_every == 0:
+                self._activity(f"embedded {index}/{len(drafts)} chunks", activity_phase)
         await self._search.archive_source(source_doc_uuid, source_doc_type)
         await self._search.index_chunks(chunks)
         return len(chunks)
@@ -313,3 +332,9 @@ class IngestionService:
         await record_event(
             uow.ingest_job_events, job_uuid, event=event, phase=phase, message=message
         )
+
+    def _activity(self, message: str, phase: IngestPhase) -> None:
+        """Emit a granular activity line for the live console and the worker's lease heartbeat.
+        No-op for jobless runs, which have no activity sink wired."""
+        if self._activity_emit is not None:
+            self._activity_emit(message, phase.value)

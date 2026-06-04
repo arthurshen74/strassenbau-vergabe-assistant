@@ -146,14 +146,17 @@ class ProjectService:
     async def enqueue_ingest(
         self, project_uuid: UUID, document_uuid: UUID
     ) -> IngestJob | None:
-        """Queue a fresh ingest job for an existing document (a re-ingest), returning the job.
-
-        The raw PDF already lives in object storage from the upload, so the worker reprocesses it
-        in place; ingestion is idempotent (it archives/replaces the document's prior chunks).
-        Returns None if the document does not exist in the project."""
+        """Re-ingest an existing document by requeuing its job in place: reset to QUEUED with a
+        fresh retry budget so the worker reprocesses the raw PDF already in object storage
+        (ingestion is idempotent, archiving/replacing the document's prior chunks). Keeps one job
+        per document rather than minting a new row; falls back to creating a job if the document has
+        none yet. Returns None if the document does not exist in the project."""
         doc = await self.documents.get(document_uuid)
         if doc is None or doc.project_uuid != project_uuid:
             return None
+        existing = await self.ingest_jobs.latest_for_document(document_uuid)
+        if existing is not None:
+            return await self.ingest_jobs.requeue(existing.job_uuid)
         return await self.ingest_jobs.add(NewIngestJob(document_uuid=document_uuid))
 
     async def ingest_documents(

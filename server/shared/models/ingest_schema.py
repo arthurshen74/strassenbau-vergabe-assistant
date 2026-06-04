@@ -47,6 +47,21 @@ class IngestStatusRead(BaseModel):
     counts: dict[str, int]
 
 
+class IngestJobConsoleRead(BaseModel):
+    """A job row for the ops console: status plus lease + retry bookkeeping."""
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    job_uuid: UUID
+    document_uuid: UUID
+    status: IngestStatus
+    attempts: int
+    locked_by: str | None
+    locked_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class IngestQueued(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -89,6 +104,21 @@ class IngestError(BaseModel):
     document_uuid: UUID
     phase: str | None
     message: str
+
+
+class IngestActivityLine(BaseModel):
+    """One granular activity line streamed to the live ingest console terminal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["ingest_activity"]
+    id: int
+    job_uuid: UUID
+    document_uuid: UUID
+    worker_id: str
+    phase: str | None
+    message: str
+    ts: datetime
 
 
 IngestEvent = Annotated[

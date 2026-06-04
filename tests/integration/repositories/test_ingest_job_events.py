@@ -66,3 +66,29 @@ async def test_list_for_job_empty(conn: AsyncConnection) -> None:
     repo = IngestJobEventRepository(conn)
     job_uuid = await _job(conn)
     assert await repo.list_for_job(job_uuid) == []
+
+
+async def test_latest_event_ts_returns_most_recent_match(conn: AsyncConnection) -> None:
+    project = await ProjectRepository(conn).add(
+        NewProject(
+            vergabe_id="VG-IJE-LE",
+            project_name="P",
+            project_description="d",
+            vergabestelle="V",
+        )
+    )
+    doc = await DocumentRepository(conn).add(
+        NewDocument(
+            project_uuid=project.project_uuid,
+            document_type=DocumentType.PROSE_DOCUMENT,
+            file_name="p.pdf",
+            number_of_pages=1,
+        )
+    )
+    job = await IngestJobRepository(conn).add(NewIngestJob(document_uuid=doc.document_uuid))
+    repo = IngestJobEventRepository(conn)
+
+    assert await repo.latest_event_ts(doc.document_uuid, "completed") is None
+    await repo.add(NewIngestJobEvent(job_uuid=job.job_uuid, event="started", message="x"))
+    await repo.add(NewIngestJobEvent(job_uuid=job.job_uuid, event="completed", message="done"))
+    assert await repo.latest_event_ts(doc.document_uuid, "completed") is not None

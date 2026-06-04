@@ -10,10 +10,18 @@ from pydantic import BaseModel, ConfigDict, create_model
 
 from shared.models.chat_message import ChatMessage
 from shared.models.conversation_schema import ConversationCreate, ConversationRead
-from shared.models.document_schema import DocumentCreate, DocumentRead
+from shared.models.document_schema import (
+    ChunkListRead,
+    ChunkRead,
+    DocumentCreate,
+    DocumentDetailRead,
+    DocumentRead,
+)
 from shared.models.ingest_schema import (
+    IngestActivityLine,
     IngestCompleted,
     IngestError,
+    IngestJobConsoleRead,
     IngestJobEventRead,
     IngestJobRead,
     IngestProgress,
@@ -21,6 +29,7 @@ from shared.models.ingest_schema import (
     IngestStarted,
     IngestStatusRead,
 )
+from shared.models.ingestion_activity import IngestionActivity
 from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
 from shared.models.openrouter_usage_schema import OpenRouterUsageRead
@@ -74,9 +83,15 @@ BODY_MODELS: list[type[BaseModel]] = [
     ProjectUpdate,
     DocumentRead,
     DocumentCreate,
+    DocumentDetailRead,
+    ChunkRead,
+    ChunkListRead,
     IngestJobRead,
     IngestStatusRead,
     IngestJobEventRead,
+    IngestJobConsoleRead,
+    IngestActivityLine,
+    IngestionActivity,
     ChatMessage,
     PromptVersionRead,
     PromptVersionCreate,

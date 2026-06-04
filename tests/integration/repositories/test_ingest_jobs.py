@@ -93,13 +93,15 @@ async def test_claim_next_returns_one_then_none(conn: AsyncConnection) -> None:
     doc = await _document(conn)
     queued = await repo.add(NewIngestJob(document_uuid=doc))
 
-    claimed = await repo.claim_next()
+    claimed = await repo.claim_next(worker_id="w1", lease_seconds=60.0, max_attempts=3)
     assert claimed is not None
     assert claimed.job_uuid == queued.job_uuid
     assert claimed.status == IngestStatus.RUNNING
+    assert claimed.attempts == 1
+    assert claimed.locked_by == "w1"
 
     # Nothing left in the queue.
-    assert await repo.claim_next() is None
+    assert await repo.claim_next(worker_id="w1", lease_seconds=60.0, max_attempts=3) is None
 
 
 async def test_status_for_project_returns_latest_event_per_job(conn: AsyncConnection) -> None:

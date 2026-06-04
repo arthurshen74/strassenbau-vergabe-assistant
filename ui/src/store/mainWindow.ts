@@ -13,7 +13,8 @@ export type MainWindowKind =
   | 'prompts'
   | 'projects'
   | 'prompt_execution_log'
-  | 'prompt_usage_log';
+  | 'prompt_usage_log'
+  | 'ingest_console';
 
 export interface MainWindowView {
   kind: MainWindowKind;

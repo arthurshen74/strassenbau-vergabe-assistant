@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# The repo-root .gitignore ignores `lib/` (Python packaging/distribution output). That pattern is
+# unanchored, so it also swallows this app's hand-written src/lib utilities (logger, sse-events,
+# format, ...) that many modules import. Re-include that source directory.
+!src/lib/
+!src/lib/**

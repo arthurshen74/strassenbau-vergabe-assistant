@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import {
   ChartBarIcon,
   ClipboardDocumentListIcon,
+  CommandLineIcon,
   DocumentTextIcon,
   FolderIcon,
 } from '@heroicons/react/20/solid';
@@ -31,6 +32,11 @@ const COMMANDS: { label: string; kind: MainWindowKind; Icon: CommandIcon }[] = [
     label: 'View Prompt Usage Log',
     kind: 'prompt_usage_log',
     Icon: ChartBarIcon,
+  },
+  {
+    label: 'Ingest Console',
+    kind: 'ingest_console',
+    Icon: CommandLineIcon,
   },
 ];
 

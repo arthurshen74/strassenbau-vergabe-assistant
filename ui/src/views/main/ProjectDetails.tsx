@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   ArrowLeftIcon,
   ChatBubbleLeftRightIcon,
+  MagnifyingGlassIcon,
   PlusIcon,
   TrashIcon,
 } from '@heroicons/react/16/solid';
@@ -30,6 +31,7 @@ import { ErrorState } from '../../components/feedback/ErrorState';
 import { formatRelativeTime } from '../../lib/format';
 import { UploadDocumentDialog } from './UploadDocumentDialog';
 import { DeleteDocumentDialog } from './DeleteDocumentDialog';
+import { DocumentDetailDialog } from './DocumentDetailDialog';
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
@@ -53,6 +55,7 @@ export function ProjectDetails({
   const startProjectChat = useStartProjectChat();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
+  const [docDetail, setDocDetail] = useState<DocumentRead | null>(null);
 
   if (project.isPending) return <LoadingState label="Loading project…" />;
   if (project.isError) {
@@ -124,6 +127,13 @@ export function ProjectDetails({
                 <TableCell className="text-zinc-500">{formatRelativeTime(d.created_at)}</TableCell>
                 <TableCell className="text-right">
                   <span className="inline-flex items-center justify-end gap-1">
+                    <Button
+                      plain
+                      onClick={() => setDocDetail(d)}
+                      aria-label={`Details for ${d.file_name}`}
+                    >
+                      <MagnifyingGlassIcon />
+                    </Button>
                     <IngestButton
                       projectUuid={projectUuid}
                       documentUuid={d.document_uuid}
@@ -158,6 +168,13 @@ export function ProjectDetails({
         document={docToDelete}
         open={docToDelete !== null}
         onClose={() => setDocToDelete(null)}
+      />
+
+      <DocumentDetailDialog
+        projectUuid={projectUuid}
+        document={docDetail}
+        open={docDetail !== null}
+        onClose={() => setDocDetail(null)}
       />
     </div>
   );

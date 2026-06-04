@@ -16,6 +16,9 @@ class IngestJob(BaseModel):
     status: IngestStatus
     created_at: datetime
     updated_at: datetime
+    locked_at: datetime | None = None
+    locked_by: str | None = None
+    attempts: int = 0
 
 
 class NewIngestJob(BaseModel):

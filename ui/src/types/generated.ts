@@ -50,6 +50,34 @@ export interface DocumentCreate {
   number_of_pages: number;
 }
 
+export interface DocumentDetailRead {
+  document_uuid: string;
+  file_name: string;
+  document_type: "LV_DOCUMENT" | "PROSE_DOCUMENT";
+  number_of_pages: number;
+  upload_date: string;
+  last_ingest_date?: string | null;
+  simple_chunk_count: number;
+  langchain_chunk_count: number;
+}
+
+export interface ChunkRead {
+  chunk_id: string;
+  source: "simple" | "langchain";
+  source_doc_type?: string | null;
+  chunk_index?: number | null;
+  page?: number | null;
+  oz?: string | null;
+  stl_nr?: string | null;
+  pages?: number[];
+  text: string;
+}
+
+export interface ChunkListRead {
+  items: ChunkRead[];
+  total: number;
+}
+
 export interface IngestJobRead {
   job_uuid: string;
   document_uuid: string;
@@ -71,6 +99,38 @@ export interface IngestJobEventRead {
   job_uuid: string;
   event: string;
   pipeline_phase?: string | null;
+  message: string;
+  ts: string;
+}
+
+export interface IngestJobConsoleRead {
+  job_uuid: string;
+  document_uuid: string;
+  status: "queued" | "running" | "done" | "failed";
+  attempts: number;
+  locked_by: string | null;
+  locked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IngestActivityLine {
+  event: "ingest_activity";
+  id: number;
+  job_uuid: string;
+  document_uuid: string;
+  worker_id: string;
+  phase: string | null;
+  message: string;
+  ts: string;
+}
+
+export interface IngestionActivity {
+  id: number;
+  job_uuid: string;
+  document_uuid: string;
+  worker_id: string;
+  phase?: string | null;
   message: string;
   ts: string;
 }

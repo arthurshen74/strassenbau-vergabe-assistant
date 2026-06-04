@@ -22,6 +22,7 @@ from shared.repositories.conversations import ConversationRepository
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
+from shared.repositories.ingestion_activity import IngestionActivityLogRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.messages import MessageRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
@@ -43,6 +44,7 @@ class UnitOfWork:
         self.thumbnails = ThumbnailRepository(conn)
         self.ingest_jobs = IngestJobRepository(conn)
         self.ingest_job_events = IngestJobEventRepository(conn)
+        self.ingestion_activity = IngestionActivityLogRepository(conn)
         self.lv_items = LVItemRepository(conn)
         self.prompt_versions = PromptVersionRepository(conn)
         self.conversations = ConversationRepository(conn)

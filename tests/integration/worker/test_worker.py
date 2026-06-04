@@ -109,6 +109,7 @@ async def _queued_job(conn: AsyncConnection) -> IngestJob:
 
 def _kwargs(search: _RecordingSearch, langchain: _FakeLangchain) -> dict[str, Any]:
     return {
+        "worker_id": "test-worker",
         "storage": _FakeStorage(),
         "search": search,
         "embeddings": _FakeEmbeddings(),

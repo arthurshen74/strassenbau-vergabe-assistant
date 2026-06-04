@@ -51,7 +51,18 @@ class Settings(BaseSettings):
     retriever_top_k: int = 10
 
     worker_poll_interval_seconds: float = 2.0
+    worker_lease_seconds: float = 60.0
+    worker_max_attempts: int = 3
     ingest_status_poll_interval_seconds: float = 1.5
+
+    # Ingestion activity stream: emit one activity line every N units of work (the live console
+    # feed and the worker's lease heartbeat), flush buffered lines this often (keep well below
+    # worker_lease_seconds), and prune lines older than the retention window.
+    activity_thumbnail_every: int = 10
+    activity_embed_every: int = 10
+    activity_lv_item_every: int = 1
+    activity_flush_seconds: float = 1.0
+    activity_retention_hours: int = 24
 
     @property
     def database_url(self) -> str:

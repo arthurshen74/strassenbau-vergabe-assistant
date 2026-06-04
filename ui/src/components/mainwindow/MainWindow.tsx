@@ -10,12 +10,14 @@ import { PromptList } from '../../views/workspace/tools/PromptList';
 import { ProjectsView } from '../../views/main/ProjectsView';
 import { ExecutionLogView } from '../../views/main/ExecutionLogView';
 import { UsageLogView } from '../../views/main/UsageLogView';
+import { IngestConsoleView } from '../../views/main/IngestConsoleView';
 
 const TITLES: Record<MainWindowView['kind'], string> = {
   prompts: 'Prompts',
   projects: 'Projects',
   prompt_execution_log: 'Prompt Execution Log',
   prompt_usage_log: 'Prompt Usage Log',
+  ingest_console: 'Ingest Console',
 };
 
 export function MainWindow({ view }: { view: MainWindowView }) {
@@ -53,6 +55,8 @@ function MainWindowBody({ view }: { view: MainWindowView }) {
       return <ExecutionLogView />;
     case 'prompt_usage_log':
       return <UsageLogView />;
+    case 'ingest_console':
+      return <IngestConsoleView />;
     default: {
       const _exhaustive: never = view.kind;
       void _exhaustive;

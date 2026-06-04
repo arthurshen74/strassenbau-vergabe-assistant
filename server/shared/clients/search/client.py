@@ -18,6 +18,7 @@ from elasticsearch import AsyncElasticsearch
 from elasticsearch.helpers import async_bulk
 from pydantic import BaseModel, ConfigDict
 
+from shared.clients.search.langchain_store import META_SOURCE_DOC_UUID
 from shared.config import settings
 from shared.models.enums import SourceDocType
 from shared.models.simple_chunk import NewSimpleChunk, SimpleChunk
@@ -37,6 +38,14 @@ FIELD_EMBEDDING = "embedding"
 FIELD_EMBEDDING_MODEL = "embedding_model"
 FIELD_ARCHIVED_AT = "archived_at"
 
+# LangChain index (idx-langchain-roadbuilders) fields for the chunk viewer: the chunk text and the
+# sortable metadata that give a stable reading order (PyPDF page + splitter start_index). The
+# document metadata key is owned by langchain_store (META_SOURCE_DOC_UUID).
+LANGCHAIN_TEXT_FIELD = "text"
+LANGCHAIN_DOC_UUID_FIELD = f"metadata.{META_SOURCE_DOC_UUID}"
+LANGCHAIN_PAGE_FIELD = "metadata.page"
+LANGCHAIN_START_INDEX_FIELD = "metadata.start_index"
+
 # Analyzer / similarity names referenced by the mapping.
 GERMAN_ANALYZER = "german"
 BM25_SIMILARITY = "BM25"
@@ -53,6 +62,36 @@ class ScoredChunk(BaseModel):
 
     chunk: SimpleChunk
     score: float
+
+
+class SimpleChunkView(BaseModel):
+    """A SimpleChunk projected for the document chunk viewer (no embedding vector)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    chunk_uuid: str
+    source_doc_type: str
+    chunk_index: int
+    oz: str | None = None
+    stl_nr: str | None = None
+    source_doc_pages: list[int] = []
+    chunk_text: str
+
+
+class LangchainChunk(BaseModel):
+    """A LangChain-index chunk projected for the viewer; ordered by (page, start_index)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    chunk_id: str
+    page: int | None = None
+    start_index: int | None = None
+    text: str
+
+
+def _meta_int(hit: dict[str, Any], key: str) -> int | None:
+    value = hit.get("_source", {}).get("metadata", {}).get(key)
+    return int(value) if isinstance(value, (int, float)) else None
 
 
 def _index_mapping() -> dict[str, Any]:
@@ -318,6 +357,113 @@ class SearchClient:
             index=self._index, query=query, refresh=True
         )
         return int(deleted["deleted"])
+
+    _CHUNK_VIEW_FIELDS = [
+        FIELD_SOURCE_DOC_TYPE,
+        FIELD_CHUNK_INDEX,
+        FIELD_OZ,
+        FIELD_STL_NR,
+        FIELD_SOURCE_DOC_PAGES,
+        FIELD_CHUNK_TEXT,
+    ]
+
+    async def count_document_chunks(
+        self, project_uuid: UUID, document_uuid: UUID, lv_item_uuids: Sequence[UUID]
+    ) -> int:
+        """Count a document's SimpleChunks (its DOCUMENT chunks + its items' LV_ITEM chunks)."""
+        resp = await self._es.count(
+            index=self._index,
+            query=_document_footprint_query(project_uuid, document_uuid, lv_item_uuids),
+        )
+        return int(resp["count"])
+
+    async def list_document_chunks(
+        self,
+        project_uuid: UUID,
+        document_uuid: UUID,
+        lv_item_uuids: Sequence[UUID],
+        *,
+        source_doc_type: SourceDocType | None = None,
+        text: str | None = None,
+        offset: int = 0,
+        size: int = 50,
+    ) -> tuple[list[SimpleChunkView], int]:
+        """A document's SimpleChunks ordered by chunk_index, optionally narrowed to one
+        source_doc_type and/or matched against chunk_text. Returns (page, total)."""
+        must: list[dict[str, Any]] = [
+            _document_footprint_query(project_uuid, document_uuid, lv_item_uuids)
+        ]
+        if source_doc_type is not None:
+            must.append({"term": {FIELD_SOURCE_DOC_TYPE: source_doc_type.value}})
+        if text:
+            must.append({"match": {FIELD_CHUNK_TEXT: text}})
+        resp = await self._es.search(
+            index=self._index,
+            query={"bool": {"must": must}},
+            sort=[{FIELD_CHUNK_INDEX: "asc"}],
+            from_=offset,
+            size=size,
+            source_includes=self._CHUNK_VIEW_FIELDS,
+            track_total_hits=True,
+        )
+        views = [
+            SimpleChunkView(
+                chunk_uuid=hit["_id"],
+                source_doc_type=hit["_source"][FIELD_SOURCE_DOC_TYPE],
+                chunk_index=hit["_source"][FIELD_CHUNK_INDEX],
+                oz=hit["_source"].get(FIELD_OZ),
+                stl_nr=hit["_source"].get(FIELD_STL_NR),
+                source_doc_pages=hit["_source"].get(FIELD_SOURCE_DOC_PAGES, []),
+                chunk_text=hit["_source"][FIELD_CHUNK_TEXT],
+            )
+            for hit in resp["hits"]["hits"]
+        ]
+        return views, int(resp["hits"]["total"]["value"])
+
+    async def count_langchain_chunks(self, document_uuid: UUID) -> int:
+        """Count a document's chunks in the LangChain index."""
+        resp = await self._es.count(
+            index=settings.langchain_index,
+            query={"term": {LANGCHAIN_DOC_UUID_FIELD: str(document_uuid)}},
+            ignore_unavailable=True,
+        )
+        return int(resp["count"])
+
+    async def list_langchain_chunks(
+        self,
+        document_uuid: UUID,
+        *,
+        text: str | None = None,
+        offset: int = 0,
+        size: int = 50,
+    ) -> tuple[list[LangchainChunk], int]:
+        """A document's LangChain chunks ordered by (page, start_index). Returns (page, total)."""
+        must: list[dict[str, Any]] = [{"term": {LANGCHAIN_DOC_UUID_FIELD: str(document_uuid)}}]
+        if text:
+            must.append({"match": {LANGCHAIN_TEXT_FIELD: text}})
+        resp = await self._es.search(
+            index=settings.langchain_index,
+            query={"bool": {"must": must}},
+            sort=[
+                {LANGCHAIN_PAGE_FIELD: {"order": "asc", "unmapped_type": "long"}},
+                {LANGCHAIN_START_INDEX_FIELD: {"order": "asc", "unmapped_type": "long"}},
+            ],
+            from_=offset,
+            size=size,
+            source_includes=[LANGCHAIN_TEXT_FIELD, LANGCHAIN_PAGE_FIELD, LANGCHAIN_START_INDEX_FIELD],
+            track_total_hits=True,
+            ignore_unavailable=True,
+        )
+        items = [
+            LangchainChunk(
+                chunk_id=hit["_id"],
+                page=_meta_int(hit, "page"),
+                start_index=_meta_int(hit, "start_index"),
+                text=hit["_source"].get(LANGCHAIN_TEXT_FIELD, ""),
+            )
+            for hit in resp["hits"]["hits"]
+        ]
+        return items, int(resp["hits"]["total"]["value"])
 
     async def archive_and_delete_document(
         self,

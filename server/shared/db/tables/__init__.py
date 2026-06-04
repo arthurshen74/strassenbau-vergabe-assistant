@@ -11,6 +11,8 @@ from shared.db.tables.documents import documents
 from shared.db.tables.embedding_cache import embedding_cache
 from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
+from shared.db.tables.ingestion_activity_log import ingestion_activity_log
+from shared.db.tables.ingestion_activity_log_archive import ingestion_activity_log_archive
 from shared.db.tables.lv_items import lv_items
 from shared.db.tables.messages import messages
 from shared.db.tables.openrouter_usage import openrouter_usage
@@ -26,6 +28,8 @@ __all__ = [
     "embedding_cache",
     "ingest_job_events",
     "ingest_jobs",
+    "ingestion_activity_log",
+    "ingestion_activity_log_archive",
     "lv_items",
     "messages",
     "openrouter_usage",
