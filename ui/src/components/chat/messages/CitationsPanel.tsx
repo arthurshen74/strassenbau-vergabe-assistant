@@ -31,7 +31,12 @@ function PageThumbnail({ url, onZoom }: { url: string; onZoom: () => void }) {
     );
   }
   return (
-    <button type="button" onClick={onZoom} className="shrink-0" title="Enlarge page">
+    <button
+      type="button"
+      onClick={onZoom}
+      className="shrink-0"
+      title="Enlarge page"
+    >
       <img
         src={url}
         loading="lazy"
@@ -55,7 +60,8 @@ function sourceHeader(chunk: ContextChunk): string {
   const parts: string[] = [chunk.source_doc_type];
   if (chunk.oz) parts.push(`OZ ${chunk.oz}`);
   if (chunk.stl_nr) parts.push(`STL ${chunk.stl_nr}`);
-  if (chunk.source_doc_pages.length) parts.push(`p. ${chunk.source_doc_pages.join(', ')}`);
+  if (chunk.source_doc_pages.length)
+    parts.push(`p. ${chunk.source_doc_pages.join(', ')}`);
   return parts.join(' · ');
 }
 
@@ -70,14 +76,21 @@ function ContextSourceRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const url =
-    projectUuid && chunk.thumbnail ? thumbnailUrl(projectUuid, chunk.thumbnail) : null;
+    projectUuid && chunk.thumbnail ?
+      thumbnailUrl(projectUuid, chunk.thumbnail)
+    : null;
   return (
     <div
       data-source-number={chunk.source_number}
       className="flex gap-3 rounded-md border border-zinc-200 p-2 dark:border-zinc-700"
     >
       <SourceNumber n={chunk.source_number} />
-      {url && <PageThumbnail url={url} onZoom={() => onZoom(url)} />}
+      {url && (
+        <PageThumbnail
+          url={url}
+          onZoom={() => onZoom(url)}
+        />
+      )}
       <div className="min-w-0 flex-1">
         <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
           {sourceHeader(chunk)}
@@ -120,7 +133,10 @@ export function CitationsPanel({
         className="flex items-center gap-1 text-[11px] font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
       >
         <ChevronRightIcon
-          className={clsx('h-3.5 w-3.5 transition-transform', open && 'rotate-90')}
+          className={clsx(
+            'h-3.5 w-3.5 transition-transform',
+            open && 'rotate-90',
+          )}
         />
         {count} {count === 1 ? 'Quelle' : 'Quellen'}
       </button>
@@ -143,7 +159,7 @@ export function CitationsPanel({
         >
           <img
             src={zoom}
-            className="max-h-full max-w-full rounded shadow-2xl"
+            className="max-h-[65vh] rounded border border-zinc-950/10 dark:border-white/10"
             alt="Source page"
           />
         </div>
