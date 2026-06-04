@@ -21,8 +21,13 @@ import { ConversationList } from './ConversationList';
 type CommandIcon = typeof DocumentTextIcon;
 
 const COMMANDS: { label: string; kind: MainWindowKind; Icon: CommandIcon }[] = [
-  { label: 'View Prompts', kind: 'prompts', Icon: DocumentTextIcon },
   { label: 'View Project', kind: 'projects', Icon: FolderIcon },
+  {
+    label: 'Ingest Console',
+    kind: 'ingest_console',
+    Icon: CommandLineIcon,
+  },
+  { label: 'View Prompts', kind: 'prompts', Icon: DocumentTextIcon },
   {
     label: 'View Prompt Execution Log',
     kind: 'prompt_execution_log',
@@ -32,11 +37,6 @@ const COMMANDS: { label: string; kind: MainWindowKind; Icon: CommandIcon }[] = [
     label: 'View Prompt Usage Log',
     kind: 'prompt_usage_log',
     Icon: ChartBarIcon,
-  },
-  {
-    label: 'Ingest Console',
-    kind: 'ingest_console',
-    Icon: CommandLineIcon,
   },
 ];
 
