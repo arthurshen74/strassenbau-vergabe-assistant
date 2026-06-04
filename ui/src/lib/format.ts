@@ -21,6 +21,14 @@ export function formatTimestamp(iso: string): string {
   return d.toLocaleString();
 }
 
+// USD cost from a Decimal (serialized as string | number). Fixed 4 decimals so
+// the rendered width stays stable as the value ticks up.
+export function formatCost(value: number | string | null | undefined): string {
+  const n = typeof value === 'string' ? Number(value) : (value ?? 0);
+  if (n == null || Number.isNaN(n)) return '$0.0000';
+  return `$${n.toFixed(4)}`;
+}
+
 export function formatSalaryRange(
   min: number | null,
   max: number | null,

@@ -9,7 +9,7 @@ import { Dialog, DialogBody, DialogTitle } from '../../components/ui/dialog';
 import { Select } from '../../components/ui/select';
 import { Text } from '../../components/ui/text';
 import { LoadingState } from '../../components/feedback/LoadingState';
-import { formatTimestamp } from '../../lib/format';
+import { formatCost, formatTimestamp } from '../../lib/format';
 import { DocumentThumbnailViewer } from './DocumentThumbnailViewer';
 import { DocumentChunkViewer } from './DocumentChunkViewer';
 import { DocumentActivityLog } from './DocumentActivityLog';
@@ -70,6 +70,7 @@ export function DocumentDetailDialog({
               />
               <Meta label="SimpleChunks" value={String(d.simple_chunk_count)} />
               <Meta label="LangChain chunks" value={String(d.langchain_chunk_count)} />
+              <Meta label="Ingestion cost" value={formatCost(d.ingestion_cost)} />
             </div>
 
             <div>

@@ -4,6 +4,7 @@ authenticated principal, not the request body, so it is absent from `Conversatio
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -29,3 +30,12 @@ class ConversationCreate(BaseModel):
     prompt_type: PromptType
     project_uuid: UUID | None = None
     title: str | None = None
+
+
+class ConversationCostRead(BaseModel):
+    """Total USD cost attributed to a conversation so far."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    conversation_uuid: UUID
+    cost: Decimal

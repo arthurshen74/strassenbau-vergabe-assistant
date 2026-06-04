@@ -21,7 +21,11 @@ from api.sse import SSE_MEDIA_TYPE, format_sse
 from shared.clients.llm.client import LLMClient
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.conversation import NewConversation
-from shared.models.conversation_schema import ConversationCreate, ConversationRead
+from shared.models.conversation_schema import (
+    ConversationCostRead,
+    ConversationCreate,
+    ConversationRead,
+)
 from shared.models.enums import PromptType
 from shared.models.message_schema import MessageRead
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
@@ -37,6 +41,7 @@ from shared.models.sse_schema import (
 )
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
+from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.services.conversation_naming import ConversationNamingService
 from shared.services.project_chat import ProjectChatService, config_from_request
 from shared.services.prompt_runner import PromptRunner
@@ -93,6 +98,19 @@ async def delete_conversation(
     if conversation is None or conversation.user_uuid != principal.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
     await uow.conversations.delete(conversation_uuid)
+
+
+@router.get("/{conversation_uuid}/cost", response_model=ConversationCostRead)
+async def get_conversation_cost(
+    conversation_uuid: UUID,
+    principal: Principal = Depends(get_current_user),
+    conn: AsyncConnection = Depends(get_connection),
+) -> ConversationCostRead:
+    conversation = await ConversationRepository(conn).get(conversation_uuid)
+    if conversation is None or conversation.user_uuid != principal.user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
+    cost = await OpenRouterUsageRepository(conn).sum_cost_by_conversation(conversation_uuid)
+    return ConversationCostRead(conversation_uuid=conversation_uuid, cost=cost)
 
 
 @router.get("/{conversation_uuid}/messages", response_model=list[MessageRead])

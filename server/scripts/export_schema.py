@@ -9,7 +9,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, create_model
 
 from shared.models.chat_message import ChatMessage
-from shared.models.conversation_schema import ConversationCreate, ConversationRead
+from shared.models.conversation_schema import (
+    ConversationCostRead,
+    ConversationCreate,
+    ConversationRead,
+)
 from shared.models.document_schema import (
     ActivityListRead,
     ChunkListRead,
@@ -99,6 +103,7 @@ BODY_MODELS: list[type[BaseModel]] = [
     PromptVersionCreate,
     ConversationRead,
     ConversationCreate,
+    ConversationCostRead,
     MessageRead,
     PromptExecutionLogSummary,
     PromptExecutionLogRead,

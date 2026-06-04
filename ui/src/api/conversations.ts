@@ -13,6 +13,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import type {
+  ConversationCostRead,
   ConversationCreate,
   ConversationRead,
   MessageRead,
@@ -24,6 +25,7 @@ export const conversationKeys = {
   all: ['conversations'] as const,
   list: () => [...conversationKeys.all, 'list'] as const,
   messages: (uuid: string) => ['conversation', uuid, 'messages'] as const,
+  cost: (uuid: string) => ['conversation', uuid, 'cost'] as const,
 };
 
 export function useConversationList() {
@@ -49,6 +51,16 @@ export function useConversationMessages(uuid: string | undefined) {
       ? conversationKeys.messages(uuid)
       : ['conversation', 'none', 'messages'],
     queryFn: () => api.get<MessageRead[]>(`/conversations/${uuid}/messages`),
+    enabled: !!uuid,
+  });
+}
+
+// Total USD cost attributed to this conversation so far. Invalidated after each
+// turn completes (see useWorkspaceConversation) so the running total stays fresh.
+export function useConversationCost(uuid: string | undefined) {
+  return useQuery({
+    queryKey: uuid ? conversationKeys.cost(uuid) : ['conversation', 'none', 'cost'],
+    queryFn: () => api.get<ConversationCostRead>(`/conversations/${uuid}/cost`),
     enabled: !!uuid,
   });
 }

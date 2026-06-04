@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import insert, select
+from sqlalchemy import func, insert, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.openrouter_usage import openrouter_usage
@@ -42,6 +43,20 @@ class OpenRouterUsageRepository:
         )
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [OpenRouterUsage.model_validate(dict(r)) for r in rows]
+
+    async def sum_cost_by_conversation(self, conversation_uuid: UUID) -> Decimal:
+        """Total USD cost attributed to a conversation (zero if none recorded)."""
+        stmt = select(func.coalesce(func.sum(openrouter_usage.c.cost), 0)).where(
+            openrouter_usage.c.conversation_uuid == conversation_uuid
+        )
+        return (await self.conn.execute(stmt)).scalar_one()
+
+    async def sum_cost_by_document(self, document_uuid: UUID) -> Decimal:
+        """Total USD cost attributed to a document's ingestion (zero if none recorded)."""
+        stmt = select(func.coalesce(func.sum(openrouter_usage.c.cost), 0)).where(
+            openrouter_usage.c.document_uuid == document_uuid
+        )
+        return (await self.conn.execute(stmt)).scalar_one()
 
     async def list(
         self,

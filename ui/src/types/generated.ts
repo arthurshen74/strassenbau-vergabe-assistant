@@ -59,6 +59,7 @@ export interface DocumentDetailRead {
   last_ingest_date?: string | null;
   simple_chunk_count: number;
   langchain_chunk_count: number;
+  ingestion_cost: number | string;
 }
 
 export interface ChunkRead {
@@ -204,6 +205,11 @@ export interface ConversationCreate {
     | "conversation_name";
   project_uuid?: string | null;
   title?: string | null;
+}
+
+export interface ConversationCostRead {
+  conversation_uuid: string;
+  cost: number | string;
 }
 
 export interface MessageRead {

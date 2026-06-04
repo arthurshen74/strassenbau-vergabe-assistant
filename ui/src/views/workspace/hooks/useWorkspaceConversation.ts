@@ -260,6 +260,8 @@ export function useWorkspaceConversation(
         await qc.refetchQueries({ queryKey: conversationKeys.messages(conversationId) });
         setStreamMessages((prev) => prev.filter((m) => m.kind === 'ui_notice'));
         qc.invalidateQueries({ queryKey: conversationKeys.all });
+        // The turn's LLM calls just landed usage rows; refresh the running cost.
+        qc.invalidateQueries({ queryKey: conversationKeys.cost(conversationId) });
 
         // Auto-name a brand-new conversation from its first message.
         if (isFirstTurn) nameConversation.mutate(conversationId);

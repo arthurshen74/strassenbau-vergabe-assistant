@@ -25,6 +25,7 @@ from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingestion_activity import IngestionActivityLogRepository
 from shared.repositories.lv_items import LVItemRepository
+from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.services.ingestion.progress import IngestEvent
 
 ChunkSource = Literal["simple", "langchain"]
@@ -47,6 +48,9 @@ class DocumentDetailService:
             last_ingest = await IngestJobEventRepository(conn).latest_event_ts(
                 document_uuid, IngestEvent.COMPLETED.value
             )
+            ingestion_cost = await OpenRouterUsageRepository(conn).sum_cost_by_document(
+                document_uuid
+            )
         simple_count = await self._search.count_document_chunks(
             project_uuid, document_uuid, lv_item_uuids
         )
@@ -60,6 +64,7 @@ class DocumentDetailService:
             last_ingest_date=last_ingest,
             simple_chunk_count=simple_count,
             langchain_chunk_count=langchain_count,
+            ingestion_cost=ingestion_cost,
         )
 
     async def list_chunks(

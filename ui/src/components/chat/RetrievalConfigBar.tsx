@@ -9,6 +9,8 @@ import {
   useRetrievalConfigStore,
   type RetrievalModality,
 } from '../../store/retrievalConfig';
+import { useConversationCost } from '../../api/conversations';
+import { formatCost } from '../../lib/format';
 
 const MODALITY_LABELS: Record<RetrievalModality, string> = {
   SIMPLE: 'Simple',
@@ -35,9 +37,17 @@ function Toggle({
 export function RetrievalConfigBar({ conversationId }: { conversationId: string }) {
   const config = useRetrievalConfig(conversationId);
   const setConfig = useRetrievalConfigStore((s) => s.setConfig);
+  const cost = useConversationCost(conversationId);
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-zinc-950/5 px-4 py-2 text-xs dark:border-white/5">
+      <span
+        title="Conversation cost so far"
+        className="flex items-center gap-1.5 text-zinc-500 tabular-nums dark:text-zinc-400"
+      >
+        Cost
+        <span className="text-zinc-900 dark:text-zinc-100">{formatCost(cost.data?.cost)}</span>
+      </span>
       <label className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
         Retrieval
         <Select

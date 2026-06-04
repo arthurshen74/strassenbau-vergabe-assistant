@@ -6,6 +6,7 @@ Mirrors the domain model in models/document.py as a separate boundary type famil
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -51,6 +52,7 @@ class DocumentDetailRead(BaseModel):
     last_ingest_date: datetime | None = None
     simple_chunk_count: int
     langchain_chunk_count: int
+    ingestion_cost: Decimal
 
 
 class ChunkRead(BaseModel):
