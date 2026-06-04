@@ -147,6 +147,31 @@ async def test_embed_emits_usage_event_to_sink() -> None:
     assert event.request_id == "emb-1"
 
 
+async def test_embed_forwards_attribution_to_usage_event() -> None:
+    from uuid import uuid4
+
+    sink = _RecordingSink()
+    project_uuid, job_uuid, document_uuid = uuid4(), uuid4(), uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vectors = [[0.1] * settings.embedding_dim]
+        return _response_with_usage(vectors, {"prompt_tokens": 8, "total_tokens": 8, "cost": 0.1})
+
+    client = _client_with_handler(handler, usage_sink=sink)
+    await client.embed(
+        ["alpha"],
+        project_uuid=project_uuid,
+        ingest_job_uuid=job_uuid,
+        document_uuid=document_uuid,
+    )
+
+    # Ingestion embeddings must carry the owning document so the usage row attributes to it.
+    event = sink.events[0]
+    assert event.project_uuid == project_uuid
+    assert event.ingest_job_uuid == job_uuid
+    assert event.document_uuid == document_uuid
+
+
 async def test_embed_missing_cost_records_none_and_warns(caplog) -> None:
     sink = _RecordingSink()
 

@@ -134,8 +134,14 @@ async def test_generate_query_variants_pins_version() -> None:
 async def test_run_lv_extraction_renders_document_and_requests_schema() -> None:
     pv = _pv(PromptType.LV_EXTRACTION, system_prompt="Segment:\n{{numbered_document}}")
     runner, repo, llm = _runner(pv, LVExtraction(positions=[]))
+    project_uuid, job_uuid, document_uuid = uuid4(), uuid4(), uuid4()
 
-    out = await runner.run_lv_extraction("0\tfirst line", project_uuid=None)
+    out = await runner.run_lv_extraction(
+        "0\tfirst line",
+        project_uuid=project_uuid,
+        ingest_job_uuid=job_uuid,
+        document_uuid=document_uuid,
+    )
 
     assert isinstance(out, LVExtraction)
     assert repo.latest_calls == [PromptType.LV_EXTRACTION]
@@ -143,6 +149,10 @@ async def test_run_lv_extraction_renders_document_and_requests_schema() -> None:
     assert call["output_model"] is LVExtraction
     assert call["chat_prompt_type"] == PromptType.LV_EXTRACTION.value
     assert call["messages"][0] == {"role": "system", "content": "Segment:\n0\tfirst line"}
+    # The owning document must reach chat() so the LV_PARSE usage row is attributed to it.
+    assert call["project_uuid"] == project_uuid
+    assert call["ingest_job_uuid"] == job_uuid
+    assert call["document_uuid"] == document_uuid
 
 
 # --- run_text ------------------------------------------------------------

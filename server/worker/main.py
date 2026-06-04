@@ -28,8 +28,11 @@ from datetime import datetime, timedelta, timezone
 from functools import partial
 
 from shared.clients.embeddings.client import EmbeddingsClient
-from shared.clients.factory import build_embedding_cache
-from shared.clients.llm.client import LLMClient
+from shared.clients.factory import (
+    build_embeddings_client,
+    build_llm_client,
+    build_telemetry_sinks,
+)
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient, build_storage_client
 from shared.config import settings
@@ -152,8 +155,9 @@ async def run_worker() -> None:
     engine = make_engine(settings.database_url, pool_size=5, application_name="worker")
     storage = build_storage_client()
     search = SearchClient.from_settings()
-    embeddings = EmbeddingsClient(cache=build_embedding_cache(engine))
-    llm = LLMClient()
+    sinks = build_telemetry_sinks(engine)
+    embeddings = build_embeddings_client(sinks, engine)
+    llm = build_llm_client(sinks)
     langchain_ingestor = LangchainIngestor(embeddings)
 
     shutdown = asyncio.Event()

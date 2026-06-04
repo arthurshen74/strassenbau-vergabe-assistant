@@ -34,7 +34,7 @@ class _FakeESClient:
 
 class _FakeEmbeddings:
     def __init__(self) -> None:
-        self.calls: list[tuple[list[str], Any, Any]] = []
+        self.calls: list[tuple[list[str], Any, Any, Any]] = []
 
     async def embed(
         self,
@@ -44,7 +44,7 @@ class _FakeEmbeddings:
         ingest_job_uuid: Any = None,
         document_uuid: Any = None,
     ) -> list[list[float]]:
-        self.calls.append((texts, project_uuid, ingest_job_uuid))
+        self.calls.append((texts, project_uuid, ingest_job_uuid, document_uuid))
         return [[float(i), float(i)] for i in range(len(texts))]
 
 
@@ -72,8 +72,9 @@ async def test_ingest_embeds_with_ids_then_writes_precomputed_vectors(
     count = await ing.ingest(document_uuid, project_uuid, b"%PDF", ingest_job_uuid=job_uuid)
 
     assert count == 2
-    # Embedding goes through the first-party client with the project + ingest-job ids.
-    assert embeddings.calls == [(["a", "b"], project_uuid, job_uuid)]
+    # Embedding goes through the first-party client with the project, ingest-job, and document ids
+    # so the LangChain chunks' OpenRouter usage is attributed to the owning document.
+    assert embeddings.calls == [(["a", "b"], project_uuid, job_uuid, document_uuid)]
     # Prior vectors are deleted before the write.
     assert len(ing._client.deleted) == 1
     # Precomputed vectors (not re-embedded) are indexed with the chunk metadata.

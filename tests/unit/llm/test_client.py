@@ -199,6 +199,33 @@ async def test_chat_emits_usage_event() -> None:
     await client.aclose()
 
 
+async def test_chat_structured_forwards_document_uuid_to_usage_event() -> None:
+    from uuid import uuid4
+
+    sink = _RecordingSink()
+    job_uuid, document_uuid = uuid4(), uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _chat_response(json.dumps({"queries": ["a"]}), usage=_CHAT_USAGE, response_id="gen-lv")
+
+    client = _client(handler, usage_sink=sink)
+    # The structured path is what LV_PARSE (LV_EXTRACTION) takes; it must attribute usage to the doc.
+    await client.chat(
+        model="x/y",
+        messages=[{"role": "user", "content": "hi"}],
+        output_model=MultiQueryRewrite,
+        chat_prompt_type="lv_extraction",
+        chat_prompt_version=2,
+        ingest_job_uuid=job_uuid,
+        document_uuid=document_uuid,
+    )
+
+    event = sink.events[0]
+    assert event.document_uuid == document_uuid
+    assert event.ingest_job_uuid == job_uuid
+    await client.aclose()
+
+
 async def test_chat_refusal_still_emits_usage_before_raising() -> None:
     sink = _RecordingSink()
 
