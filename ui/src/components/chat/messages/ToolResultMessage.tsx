@@ -16,7 +16,13 @@ export const TOOL_GET_LV_SINGLE_ITEM = 'get_lv_single_item';
 export const TOOL_GET_LV_GROUP_ITEMS = 'get_lv_group_items';
 export const TOOL_AGGREGATE_LV_ITEMS = 'aggregate_lv_items';
 
-export function ToolResultMessage({ m }: { m: MessageRead }) {
+export function ToolResultMessage({
+  m,
+  projectUuid,
+}: {
+  m: MessageRead;
+  projectUuid?: string;
+}) {
   if (!m.success) return null;
   switch (m.tool_name) {
     case TOOL_GET_PROJECT_CONTEXT:
@@ -27,7 +33,9 @@ export function ToolResultMessage({ m }: { m: MessageRead }) {
     case TOOL_GET_LV_GROUP_ITEMS:
       return <LvResultMessage data={m.data ?? null} />;
     case TOOL_AGGREGATE_LV_ITEMS:
-      return <AggregateResultMessage data={m.data ?? null} />;
+      return (
+        <AggregateResultMessage data={m.data ?? null} projectUuid={projectUuid} />
+      );
     default:
       return null;
   }

@@ -39,7 +39,7 @@ export function Message({ m, streaming, citationData, projectUuid }: MessageProp
     case 'function_call':
       return null;
     case 'function_call_output':
-      return <ToolResultMessage m={m} />;
+      return <ToolResultMessage m={m} projectUuid={projectUuid} />;
     default: {
       const _exhaustive: never = m;
       void _exhaustive;
