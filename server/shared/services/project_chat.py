@@ -122,6 +122,7 @@ class ProjectChatService:
             chat_model=prompt.model_name,
             temperature=prompt.temperature,
             prompt_type=PromptType.PROJECT_CHAT.value,
+            conversation_uuid=conversation_id,
         )
 
         assistant_parts: list[str] = []

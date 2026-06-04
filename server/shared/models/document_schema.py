@@ -12,6 +12,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 from shared.models.enums import DocumentType
+from shared.models.ingestion_activity import IngestionActivity
 
 
 class DocumentRead(BaseModel):
@@ -72,4 +73,13 @@ class ChunkListRead(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[ChunkRead]
+    total: int
+
+
+class ActivityListRead(BaseModel):
+    """A page of a document's ingestion activity plus the total across active + archive."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[IngestionActivity]
     total: int

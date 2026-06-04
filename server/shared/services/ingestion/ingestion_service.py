@@ -153,7 +153,12 @@ class IngestionService:
                 document_uuid=document_uuid,
             )
             document_chunks = await self._embed_and_index(
-                doc_drafts, document_uuid, SourceDocType.DOCUMENT, document.project_uuid, job_uuid
+                doc_drafts,
+                document_uuid,
+                SourceDocType.DOCUMENT,
+                document.project_uuid,
+                job_uuid,
+                document_uuid,
             )
             await self._emit(
                 job_uuid,
@@ -203,7 +208,10 @@ class IngestionService:
         rendered, _ = render_line_numbered(source_lines)
         # windowing: see follow-up -- a too-large document overflows this single call.
         extraction = await self._prompts.run_lv_extraction(
-            rendered, project_uuid=document.project_uuid, ingest_job_uuid=job_uuid
+            rendered,
+            project_uuid=document.project_uuid,
+            ingest_job_uuid=job_uuid,
+            document_uuid=document.document_uuid,
         )
         result = postprocess.run(extraction, source_lines)
         pages_by_oz = {item.oz: item.pages for item in result.items}
@@ -226,7 +234,12 @@ class IngestionService:
                 item, pages_by_oz.get(item.oz, []), project_uuid=document.project_uuid
             )
             lv_chunks += await self._embed_and_index(
-                drafts, item.lv_item_uuid, SourceDocType.LV_ITEM, document.project_uuid, job_uuid
+                drafts,
+                item.lv_item_uuid,
+                SourceDocType.LV_ITEM,
+                document.project_uuid,
+                job_uuid,
+                document.document_uuid,
             )
             if index % settings.activity_lv_item_every == 0:
                 self._activity(f"LV item {item.oz} ({index}/{len(items)})", IngestPhase.LV)
@@ -272,14 +285,18 @@ class IngestionService:
         source_doc_type: SourceDocType,
         project_uuid: UUID,
         job_uuid: UUID | None,
+        document_uuid: UUID,
     ) -> int:
-        """Embed the drafts, archive the source's prior chunks, then index the new ones."""
+        """Embed the drafts, archive the source's prior chunks, then index the new ones. The owning
+        document_uuid (distinct from source_doc_uuid, which is the lv_item for LV chunks) tags the
+        embeddings' OpenRouter usage."""
         if not drafts:
             return 0
         vectors = await self._embeddings.embed(
             [draft.chunk_text for draft in drafts],
             project_uuid=project_uuid,
             ingest_job_uuid=job_uuid,
+            document_uuid=document_uuid,
         )
         activity_phase = (
             IngestPhase.LV if source_doc_type is SourceDocType.LV_ITEM else IngestPhase.CHUNK

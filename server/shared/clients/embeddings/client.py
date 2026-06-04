@@ -65,6 +65,8 @@ class EmbeddingsClient:
         *,
         project_uuid: UUID | None = None,
         ingest_job_uuid: UUID | None = None,
+        document_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> list[list[float]]:
         if not texts:
             return []
@@ -84,7 +86,11 @@ class EmbeddingsClient:
         if missing:
             miss_keys = list(missing.keys())
             fresh = await self._embed_remote(
-                list(missing.values()), project_uuid, ingest_job_uuid
+                list(missing.values()),
+                project_uuid,
+                ingest_job_uuid,
+                document_uuid,
+                conversation_uuid,
             )
             for key, vector in zip(miss_keys, fresh):
                 vectors_by_key[key] = vector
@@ -107,6 +113,8 @@ class EmbeddingsClient:
         texts: list[str],
         project_uuid: UUID | None,
         ingest_job_uuid: UUID | None,
+        document_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> list[list[float]]:
         payload = {
             FIELD_MODEL: settings.embedding_model,
@@ -139,7 +147,9 @@ class EmbeddingsClient:
                     f"expected {settings.embedding_dim}"
                 )
 
-        await self._emit_usage(body, project_uuid, ingest_job_uuid)
+        await self._emit_usage(
+            body, project_uuid, ingest_job_uuid, document_uuid, conversation_uuid
+        )
         return vectors
 
     async def _emit_usage(
@@ -147,6 +157,8 @@ class EmbeddingsClient:
         body: dict,
         project_uuid: UUID | None,
         ingest_job_uuid: UUID | None,
+        document_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> None:
         # Usage recording must never fail the embedding call: swallow and log any error.
         try:
@@ -156,6 +168,8 @@ class EmbeddingsClient:
                 model=settings.embedding_model,
                 project_uuid=project_uuid,
                 ingest_job_uuid=ingest_job_uuid,
+                document_uuid=document_uuid,
+                conversation_uuid=conversation_uuid,
             )
             if event.cost is None:
                 logger.warning("OpenRouter usage missing cost for model %s", event.model)

@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, create_model
 from shared.models.chat_message import ChatMessage
 from shared.models.conversation_schema import ConversationCreate, ConversationRead
 from shared.models.document_schema import (
+    ActivityListRead,
     ChunkListRead,
     ChunkRead,
     DocumentCreate,
@@ -86,6 +87,7 @@ BODY_MODELS: list[type[BaseModel]] = [
     DocumentDetailRead,
     ChunkRead,
     ChunkListRead,
+    ActivityListRead,
     IngestJobRead,
     IngestStatusRead,
     IngestJobEventRead,

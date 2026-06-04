@@ -42,13 +42,23 @@ class AggregateLVService:
         self._llm = llm
 
     async def aggregate(
-        self, predicate: str, project_uuid: UUID, unit: str | None = None
+        self,
+        predicate: str,
+        project_uuid: UUID,
+        unit: str | None = None,
+        *,
+        conversation_uuid: UUID | None = None,
     ) -> AggregateResult:
         async with self._engine.connect() as conn:
             items = await LVItemRepository(conn).list_by_project(project_uuid)
             membership = await PromptRunner(
                 PromptVersionRepository(conn), self._llm
-            ).run_lv_membership(predicate, _build_listing(items), project_uuid=project_uuid)
+            ).run_lv_membership(
+                predicate,
+                _build_listing(items),
+                project_uuid=project_uuid,
+                conversation_uuid=conversation_uuid,
+            )
 
         # Dedupe by uuid (last rationale wins) and drop any uuid the model invented.
         rationale_by_uuid = {m.lv_item_uuid: m.rationale for m in membership.matched}

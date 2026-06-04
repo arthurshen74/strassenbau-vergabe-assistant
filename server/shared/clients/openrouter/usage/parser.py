@@ -61,6 +61,8 @@ class UsageEvent(BaseModel):
     search_units: int | None = None
     project_uuid: UUID | None = None
     ingest_job_uuid: UUID | None = None
+    document_uuid: UUID | None = None
+    conversation_uuid: UUID | None = None
     request_id: str | None = None
     chat_prompt_type: str | None = None
     chat_prompt_version: int | None = None
@@ -98,6 +100,8 @@ def parse_usage(
     model: str,
     project_uuid: UUID | None = None,
     ingest_job_uuid: UUID | None = None,
+    document_uuid: UUID | None = None,
+    conversation_uuid: UUID | None = None,
     chat_prompt_type: str | None = None,
     chat_prompt_version: int | None = None,
 ) -> UsageEvent:
@@ -126,6 +130,8 @@ def parse_usage(
         search_units=_as_int(usage, FIELD_SEARCH_UNITS),
         project_uuid=project_uuid,
         ingest_job_uuid=ingest_job_uuid,
+        document_uuid=document_uuid,
+        conversation_uuid=conversation_uuid,
         request_id=request_id if isinstance(request_id, str) else None,
         chat_prompt_type=chat_prompt_type,
         chat_prompt_version=chat_prompt_version,

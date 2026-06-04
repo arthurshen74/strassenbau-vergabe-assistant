@@ -118,8 +118,10 @@ class ProjectChatAgent:
         chat_model: str,
         temperature: float | None,
         prompt_type: str,
+        conversation_uuid: UUID | None = None,
     ) -> None:
         self._project_uuid = project_uuid
+        self._conversation_uuid = conversation_uuid
         self._config = config
         self._engine = engine
         self._retrieval = retrieval
@@ -129,6 +131,7 @@ class ProjectChatAgent:
             prompt_type=prompt_type,
             provider_url=_openrouter_base_url(),
             chat_model=chat_model,
+            conversation_uuid=conversation_uuid,
         )
         # Running citation offset so [n] numbers stay unique across multiple context-tool calls.
         self._cite_offset = 0
@@ -198,7 +201,9 @@ class ProjectChatAgent:
             """Total the quantity (Menge) across the LV positions matching a predicate, grouped by
             unit. Use for any 'how much / total / Gesamtmenge' question. `predicate` names what to
             sum (e.g. 'Bodenabtrag / earth removal'); `unit` optionally restricts the subtotal."""
-            result = await self._aggregate.aggregate(predicate, self._project_uuid, unit)
+            result = await self._aggregate.aggregate(
+                predicate, self._project_uuid, unit, conversation_uuid=self._conversation_uuid
+            )
             return _format_aggregate(result), result.model_dump(mode="json")
 
         return [
@@ -215,13 +220,21 @@ class ProjectChatAgent:
     ) -> tuple[str, dict[str, Any]]:
         try:
             ctx = await self._retrieval.retrieve_context(
-                query, self._project_uuid, self._config, scope_override=scope_override
+                query,
+                self._project_uuid,
+                self._config,
+                scope_override=scope_override,
+                conversation_uuid=self._conversation_uuid,
             )
         except RetrievalError:
             # PLUS needs an LV document; fall back to SIMPLE rather than failing the tool call.
             fallback = self._config.model_copy(update={"modality": RetrievalModality.SIMPLE})
             ctx = await self._retrieval.retrieve_context(
-                query, self._project_uuid, fallback, scope_override=scope_override
+                query,
+                self._project_uuid,
+                fallback,
+                scope_override=scope_override,
+                conversation_uuid=self._conversation_uuid,
             )
         # Offset source numbers so [n] citations stay unique across multiple context calls this turn.
         renumbered = [

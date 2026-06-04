@@ -48,12 +48,14 @@ class IngestStatusRead(BaseModel):
 
 
 class IngestJobConsoleRead(BaseModel):
-    """A job row for the ops console: status plus lease + retry bookkeeping."""
+    """A console job row: document/project labels, status, and lease + retry bookkeeping."""
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
     job_uuid: UUID
     document_uuid: UUID
+    file_name: str
+    project_name: str
     status: IngestStatus
     attempts: int
     locked_by: str | None

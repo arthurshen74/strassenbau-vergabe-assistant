@@ -76,6 +76,7 @@ class LangchainIngestor:
             [chunk.page_content for chunk in chunks],
             project_uuid=project_uuid,
             ingest_job_uuid=ingest_job_uuid,
+            document_uuid=document_uuid,
         )
         return await asyncio.to_thread(self._add_vectors, chunks, vectors)
 

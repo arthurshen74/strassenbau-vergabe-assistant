@@ -78,6 +78,11 @@ export interface ChunkListRead {
   total: number;
 }
 
+export interface ActivityListRead {
+  items: IngestionActivity[];
+  total: number;
+}
+
 export interface IngestJobRead {
   job_uuid: string;
   document_uuid: string;
@@ -106,6 +111,8 @@ export interface IngestJobEventRead {
 export interface IngestJobConsoleRead {
   job_uuid: string;
   document_uuid: string;
+  file_name: string;
+  project_name: string;
   status: "queued" | "running" | "done" | "failed";
   attempts: number;
   locked_by: string | null;
@@ -285,6 +292,8 @@ export interface OpenRouterUsageRead {
   search_units?: number | null;
   project_uuid?: string | null;
   ingest_job_uuid?: string | null;
+  document_uuid?: string | null;
+  conversation_uuid?: string | null;
   request_id?: string | null;
   chat_prompt_type?: string | null;
   chat_prompt_version?: number | null;

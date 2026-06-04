@@ -186,6 +186,8 @@ class LLMClient:
         chat_prompt_version: int | None = None,
         project_uuid: UUID | None = None,
         ingest_job_uuid: UUID | None = None,
+        document_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> str | T:
         """Run a chat completion. With `output_model`, request JSON-schema-constrained output
         and return a validated instance; without it, return the raw assistant text."""
@@ -230,6 +232,8 @@ class LLMClient:
             chat_prompt_version=chat_prompt_version,
             project_uuid=project_uuid,
             ingest_job_uuid=ingest_job_uuid,
+            document_uuid=document_uuid,
+            conversation_uuid=conversation_uuid,
         )
 
         choice = body[RESPONSE_CHOICES][0]
@@ -292,6 +296,8 @@ class LLMClient:
         chat_prompt_version: int | None = None,
         project_uuid: UUID | None = None,
         ingest_job_uuid: UUID | None = None,
+        document_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream a chat completion. Yields `TextDelta` as content arrives, then one
         `ToolCallsReady` if the model called tools, then `Done(finish_reason)`. Tools and
@@ -372,6 +378,8 @@ class LLMClient:
                 chat_prompt_version=chat_prompt_version,
                 project_uuid=project_uuid,
                 ingest_job_uuid=ingest_job_uuid,
+                document_uuid=document_uuid,
+                conversation_uuid=conversation_uuid,
             )
         is_truncated = finish_reason == FINISH_REASON_LENGTH
         is_refusal = finish_reason == FINISH_REASON_CONTENT_FILTER
@@ -408,6 +416,8 @@ class LLMClient:
         chat_prompt_version: int | None,
         project_uuid: UUID | None,
         ingest_job_uuid: UUID | None,
+        document_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> None:
         # Usage recording must never fail the chat call: swallow and log any error.
         try:
@@ -417,6 +427,8 @@ class LLMClient:
                 model=model,
                 project_uuid=project_uuid,
                 ingest_job_uuid=ingest_job_uuid,
+                document_uuid=document_uuid,
+                conversation_uuid=conversation_uuid,
                 chat_prompt_type=chat_prompt_type,
                 chat_prompt_version=chat_prompt_version,
             )

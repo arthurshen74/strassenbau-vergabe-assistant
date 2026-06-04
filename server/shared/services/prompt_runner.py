@@ -59,6 +59,7 @@ class PromptRunner:
         version: int | None = None,
         project_uuid: UUID | None = None,
         ingest_job_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> list[str]:
         """Expand a query into up to `n` retrieval variants via the multi-question generator."""
         count = n if n is not None else settings.multi_query_n
@@ -69,6 +70,7 @@ class PromptRunner:
             version=version,
             project_uuid=project_uuid,
             ingest_job_uuid=ingest_job_uuid,
+            conversation_uuid=conversation_uuid,
         )
         assert isinstance(result, MultiQueryRewrite)
         return result.queries[:count]
@@ -80,6 +82,7 @@ class PromptRunner:
         *,
         version: int | None = None,
         project_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> LVMembership:
         """Decide which LV positions in `listing` match an aggregation `predicate` (membership
         only; the caller sums the matched items deterministically)."""
@@ -88,6 +91,7 @@ class PromptRunner:
             variables={"predicate": predicate, "listing": listing},
             version=version,
             project_uuid=project_uuid,
+            conversation_uuid=conversation_uuid,
         )
         assert isinstance(result, LVMembership)
         return result
@@ -99,6 +103,7 @@ class PromptRunner:
         version: int | None = None,
         project_uuid: UUID | None = None,
         ingest_job_uuid: UUID | None = None,
+        document_uuid: UUID | None = None,
     ) -> LVExtraction:
         """Segment a line-numbered LV rendering into positions (LV_PARSE.md step 3)."""
         result = await self._run(
@@ -107,6 +112,7 @@ class PromptRunner:
             version=version,
             project_uuid=project_uuid,
             ingest_job_uuid=ingest_job_uuid,
+            document_uuid=document_uuid,
         )
         assert isinstance(result, LVExtraction)
         return result
@@ -142,6 +148,8 @@ class PromptRunner:
         version: int | None = None,
         project_uuid: UUID | None = None,
         ingest_job_uuid: UUID | None = None,
+        document_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> str | BaseModel:
         pv = (
             await self._prompts.get_latest(prompt_type)
@@ -181,6 +189,8 @@ class PromptRunner:
             chat_prompt_version=pv.version,
             project_uuid=project_uuid,
             ingest_job_uuid=ingest_job_uuid,
+            document_uuid=document_uuid,
+            conversation_uuid=conversation_uuid,
         )
 
 

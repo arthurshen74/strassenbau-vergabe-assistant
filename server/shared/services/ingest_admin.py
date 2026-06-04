@@ -15,7 +15,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.models.enums import IngestStatus
-from shared.models.ingest_job import IngestJob
+from shared.models.ingest_job import IngestJob, IngestJobConsoleRow
 from shared.models.ingest_schema import IngestActivityLine
 from shared.models.sse_schema import DATA, EVENT
 from shared.repositories.ingest_jobs import IngestJobRepository
@@ -34,7 +34,7 @@ class IngestAdminService:
 
     async def list_jobs(
         self, *, status: IngestStatus | None = None, project_uuid: UUID | None = None
-    ) -> list[IngestJob]:
+    ) -> list[IngestJobConsoleRow]:
         async with self._engine.connect() as conn:
             return await IngestJobRepository(conn).list_for_console(
                 status=status, project_uuid=project_uuid

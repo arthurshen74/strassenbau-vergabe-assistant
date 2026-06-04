@@ -48,7 +48,12 @@ class _FakeStorage:
 
 class _FakeEmbeddings:
     async def embed(
-        self, texts: list[str], *, project_uuid: Any = None, ingest_job_uuid: Any = None
+        self,
+        texts: list[str],
+        *,
+        project_uuid: Any = None,
+        ingest_job_uuid: Any = None,
+        document_uuid: Any = None,
     ) -> list[list[float]]:
         return [[float(i)] for i in range(len(texts))]
 

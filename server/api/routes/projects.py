@@ -24,13 +24,13 @@ from shared.clients.storage.client import StorageClient
 from shared.config import settings
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.document_schema import (
+    ActivityListRead,
     ChunkListRead,
     DocumentDetailRead,
     DocumentRead,
 )
 from shared.models.enums import DocumentType, SourceDocType
 from shared.models.ingest_schema import IngestJobRead
-from shared.models.ingestion_activity import IngestionActivity
 from shared.models.project_schema import ProjectCreate, ProjectRead
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
@@ -276,7 +276,7 @@ async def list_document_chunks(
 
 @router.get(
     "/{project_uuid}/documents/{document_uuid}/activity",
-    response_model=list[IngestionActivity],
+    response_model=ActivityListRead,
 )
 async def list_document_activity(
     project_uuid: UUID,
@@ -285,6 +285,6 @@ async def list_document_activity(
     limit: int = 200,
     _principal: Principal = Depends(get_current_user),
     service: DocumentDetailService = Depends(get_document_detail_service),
-) -> list[IngestionActivity]:
-    """The document's ingestion activity (active then archive), oldest first, paged."""
+) -> ActivityListRead:
+    """The document's ingestion activity (active then archive), oldest first, paged, with total."""
     return await service.list_activity(document_uuid, offset=offset, limit=limit)

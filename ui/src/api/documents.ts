@@ -5,9 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 
 import { api } from './client';
 import type {
+  ActivityListRead,
   ChunkListRead,
   DocumentDetailRead,
-  IngestionActivity,
 } from '../types/generated';
 
 export interface ChunkFilters {
@@ -70,7 +70,7 @@ export function useDocumentActivity(
   return useQuery({
     queryKey: documentKeys.activity(projectUuid, documentUuid ?? 'none', offset),
     queryFn: () =>
-      api.get<IngestionActivity[]>(
+      api.get<ActivityListRead>(
         `/projects/${projectUuid}/documents/${documentUuid}/activity${queryString({ offset, limit })}`,
       ),
     enabled: !!documentUuid,

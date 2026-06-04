@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete, insert, select, union_all
+from sqlalchemy import delete, func, insert, select, union_all
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.ingestion_activity_log import ingestion_activity_log
@@ -54,6 +54,20 @@ class IngestionActivityLogRepository:
         stmt = select(combined).order_by(combined.c.id).limit(limit).offset(offset)
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [IngestionActivity.model_validate(dict(r)) for r in rows]
+
+    async def count_for_document(self, document_uuid: UUID) -> int:
+        """Total activity lines for a document across the active and archive tables."""
+        active = await self.conn.scalar(
+            select(func.count())
+            .select_from(ingestion_activity_log)
+            .where(ingestion_activity_log.c.document_uuid == document_uuid)
+        )
+        archived = await self.conn.scalar(
+            select(func.count())
+            .select_from(ingestion_activity_log_archive)
+            .where(ingestion_activity_log_archive.c.document_uuid == document_uuid)
+        )
+        return (active or 0) + (archived or 0)
 
     async def archive_stale(self, older_than: datetime) -> int:
         """Move activity lines older than the cutoff from the active table into the archive,

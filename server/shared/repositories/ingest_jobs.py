@@ -8,8 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from shared.db.tables.documents import documents
 from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
+from shared.db.tables.projects import projects
 from shared.models.enums import IngestStatus
-from shared.models.ingest_job import IngestJob, IngestJobStatusRow, NewIngestJob
+from shared.models.ingest_job import (
+    IngestJob,
+    IngestJobConsoleRow,
+    IngestJobStatusRow,
+    NewIngestJob,
+)
 
 
 class IngestJobRepository:
@@ -181,19 +187,32 @@ class IngestJobRepository:
 
     async def list_for_console(
         self, *, status: IngestStatus | None = None, project_uuid: UUID | None = None
-    ) -> list[IngestJob]:
-        """Jobs for the ops console, newest first, optionally filtered by status and/or project."""
-        stmt = select(ingest_jobs)
+    ) -> list[IngestJobConsoleRow]:
+        """Jobs for the ops console, newest first, joined to each job's document file name and
+        project name, optionally filtered by status and/or project."""
+        stmt = (
+            select(
+                ingest_jobs.c.job_uuid,
+                ingest_jobs.c.document_uuid,
+                documents.c.file_name,
+                projects.c.project_name,
+                ingest_jobs.c.status,
+                ingest_jobs.c.attempts,
+                ingest_jobs.c.locked_by,
+                ingest_jobs.c.locked_at,
+                ingest_jobs.c.created_at,
+                ingest_jobs.c.updated_at,
+            )
+            .select_from(
+                ingest_jobs.join(
+                    documents, ingest_jobs.c.document_uuid == documents.c.document_uuid
+                ).join(projects, documents.c.project_uuid == projects.c.project_uuid)
+            )
+        )
         if status is not None:
             stmt = stmt.where(ingest_jobs.c.status == status)
         if project_uuid is not None:
-            stmt = stmt.where(
-                ingest_jobs.c.document_uuid.in_(
-                    select(documents.c.document_uuid).where(
-                        documents.c.project_uuid == project_uuid
-                    )
-                )
-            )
+            stmt = stmt.where(documents.c.project_uuid == project_uuid)
         stmt = stmt.order_by(ingest_jobs.c.created_at.desc())
         rows = (await self.conn.execute(stmt)).mappings().all()
-        return [IngestJob.model_validate(dict(r)) for r in rows]
+        return [IngestJobConsoleRow.model_validate(dict(r)) for r in rows]

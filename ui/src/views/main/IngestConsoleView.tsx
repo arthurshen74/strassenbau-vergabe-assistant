@@ -2,7 +2,7 @@
 // failed job in place, and watch a job's live activity terminal.
 
 import { useState } from 'react';
-import { ArrowPathIcon } from '@heroicons/react/16/solid';
+import { ArrowPathIcon, CommandLineIcon } from '@heroicons/react/16/solid';
 
 import {
   useIngestJobs,
@@ -35,6 +35,9 @@ const STATUS_COLOR: Record<IngestJobStatus, 'zinc' | 'blue' | 'green' | 'red'> =
   done: 'green',
   failed: 'red',
 };
+
+const ACTION =
+  'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-50';
 
 export function IngestConsoleView() {
   const [status, setStatus] = useState<IngestJobStatus | ''>('');
@@ -87,6 +90,9 @@ export function IngestConsoleView() {
         <Table dense>
           <TableHead>
             <TableRow>
+              <TableHeader>ID</TableHeader>
+              <TableHeader>Project</TableHeader>
+              <TableHeader>File</TableHeader>
               <TableHeader>Status</TableHeader>
               <TableHeader>Attempts</TableHeader>
               <TableHeader>Worker</TableHeader>
@@ -97,6 +103,11 @@ export function IngestConsoleView() {
           <TableBody>
             {rows.map((job) => (
               <TableRow key={job.job_uuid}>
+                <TableCell className="font-mono text-xs text-zinc-500" title={job.job_uuid}>
+                  {job.job_uuid.slice(0, 8)}
+                </TableCell>
+                <TableCell>{job.project_name}</TableCell>
+                <TableCell className="font-medium">{job.file_name}</TableCell>
                 <TableCell>
                   <Badge color={STATUS_COLOR[job.status]}>{job.status}</Badge>
                 </TableCell>
@@ -108,17 +119,24 @@ export function IngestConsoleView() {
                   {formatTimestamp(job.updated_at)}
                 </TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
-                    <Button plain onClick={() => setActivityJob(job.job_uuid)}>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActivityJob(job.job_uuid)}
+                      className={`${ACTION} text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-500/10`}
+                    >
+                      <CommandLineIcon className="size-4" />
                       Activity
-                    </Button>
-                    <Button
-                      plain
+                    </button>
+                    <button
+                      type="button"
                       disabled={requeue.isPending}
                       onClick={() => requeue.mutate(job.job_uuid)}
+                      className={`${ACTION} text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10`}
                     >
+                      <ArrowPathIcon className="size-4" />
                       Requeue
-                    </Button>
+                    </button>
                   </div>
                 </TableCell>
               </TableRow>

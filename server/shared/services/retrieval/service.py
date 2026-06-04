@@ -95,6 +95,7 @@ class RetrievalService:
         config: RetrievalConfig,
         *,
         scope_override: dict[str, Any] | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> RetrievalContext:
         """The full pipeline up to the numbered context, without generating an answer.
 
@@ -111,8 +112,12 @@ class RetrievalService:
             es_filter=es_filter,
         )
 
-        query_texts = await self._build_query_texts(question, project_uuid, config)
-        vectors = await self._embeddings.embed(query_texts, project_uuid=project_uuid)
+        query_texts = await self._build_query_texts(
+            question, project_uuid, config, conversation_uuid
+        )
+        vectors = await self._embeddings.embed(
+            query_texts, project_uuid=project_uuid, conversation_uuid=conversation_uuid
+        )
 
         query_traces: list[QueryTrace] = []
         ranked_lists: dict[str, Sequence[ScoredChunk]] = {}
@@ -139,7 +144,7 @@ class RetrievalService:
         rrf_applied = len(ranked_lists) > 1
 
         final_chunks, rerank_traces, rerank_applied = await self._select_context(
-            question, fused, project_uuid, config
+            question, fused, project_uuid, config, conversation_uuid
         )
         # LV_ITEM sources point at the LV item, not a document; their page thumbnails live on the
         # project's LV document, so resolve it once (already known under PLUS).
@@ -196,14 +201,21 @@ class RetrievalService:
         )
 
     async def _build_query_texts(
-        self, question: str, project_uuid: UUID, config: RetrievalConfig
+        self,
+        question: str,
+        project_uuid: UUID,
+        config: RetrievalConfig,
+        conversation_uuid: UUID | None = None,
     ) -> list[str]:
         if not config.multi_query:
             return [question]
         async with self._engine.connect() as conn:
             runner = PromptRunner(PromptVersionRepository(conn), self._llm)
             variants = await runner.generate_query_variants(
-                question, n=config.multi_query_n, project_uuid=project_uuid
+                question,
+                n=config.multi_query_n,
+                project_uuid=project_uuid,
+                conversation_uuid=conversation_uuid,
             )
         return [question, *variants]
 
@@ -213,12 +225,17 @@ class RetrievalService:
         fused: list[FusedChunk],
         project_uuid: UUID,
         config: RetrievalConfig,
+        conversation_uuid: UUID | None = None,
     ) -> tuple[list[SimpleChunk], list[RerankTrace], bool]:
         if not config.use_cross_encoder:
             return [f.chunk for f in fused[: config.top_k]], [], False
         documents = [f.chunk.chunk_text for f in fused]
         ranked = await self._reranker.rerank(
-            question, documents, top_n=config.top_k, project_uuid=project_uuid
+            question,
+            documents,
+            top_n=config.top_k,
+            project_uuid=project_uuid,
+            conversation_uuid=conversation_uuid,
         )
         final_chunks = [fused[index].chunk for index, _ in ranked]
         rerank_traces = [

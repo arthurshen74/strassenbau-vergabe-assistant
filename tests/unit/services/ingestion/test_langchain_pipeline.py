@@ -37,7 +37,12 @@ class _FakeEmbeddings:
         self.calls: list[tuple[list[str], Any, Any]] = []
 
     async def embed(
-        self, texts: list[str], *, project_uuid: Any = None, ingest_job_uuid: Any = None
+        self,
+        texts: list[str],
+        *,
+        project_uuid: Any = None,
+        ingest_job_uuid: Any = None,
+        document_uuid: Any = None,
     ) -> list[list[float]]:
         self.calls.append((texts, project_uuid, ingest_job_uuid))
         return [[float(i), float(i)] for i in range(len(texts))]

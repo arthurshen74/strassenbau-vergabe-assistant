@@ -56,6 +56,7 @@ class RerankClient:
         *,
         top_n: int,
         project_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> list[tuple[int, float]]:
         """Return (original_index, relevance_score) pairs, highest score first, length <= top_n."""
         if not documents:
@@ -88,10 +89,15 @@ class RerankClient:
         ]
         results.sort(key=lambda pair: pair[1], reverse=True)
 
-        await self._emit_usage(body, project_uuid)
+        await self._emit_usage(body, project_uuid, conversation_uuid)
         return results
 
-    async def _emit_usage(self, body: dict, project_uuid: UUID | None) -> None:
+    async def _emit_usage(
+        self,
+        body: dict,
+        project_uuid: UUID | None,
+        conversation_uuid: UUID | None = None,
+    ) -> None:
         # Usage recording must never fail the rerank call: swallow and log any error.
         try:
             event = parse_usage(
@@ -99,6 +105,7 @@ class RerankClient:
                 operation=UsageOperation.RERANK,
                 model=settings.cross_encoder_model,
                 project_uuid=project_uuid,
+                conversation_uuid=conversation_uuid,
             )
             if event.cost is None:
                 logger.warning("OpenRouter usage missing cost for model %s", event.model)

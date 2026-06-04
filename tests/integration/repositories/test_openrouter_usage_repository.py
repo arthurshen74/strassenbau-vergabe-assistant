@@ -9,9 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from shared.clients.openrouter.usage import UsageEvent
 from shared.clients.openrouter.usage.sinks import DatabaseUsageSink
 from shared.db.tables.openrouter_usage import openrouter_usage
-from shared.models.enums import UsageOperation
+from shared.models.conversation import NewConversation
+from shared.models.document import NewDocument
+from shared.models.enums import DocumentType, PromptType, UsageOperation
 from shared.models.openrouter_usage import NewOpenRouterUsage
 from shared.models.project import NewProject
+from shared.repositories.conversations import ConversationRepository
+from shared.repositories.documents import DocumentRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.repositories.projects import ProjectRepository
 
@@ -101,6 +105,39 @@ async def test_add_without_cost_records_none(conn: AsyncConnection) -> None:
 
 async def test_get_missing_returns_none(conn: AsyncConnection) -> None:
     assert await OpenRouterUsageRepository(conn).get(uuid4()) is None
+
+
+async def test_add_with_document_and_conversation_attribution(conn: AsyncConnection) -> None:
+    project_uuid = await _make_project(conn)
+    doc = await DocumentRepository(conn).add(
+        NewDocument(
+            project_uuid=project_uuid,
+            document_type=DocumentType.PROSE_DOCUMENT,
+            file_name="p.pdf",
+            number_of_pages=1,
+        )
+    )
+    convo = await ConversationRepository(conn).add(
+        NewConversation(
+            user_uuid=uuid4(),
+            prompt_type=PromptType.PROJECT_CHAT,
+            project_uuid=project_uuid,
+        )
+    )
+    repo = OpenRouterUsageRepository(conn)
+
+    created = await repo.add(
+        _new_chat(
+            project_uuid=project_uuid,
+            document_uuid=doc.document_uuid,
+            conversation_uuid=convo.conversation_uuid,
+        )
+    )
+    fetched = await repo.get(created.usage_uuid)
+
+    assert fetched is not None
+    assert fetched.document_uuid == doc.document_uuid
+    assert fetched.conversation_uuid == convo.conversation_uuid
 
 
 async def test_list_by_project_filters(conn: AsyncConnection) -> None:

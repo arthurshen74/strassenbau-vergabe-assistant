@@ -1,5 +1,6 @@
-// Paged chunk viewer for a document. Toggle SimpleChunks vs LangChain chunks; for SimpleChunks,
-// filter by source-doc-type and search the text. First / Back / Next / Last / GoToIndex paging.
+// Paged chunk table for a document. Toggle SimpleChunks vs LangChain; for SimpleChunks filter by
+// source-doc-type and search the text. Each row shows the index, a short preview, and metadata;
+// clicking a row opens the full chunk text in a modal. Numbered paging via PageNav.
 
 import { useState } from 'react';
 
@@ -9,10 +10,35 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Select } from '../../components/ui/select';
 import { Text } from '../../components/ui/text';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../components/ui/table';
+import { Dialog, DialogBody, DialogTitle } from '../../components/ui/dialog';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
+import { PageNav } from './PageNav';
+import type { ChunkRead } from '../../types/generated';
 
 const PAGE_SIZE = 25;
+
+function preview(text: string): string {
+  const t = text.trim();
+  return t.length > 25 ? `${t.slice(0, 25)}…` : t;
+}
+
+function info(c: ChunkRead): string {
+  const parts: string[] = [];
+  if (c.source_doc_type) parts.push(c.source_doc_type);
+  if (c.oz) parts.push(`OZ ${c.oz}`);
+  if (c.page != null) parts.push(`page ${c.page}`);
+  if (c.pages && c.pages.length > 0) parts.push(`pages ${c.pages.join(', ')}`);
+  return parts.join(' · ') || '—';
+}
 
 export function DocumentChunkViewer({
   projectUuid,
@@ -25,8 +51,10 @@ export function DocumentChunkViewer({
   const [docType, setDocType] = useState<'' | 'DOCUMENT' | 'LV_ITEM'>('');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
-  const [offset, setOffset] = useState(0);
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<ChunkRead | null>(null);
 
+  const offset = (page - 1) * PAGE_SIZE;
   const filters: ChunkFilters = {
     source,
     doc_type: source === 'simple' && docType ? docType : undefined,
@@ -37,8 +65,7 @@ export function DocumentChunkViewer({
   const result = useDocumentChunks(projectUuid, documentUuid, filters);
   const items = result.data?.items ?? [];
   const total = result.data?.total ?? 0;
-
-  const reset = () => setOffset(0);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-3">
@@ -49,7 +76,7 @@ export function DocumentChunkViewer({
             value={source}
             onChange={(e) => {
               setSource(e.target.value as 'simple' | 'langchain');
-              reset();
+              setPage(1);
             }}
             className="w-40"
           >
@@ -64,7 +91,7 @@ export function DocumentChunkViewer({
               value={docType}
               onChange={(e) => {
                 setDocType(e.target.value as '' | 'DOCUMENT' | 'LV_ITEM');
-                reset();
+                setPage(1);
               }}
               className="w-40"
             >
@@ -79,7 +106,7 @@ export function DocumentChunkViewer({
           onSubmit={(e) => {
             e.preventDefault();
             setQuery(search.trim());
-            reset();
+            setPage(1);
           }}
         >
           <label className="flex flex-col gap-1 text-xs text-zinc-500">
@@ -104,66 +131,44 @@ export function DocumentChunkViewer({
       ) : items.length === 0 ? (
         <Text>No chunks.</Text>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {items.map((c, i) => (
-            <li
-              key={c.chunk_id}
-              className="rounded border border-zinc-950/10 p-2 dark:border-white/10"
-            >
-              <div className="mb-1 flex items-center gap-2 text-xs text-zinc-500">
-                <Badge color="zinc">
-                  #{c.chunk_index ?? offset + i}
-                </Badge>
-                {c.source_doc_type && <span>{c.source_doc_type}</span>}
-                {c.oz && <span>OZ {c.oz}</span>}
-                {c.page != null && <span>page {c.page}</span>}
-                {c.pages && c.pages.length > 0 && <span>pages {c.pages.join(', ')}</span>}
-              </div>
-              <div className="whitespace-pre-wrap text-sm text-zinc-800 dark:text-zinc-200">
-                {c.text}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <Table dense>
+          <TableHead>
+            <TableRow>
+              <TableHeader className="w-0">Index</TableHeader>
+              <TableHeader>Preview</TableHeader>
+              <TableHeader>Info</TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {items.map((c, i) => (
+              <TableRow
+                key={c.chunk_id}
+                className="cursor-pointer"
+                onClick={() => setSelected(c)}
+              >
+                <TableCell>
+                  <Badge color="zinc">{c.chunk_index ?? offset + i + 1}</Badge>
+                </TableCell>
+                <TableCell className="font-mono text-xs">{preview(c.text)}</TableCell>
+                <TableCell className="text-xs text-zinc-500">{info(c)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button plain disabled={offset === 0} onClick={() => setOffset(0)}>
-          First
-        </Button>
-        <Button plain disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
-          Back
-        </Button>
-        <Text className="text-xs">
-          {total === 0 ? '0' : `${offset + 1}–${offset + items.length}`} of {total}
-        </Text>
-        <Button
-          plain
-          disabled={offset + PAGE_SIZE >= total}
-          onClick={() => setOffset(offset + PAGE_SIZE)}
-        >
-          Next
-        </Button>
-        <Button
-          plain
-          disabled={offset + PAGE_SIZE >= total}
-          onClick={() => setOffset(Math.max(0, (Math.ceil(total / PAGE_SIZE) - 1) * PAGE_SIZE))}
-        >
-          Last
-        </Button>
-        <Input
-          type="number"
-          min={1}
-          max={total}
-          aria-label="Go to index"
-          placeholder="index"
-          className="w-24"
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (Number.isFinite(n) && n >= 1 && n <= total) setOffset(n - 1);
-          }}
-        />
-      </div>
+      <PageNav page={page} totalPages={totalPages} onChange={setPage} />
+
+      <Dialog open={selected !== null} onClose={() => setSelected(null)} size="3xl">
+        <DialogTitle>
+          Chunk {selected?.chunk_index ?? ''} {selected ? `· ${info(selected)}` : ''}
+        </DialogTitle>
+        <DialogBody>
+          <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+            {selected?.text}
+          </pre>
+        </DialogBody>
+      </Dialog>
     </div>
   );
 }

@@ -24,6 +24,8 @@ class OpenRouterUsage(BaseModel):
     search_units: int | None = None
     project_uuid: UUID | None = None
     ingest_job_uuid: UUID | None = None
+    document_uuid: UUID | None = None
+    conversation_uuid: UUID | None = None
     request_id: str | None = None
     chat_prompt_type: str | None = None
     chat_prompt_version: int | None = None
@@ -46,6 +48,8 @@ class NewOpenRouterUsage(BaseModel):
     search_units: int | None = None
     project_uuid: UUID | None = None
     ingest_job_uuid: UUID | None = None
+    document_uuid: UUID | None = None
+    conversation_uuid: UUID | None = None
     request_id: str | None = None
     chat_prompt_type: str | None = None
     chat_prompt_version: int | None = None

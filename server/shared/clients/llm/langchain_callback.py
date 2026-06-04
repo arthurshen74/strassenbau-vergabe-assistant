@@ -74,8 +74,10 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
         prompt_type: str,
         provider_url: str,
         chat_model: str,
+        conversation_uuid: UUID | None = None,
     ) -> None:
         self._project_uuid = project_uuid
+        self._conversation_uuid = conversation_uuid
         self._prompt_type = prompt_type
         self._provider_url = provider_url
         self._chat_model = chat_model
@@ -155,6 +157,7 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
                 operation=UsageOperation.CHAT,
                 model=model,
                 project_uuid=self._project_uuid,
+                conversation_uuid=self._conversation_uuid,
                 chat_prompt_type=self._prompt_type,
             )
             if event.cost is None:

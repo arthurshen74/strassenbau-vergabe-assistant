@@ -14,9 +14,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.search.client import SearchClient
-from shared.models.document_schema import ChunkListRead, ChunkRead, DocumentDetailRead
+from shared.models.document_schema import (
+    ActivityListRead,
+    ChunkListRead,
+    ChunkRead,
+    DocumentDetailRead,
+)
 from shared.models.enums import SourceDocType
-from shared.models.ingestion_activity import IngestionActivity
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingestion_activity import IngestionActivityLogRepository
@@ -111,9 +115,10 @@ class DocumentDetailService:
 
     async def list_activity(
         self, document_uuid: UUID, *, offset: int = 0, limit: int = 200
-    ) -> list[IngestionActivity]:
-        """The document's ingestion activity across the active and archive tables (paged)."""
+    ) -> ActivityListRead:
+        """A page of the document's ingestion activity (active ∪ archive) plus the total."""
         async with self._engine.connect() as conn:
-            return await IngestionActivityLogRepository(conn).list_for_document(
-                document_uuid, offset=offset, limit=limit
-            )
+            repo = IngestionActivityLogRepository(conn)
+            items = await repo.list_for_document(document_uuid, offset=offset, limit=limit)
+            total = await repo.count_for_document(document_uuid)
+        return ActivityListRead(items=items, total=total)

@@ -56,7 +56,12 @@ def _patch(monkeypatch, items: list[LVItem], matched_uuids: list[str]) -> None:
             pass
 
         async def run_lv_membership(
-            self, _predicate: str, _listing: str, *, project_uuid: object
+            self,
+            _predicate: str,
+            _listing: str,
+            *,
+            project_uuid: object,
+            conversation_uuid: object = None,
         ) -> LVMembership:
             return LVMembership(
                 matched=[LVMembershipItem(lv_item_uuid=u, rationale="r") for u in matched_uuids]

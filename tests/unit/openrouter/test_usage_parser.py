@@ -110,3 +110,18 @@ def test_attribution_and_prompt_fields_flow_through() -> None:
     assert event.ingest_job_uuid == ingest_job_uuid
     assert event.chat_prompt_type == "project_chat"
     assert event.chat_prompt_version == 3
+
+
+def test_document_and_conversation_attribution_flow_through() -> None:
+    document_uuid = uuid4()
+    conversation_uuid = uuid4()
+    body = {"usage": {"total_tokens": 2, "cost": 0.0}}
+    event = parse_usage(
+        body,
+        operation=UsageOperation.CHAT,
+        model="m",
+        document_uuid=document_uuid,
+        conversation_uuid=conversation_uuid,
+    )
+    assert event.document_uuid == document_uuid
+    assert event.conversation_uuid == conversation_uuid

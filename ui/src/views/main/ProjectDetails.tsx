@@ -114,7 +114,12 @@ export function ProjectDetails({
           <TableBody>
             {docs.map((d) => (
               <TableRow key={d.document_uuid}>
-                <TableCell className="font-medium">{d.file_name}</TableCell>
+                <TableCell
+                  className="cursor-pointer font-medium text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400"
+                  onClick={() => setDocDetail(d)}
+                >
+                  {d.file_name}
+                </TableCell>
                 <TableCell>
                   <Badge color={d.document_type === 'LV_DOCUMENT' ? 'amber' : 'zinc'}>
                     {d.document_type}
@@ -123,7 +128,12 @@ export function ProjectDetails({
                 <TableCell>
                   <IngestStatusCell status={ingestStatus[d.document_uuid]} />
                 </TableCell>
-                <TableCell>{d.number_of_pages}</TableCell>
+                <TableCell
+                  className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                  onClick={() => setDocDetail(d)}
+                >
+                  {d.number_of_pages}
+                </TableCell>
                 <TableCell className="text-zinc-500">{formatRelativeTime(d.created_at)}</TableCell>
                 <TableCell className="text-right">
                   <span className="inline-flex items-center justify-end gap-1">
