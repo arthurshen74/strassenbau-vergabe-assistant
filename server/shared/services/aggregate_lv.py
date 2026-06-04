@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -24,6 +25,8 @@ from shared.services.aggregate_lv_models import (
     AggregateCoverage,
     AggregateLineItem,
     AggregateResult,
+    AggregateTraceEntry,
+    AggregateTraceStage,
     UnitSubtotal,
 )
 from shared.services.prompt_runner import PromptRunner
@@ -50,8 +53,30 @@ class AggregateLVService:
         *,
         conversation_uuid: UUID | None = None,
     ) -> AggregateResult:
+        trace: list[AggregateTraceEntry] = [
+            AggregateTraceEntry(
+                stage=AggregateTraceStage.ENTRY_STARTED,
+                at=datetime.now(UTC),
+                data={
+                    "predicate": predicate,
+                    "project_uuid": str(project_uuid),
+                    "unit": unit,
+                    "conversation_uuid": str(conversation_uuid)
+                    if conversation_uuid is not None
+                    else None,
+                },
+            )
+        ]
+
         async with self._engine.connect() as conn:
             items = await LVItemRepository(conn).list_by_project(project_uuid)
+            trace.append(
+                AggregateTraceEntry(
+                    stage=AggregateTraceStage.ITEMS_LOADED,
+                    at=datetime.now(UTC),
+                    data={"items_count": len(items)},
+                )
+            )
             membership = await PromptRunner(
                 PromptVersionRepository(conn), self._llm
             ).run_lv_membership(
@@ -63,8 +88,18 @@ class AggregateLVService:
 
         # Dedupe by uuid (last rationale wins) and drop any uuid the model invented.
         rationale_by_uuid = {m.lv_item_uuid: m.rationale for m in membership.matched}
+
         items_by_uuid = {str(i.lv_item_uuid): i for i in items}
+
         matched = [items_by_uuid[u] for u in rationale_by_uuid if u in items_by_uuid]
+
+        trace.append(
+            AggregateTraceEntry(
+                stage=AggregateTraceStage.MATCHED,
+                at=datetime.now(UTC),
+                data={"matched_count": len(matched)},
+            )
+        )
 
         regular: list[LVItem] = []
         contingency: list[LVItem] = []
@@ -72,7 +107,7 @@ class AggregateLVService:
             bucket = contingency if item.positionstyp in CONTINGENCY_POSITIONSTYPEN else regular
             bucket.append(item)
 
-        return AggregateResult(
+        result = AggregateResult(
             predicate=predicate,
             unit=unit,
             per_unit=_subtotals(regular, unit),
@@ -80,6 +115,14 @@ class AggregateLVService:
             bedarfs_eventual=[_line(i, rationale_by_uuid) for i in contingency],
             coverage=AggregateCoverage(matched=len(matched), total=len(items)),
         )
+        trace.append(
+            AggregateTraceEntry(
+                stage=AggregateTraceStage.RESULT_READY,
+                at=datetime.now(UTC),
+                data={"result": result.model_dump(mode="json")},
+            )
+        )
+        return result.model_copy(update={"trace": trace})
 
 
 def _build_listing(items: list[LVItem]) -> str:
@@ -104,7 +147,7 @@ def _item_record(item: LVItem) -> dict[str, str]:
     if item.hinweis is not None:
         record["hinweis"] = item.hinweis
     return record
-
+    
 
 def _line(item: LVItem, rationale_by_uuid: dict[str, str]) -> AggregateLineItem:
     return AggregateLineItem(

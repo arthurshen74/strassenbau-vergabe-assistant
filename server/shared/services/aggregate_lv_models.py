@@ -9,7 +9,10 @@ headline per-unit totals.
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -48,6 +51,21 @@ class AggregateCoverage(BaseModel):
     total: int
 
 
+class AggregateTraceStage(StrEnum):
+    ENTRY_STARTED = "entry_started"
+    ITEMS_LOADED = "items_loaded"
+    MATCHED = "matched"
+    RESULT_READY = "result_ready"
+
+
+class AggregateTraceEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stage: AggregateTraceStage
+    at: datetime
+    data: dict[str, Any]
+
+
 class AggregateResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -57,3 +75,4 @@ class AggregateResult(BaseModel):
     breakdown: list[AggregateLineItem]
     bedarfs_eventual: list[AggregateLineItem]
     coverage: AggregateCoverage
+    trace: list[AggregateTraceEntry] = []
