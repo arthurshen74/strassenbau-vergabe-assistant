@@ -30,6 +30,7 @@ const PROMPT_TYPES = [
   'dispatcher',
   'project_chat',
   'classify_project_chat_user_message',
+  'aggregate_lv_membership',
   'multi_question_generator',
   'lv_extraction',
   'conversation_name',
