@@ -1,103 +1,114 @@
 # Roadbuilders Assistant
 
-A domain-focused RAG system that helps cost calculators (Kalkulatoren) at road construction contracting companies work through public-tender (Vergabe) documents and prepare bids. The system ingests the full document set for a tender, builds a structured knowledge representation, and answers grounded, citation-backed questions about it.
+A domain-focused RAG system that helps cost calculators (Kalkulatoren) at road-construction
+contractors work through public-tender (Vergabe) documents and prepare bids. It ingests a tender's
+full document set, builds a structured + vector knowledge base per project, and answers grounded,
+citation-backed questions through an agentic chat.
 
-This README explains what the system is and what it does. Architecture decisions and code-level guidance live in `ARCHITECTURE.md` and `CLAUDE.local.md`. German construction-domain terms used throughout are defined in `GLOSSARY.md`.
+German construction-domain terms used throughout are defined in `GLOSSARY.md`.
 
 ## The Problem
 
-A typical road construction tender (Straßenbau-Vergabe) ships as a stack of long, interrelated documents: a Baubeschreibung describing the work, a Leistungsverzeichnis (LV) with hundreds of priced line items, Vertragsbedingungen and Besondere Vertragsbedingungen, Zusätzliche Technische Vertragsbedingungen (ZTV), a Baugrundgutachten, sometimes Baupläne and Karten, plus a list of Vorzulegende Unterlagen the bidder must supply.
+A road-construction tender (Straßenbau-Vergabe) ships as a stack of long, cross-referenced documents:
+a Baubeschreibung, a Leistungsverzeichnis (LV) with hundreds of priced line items, Vertrags- and
+Besondere Vertragsbedingungen, Zusätzliche Technische Vertragsbedingungen (ZTV), a Baugrundgutachten,
+sometimes Baupläne and Karten, plus the Vorzulegende Unterlagen the bidder must supply. The ZTV
+qualifies items in the LV; the Baubeschreibung constrains how Positionen are priced; gaps in one
+document only surface after reading another. Most of the work is retrieval, not judgment. This system
+takes the retrieval load off the Kalkulator.
 
-A Kalkulator reading this stack has to:
+## Architecture at a Glance
 
-- Decide whether the project is even viable for the company to bid on
-- Surface missing information and resolve conflicts between documents
-- Assemble cost factors from internal data and subcontractor offers
-- Produce a transparent bid that holds up to scrutiny in standard cost-structure review
+- **Backend** — Python 3.12, FastAPI, SQLAlchemy Core (no ORM) + Pydantic v2, asyncpg.
+- **Stores** — Postgres (canonical relational data), Elasticsearch (chunk vectors + BM25), MinIO/S3
+  (raw PDFs, page thumbnails, rendered maps).
+- **Worker** — a competing-consumer ingestion worker that claims jobs with
+  `SELECT … FOR UPDATE SKIP LOCKED` and a lease, so multiple workers can run and recover from crashes.
+- **LLM access** — all model calls go through an OpenRouter transport; every call is logged
+  (tokens/cost/latency) and versioned through the Prompt Library.
+- **Frontend** — React + TypeScript (Vite), React Query, Zustand. Types are generated from the backend
+  Pydantic DTOs (`ui/src/types/generated.ts`, via `scripts/export_schema.py`).
+- **Run** — Docker Compose (postgres, elasticsearch, minio, api, worker, ui).
 
-The documents are long, redundant, and densely cross-referenced. Specifications in the ZTV qualify items in the LV; the Baubeschreibung sets expectations that constrain how individual Positionen are priced; missing details in one document often surface as fatal gaps only after another document is read. Doing this by hand for fifteen tenders in a pipeline is the daily reality, and most of the cognitive load is retrieval, not judgment.
-
-Roadbuilders Assistant exists to take the retrieval load off and let the Kalkulator spend their time on judgment.
-
-## Who Uses It
-
-Three user groups, each with a defined permission scope. Permissions are role-based and project-scoped: once a project is ingested, every authorised user of every role can access it. Fine-grained per-user permissioning is a Capstone concern, not a current one.
-
-**Administrator** — manages users, manages projects (create, configure, archive), and ingests data of any type. Effectively a superuser.
-
-**Kalkulator** — creates projects, adds individual documents to existing projects, and queries the system through chat. This is the primary user role.
-
-**Bauleiter** — same as Kalkulator, plus an `ingest_reports` capability for uploading site reports, Bautagebücher, and similar field documents. The Bauleiter role becomes more relevant in later phases when the system supports construction-phase reference.
+> **Auth is a development stub.** Every request currently resolves to a single dev administrator
+> (`server/api/deps.py`). Real authentication/roles are not implemented.
 
 ## What It Does
 
-The system has 2 distinct functional surfaces, and 2 auxiliary surfaces, all driven by a front-end UI chat dispatcher interface.
+### Ingestion
 
-### 1. Project Ingestion
+A project corresponds to one tender; documents are uploaded to it and ingested by the worker. Every PDF
+runs a common stage — text + geometry extraction (`pdftotext -bbox-layout`) into `SourceLine` rows
+(the canonical text, so the search index is fully rebuildable) and per-page thumbnails — then branches:
 
-A project corresponds to one tender. Creating a project means establishing a per-project knowledge base into which the tender documents are ingested. The system ingests two categories of input:
+- **All documents** are chunked and embedded into `SimpleChunk`s in Elasticsearch
+  (`source_doc_type = DOCUMENT`).
+- **LV documents additionally** go through the **LV parse**: an LLM segments the line-numbered text into
+  positions, then deterministic code slices the verbatim text, resolves "wie in voriger Position"
+  back-references into `langtext_resolved`, links the OZ hierarchy, and writes `LVItem` rows, which are
+  chunked into `LV_ITEM` chunks. See `INGESTION.md` and `LV_PARSE.md`.
 
-- **Prose documents** (All Documents) — all documents will be ingested with a simple chunking system into a SimpleChunk structure in the vector store.
-- **Leistungsverzeichnis** - LV documents will have a special parsing step that extracts LV Items into structured storage (db) and then SimpleChunks will be generated on those LV Items.
+This supports two retrieval modalities — **Simple** (document chunks) and **Plus** (structured LV items
+for the LV, simple chunks for prose).
 
-This approach allows us to run a "simple" retreival and an "plus" retrieval. As more document parsers are created, the "plus" gets better and better. But for now, we stick with just LV.
+### Retrieval
 
-### 2. Project Chat
+RAG retrieval is always project-scoped. Options: **Simple/Plus** modality, **single or multi-query**
+(LLM query expansion), optional **BM25** lexical search, and an optional multilingual **cross-encoder**
+rerank. Multiple ranked lists are fused with **Reciprocal Rank Fusion (RRF)** before rerank and
+top-k selection. See `RETRIEVAL.md`.
 
-This is a chat system driven by RAG retrieval. The retrieval system has options that can be set in the UI. These options include:
+### Project Chat
 
-- Query Techniques: Single or Multi
-- Retrieval Method: Simple or Plus (LV Special)
-- Options: BM25, Cross-Encoder
+Chat happens in persistent **conversations** with streamed (SSE) turns and replayed history. Each turn
+runs an agent that chooses among tools: semantic retrieval over all docs or LV-only, full LV listing,
+single-OZ lookup, listing items under a parent OZ, **quantity aggregation** over LV items matching a
+free-text predicate, and **map rendering** for a site address. The agent decides which tools to call;
+retrieval options above are configurable per turn from the UI.
 
-The user chats with the system and it uses RAG to answer the questions where appropriate. A simple gate is if there is a question about a SPECIFIC OZ in the project. There we should provide an LVItem lookup tool (by project_uuid and OZ). Another gate would be, "Show me the LV Items for {Section}", which would be a listing of OZ for a given parent OZ. But those are the only gates besides saying "I can't help you" if the question is completely irrelevant. This gating should be an LLM prompt called "ClassifyProjectChatUserMessage". Possible outputs would be:
+### Dispatcher
 
-- tool_call: LV_Item_Lookup
-- tool_call: List_LV_Items_by_Parent_OZ
-- tool_call: RAG_Context_Retreival (with UI-defined options)
-- "I can't help you, sorry."
+A stateless command bar routes a single instruction to a view: projects, prompts, the prompt-execution
+log, the OpenRouter usage log, or the ingest console.
 
-### 3. Project Management - React UI Component ModalDialog Overlay
+### Prompt Library
 
-This is a React UI Component (overlayed as ModalDialog) that allows the user to manage projects. This includes viewing a list of project cards, modifying projects, creating projects, viewing documents in projects, adding/removing documents in projects. There should be the ability to launch a chat from a specific project.
+Every LLM call is dispatched through a versioned prompt store. A `PromptVersion` is immutable and pins
+`prompt_type`, `version`, model, temperature, and sampling settings; creating a new version never
+disturbs callers pinned to an older one. Prompts are seeded from `.prompt` files
+(`server/scripts/seed/prompts/`) and managed/edited in the UI. Active prompt types: `dispatcher`,
+`project_chat`, `lv_extraction`, `aggregate_lv_membership`, `multi_question_generator`,
+`conversation_name`. (Response schemas for structured output live in code, not the database.)
 
-### 4. Prompt Management - React UI Component ModalDialog Overlay
+### Operational surfaces
 
-Every LLM call in the system is dispatched through the **Prompt Library**: a versioned store of system prompts, each pinned to a specific model, temperature, sampling settings, and (where structured output is required) a response schema. Editing a prompt creates a new immutable version; call sites stay on whichever version they reference until explicitly migrated, so a prompt change cannot silently destabilise an upstream pipeline. A small UI surfaces the prompts and their version timelines, and lets authorised users read, edit, and version AND test the prompts.
-
----
-
-### **_Dispatcher/Tools_**
-
-The default UI chat modality. This chat interface tries to determine what the user wants to do:
-
-- Project Chat: the user wants to talk about a project, brings up the Project Interface so the user can choose a Project to talk about.
-- Prompt Management: the user wants to manage prompts, brings up the Prompt Management interface.
-- New Project Ingestion: brings up the Add Project interface, which is in and of itself a part of the entire Project Management system.
-
-## Knowledge Representation, at a Glance
-
-See DATA_SCHEMA.md.
+- **Prompt execution log** — every LLM call captured with input/output, model, tokens, latency.
+- **OpenRouter usage** — per-operation token/cost tracking.
+- **Ingest console** — live per-job activity stream, job status, and requeue of stuck jobs.
+- **Embedding cache** — optional Postgres-backed cache to avoid re-embedding identical text.
 
 ## Getting Started
 
-The system is intended to run locally via Docker Compose and is structured so that the same composition deploys cleanly to a single EC2 instance later.
-
-Local startup, after configuring the environment file (OpenRouter API key, Postgres credentials, Elasticsearch credentials, and any other required secrets):
+Runs locally via Docker Compose. Copy `.env.example` to `.env` and fill in an `OPENROUTER_API_KEY`
+(plus any other secrets), then:
 
 ```
 docker compose up --build -d
 ```
 
+Compose runs the database/storage bootstrap scripts on startup (`server/scripts/bootstrap_*`). The UI
+is served on the Vite dev port; the API on port 8000 (`/health/db` for a readiness check).
+
 ## Deployment Posture
 
-Single-tenant. Each contracting company runs its own instance. There is no multi-tenant isolation in scope at any phase of this build.
+Single-tenant — each contractor runs its own instance. No multi-tenant isolation is in scope.
 
 ## Companion Documents
 
-- `GLOSSARY.md` — German construction-domain terms used throughout (LV, GAEB, ZTV, OZ, Vergabe, Auftraggeber, Bauleiter, Kalkulator, Bautagebuch, and others)
-- `DATA_SCHEMA.md` — the canonical data model: entity names, fields, types, enums, and cross-store identity (the source of truth coding agents build against)
-- `DATA_ARCHITECTURE.md` — SQLAlchemy Core + Pydantic implementation guide for the Postgres data layer
-- `INGESTION.md` - details about the INGESTION process.
-- `RETRIEVAL.md` - details about the RETRIEVAL process (surfaced in Project Chat).
-- `LV_PARSE.md` - companion to INGESTION.md.
+- `GLOSSARY.md` — German construction-domain terms (LV, GAEB, ZTV, OZ, Vergabe, Kalkulator, …).
+- `DATA_SCHEMA.md` — canonical data model: entities, fields, types, enums, cross-store identity.
+- `DATA_ARCHITECTURE.md` — SQLAlchemy Core + Pydantic implementation guide for the Postgres layer.
+- `INGESTION.md` — the ingestion pipeline.
+- `LV_PARSE.md` — the Leistungsverzeichnis parse (companion to `INGESTION.md`).
+- `RETRIEVAL.md` — the retrieval pipeline surfaced in Project Chat.
+- `UI_WORKFLOW.md` - a workflow diagram for the UI surface.
