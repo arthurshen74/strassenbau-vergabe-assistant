@@ -16,13 +16,8 @@ import { ChevronRightIcon } from '@heroicons/react/16/solid';
 
 import { useProjectLvItems } from '../../../api/projects';
 import { LVItemDetailDialog } from '../../../views/main/LVItemDetailDialog';
-import type {
-  AggregateLineItem,
-  AggregateResult,
-  LVItem,
-} from '../../../types/generated';
-
-const LANGTEXT_PREVIEW_CHARS = 47;
+import type { AggregateResult, LVItem } from '../../../types/generated';
+import { ItemTable } from './ItemTable';
 
 type AggregateTraceStage =
   | 'entry_started'
@@ -74,63 +69,6 @@ function formatIsoDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString();
-}
-
-function langtextPreview(item: LVItem | undefined, fallback: string): string {
-  const text = item?.langtext_resolved || item?.langtext || fallback;
-  return text.length > LANGTEXT_PREVIEW_CHARS ?
-      `${text.slice(0, LANGTEXT_PREVIEW_CHARS)}...`
-    : text;
-}
-
-function ItemTable({
-  items,
-  itemsByUuid,
-  onSelect,
-}: {
-  items: AggregateLineItem[];
-  itemsByUuid: Map<string, LVItem>;
-  onSelect: (item: LVItem) => void;
-}) {
-  return (
-    <table className="w-full text-left text-xs">
-      <thead className="text-zinc-500 dark:text-zinc-400">
-        <tr>
-          <th className="py-1 pr-2 font-medium">OZ</th>
-          <th className="py-1 pr-2 font-medium">Langtext</th>
-          <th className="py-1 pr-2 text-right font-medium">Menge</th>
-          <th className="py-1 font-medium">Einheit</th>
-        </tr>
-      </thead>
-      <tbody className="text-zinc-700 dark:text-zinc-300">
-        {items.map((item) => {
-          const full = itemsByUuid.get(item.lv_item_uuid);
-          return (
-            <tr
-              key={item.lv_item_uuid}
-              onClick={full ? () => onSelect(full) : undefined}
-              className={clsx(
-                'border-t border-zinc-100 dark:border-zinc-800',
-                full &&
-                  'cursor-pointer hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5',
-              )}
-            >
-              <td className="py-1 pr-2 font-medium whitespace-nowrap">
-                {item.oz}
-              </td>
-              <td className="py-1 pr-2">
-                {langtextPreview(full, item.kurztext)}
-              </td>
-              <td className="py-1 pr-2 text-right whitespace-nowrap">
-                {String(item.menge)}
-              </td>
-              <td className="py-1 whitespace-nowrap">{item.einheit}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
 }
 
 function DebugTrace({ trace }: { trace: AggregateTraceEntry[] }) {
