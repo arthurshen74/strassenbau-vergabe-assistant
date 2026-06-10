@@ -1,0 +1,80 @@
+---
+title: Position Assessment ERD
+---
+erDiagram
+  lv_position {
+    text oz PK
+    text project_id FK
+    text boq_description
+    numeric boq_menge
+    text boq_einheit
+  }
+  position_assessment {
+    int id PK
+    text oz FK
+    text work_type_code FK
+    numeric classification_confidence
+    jsonb driver_set
+    text status "enum: draft|review|approved"
+  }
+  operation_instance {
+    int id PK
+    int assessment_id FK
+    int method_id FK
+    text operation_code
+    numeric method_confidence
+    text notes
+    text review_flag "nullable"
+  }
+  cost_line {
+    int id PK
+    int operation_instance_id FK
+    text cost_type "enum: lohn|stoff|geraet|transport|sonstiges"
+    numeric quantity
+    numeric rate
+    numeric value
+    text origin "enum: lookup|selection|compute"
+    text source_table
+    int source_id
+    text formula_id
+    jsonb driver_snapshot
+  }
+  consideration {
+    int id PK
+    int assessment_id FK
+    text text
+    text routing "enum: ekt|bgk|oz|wagnis"
+    text abb_clause_ref
+  }
+  risk_flag {
+    int id PK
+    int assessment_id FK
+    text text
+    text severity
+  }
+  review_feedback {
+    int id PK
+    int assessment_id FK
+    text kalkulator
+    jsonb number_corrections
+    jsonb judgment_corrections
+    text prose
+  }
+  reasoning_note {
+    int id PK
+    text scope
+    jsonb features
+    text keywords
+    text situation_summary
+    jsonb decision
+    text rationale
+    numeric usefulness
+    int source_feedback_id FK
+  }
+  lv_position ||--|| position_assessment : ""
+  position_assessment ||--|{ operation_instance : ""
+  operation_instance ||--|{ cost_line : ""
+  position_assessment ||--o{ consideration : ""
+  position_assessment ||--o{ risk_flag : ""
+  position_assessment ||--o| review_feedback : ""
+  review_feedback ||--o{ reasoning_note : "judgment becomes"

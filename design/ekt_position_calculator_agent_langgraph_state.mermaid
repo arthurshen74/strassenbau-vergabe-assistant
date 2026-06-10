@@ -1,0 +1,49 @@
+---
+title: EKT Position Calculation Agent — LangGraph State
+---
+stateDiagram-v2
+    [*] --> classify_lv_leistung : lv_position
+
+    state class_confident <<choice>>
+    classify_lv_leistung --> class_confident
+    class_confident --> hitl_classify_leistung : low confidence
+    class_confident --> plan_operations : confident
+
+    state reclassified <<choice>>
+    hitl_classify_leistung --> reclassified
+    reclassified --> plan_operations : classified
+    reclassified --> [*] : CANCEL
+
+    plan_operations --> cost_operation : Send × N (parallel)
+
+    state cost_operation {
+        [*] --> get_operational_context
+        get_operational_context --> select_operational_method
+        select_operational_method --> quantity_conversion
+        quantity_conversion --> lookup_etk_items
+        lookup_etk_items --> validate_inputs
+        state inputs_complete <<choice>>
+        validate_inputs --> inputs_complete
+        inputs_complete --> lookup_etk_items : retry (missing)
+        inputs_complete --> calculate_operation_cost : complete
+        calculate_operation_cost --> [*]
+    }
+    note right of cost_operation
+        once per operation, in parallel.
+        best-guess method + confidence.
+        low-confidence / blocked ops append
+        to review_flags (reducer-merged).
+        no interrupts here.
+    end note
+
+    cost_operation --> aggregate_etk : join
+
+    aggregate_etk --> assess_position_risk
+    assess_position_risk --> hitl_etk_review
+
+    state review_outcome <<choice>>
+    hitl_etk_review --> review_outcome
+    review_outcome --> aggregate_etk : value edits
+    review_outcome --> cost_operation : re-cost an operation
+    review_outcome --> route_feedback : approved
+    route_feedback --> [*] : FINISHED

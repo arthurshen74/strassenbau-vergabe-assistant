@@ -1,0 +1,102 @@
+---
+title: Knowledge Base ERD 
+---
+erDiagram
+  work_type {
+    text code PK
+    text label
+  }
+  work_type_operation {
+    text work_type_code FK
+    int operation_id FK
+    int sort_order
+  }
+  operation_def {
+    int id PK
+    text code
+  }
+  method_def {
+    int id PK
+    int operation_id FK
+    text code
+    jsonb crew_norm
+  }
+  resource_requirement {
+    int id PK
+    int method_id FK
+    text kind "enum: material|equipment|labor|transport"
+    text formula_id FK
+    text material_spec FK "nullable"
+    text machine_class FK "nullable"
+    text labor_profile FK "nullable"
+  }
+  modifier {
+    int id PK
+    int method_id FK
+    jsonb condition
+    text target
+    numeric factor
+  }
+  formula_def {
+    text formula_id PK
+    text fn_name
+    text[] driver_inputs
+    text[] property_inputs
+  }
+  material_property {
+    text spec PK
+    numeric bulk_density
+    numeric compaction_factor
+    numeric default_loss
+    text source
+  }
+  material_price {
+    int id PK
+    text spec FK
+    numeric price_per_t
+    text supplier
+    date valid_from
+    date valid_to
+  }
+  performance_rate {
+    int id PK
+    text machine_class FK
+    text operation_code
+    text conditions
+    numeric units_per_h
+    date valid_from
+  }
+  bgl_rate {
+    text machine_class PK
+    text edition PK
+    numeric av_pct
+    numeric r_pct
+    numeric consumption_l_h
+  }
+  labor_profile {
+    text code PK
+    numeric mittellohn
+    text qualification
+    date valid_from
+  }
+  aufwandswert_entry {
+    int id PK
+    text operation_code
+    text method_code
+    text labor_profile FK
+    numeric h_per_unit
+    text source
+    date valid_from
+  }
+  work_type ||--|{ work_type_operation : ""
+  operation_def ||--|{ work_type_operation : ""
+  operation_def ||--|{ method_def : ""
+  method_def ||--|{ resource_requirement : ""
+  method_def ||--o{ modifier : ""
+  resource_requirement }|--|| formula_def : ""
+  resource_requirement }o--o| material_property : "if material"
+  resource_requirement }o--o| bgl_rate : "if equipment"
+  resource_requirement }o--o| labor_profile : "if labor"
+  material_property ||--o{ material_price : ""
+  bgl_rate ||--o{ performance_rate : ""
+  labor_profile ||--o{ aufwandswert_entry : ""
