@@ -1,7 +1,18 @@
 services:
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: strassenbau-vergabe-assistant-phoenix
+    ports:
+      - "6006:6006"   # web UI + HTTP OTLP collector (POST /v1/traces)
+      - "4317:4317"   # gRPC OTLP collector
+    environment:
+      - PHOENIX_WORKING_DIR=/mnt/data
+    volumes:
+      - ./data/phoenix:/mnt/data
+    restart: unless-stopped  
   postgres:
     image: postgres:latest
-    container_name: ai2-postgres
+    container_name: strassenbau-vergabe-assistant-postgres
     env_file:
       - ./.env
     ports:
@@ -15,7 +26,7 @@ services:
       retries: 10
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
-    container_name: ai2-elasticsearch
+    container_name: strassenbau-vergabe-assistant-elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -37,7 +48,7 @@ services:
       retries: 10
   minio:
     image: minio/minio
-    container_name: ai2-minio
+    container_name: strassenbau-vergabe-assistant-minio
     command: server /data --console-address ":9001"
     env_file:
       - ./.env
@@ -50,7 +61,7 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
-    container_name: ai2-api
+    container_name: strassenbau-vergabe-assistant-api
     command:
       - sh
       - -c
@@ -113,7 +124,7 @@ services:
     build:
       context: ./ui
       dockerfile: Dockerfile
-    container_name: ai2-ui
+    container_name: strassenbau-vergabe-assistant-ui
     environment:
       VITE_API_PROXY_TARGET: http://api:8000
     ports:
