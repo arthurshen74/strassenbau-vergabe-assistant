@@ -46,6 +46,27 @@ failure behaviour (the script re-raises; the worker swallows to keep looping). *
 two callers. If a third runner appears, extract a shared `run_ingest(stack, job)` (and a stack builder)
 into `shared/services/ingestion`.
 
+### OpenRouter-backed ChatOpenAI construction (base-url suffix strip + secret key wrap)
+
+- `server/shared/services/project_chat_agent.py` — `_openrouter_base_url()` + `ChatOpenAI(...)` (streaming chat agent, telemetry callbacks)
+- `server/shared/services/calculator/llm_calls.py` — `_llm()` (structured-output sites, no streaming)
+
+Both strip `/chat/completions` off `settings.openrouter_api_url_chat` and build a `ChatOpenAI` with
+`convert_to_secret_str(settings.openrouter_api_key or "")`. The construction diverges after that
+(streaming + usage accounting + callbacks vs `with_structured_output`). **Do not extract yet** — two
+callers. A third LangChain-over-OpenRouter site extracts a `build_chat_model(model, **kwargs)` into
+`shared/clients/llm`.
+
+### Duration-by-rate formulas (quantity / hourly performance)
+
+- `server/shared/services/calculator/formulas.py` — `duration_by_performance` (m3 / m3-per-h)
+- `server/shared/services/calculator/formulas.py` — `duration_by_area_performance` (m2 / m2-per-h)
+
+Same division, different unit vocabulary. Kept separate deliberately: the formula id is the registry's
+unit contract (a YAML row binding an m2 quantity to an m3 formula should fail loudly, not coerce).
+**Do not extract yet** — if a third unit arrives (t/h for Mischgut), reconsider a unit-typed
+`duration(quantity, rate)` instead of a third copy.
+
 ### Underline tab navigation (desktop `border-b-2` button bar)
 
 - `ui/src/views/main/DocumentDetailDialog.tsx` — thumbnails / chunks / log tabs (icons + mobile `<Select>`)

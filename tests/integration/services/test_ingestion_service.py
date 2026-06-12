@@ -14,7 +14,6 @@ from shared.clients.storage.client import thumbnail_object_key
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.document import NewDocument
 from shared.models.enums import DocumentType, SourceDocType
-from shared.models.llm_output_schemas import LVExtraction, LVPosition
 from shared.models.ingest_job import NewIngestJob
 from shared.models.project import NewProject
 from shared.models.simple_chunk import NewSimpleChunk
@@ -36,11 +35,12 @@ from shared.services.ingestion.thumbnails import RenderedPage
 class _FakeStorage:
     bucket = "test-bucket"
 
-    def __init__(self) -> None:
+    def __init__(self, data: bytes = b"%PDF-fake") -> None:
+        self.data = data
         self.puts: list[tuple[str, str]] = []
 
     def get_object(self, key: str) -> bytes:
-        return b"%PDF-fake"
+        return self.data
 
     def put_object(self, key: str, data: bytes, content_type: str) -> None:
         self.puts.append((key, content_type))
@@ -89,20 +89,6 @@ class _RecordingSearch:
         return [uuid4() for _ in chunks]
 
 
-class _FakePrompts:
-    def __init__(self, *extractions: LVExtraction) -> None:
-        self._extractions = list(extractions)
-        self.called = False
-        self.calls = 0
-
-    async def run_lv_extraction(self, numbered_document: str, **_: Any) -> LVExtraction:
-        self.called = True
-        # Successive calls return successive extractions; the last one repeats.
-        extraction = self._extractions[min(self.calls, len(self._extractions) - 1)]
-        self.calls += 1
-        return extraction
-
-
 # --- helpers -------------------------------------------------------------
 
 
@@ -126,7 +112,9 @@ def _factory(conn: AsyncConnection):
     return factory
 
 
-async def _document(conn: AsyncConnection, doc_type: DocumentType) -> tuple[UUID, UUID]:
+async def _document(
+    conn: AsyncConnection, doc_type: DocumentType, file_name: str = "p.pdf"
+) -> tuple[UUID, UUID]:
     project = await ProjectRepository(conn).add(
         NewProject(
             vergabe_id="VG-ING",
@@ -139,80 +127,104 @@ async def _document(conn: AsyncConnection, doc_type: DocumentType) -> tuple[UUID
         NewDocument(
             project_uuid=project.project_uuid,
             document_type=doc_type,
-            file_name="p.pdf",
+            file_name=file_name,
             number_of_pages=1,
         )
     )
     return project.project_uuid, doc.document_uuid
 
 
-def _lv_lines(document_uuid: UUID) -> list[NewSourceLine]:
-    texts = ["1 Strassenbau", "1.1 StL-Nr.: 21 109", "Oberboden abtragen", "25,00 m"]
-    return [
-        NewSourceLine(document_uuid=document_uuid, line_id=i, page=1, bbox=(0, 0, 1, 1), line_text=t)
-        for i, t in enumerate(texts)
+# GAEB D83 fixture: OZ mask '1P' (one hierarchy digit, one position digit), so raw OZ '11'
+# reads as '1.1'. positions are (raw_oz, menge as 11 digits, kurztext).
+
+
+def _d83_record(body: str) -> str:
+    return body.ljust(74) + "000000"
+
+
+def _d83_bytes(positions: list[tuple[str, str, str]]) -> bytes:
+    lines = [
+        _d83_record(f"00{'':8}83L".ljust(62) + "1P".ljust(9) + "90"),
+        _d83_record(f"111{'':8}N"),
+        _d83_record("12Strassenbau"),
     ]
-
-
-def _lv_extraction() -> LVExtraction:
-    return LVExtraction(
-        positions=[
-            LVPosition(
-                oz="1", is_title=True, kurztext_line=0,
-                langtext_start=-1, langtext_end=-1, hinweis_start=-1, hinweis_end=-1,
-                stl_nr=None, menge=None, einheit=None, linked_oz=None, positionstyp=None,
-            ),
-            LVPosition(
-                oz="1.1", is_title=False, kurztext_line=1,
-                langtext_start=2, langtext_end=2, hinweis_start=-1, hinweis_end=-1,
-                stl_nr="21 109", menge="25,00", einheit="m", linked_oz=None, positionstyp=None,
-            ),
-        ]
-    )
+    for oz, menge, kurztext in positions:
+        body = f"21{oz:<9}NNN".ljust(23) + menge + "m".ljust(4)
+        lines.append(_d83_record(body.ljust(43) + "21109"))
+        lines.append(_d83_record(f"25{kurztext}"))
+        lines.append(_d83_record(f"26   {kurztext} im Detail."))
+    lines.append(_d83_record("31"))
+    lines.append(_d83_record("99"))
+    return "\n".join(lines).encode("cp850")
 
 
 # --- tests ---------------------------------------------------------------
 
 
-async def test_lv_document_runs_common_and_lv_branches(
-    conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    project_uuid, document_uuid = await _document(conn, DocumentType.LV_DOCUMENT)
-    monkeypatch.setattr(
-        service_module, "extract_source_lines", lambda _b, doc: _lv_lines(doc)
+async def test_gaeb_document_parses_into_lv_items_and_chunks(conn: AsyncConnection) -> None:
+    project_uuid, document_uuid = await _document(
+        conn, DocumentType.LV_DOCUMENT, file_name="p.d83"
     )
     search = _RecordingSearch()
-    prompts = _FakePrompts(_lv_extraction())
+    langchain = _FakeLangchain()
+    storage = _FakeStorage(_d83_bytes([("11", "00000025000", "Oberboden abtragen")]))
     service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), prompts, _FakeLangchain()  # type: ignore[arg-type]
+        _factory(conn), storage, search, _FakeEmbeddings(), langchain  # type: ignore[arg-type]
     )
 
     result = await service.ingest_document(document_uuid)
 
-    assert prompts.called
-    assert result.source_lines == 4
-    assert result.document_chunks >= 1
+    # The GAEB short path skips every PDF stage.
+    assert result.source_lines == 0
+    assert result.thumbnails == 0
+    assert result.langchain_chunks == 0
+    assert result.document_chunks == 0
+    assert langchain.calls == []
+    assert storage.puts == []
     assert result.lv_items == 2 and result.lv_chunks == 2
 
-    persisted = await SourceLineRepository(conn).list_by_document(document_uuid)
-    assert len(persisted) == 4
-
-    item = await LVItemRepository(conn).get_by_project_and_oz(project_uuid, "1.1")
+    repo = LVItemRepository(conn)
+    item = await repo.get_by_project_and_oz(project_uuid, "1.1")
     assert item is not None
-    assert item.menge == Decimal("25") and item.stl_nr == "21 109"
-    assert item.langtext == "Oberboden abtragen"
-    titel = await LVItemRepository(conn).get_by_project_and_oz(project_uuid, "1")
+    assert item.menge == Decimal("25") and item.stl_nr == "21109"
+    assert item.kurztext == "Oberboden abtragen"
+    assert item.source_lines == []
+    titel = await repo.get_by_project_and_oz(project_uuid, "1")
     assert titel is not None and titel.positionstyp == "Titel"
 
-    # DOCUMENT chunks are indexed before any LV_ITEM chunks.
-    index_types = [c[1] for c in search.calls if c[0] == "index"]
-    assert index_types[0] == [SourceDocType.DOCUMENT]
-    assert any(SourceDocType.LV_ITEM in types for types in index_types[1:])
-    lv_chunks = [c for c in search.indexed if c.source_doc_type == SourceDocType.LV_ITEM]
-    assert any(c.oz == "1.1" and c.stl_nr == "21 109" for c in lv_chunks)
+    assert all(c.source_doc_type == SourceDocType.LV_ITEM for c in search.indexed)
+    assert any(c.oz == "1.1" and c.stl_nr == "21109" for c in search.indexed)
 
 
-async def test_prose_document_skips_lv_branch(
+async def test_pdf_document_gets_no_lv_items(
+    conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Even an LV_DOCUMENT-typed PDF runs only the common stages: LV items come from GAEB files."""
+    _project_uuid, document_uuid = await _document(conn, DocumentType.LV_DOCUMENT)
+    monkeypatch.setattr(
+        service_module,
+        "extract_source_lines",
+        lambda _b, doc: [
+            NewSourceLine(document_uuid=doc, line_id=0, page=1, bbox=(0, 0, 1, 1), line_text="1.1 Oberboden abtragen")
+        ],
+    )
+    search = _RecordingSearch()
+    service = IngestionService(
+        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
+    )
+
+    result = await service.ingest_document(document_uuid)
+
+    assert result.source_lines == 1
+    assert result.document_chunks >= 1
+    assert result.lv_items == 0 and result.lv_chunks == 0
+    assert all(SourceDocType.LV_ITEM not in c[1] for c in search.calls if c[0] == "index")
+
+    persisted = await SourceLineRepository(conn).list_by_document(document_uuid)
+    assert len(persisted) == 1
+
+
+async def test_prose_document_runs_common_stages(
     conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _project_uuid, document_uuid = await _document(conn, DocumentType.PROSE_DOCUMENT)
@@ -224,67 +236,37 @@ async def test_prose_document_skips_lv_branch(
         ],
     )
     search = _RecordingSearch()
-    prompts = _FakePrompts(_lv_extraction())
     service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), prompts, _FakeLangchain()  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
     )
 
     result = await service.ingest_document(document_uuid)
 
-    assert not prompts.called
     assert result.lv_items == 0 and result.lv_chunks == 0
     assert result.document_chunks >= 1
     assert all(SourceDocType.LV_ITEM not in c[1] for c in search.calls if c[0] == "index")
 
 
-def _reingest_lines(document_uuid: UUID) -> list[NewSourceLine]:
-    texts = [
-        "1 Strassenbau",
-        "1.1 StL-Nr.: 21 109",
-        "Oberboden abtragen",
-        "1.2",
-        "Mutterboden andecken",
-        "1.3",
-        "Pflaster verlegen",
-    ]
-    return [
-        NewSourceLine(document_uuid=document_uuid, line_id=i, page=1, bbox=(0, 0, 1, 1), line_text=t)
-        for i, t in enumerate(texts)
-    ]
-
-
-def _pos(
-    oz: str, kurztext_line: int, *, is_title: bool = False,
-    langtext: tuple[int, int] | None = None, menge: str | None = None,
-) -> LVPosition:
-    return LVPosition(
-        oz=oz, is_title=is_title, kurztext_line=kurztext_line,
-        langtext_start=langtext[0] if langtext else -1,
-        langtext_end=langtext[1] if langtext else -1,
-        hinweis_start=-1, hinweis_end=-1, stl_nr="21 109" if oz == "1.1" else None,
-        menge=menge, einheit="m" if menge else None, linked_oz=None, positionstyp=None,
+async def test_gaeb_reingest_is_idempotent(conn: AsyncConnection) -> None:
+    project_uuid, document_uuid = await _document(
+        conn, DocumentType.LV_DOCUMENT, file_name="p.d83"
     )
-
-
-async def test_reingest_is_idempotent(
-    conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    project_uuid, document_uuid = await _document(conn, DocumentType.LV_DOCUMENT)
-    monkeypatch.setattr(service_module, "extract_source_lines", lambda _b, doc: _reingest_lines(doc))
-
-    first = LVExtraction(positions=[
-        _pos("1", 0, is_title=True),
-        _pos("1.1", 1, langtext=(2, 2), menge="25,00"),
-        _pos("1.2", 3, langtext=(4, 4), menge="10,00"),
-    ])
-    second = LVExtraction(positions=[  # 1.1 menge changed, 1.2 dropped, 1.3 added
-        _pos("1", 0, is_title=True),
-        _pos("1.1", 1, langtext=(2, 2), menge="99,00"),
-        _pos("1.3", 5, langtext=(6, 6), menge="5,00"),
-    ])
+    first = _d83_bytes(
+        [
+            ("11", "00000025000", "Oberboden abtragen"),
+            ("12", "00000010000", "Mutterboden andecken"),
+        ]
+    )
+    second = _d83_bytes(  # 1.1 menge changed, 1.2 dropped, 1.3 added
+        [
+            ("11", "00000099000", "Oberboden abtragen"),
+            ("13", "00000005000", "Pflaster verlegen"),
+        ]
+    )
     search = _RecordingSearch()
+    storage = _FakeStorage(first)
     service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakePrompts(first, second), _FakeLangchain()  # type: ignore[arg-type]
+        _factory(conn), storage, search, _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
     )
     repo = LVItemRepository(conn)
 
@@ -294,6 +276,7 @@ async def test_reingest_is_idempotent(
     assert item_11_before is not None and item_12_before is not None
 
     # Re-ingest the same document: no (document_uuid, oz) collision, in-place updates.
+    storage.data = second
     result = await service.ingest_document(document_uuid)
 
     assert result.lv_items == 3  # 1, 1.1, 1.3
@@ -322,7 +305,7 @@ async def test_thumbnails_rendered_stored_and_persisted(
     )
     storage = _FakeStorage()
     service = IngestionService(
-        _factory(conn), storage, _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction()), _FakeLangchain()  # type: ignore[arg-type]
+        _factory(conn), storage, _RecordingSearch(), _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
     )
 
     result = await service.ingest_document(document_uuid)
@@ -344,12 +327,18 @@ async def test_thumbnails_rendered_stored_and_persisted(
 async def test_progress_events_persisted_and_logged(
     conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    _project_uuid, document_uuid = await _document(conn, DocumentType.LV_DOCUMENT)
-    monkeypatch.setattr(service_module, "extract_source_lines", lambda _b, doc: _lv_lines(doc))
+    _project_uuid, document_uuid = await _document(conn, DocumentType.PROSE_DOCUMENT)
+    monkeypatch.setattr(
+        service_module,
+        "extract_source_lines",
+        lambda _b, doc: [
+            NewSourceLine(document_uuid=doc, line_id=0, page=1, bbox=(0, 0, 1, 1), line_text="x")
+        ],
+    )
     job = await IngestJobRepository(conn).add(NewIngestJob(document_uuid=document_uuid))
     langchain = _FakeLangchain()
     service = IngestionService(
-        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction()), langchain  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), langchain  # type: ignore[arg-type]
     )
 
     with caplog.at_level(logging.INFO, logger="shared.services.ingestion.progress"):
@@ -368,7 +357,6 @@ async def test_progress_events_persisted_and_logged(
         "langchain_chunks_indexed",
         "source_lines_persisted",
         "document_chunks_indexed",
-        "lv_items_indexed",
         "completed",
     }
     # ...and mirrored to the logger the harness routes to stdout.
@@ -376,10 +364,26 @@ async def test_progress_events_persisted_and_logged(
     assert "started" in logged and "completed" in logged
 
 
+async def test_gaeb_progress_events_persisted(conn: AsyncConnection) -> None:
+    _project_uuid, document_uuid = await _document(
+        conn, DocumentType.LV_DOCUMENT, file_name="p.d83"
+    )
+    job = await IngestJobRepository(conn).add(NewIngestJob(document_uuid=document_uuid))
+    storage = _FakeStorage(_d83_bytes([("11", "00000001000", "Eins")]))
+    service = IngestionService(
+        _factory(conn), storage, _RecordingSearch(), _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
+    )
+
+    await service.ingest_document(document_uuid, job_uuid=job.job_uuid)
+
+    events = await IngestJobEventRepository(conn).list_for_job(job.job_uuid)
+    assert {e.event for e in events} == {"started", "lv_items_indexed", "completed"}
+
+
 async def test_missing_document_raises(conn: AsyncConnection) -> None:
     search = _RecordingSearch()
     service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakePrompts(_lv_extraction()), _FakeLangchain()  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
     )
     with pytest.raises(service_module.DocumentNotFoundError):
         await service.ingest_document(uuid4())
@@ -396,7 +400,7 @@ async def test_failed_stage_records_failure_event(
 
     monkeypatch.setattr(service_module, "extract_source_lines", _boom)
     service = IngestionService(
-        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakePrompts(_lv_extraction()), _FakeLangchain()  # type: ignore[arg-type]
+        _factory(conn), _FakeStorage(), _RecordingSearch(), _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
     )
 
     with pytest.raises(RuntimeError):

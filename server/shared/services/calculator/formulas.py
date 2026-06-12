@@ -11,7 +11,8 @@ formula ids without touching the agent.
 from __future__ import annotations
 import math
 from pydantic import BaseModel
-from stores import labor_profile
+from shared.services.calculator.models import Kostenart
+from shared.services.calculator.stores import labor_profile
 
 
 # ----------------------------------------------------------------- schemas --
@@ -46,6 +47,21 @@ class WaterCostIn(BaseModel):
 class ProofTestIn(BaseModel):
     length_m: float; width_m: float; norm: dict
 
+class AreaVolumeIn(BaseModel):
+    area_m2: float; thickness_cm: float
+
+class AreaDurationIn(BaseModel):
+    quantity_m2: float; perf_m2_h: float
+
+class InterlayerMaterialIn(BaseModel):
+    area_m2: float; interlayer: dict
+
+class EmulsionCostIn(BaseModel):
+    area_m2: float; interlayer: dict; price_eur_kg: float
+
+class AreaUnitCostIn(BaseModel):
+    area_m2: float; rate_eur_m2: float
+
 
 # ---------------------------------------------------------------- functions --
 def layer_volume(p: LayerVolumeIn):
@@ -59,7 +75,8 @@ def order_tonnage(p: OrderTonnageIn):
             "note": f"density {p.material['bulk_density_t_m3']} t/m3, loss {loss:.0%} ({p.loss_profile})"}
 
 def material_cost(p: MaterialCostIn):
-    return {"eur": round(p.tonnage_t * p.price_eur_t, 2)}
+    return {"eur": round(p.tonnage_t * p.price_eur_t, 2),
+            "note": f"{p.tonnage_t} t @ {p.price_eur_t} EUR/t"}
 
 def delivery_cost(p: DeliveryCostIn):
     trips = math.ceil(p.tonnage_t / p.truck["payload_t"])
@@ -77,6 +94,7 @@ def equipment_cost(p: EquipmentCostIn):
 def crew_cost(p: CrewCostIn):
     lohn = labor_profile(p.crew["labor_profile"])
     return {"eur": round(p.hours * p.crew["size"] * lohn, 2),
+            "labor_h": round(p.hours * p.crew["size"], 2),
             "note": f"{p.crew['size']} x {p.crew['labor_profile']} @ {lohn} EUR/h"}
 
 def machine_mobilization(p: MobilizationIn):
@@ -92,6 +110,27 @@ def proof_test_cost(p: ProofTestIn):
     n = math.ceil(p.length_m * p.width_m / p.norm["area_per_test_m2"])
     return {"eur": round(n * p.norm["eur_per_test"], 2), "note": f"{n} tests"}
 
+def area_volume(p: AreaVolumeIn):
+    v = p.area_m2 * (p.thickness_cm / 100.0)
+    return {"value": round(v, 2), "einheit": "m3"}
+
+def duration_by_area_performance(p: AreaDurationIn):
+    return {"value": round(p.quantity_m2 / p.perf_m2_h, 2), "einheit": "h"}
+
+def interlayer_material_cost(p: InterlayerMaterialIn):
+    eur = p.area_m2 * p.interlayer["overlap_factor"] * p.interlayer["price_eur_m2"]
+    return {"eur": round(eur, 2),
+            "note": f"overlap {p.interlayer['overlap_factor']:.2f}, "
+                    f"{p.interlayer['price_eur_m2']} EUR/m2"}
+
+def emulsion_cost(p: EmulsionCostIn):
+    kg = p.area_m2 * p.interlayer["emulsion_kg_m2"]
+    return {"eur": round(kg * p.price_eur_kg, 2),
+            "note": f"{kg:.0f} kg @ {p.interlayer['emulsion_kg_m2']} kg/m2"}
+
+def area_unit_cost(p: AreaUnitCostIn):
+    return {"eur": round(p.area_m2 * p.rate_eur_m2, 2)}
+
 
 FORMULAS = {
     "layer_volume": (LayerVolumeIn, layer_volume),
@@ -104,4 +143,25 @@ FORMULAS = {
     "machine_mobilization": (MobilizationIn, machine_mobilization),
     "water_cost": (WaterCostIn, water_cost),
     "proof_test_cost": (ProofTestIn, proof_test_cost),
+    "area_volume": (AreaVolumeIn, area_volume),
+    "duration_by_area_performance": (AreaDurationIn, duration_by_area_performance),
+    "interlayer_material_cost": (InterlayerMaterialIn, interlayer_material_cost),
+    "emulsion_cost": (EmulsionCostIn, emulsion_cost),
+    "area_unit_cost": (AreaUnitCostIn, area_unit_cost),
+}
+
+# VHB 223 Kostenart per cost-producing formula (registry rows without `out`).
+# Deliveries, third-party testing and flat-rate work steps count as Sonstiges
+# (Fremdleistungen); machine transport counts as Geraete.
+FORMULA_KOSTENART = {
+    "material_cost": Kostenart.STOFFE,
+    "water_cost": Kostenart.STOFFE,
+    "interlayer_material_cost": Kostenart.STOFFE,
+    "emulsion_cost": Kostenart.STOFFE,
+    "crew_cost": Kostenart.LOHN,
+    "equipment_cost": Kostenart.GERAETE,
+    "machine_mobilization": Kostenart.GERAETE,
+    "delivery_cost": Kostenart.SONSTIGES,
+    "proof_test_cost": Kostenart.SONSTIGES,
+    "area_unit_cost": Kostenart.SONSTIGES,
 }

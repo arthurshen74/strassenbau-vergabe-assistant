@@ -7,6 +7,7 @@ Three model families:
 The formula INPUT models live in formulas.py next to their functions.
 """
 from __future__ import annotations
+from enum import StrEnum
 from typing import Literal, Optional, Union
 from pydantic import BaseModel, Field
 
@@ -52,6 +53,9 @@ class DriverSpec(BaseModel):
     source: str                          # lv_text | plan | project | tool:* | judgment
     einheit: Optional[str] = None
     options: Optional[list[str]] = None  # for judgment drivers
+    hint: Optional[str] = None           # German retrieval query (plan/project/judgment)
+    description: Optional[str] = None    # decision rule shown to the LLM and the reviewer
+    confirm: bool = False                # assumption: always pause for HITL confirmation
 
 
 class DerivedDriverSpec(BaseModel):
@@ -79,8 +83,15 @@ class Registry(BaseModel):
 
 
 # ------------------------------------------------------------- LLM outputs --
+REASONING_DESCRIPTION = (
+    "2-5 short thinking steps, written FIRST: what the text says -> which "
+    "rule/criterion applies -> what you conclude. Cite decisive wording."
+)
+
+
 class ClassificationResult(BaseModel):
     """LLM site 1: classify the LV position into a registered work_type."""
+    reasoning: list[str] = Field(default=[], description=REASONING_DESCRIPTION)
     work_type: str = Field(description="One of the offered work_type codes, or 'unknown'")
     confidence: float = Field(ge=0, le=1)
     notes: str = Field(description="1-2 sentences, cite the decisive wording")
@@ -97,18 +108,28 @@ class DriverValue(BaseModel):
 
 class DriverResolution(BaseModel):
     """LLM site 2: extract document-sourced drivers + decide judgment drivers."""
+    reasoning: list[str] = Field(default=[], description=REASONING_DESCRIPTION)
     drivers: list[DriverValue]
     flags: list[str] = Field(default=[], description="Anything missing/ambiguous")
 
 
 class MethodSelection(BaseModel):
     """LLM site 3: pick a Bauweise for one operation."""
+    reasoning: list[str] = Field(default=[], description=REASONING_DESCRIPTION)
     method: str = Field(description="One of the offered method ids, or 'escalate'")
     confidence: float = Field(ge=0, le=1)
     notes: str = Field(description="Which criteria + drivers decided it")
 
 
 # --------------------------------------------------------- runtime artifacts --
+class Kostenart(StrEnum):
+    """VHB 223 cost categories; every cost-producing formula maps to exactly one."""
+    LOHN = "lohn"
+    STOFFE = "stoffe"
+    GERAETE = "geraete"
+    SONSTIGES = "sonstiges"
+
+
 class ResolvedParam(BaseModel):
     value: object
     source: str                          # e.g. "driver:strip_width_m", "store:bgl_rate(roller_7t)"
@@ -121,6 +142,7 @@ class CostLine(BaseModel):
     formula: str
     params: dict[str, ResolvedParam]
     eur: Optional[float] = None          # None for intermediate rows (hours, tonnage)
+    labor_h: Optional[float] = None      # crew hours behind a Lohn line (Zeitansatz)
     out_id: Optional[str] = None
     out_value: Optional[float] = None
     out_einheit: Optional[str] = None
@@ -140,3 +162,17 @@ class ReviewFlag(BaseModel):
     where: str
     kind: Literal["low_confidence", "blocked", "missing_data", "risk"]
     detail: str
+
+
+class Form223Row(BaseModel):
+    """VHB Formblatt 223-style Aufgliederung of one position's EP (ohne USt),
+    emitted when the Kalkulator approves the assessment."""
+    oz: str
+    kurzbezeichnung: str
+    menge: float
+    mengeneinheit: str
+    zeitansatz_h: float                  # labor hours per Mengeneinheit
+    lohn_eur: float                      # all costs per Mengeneinheit, ohne USt
+    stoffe_eur: float
+    geraete_eur: float
+    sonstiges_eur: float

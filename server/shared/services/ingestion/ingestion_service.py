@@ -2,14 +2,15 @@
 
 `ingest_document` renders one page thumbnail per page, runs the LangChain pipeline (PDF ->
 RecursiveCharacterTextSplitter chunks in the parallel vector index), runs the common extraction
-stage (PDF -> SourceLine), simple-chunks every document into DOCUMENT chunks, and for an LV
-document additionally runs the LV parse into LVItem rows and LV_ITEM chunks. It is called directly
-with a `document_uuid`; passing a `job_uuid` enables IngestJobEvent progress logging, and omitting
-it runs jobless for isolated testing. The worker loop that claims jobs and drives this service
-is a separate step.
+stage (PDF -> SourceLine), and simple-chunks every PDF into DOCUMENT chunks. LV items come
+exclusively from GAEB files (D83/X83), which take a short path instead: the file parses
+deterministically into LVItem rows and LV_ITEM chunks (no thumbnails, source lines, or
+DOCUMENT chunks). It is called directly with a `document_uuid`; passing a `job_uuid` enables
+IngestJobEvent progress logging, and omitting it runs jobless for isolated testing. The
+worker loop that claims jobs and drives this service is a separate step.
 
 The repositories and clients are reached here and in the injected LangchainIngestor; the
-extraction, chunking, and LV submodules are pure."""
+extraction, chunking, and GAEB submodules are pure."""
 
 from __future__ import annotations
 
@@ -29,15 +30,14 @@ from shared.clients.storage.client import (
 from shared.config import settings
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.document import Document
-from shared.models.enums import DocumentType, SourceDocType
+from shared.models.enums import SourceDocType
 from shared.models.simple_chunk import NewSimpleChunk
-from shared.models.source_line import SourceLine
 from shared.models.thumbnail import NewThumbnail
 from shared.services.ingestion.chunking import ChunkDraft, chunk_document, chunk_lv_item
 from shared.services.ingestion.extraction import extract_source_lines
+from shared.services.ingestion.gaeb import is_gaeb_lv_file, parse_gaeb_lv
 from shared.services.ingestion.langchain_pipeline import LangchainIngestor
-from shared.services.ingestion.lv import postprocess
-from shared.services.ingestion.lv.rendering import render_line_numbered
+from shared.services.ingestion.lv.types import LVParseResult
 from shared.services.ingestion.progress import (
     IngestEvent,
     IngestPhase,
@@ -45,7 +45,6 @@ from shared.services.ingestion.progress import (
     record_event,
 )
 from shared.services.ingestion.thumbnails import render_thumbnails
-from shared.services.prompt_runner import PromptRunner
 
 UnitOfWorkFactory = Callable[[], AbstractAsyncContextManager[UnitOfWork]]
 # Sink for granular activity lines (message, phase value). The worker wires this to the
@@ -79,7 +78,6 @@ class IngestionService:
         storage: StorageClient,
         search: SearchClient,
         embeddings: EmbeddingsClient,
-        prompts: PromptRunner,
         langchain_ingestor: LangchainIngestor,
         activity: ActivityEmit | None = None,
     ) -> None:
@@ -87,7 +85,6 @@ class IngestionService:
         self._storage = storage
         self._search = search
         self._embeddings = embeddings
-        self._prompts = prompts
         self._langchain = langchain_ingestor
         self._activity_emit = activity
 
@@ -105,6 +102,9 @@ class IngestionService:
                 phase=IngestPhase.INGEST,
                 message=document.file_name,
             )
+
+        if is_gaeb_lv_file(document.file_name):
+            return await self._ingest_gaeb_document(document, job_uuid)
 
         # Track the active phase so a failure event names where it broke; surfaced to the UI.
         phase = IngestPhase.INGEST
@@ -166,18 +166,6 @@ class IngestionService:
                 phase=IngestPhase.CHUNK,
                 message=f"{document_chunks} document chunks",
             )
-
-            lv_items = 0
-            lv_chunks = 0
-            if document.document_type == DocumentType.LV_DOCUMENT:
-                phase = IngestPhase.LV
-                lv_items, lv_chunks = await self._ingest_lv(document, source_lines, job_uuid)
-                await self._emit(
-                    job_uuid,
-                    event=IngestEvent.LV_ITEMS_INDEXED,
-                    phase=IngestPhase.LV,
-                    message=f"{lv_items} LV items, {lv_chunks} chunks",
-                )
         except Exception as exc:
             await self._emit(
                 job_uuid,
@@ -198,22 +186,56 @@ class IngestionService:
             thumbnails=thumbnails,
             langchain_chunks=langchain_chunks,
             document_chunks=document_chunks,
+            lv_items=0,
+            lv_chunks=0,
+        )
+
+    async def _ingest_gaeb_document(
+        self, document: Document, job_uuid: UUID | None
+    ) -> IngestionResult:
+        """GAEB short path: parse the D83/X83 file into LV items and persist/index them.
+        There are no pages, so thumbnails, source lines, and DOCUMENT chunks are skipped
+        entirely."""
+        try:
+            raw_bytes = await asyncio.to_thread(
+                self._storage.get_object, raw_object_key(document.document_uuid)
+            )
+            self._activity("parsing GAEB LV", IngestPhase.LV)
+            result = parse_gaeb_lv(document.file_name, raw_bytes)
+            lv_items, lv_chunks = await self._persist_lv_result(document, result, job_uuid)
+            await self._emit(
+                job_uuid,
+                event=IngestEvent.LV_ITEMS_INDEXED,
+                phase=IngestPhase.LV,
+                message=f"{lv_items} LV items, {lv_chunks} chunks",
+            )
+        except Exception as exc:
+            await self._emit(
+                job_uuid,
+                event=IngestEvent.FAILED,
+                phase=IngestPhase.LV,
+                message=str(exc)[:FAILURE_MESSAGE_LIMIT],
+            )
+            raise
+
+        await self._emit(
+            job_uuid,
+            event=IngestEvent.COMPLETED,
+            phase=IngestPhase.INGEST,
+            message="ingestion complete",
+        )
+        return IngestionResult(
+            source_lines=0,
+            thumbnails=0,
+            langchain_chunks=0,
+            document_chunks=0,
             lv_items=lv_items,
             lv_chunks=lv_chunks,
         )
 
-    async def _ingest_lv(
-        self, document: Document, source_lines: list[SourceLine], job_uuid: UUID | None
+    async def _persist_lv_result(
+        self, document: Document, result: LVParseResult, job_uuid: UUID | None
     ) -> tuple[int, int]:
-        rendered, _ = render_line_numbered(source_lines)
-        # windowing: see follow-up -- a too-large document overflows this single call.
-        extraction = await self._prompts.run_lv_extraction(
-            rendered,
-            project_uuid=document.project_uuid,
-            ingest_job_uuid=job_uuid,
-            document_uuid=document.document_uuid,
-        )
-        result = postprocess.run(extraction, source_lines)
         pages_by_oz = {item.oz: item.pages for item in result.items}
         new_ozs = [item.oz for item in result.items]
 

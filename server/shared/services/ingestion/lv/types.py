@@ -2,7 +2,8 @@
 
 `ParsedPosition` is the LLM segmentation normalised off the wire schema; `SlicedPosition`
 adds the verbatim text and pages sliced from SourceLine; `ResolvedItem` is one fully-built
-item ready for persistence. `LVParseResult` is the stage output."""
+item ready for persistence (`build_resolved_item` constructs it from a sliced position and
+its links). `LVParseResult` is the stage output."""
 
 from __future__ import annotations
 
@@ -10,7 +11,10 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
+from shared.models.llm_output_schemas.lv_extraction import POSITIONSTYP_TITEL
 from shared.models.lv_item import NewLVItem
+
+TITEL_MENGE = Decimal(0)
 
 
 @dataclass(frozen=True)
@@ -80,6 +84,41 @@ class ResolvedItem:
     parent_oz: str | None
     pages: list[int]
     source_line_uuids: list[UUID]
+
+
+def build_resolved_item(
+    position: SlicedPosition,
+    menge: Decimal,
+    langtext_resolved: str | None,
+    link: LinkInfo,
+) -> ResolvedItem:
+    """One ResolvedItem from a sliced position and its links. A title carries no quantity;
+    it is persisted with menge 0 and a Titel type so it is still addressable by OZ and
+    retrievable as an LV_ITEM chunk."""
+    if position.is_title:
+        menge = TITEL_MENGE
+        positionstyp: str | None = POSITIONSTYP_TITEL
+    else:
+        positionstyp = position.positionstyp
+
+    return ResolvedItem(
+        oz=position.oz,
+        kurztext=position.kurztext,
+        langtext=position.langtext or position.kurztext,
+        langtext_resolved=langtext_resolved,
+        menge=menge,
+        einheit=position.einheit or "",
+        positionstyp=positionstyp,
+        level=link.level,
+        stl_nr=position.stl_nr,
+        hinweis=position.hinweis,
+        linked_oz=position.linked_oz,
+        prev_oz=link.prev_oz,
+        next_oz=link.next_oz,
+        parent_oz=link.parent_oz,
+        pages=position.pages,
+        source_line_uuids=position.source_line_uuids,
+    )
 
 
 @dataclass(frozen=True)

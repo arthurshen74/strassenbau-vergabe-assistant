@@ -6,7 +6,7 @@ from typing import Literal
 from uuid import UUID
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
@@ -31,7 +31,7 @@ from shared.models.document_schema import (
     DocumentDetailRead,
     DocumentRead,
 )
-from shared.models.enums import DocumentType, SourceDocType
+from shared.models.enums import SourceDocType
 from shared.models.ingest_schema import IngestJobRead
 from shared.models.lv_item import LVItem
 from shared.models.project_schema import ProjectCreate, ProjectRead
@@ -42,11 +42,7 @@ from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.document_detail import DocumentDetailService
 from shared.services.ingestion.status_stream import HEARTBEAT, stream_project_status
-from shared.services.project_service import (
-    LVDocumentExistsError,
-    ProjectService,
-    UploadInput,
-)
+from shared.services.project_service import ProjectService, UploadInput
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -172,9 +168,12 @@ async def ingest_status_stream(
 async def upload_documents(
     project_uuid: UUID,
     files: list[UploadFile] = File(...),
-    document_type: DocumentType = Form(DocumentType.PROSE_DOCUMENT),
-    service: ProjectService = Depends(get_writable_project_service),
+    # Deletable service: a GAEB upload replaces the project's existing LV document,
+    # which needs the thumbnail/LV/search dependencies of the delete path.
+    service: ProjectService = Depends(get_deletable_project_service),
 ) -> list[DocumentRead]:
+    """Upload project documents. The document type comes from each filename: GAEB D83/X83
+    files become the LV document (replacing an existing one); everything else is prose."""
     if await service.get(project_uuid) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
     uploads = [
@@ -185,10 +184,7 @@ async def upload_documents(
         )
         for f in files
     ]
-    try:
-        return await service.ingest_documents(project_uuid, uploads, document_type)
-    except LVDocumentExistsError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return await service.ingest_documents(project_uuid, uploads)
 
 
 @router.post(

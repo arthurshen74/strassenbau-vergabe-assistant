@@ -10,23 +10,20 @@ from collections.abc import Iterable
 from dataclasses import replace
 from decimal import Decimal
 
-from shared.models.llm_output_schemas.lv_extraction import POSITIONSTYP_TITEL, LVExtraction
+from shared.models.llm_output_schemas.lv_extraction import LVExtraction
 from shared.models.source_line import SourceLine
 from shared.services.ingestion.lv.backrefs import resolve_backrefs
 from shared.services.ingestion.lv.linking import link_positions
 from shared.services.ingestion.lv.schema_io import to_parsed_positions
 from shared.services.ingestion.lv.slice_pages import slice_positions
 from shared.services.ingestion.lv.types import (
-    LinkInfo,
     LVParseResult,
     ParsedPosition,
-    ResolvedItem,
-    SlicedPosition,
+    TITEL_MENGE,
+    build_resolved_item,
 )
 from shared.services.ingestion.lv.validate import validate
 from shared.services.ingestion.numbers import is_placeholder_menge, parse_german_decimal
-
-TITEL_MENGE = Decimal(0)
 
 
 def run(extraction: LVExtraction, source_lines: list[SourceLine]) -> LVParseResult:
@@ -48,7 +45,12 @@ def run(extraction: LVExtraction, source_lines: list[SourceLine]) -> LVParseResu
     resolved = resolve_backrefs(sliced)
     links = link_positions(sliced)
 
-    items = [_build(position, resolved.get(position.oz), links[position.oz]) for position in sliced]
+    items = [
+        build_resolved_item(
+            position, _menge(position.menge), resolved.get(position.oz), links[position.oz]
+        )
+        for position in sliced
+    ]
     return LVParseResult(items=items, warnings=warnings)
 
 
@@ -178,39 +180,6 @@ def _max_menge(entries: list[ParsedPosition]) -> str | None:
         if best_value is None or value > best_value:
             best_value, best_token = value, entry.menge
     return best_token if best_token is not None else _first_set(e.menge for e in entries)
-
-
-def _build(
-    position: SlicedPosition, langtext_resolved: str | None, link: LinkInfo
-) -> ResolvedItem:
-    # A title carries no quantity; persist it with menge 0 and a Titel type so it is still
-    # addressable by OZ and retrievable as an LV_ITEM chunk.
-    langtext = position.langtext or position.kurztext
-    if position.is_title:
-        menge = TITEL_MENGE
-        positionstyp: str | None = POSITIONSTYP_TITEL
-    else:
-        menge = _menge(position.menge)
-        positionstyp = position.positionstyp
-
-    return ResolvedItem(
-        oz=position.oz,
-        kurztext=position.kurztext,
-        langtext=langtext,
-        langtext_resolved=langtext_resolved,
-        menge=menge,
-        einheit=position.einheit or "",
-        positionstyp=positionstyp,
-        level=link.level,
-        stl_nr=position.stl_nr,
-        hinweis=position.hinweis,
-        linked_oz=position.linked_oz,
-        prev_oz=link.prev_oz,
-        next_oz=link.next_oz,
-        parent_oz=link.parent_oz,
-        pages=position.pages,
-        source_line_uuids=position.source_line_uuids,
-    )
 
 
 def _menge(token: str | None) -> Decimal:

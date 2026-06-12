@@ -1,0 +1,77 @@
+# Leistungs-Registry: Asphalteinlage einbauen (Gittergewebe / Vlies, ZTV Asphalt-StB)
+# Rule: `prior:` refs are only valid WITHIN an operation.
+# Anything shared across operations is a derived_driver, computed once before fan-out.
+# einlage_typ is a judgment driver: the LLM maps the Langtext product wording onto the
+# controlled vocabulary of the interlayer store (the option IS the store key).
+work_type: asphalteinlage_einbauen
+version: "2026-06-12"
+triggers:
+  keywords: [Asphalteinlage, Asphaltgittergewebe, Asphaltvlies, Gittergewebe, Vlies,
+             SAMI, Bewehrungsgitter]
+
+drivers:
+  - {id: einlage_typ,     source: judgment,     options: [Asphaltgittergewebe, Asphaltvlies]}
+  - {id: flaeche_m2,      source: plan,         einheit: m2,
+     hint: "Verlegeflaeche Asphalteinlage Flaeche"}
+  - {id: haul_distance_km, source: project,     einheit: km,
+     hint: "Entfernung Bauhof Anfahrt Baustelle"}
+  - {id: access_class,    source: judgment,     options: [open, confined]}
+
+operations:
+
+  - id: supply_einlage
+    label: "Einlage liefern"
+    requirements:
+      - goal: "Cost the {einlage_typ} area incl. overlap"
+        formula: interlayer_material_cost
+        params:
+          area_m2:    {from: drivers, field: flaeche_m2}
+          interlayer: {from: store, call: interlayer_property, args: [einlage_typ]}
+
+  - id: vorspritzen
+    label: "Bitumenemulsion anspritzen"
+    requirements:
+      - goal: "Cost the bitumen emulsion for the bond"
+        formula: emulsion_cost
+        params:
+          area_m2:      {from: drivers, field: flaeche_m2}
+          interlayer:   {from: store, call: interlayer_property, args: [einlage_typ]}
+          price_eur_kg: {from: store, call: material_price, args_const: [bitumenemulsion]}
+      - goal: "Cost the emulsion application (Spritzrampe, flat rate)"
+        formula: area_unit_cost
+        params:
+          area_m2:     {from: drivers, field: flaeche_m2}
+          rate_eur_m2: {from: store, call: unit_rate, args_const: [anspritzen]}
+
+  - id: verlegen
+    label: "Einlage verlegen"
+    methods:
+      - {id: einlage_maschinell, machine_class: verlegegeraet,
+         criteria: "continuous runs, working width >= roll width (~1.5 m), open areas"}
+      - {id: einlage_manuell,    machine_class: kleingeraet,
+         criteria: "confined strips, junctions, around fixtures, small or irregular areas"}
+    selection:
+      on: [flaeche_m2, access_class, einlage_typ]
+      consult: [fleet_availability, reasoning_notes]
+    requirements:
+      - goal: "Calculate laying duration"
+        formula: duration_by_area_performance
+        out: {id: verlege_hours, einheit: h}
+        params:
+          quantity_m2: {from: drivers, field: flaeche_m2}
+          perf_m2_h:   {from: store, call: performance_rate, args: [operation_id, method_id, access_class]}
+      - goal: "Cost the machine hours"
+        formula: equipment_cost
+        params:
+          hours:      {from: prior, ref: verlege_hours}
+          rate_eur_h: {from: store, call: bgl_rate, args: [machine_class]}
+      - goal: "Cost the laying crew bound to the machine"
+        formula: crew_cost
+        params:
+          hours: {from: prior, ref: verlege_hours}
+          crew:  {from: store, call: crew_norm, args: [method_id]}
+      - goal: "Cost machine mobilization to site"
+        formula: machine_mobilization
+        params:
+          distance_km: {from: drivers, field: haul_distance_km}
+          machine:     {from: store, call: mobilization_rate, args: [machine_class]}

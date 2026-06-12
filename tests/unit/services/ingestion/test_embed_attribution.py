@@ -51,7 +51,6 @@ def _service(embeddings: _RecordingEmbeddings, search: _RecordingSearch) -> Inge
         search,  # type: ignore[arg-type]
         embeddings,  # type: ignore[arg-type]
         None,  # type: ignore[arg-type]
-        None,  # type: ignore[arg-type]
     )
 
 

@@ -7,13 +7,41 @@ triggers:
   keywords: [Frostschutzschicht, FSS, Schottertragschicht, ToB, Schicht ohne Bindemittel]
 
 drivers:
-  - {id: material_spec,   source: lv_text,      einheit: text}
+  - id: material_spec
+    source: judgment
+    options: [FSS 0/32 B2, FSS 0/32 B3, FSS 0/45 B2, FSS 0/56 B2, KFS 0/32,
+              STS 0/32 C90/3, RC-Gemisch 0/45]
+    description: >-
+      Catalog key of the Baustoffgemisch. Match the Langtext's grading (0/32,
+      0/45, 0/56) and material class (B2/B3 nach ZTV-StB LSBB, KFS = Kies,
+      STS = Schotter, RC = recycled) to exactly ONE catalog entry; cite the
+      decisive Langtext wording in source_quote.
   - {id: einbaudicke_cm,  source: lv_text,      einheit: cm}
   - {id: ev2_target_mpa,  source: lv_text,      einheit: MPa}
-  - {id: strip_length_m,  source: plan,         einheit: m}
-  - {id: strip_width_m,   source: plan,         einheit: m}
-  - {id: haul_distance_km, source: project,     einheit: km}
+  - id: strip_length_m
+    source: plan
+    einheit: m
+    confirm: true
+    hint: "Ausbaulaenge Baubeschreibung Laenge Verbreiterungsstreifen Strecke"
+    description: >-
+      Installed length of the strip. The Baubeschreibung's Ausbaulaenge is the
+      full length ONLY when the works run as a single Bauphase (section_scope
+      single_length); with multiple Bauphasen/Bauabschnitte only the phase
+      length applies - if that is not stated, leave the value null.
+  - {id: strip_width_m,   source: plan,         einheit: m,
+     hint: "Breite Verbreiterungsstreifen Streifenbreite"}
+  - {id: haul_distance_km, source: project,     einheit: km,
+     hint: "Entfernung Lieferwerk Transportweg Baustoffe"}
   - {id: ambient_temp_c,  source: "tool:climate", einheit: degC}
+  - id: section_scope
+    source: judgment
+    options: [single_length, sub_section]
+    hint: "Bauphase Bauabschnitt BA abschnittsweise Herstellung"
+    description: >-
+      Whether this position is built as ONE continuous run (a single Bauphase
+      named in the documents, e.g. only "1BA" -> single_length) or the strip is
+      split into Bauphasen sub-sections, e.g. on ground type or camber changes
+      (-> sub_section).
   - {id: access_class,    source: judgment,     options: [open, confined]}
   - {id: loss_profile,    source: judgment,     options: [standard, elevated]}
 

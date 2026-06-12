@@ -1,6 +1,11 @@
 # LV Parse
 
-The detail behind the LV branch in [INGESTION](./INGESTION.md): how the `SourceLine` rows for an LV document become `LVItem` records (and, downstream, `SimpleChunk`s). The PDF→`SourceLine` extraction is no longer described here — it's the common ingestion stage that runs on every PDF; this document starts from the `SourceLine` rows it produces.
+> **Status: retired from the pipeline.** Production LV items now come exclusively from GAEB
+> files (D83/X83, see `server/shared/services/ingestion/gaeb` and [INGESTION](./INGESTION.md));
+> LV PDFs get only the common simple chunking. The LLM parse described here remains available
+> as a standalone harness (`python -m scripts.run_lv_extraction`) for experimentation.
+
+The detail behind the former LV-PDF branch in [INGESTION](./INGESTION.md): how the `SourceLine` rows for an LV document become `LVItem` records (and, downstream, `SimpleChunk`s). The PDF→`SourceLine` extraction is no longer described here — it's the common ingestion stage that runs on every PDF; this document starts from the `SourceLine` rows it produces.
 
 ## Summary
 

@@ -33,6 +33,13 @@ Positionstyp = Literal[
 
 POSITIONSTYP_TITEL = "Titel"
 
+# Constants for the Positionstyp values assigned by code (the GAEB D83 parser maps the
+# Positionsart record fields onto the same vocabulary the Literal above allows the LLM).
+POSITIONSTYP_NORMAL = "Normalposition"
+POSITIONSTYP_BEDARF = "Bedarfsposition"
+POSITIONSTYP_GRUND = "Grundposition"
+POSITIONSTYP_ALTERNATIV = "Alternativposition"
+
 # Sentinel for an absent line span in the (start, end) integer fields.
 NO_LINE = -1
 

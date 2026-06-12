@@ -1,7 +1,7 @@
-// Upload one or more documents (PDF, or a flat ZIP of files) into a project.
-// The document type is auto-assigned from each filename: a PDF named like
-// "<name>_LV<x>.pdf" is an LV document, everything else is prose. ZIP entries
-// are auto-typed the same way server-side, by each entry's own filename.
+// Upload one or more documents (PDF, GAEB .d83/.x83, or a flat ZIP of files) into a
+// project. The document type is auto-assigned from each filename: a GAEB file is the LV
+// document, everything else (including LV-print PDFs) is prose. ZIP entries are
+// auto-typed the same way server-side, by each entry's own filename.
 
 import { useState } from 'react';
 import { useUploadDocuments } from '../../api/projects';
@@ -51,10 +51,10 @@ export function UploadDocumentDialog({
       <DialogTitle>Ingest New Document</DialogTitle>
       <DialogBody className="flex flex-col gap-4">
         <Field>
-          <Label>Files (PDF or a .zip of files)</Label>
+          <Label>Files (PDF, GAEB .d83/.x83, or a .zip of files)</Label>
           <input
             type="file"
-            accept=".pdf,.zip"
+            accept=".pdf,.zip,.d83,.x83"
             multiple
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
             className="mt-2 block w-full text-sm text-zinc-700 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm hover:file:bg-zinc-200 dark:text-zinc-300 dark:file:bg-zinc-800"

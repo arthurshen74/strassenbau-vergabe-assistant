@@ -60,11 +60,6 @@ class _RecordingSearch:
         return [uuid4() for _ in chunks]
 
 
-class _FakePrompts:
-    async def run_lv_extraction(self, numbered_document: str, **_: Any) -> Any:
-        raise AssertionError("LV extraction must not run for a prose document")
-
-
 class _FakeLangchain:
     def __init__(self) -> None:
         self.calls: list[tuple[UUID, UUID]] = []
@@ -118,7 +113,6 @@ def _kwargs(search: _RecordingSearch, langchain: _FakeLangchain) -> dict[str, An
         "storage": _FakeStorage(),
         "search": search,
         "embeddings": _FakeEmbeddings(),
-        "prompts": _FakePrompts(),
         "langchain_ingestor": langchain,
     }
 

@@ -30,6 +30,8 @@ dependencies = [
     "pdfplumber",
     "ragas",
     "boto3",
+    "arize-phoenix-otel",
+    "openinference-instrumentation-langchain",
 ]
 
 [dependency-groups]

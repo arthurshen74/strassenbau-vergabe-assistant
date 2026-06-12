@@ -55,6 +55,17 @@ class Settings(BaseSettings):
     retriever_candidate_k: int = 50
     retriever_top_k: int = 10
 
+    # EKT calculator agent: the OpenRouter model behind its three LLM sites, and the
+    # offline mock toggle (canned replies, wired to the FSS demo position).
+    calculator_model: str = "openai/gpt-5.4"
+    calculator_mock: bool = False
+    # OpenRouter reasoning effort for the calculator's LLM sites; None disables the
+    # reasoning request (and the provider reasoning summaries in the output).
+    calculator_reasoning_effort: str | None = "low"
+
+    # Phoenix HTTP OTLP collector (the docker-compose `phoenix` service).
+    phoenix_collector_endpoint: str = "http://localhost:6006/v1/traces"
+
     worker_poll_interval_seconds: float = 2.0
     worker_lease_seconds: float = 60.0
     worker_max_attempts: int = 3

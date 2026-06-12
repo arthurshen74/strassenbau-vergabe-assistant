@@ -4,7 +4,10 @@ Reads translate domain models to API DTOs. `ingest_documents` is the upload path
 file (or, for a `.zip`, each flattened entry) is stored to object storage under
 `raw/{document_uuid}`, recorded as a `Document`, and enqueued as a queued `IngestJob` for the
 worker to process later. Storage writes are offloaded to a thread because the StorageClient is
-synchronous boto3.
+synchronous boto3. The document type comes from the filename alone: a GAEB file (D83/X83) is
+the LV document by definition and supersedes the project's existing one (the old document is
+deleted first, removing its LV items from Postgres and its chunks from Elasticsearch);
+everything else -- including the LV print-layout PDF -- is prose.
 
 `delete_document` is the inverse: the DB row delete cascades to the document's thumbnails,
 source_lines, lv_items, and ingest_jobs, while the Elasticsearch chunks and object-storage blobs
@@ -18,7 +21,6 @@ import asyncio
 import io
 import logging
 import mimetypes
-import re
 import zipfile
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -39,20 +41,13 @@ from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
+from shared.services.ingestion.gaeb import is_gaeb_lv_file
 
 logger = logging.getLogger(__name__)
 
 CONTENT_TYPE_PDF = "application/pdf"
 CONTENT_TYPE_DEFAULT = "application/octet-stream"
 ZIP_SUFFIX = ".zip"
-
-# A PDF named "<name>_LV<x>.pdf" is the Leistungsverzeichnis; everything else is prose.
-# Mirrors classifyDocumentType in ui/src/lib/documentType.ts.
-LV_FILENAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+_LV[a-zA-Z0-9]*\.pdf$")
-
-
-class LVDocumentExistsError(Exception):
-    """A project already has its single LV document; another was attempted."""
 
 
 @dataclass(frozen=True)
@@ -168,15 +163,12 @@ class ProjectService:
         self,
         project_uuid: UUID,
         uploads: list[UploadInput],
-        document_type: DocumentType,
     ) -> list[DocumentRead]:
         """Store each file (zip entries flattened) and create Document + queued IngestJob rows."""
         assert self.storage is not None, "ingest requires a storage client"
         created: list[DocumentRead] = []
         for upload in uploads:
             if upload.file_name.lower().endswith(ZIP_SUFFIX):
-                # A zip is a mixed batch: auto-type each entry from its own filename,
-                # since the request's document_type describes the zip, not its contents.
                 for entry in _expand_zip(upload.data):
                     created.append(
                         await self._ingest_one(
@@ -184,17 +176,22 @@ class ProjectService:
                         )
                     )
             else:
-                created.append(await self._ingest_one(project_uuid, upload, document_type))
+                created.append(
+                    await self._ingest_one(
+                        project_uuid, upload, _classify_document_type(upload.file_name)
+                    )
+                )
         return created
 
     async def _ingest_one(
         self, project_uuid: UUID, upload: UploadInput, document_type: DocumentType
     ) -> DocumentRead:
         if document_type == DocumentType.LV_DOCUMENT:
-            if await self.documents.get_lv_document(project_uuid) is not None:
-                raise LVDocumentExistsError(
-                    f"project {project_uuid} already has an LV document"
-                )
+            existing = await self.documents.get_lv_document(project_uuid)
+            if existing is not None:
+                # A GAEB upload supersedes the project's LV: drop the previous LV document
+                # with all its LV items (Postgres cascade) and chunks (Elasticsearch).
+                await self.delete_document(project_uuid, existing.document_uuid)
         doc = await self.documents.add(
             NewDocument(
                 project_uuid=project_uuid,
@@ -215,8 +212,10 @@ class ProjectService:
 
 
 def _classify_document_type(file_name: str) -> DocumentType:
-    """Auto-assign a document type from its filename, mirroring the client-side rule."""
-    if LV_FILENAME_PATTERN.match(file_name):
+    """Assign the document type from the filename, mirroring classifyDocumentType in
+    ui/src/lib/documentType.ts: a GAEB D83/X83 file is the LV document by definition;
+    everything else -- including the LV print-layout PDF -- is prose."""
+    if is_gaeb_lv_file(file_name):
         return DocumentType.LV_DOCUMENT
     return DocumentType.PROSE_DOCUMENT
 

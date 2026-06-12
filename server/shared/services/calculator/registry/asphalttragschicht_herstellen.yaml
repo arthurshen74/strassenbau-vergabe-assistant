@@ -1,0 +1,122 @@
+# Leistungs-Registry: Asphalttragschicht herstellen
+# Rule: `prior:` refs are only valid WITHIN an operation.
+# Anything shared across operations is a derived_driver, computed once before fan-out.
+work_type: asphalttragschicht_herstellen
+version: "2026-06-12"
+triggers:
+  keywords: [Asphalttragschicht, Asphalttragschichtmischgut, AC 22 T, AC 32 T,
+             Tragschicht aus Asphaltmischgut, ATS]
+
+drivers:
+  - id: material_spec
+    source: judgment
+    options: [AC 22 T S, AC 32 T S]
+    description: >-
+      Catalog key of the Asphalttragschichtmischgut. Match the Langtext's mix
+      designation (AC 22 T / AC 32 T) to exactly ONE catalog entry; cite the
+      decisive Langtext wording in source_quote.
+  - {id: einbaudicke_cm,  source: lv_text,      einheit: cm}
+  - {id: flaeche_m2,      source: plan,         einheit: m2,
+     hint: "Einbauflaeche Asphalttragschicht Flaeche"}
+  - {id: haul_distance_km, source: project,     einheit: km,
+     hint: "Entfernung Asphaltmischwerk Transportweg Mischgut"}
+  - {id: access_class,    source: judgment,     options: [open, confined]}
+  - {id: loss_profile,    source: judgment,     options: [standard, elevated]}
+
+derived_drivers:            # deterministic, computed once, shared by all Send branches
+  - id: layer_volume_m3
+    einheit: m3
+    formula: area_volume
+    params:
+      area_m2:      {from: drivers, field: flaeche_m2}
+      thickness_cm: {from: drivers, field: einbaudicke_cm}
+  - id: mix_tonnage_t
+    einheit: t
+    formula: order_tonnage
+    params:
+      volume_m3:    {from: drivers, field: layer_volume_m3}
+      material:     {from: store, call: material_property, args: [material_spec]}
+      loss_profile: {from: drivers, field: loss_profile}
+
+operations:
+
+  - id: supply_mix
+    label: "Asphaltmischgut liefern"
+    requirements:
+      - goal: "Cost the {material_spec} mix tonnage ab Mischwerk"
+        formula: material_cost
+        params:
+          tonnage_t:  {from: drivers, field: mix_tonnage_t}
+          price_eur_t: {from: store, call: material_price, args: [material_spec]}
+      - goal: "Cost the thermo-truck delivery to site"
+        formula: delivery_cost
+        params:
+          tonnage_t:   {from: drivers, field: mix_tonnage_t}
+          truck:       {from: store, call: truck_for_access, args: [access_class]}
+          distance_km: {from: drivers, field: haul_distance_km}
+
+  - id: pave
+    label: "Mischgut einbauen"
+    methods:
+      - {id: fertiger,           machine_class: fertiger,
+         criteria: "continuous runs, working width >= 2.5 m, open areas, profile by screed"}
+      - {id: asphalt_handeinbau, machine_class: kleingeraet,
+         criteria: "confined patches, narrow strips, around fixtures, small volumes"}
+    selection:
+      on: [flaeche_m2, einbaudicke_cm, access_class]
+      consult: [fleet_availability, reasoning_notes]
+    requirements:
+      - goal: "Calculate paving duration"
+        formula: duration_by_performance
+        out: {id: pave_hours, einheit: h}
+        params:
+          quantity_m3: {from: drivers, field: layer_volume_m3}
+          perf_m3_h:   {from: store, call: performance_rate, args: [operation_id, method_id, access_class]}
+      - goal: "Cost the machine hours"
+        formula: equipment_cost
+        params:
+          hours:      {from: prior, ref: pave_hours}
+          rate_eur_h: {from: store, call: bgl_rate, args: [machine_class]}
+      - goal: "Cost the paving crew bound to the machine"
+        formula: crew_cost
+        params:
+          hours: {from: prior, ref: pave_hours}
+          crew:  {from: store, call: crew_norm, args: [method_id]}
+      - goal: "Cost machine mobilization to site"
+        formula: machine_mobilization
+        params:
+          distance_km: {from: drivers, field: haul_distance_km}
+          machine:     {from: store, call: mobilization_rate, args: [machine_class]}
+
+  - id: compact
+    label: "Verdichten der Tragschicht"
+    methods:
+      - {id: tandem_roller, machine_class: tandem_roller_8t,
+         criteria: "continuous runs, working width >= drum width (~1.5 m), hot compaction behind the paver"}
+      - {id: kleinwalze,    machine_class: roller_1_5t,
+         criteria: "confined strips, edges, around fixtures, hand-laid patches"}
+    selection:
+      on: [flaeche_m2, access_class]
+      consult: [fleet_availability, reasoning_notes]
+    requirements:
+      - goal: "Estimate compaction duration"
+        formula: duration_by_performance
+        out: {id: comp_hours, einheit: h}
+        params:
+          quantity_m3: {from: drivers, field: layer_volume_m3}
+          perf_m3_h:   {from: store, call: performance_rate, args: [operation_id, method_id, access_class]}
+      - goal: "Cost the machine hours"
+        formula: equipment_cost
+        params:
+          hours:      {from: prior, ref: comp_hours}
+          rate_eur_h: {from: store, call: bgl_rate, args: [machine_class]}
+      - goal: "Cost the crew bound to the machine"
+        formula: crew_cost
+        params:
+          hours: {from: prior, ref: comp_hours}
+          crew:  {from: store, call: crew_norm, args: [method_id]}
+      - goal: "Cost machine mobilization to site"
+        formula: machine_mobilization
+        params:
+          distance_km: {from: drivers, field: haul_distance_km}
+          machine:     {from: store, call: mobilization_rate, args: [machine_class]}

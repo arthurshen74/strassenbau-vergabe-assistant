@@ -289,7 +289,7 @@ class ProjectChatAgent:
 
     async def astream(self, messages: list[dict[str, Any]]) -> AsyncIterator[AgentEvent]:
         """Stream the agent over the prior message list: answer tokens, tool calls, tool results."""
-        async for event in self._agent.astream_events({"messages": messages}, version="v2"):
+        async for event in self._agent.astream_events({"messages": messages}, version="v2"): # type: ignore
             mapped = map_agent_event(event)
             if mapped is not None:
                 yield mapped

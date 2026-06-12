@@ -28,24 +28,18 @@ from datetime import datetime, timedelta, timezone
 from functools import partial
 
 from shared.clients.embeddings.client import EmbeddingsClient
-from shared.clients.factory import (
-    build_embeddings_client,
-    build_llm_client,
-    build_telemetry_sinks,
-)
+from shared.clients.factory import build_embeddings_client, build_telemetry_sinks
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient, build_storage_client
 from shared.config import settings
 from shared.db.engine import make_engine
 from shared.db.unit_of_work import unit_of_work
 from shared.models.enums import IngestStatus
-from shared.repositories.prompt_versions import PromptVersionRepository
 from shared.services.ingestion import IngestionService
 from shared.services.ingestion.activity import ActivityWriter
 from shared.services.ingestion.ingestion_service import UnitOfWorkFactory
 from shared.services.ingestion.langchain_pipeline import LangchainIngestor
 from shared.services.ingestion.progress import IngestPhase
-from shared.services.prompt_runner import PromptRunner
 
 logger = logging.getLogger("worker.main")
 
@@ -57,7 +51,6 @@ async def process_one(
     storage: StorageClient,
     search: SearchClient,
     embeddings: EmbeddingsClient,
-    prompts: PromptRunner,
     langchain_ingestor: LangchainIngestor,
 ) -> bool:
     """Claim and run one queued (or reclaimable) job under this worker's lease. Returns False when
@@ -99,7 +92,6 @@ async def process_one(
                 storage,
                 search,
                 embeddings,
-                prompts,
                 langchain_ingestor,
                 activity=activity.emit,
             )
@@ -157,7 +149,6 @@ async def run_worker() -> None:
     search = SearchClient.from_settings()
     sinks = build_telemetry_sinks(engine)
     embeddings = build_embeddings_client(sinks, engine)
-    llm = build_llm_client(sinks)
     langchain_ingestor = LangchainIngestor(embeddings)
 
     shutdown = asyncio.Event()
@@ -173,34 +164,28 @@ async def run_worker() -> None:
             worker_id,
             settings.worker_poll_interval_seconds,
         )
-        # One prompt connection for the process: the PromptRunner reads the seeded LV prompt; the
-        # service's uow_factory opens separate transactional connections per stage and per job.
-        async with engine.connect() as prompt_conn:
-            prompts = PromptRunner(PromptVersionRepository(prompt_conn), llm)
-            while not shutdown.is_set():
-                ran = await process_one(
-                    uow_factory,
-                    worker_id=worker_id,
-                    storage=storage,
-                    search=search,
-                    embeddings=embeddings,
-                    prompts=prompts,
-                    langchain_ingestor=langchain_ingestor,
+        while not shutdown.is_set():
+            ran = await process_one(
+                uow_factory,
+                worker_id=worker_id,
+                storage=storage,
+                search=search,
+                embeddings=embeddings,
+                langchain_ingestor=langchain_ingestor,
+            )
+            if ran:
+                continue
+            # Idle: park poison jobs and prune old activity, then wait (waking on shutdown).
+            await run_maintenance(uow_factory)
+            try:
+                await asyncio.wait_for(
+                    shutdown.wait(), timeout=settings.worker_poll_interval_seconds
                 )
-                if ran:
-                    continue
-                # Idle: park poison jobs and prune old activity, then wait (waking on shutdown).
-                await run_maintenance(uow_factory)
-                try:
-                    await asyncio.wait_for(
-                        shutdown.wait(), timeout=settings.worker_poll_interval_seconds
-                    )
-                except asyncio.TimeoutError:
-                    pass
+            except asyncio.TimeoutError:
+                pass
         logger.info("[worker] shutdown signal received; exiting")
     finally:
         langchain_ingestor.close()
-        await llm.aclose()
         await search.close()
         await embeddings.aclose()
         await engine.dispose()
