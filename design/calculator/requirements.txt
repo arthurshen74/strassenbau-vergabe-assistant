@@ -1,6 +1,0 @@
-langgraph>=0.2
-pydantic>=2
-pyyaml
-# only needed for EKT_MOCK=0:
-langchain>=0.3
-langchain-anthropic
