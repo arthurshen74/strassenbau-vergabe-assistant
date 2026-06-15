@@ -31,6 +31,7 @@ def test_enum_values() -> None:
         "multi_question_generator",
         "lv_extraction",
         "conversation_name",
+        "ekt_calculator",
     }
 
 

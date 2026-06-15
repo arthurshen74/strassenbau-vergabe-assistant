@@ -97,20 +97,15 @@ class ClassificationResult(BaseModel):
     notes: str = Field(description="1-2 sentences, cite the decisive wording")
 
 
-class DriverValue(BaseModel):
-    id: str
+class DriverDecision(BaseModel):
+    """LLM site 2 (one call per driver): the resolved value + its reasoning for ONE driver."""
+    reasoning: list[str] = Field(default=[], description=REASONING_DESCRIPTION)
     value: Union[str, float, int, None] = None
-    einheit: Optional[str] = None
     source_quote: Optional[str] = Field(
         default=None, description="Verbatim snippet the value was read from")
     confidence: float = Field(ge=0, le=1)
-
-
-class DriverResolution(BaseModel):
-    """LLM site 2: extract document-sourced drivers + decide judgment drivers."""
-    reasoning: list[str] = Field(default=[], description=REASONING_DESCRIPTION)
-    drivers: list[DriverValue]
-    flags: list[str] = Field(default=[], description="Anything missing/ambiguous")
+    note: Optional[str] = Field(
+        default=None, description="Why the value is missing or ambiguous, if it is")
 
 
 class MethodSelection(BaseModel):

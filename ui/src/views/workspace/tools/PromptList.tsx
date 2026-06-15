@@ -26,6 +26,7 @@ const TYPE_COLOR: Record<PromptVersionRead['prompt_type'], BadgeColor> = {
   multi_question_generator: 'green',
   lv_extraction: 'sky',
   conversation_name: 'rose',
+  ekt_calculator: 'zinc',
 };
 
 // The route returns a bare array; the dispatcher tool returns `{prompts: [...]}`.

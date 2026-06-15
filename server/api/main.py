@@ -5,8 +5,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 
 from api.routes import (
+    calculations,
     conversations,
     dispatch,
     health,
@@ -27,6 +31,9 @@ from shared.clients.storage.client import build_storage_client
 from shared.config import settings
 from shared.db.engine import make_engine
 
+# Connection pool for the calculator's LangGraph Postgres checkpointer (HITL state across requests).
+CALCULATOR_CHECKPOINTER_POOL_SIZE = 10
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -46,9 +53,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.llm_client = build_llm_client(sinks)
     app.state.embeddings = build_embeddings_client(sinks, engine)
     app.state.reranker = build_rerank_client(sinks)
+    # The EKT calculator persists its LangGraph state across HITL interrupts in Postgres so a run can
+    # pause for the Kalkulator and resume in a later request. It uses its own psycopg pool (the libpq
+    # driver), separate from the SQLAlchemy/asyncpg engine. The DSN drops the asyncpg driver suffix.
+    checkpointer_pool = AsyncConnectionPool(
+        conninfo=settings.database_url.replace("+asyncpg", ""),
+        max_size=CALCULATOR_CHECKPOINTER_POOL_SIZE,
+        open=False,
+        kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+    )
+    await checkpointer_pool.open()
+    checkpointer = AsyncPostgresSaver(checkpointer_pool)
+    await checkpointer.setup()
+    app.state.calculator_checkpointer = checkpointer
+    app.state.calculator_checkpointer_pool = checkpointer_pool
     try:
         yield
     finally:
+        await app.state.calculator_checkpointer_pool.close()
         await app.state.reranker.aclose()
         await app.state.embeddings.aclose()
         await app.state.llm_client.aclose()
@@ -73,6 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(prompt_execution_logs.router)
     app.include_router(usage.router)
     app.include_router(ingest_jobs.router)
+    app.include_router(calculations.router)
     return app
 
 

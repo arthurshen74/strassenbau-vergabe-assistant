@@ -29,6 +29,7 @@ class PromptExecutionLog(BaseModel):
     request_id: str | None = None
     project_uuid: UUID | None = None
     ingest_job_uuid: UUID | None = None
+    conversation_uuid: UUID | None = None
     success: bool
     error_message: str | None = None
     sent_at: datetime | None = None
@@ -60,6 +61,7 @@ class NewPromptExecutionLog(BaseModel):
     request_id: str | None = None
     project_uuid: UUID | None = None
     ingest_job_uuid: UUID | None = None
+    conversation_uuid: UUID | None = None
     error_message: str | None = None
     sent_at: datetime | None = None
     returned_at: datetime | None = None

@@ -5,6 +5,7 @@
 import { Navigate, useParams } from 'react-router-dom';
 import { useConversation } from '../api/conversations';
 import { WorkspaceView } from './workspace/WorkspaceView';
+import { CalculatorConversationView } from './calculator/CalculatorConversationView';
 import { LoadingState } from '../components/feedback/LoadingState';
 import { ErrorState } from '../components/feedback/ErrorState';
 import { EmptyState } from '../components/feedback/EmptyState';
@@ -34,6 +35,16 @@ export function ConversationRouter() {
 
   if (data.prompt_type === 'project_chat') {
     return <WorkspaceView />;
+  }
+  // An EKT calculator conversation: the live/interactive run (streaming + HITL interrupts) renders
+  // in the calculator view; once complete it becomes a normal workspace thread (transcript + the
+  // widened /turn gate answers follow-up questions via project chat).
+  if (data.prompt_type === 'ekt_calculator') {
+    return data.calculation_status === 'complete' ? (
+      <WorkspaceView />
+    ) : (
+      <CalculatorConversationView conversationId={conversationId} />
+    );
   }
   return (
     <EmptyState

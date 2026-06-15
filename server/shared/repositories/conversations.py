@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.conversations import conversations
 from shared.models.conversation import Conversation, NewConversation
+from shared.models.enums import CalculationStatus
 
 
 class ConversationRepository:
@@ -50,6 +51,17 @@ class ConversationRepository:
             update(conversations)
             .where(conversations.c.conversation_uuid == conversation_uuid)
             .values(updated_at=func.now())
+        )
+        await self.conn.execute(stmt)
+
+    async def set_calculation_status(
+        self, conversation_uuid: UUID, status: CalculationStatus
+    ) -> None:
+        """Move an ekt_calculator conversation through its run lifecycle."""
+        stmt = (
+            update(conversations)
+            .where(conversations.c.conversation_uuid == conversation_uuid)
+            .values(calculation_status=status, updated_at=func.now())
         )
         await self.conn.execute(stmt)
 

@@ -57,23 +57,29 @@ classify ──(confidence gate)──> [hitl_classify?] ──> resolve_drivers
 
 ## RAG wiring
 
-`build_graph(retriever)` takes an async `query -> evidence snippets` callable;
-the CLI binds it to `RetrievalService.retrieve_context` scoped to the project.
-The three LLM sites query it before judging:
+`build_graph(retriever, llm)` takes an async `query -> evidence snippets` callable
+and the shared `LLMClient` the three judging sites call through (telemetry +
+provider-reasoning capture). The CLI binds the retriever to
+`RetrievalService.retrieve_context` scoped to the project, with
+`CALCULATOR_RETRIEVAL_CONFIG`: PLUS scope, hybrid dense + BM25 fused by RRF,
+multi-question expansion, cross-encoder rerank. The three LLM sites query it
+before judging:
 
 - **classify** retrieves project context for the position's Kurztext.
-- **resolve_drivers** retrieves per-driver context for `plan`/`project` drivers
-  and for `judgment` drivers that carry a `hint:`; the query is the driver's
-  German `hint:` from the registry + the Kurztext (e.g. `strip_length_m` →
-  "Ausbaulaenge Baubeschreibung ...", `section_scope` → "Bauphase Bauabschnitt
-  ..."). `lv_text` drivers read from the position itself, `tool:*` drivers are
-  fetched deterministically. A driver's optional `description:` carries its
-  decision rule (e.g. when the Ausbaulaenge counts as the full strip length)
-  into the prompt and the review UI.
+- **resolve_drivers** resolves drivers ONE at a time, each its own LLM call, so
+  the run reads as a followable chain and later drivers can lean on earlier ones.
+  Each driver is resolved from a single evidence block: `lv_text` drivers from the
+  position's own text; `plan`/`project`/`judgment` drivers from retrieved context
+  ONLY (query = the driver's German `hint:` + Kurztext, e.g. `strip_length_m` →
+  "Ausbaulaenge Baubeschreibung ..."); `tool:*` drivers are fetched
+  deterministically and never asked of the LLM. A driver's optional `description:`
+  carries its decision rule (e.g. when the Ausbaulaenge counts as the full strip
+  length) into the prompt and the review UI.
 - **select_method** retrieves context per operation (label + Kurztext); the
   snippets land in the prompt's reasoning-notes slot.
 
-With `retriever=None` (mock) the graph runs document-blind.
+With `retriever=None` (mock) the graph runs document-blind; with `llm=None` the
+judging sites only work under `--mock`.
 
 ## Design decisions (the writeup skeleton)
 

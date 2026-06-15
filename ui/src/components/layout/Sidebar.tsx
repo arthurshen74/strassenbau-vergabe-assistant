@@ -12,6 +12,7 @@ import {
   FolderIcon,
 } from '@heroicons/react/20/solid';
 import {
+  PROMPT_TYPE_EKT_CALCULATOR,
   PROMPT_TYPE_PROJECT_CHAT,
   useConversationList,
 } from '../../api/conversations';
@@ -49,7 +50,9 @@ export function Sidebar() {
 
   const all = data ?? [];
   const projectConvos = all.filter(
-    (c) => c.prompt_type === PROMPT_TYPE_PROJECT_CHAT,
+    (c) =>
+      c.prompt_type === PROMPT_TYPE_PROJECT_CHAT ||
+      c.prompt_type === PROMPT_TYPE_EKT_CALCULATOR,
   );
 
   return (

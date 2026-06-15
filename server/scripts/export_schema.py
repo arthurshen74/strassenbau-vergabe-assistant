@@ -49,6 +49,7 @@ from shared.models.sse_schema import (
     SSEDone,
     SSEFunctionCall,
     SSEFunctionCallOutput,
+    SSEInterrupt,
     SSETextDelta,
     SSEUiNotice,
 )
@@ -56,6 +57,7 @@ from shared.services.aggregate_lv_models import (
     AggregateCoverage,
     AggregateLineItem,
     AggregateResult,
+    AggregateTraceEntry,
     UnitSubtotal,
 )
 from shared.services.retrieval.config import RetrievalConfig
@@ -126,6 +128,7 @@ BODY_MODELS: list[type[BaseModel]] = [
     UnitSubtotal,
     AggregateLineItem,
     AggregateCoverage,
+    AggregateTraceEntry,
     AggregateResult,
 ]
 
@@ -143,6 +146,7 @@ SSE_EVENT_MODELS: list[type[BaseModel]] = [
     SSEFunctionCall,
     SSEFunctionCallOutput,
     SSEUiNotice,
+    SSEInterrupt,
     SSEDone,
 ]
 

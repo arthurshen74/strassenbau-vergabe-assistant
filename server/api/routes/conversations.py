@@ -26,7 +26,7 @@ from shared.models.conversation_schema import (
     ConversationCreate,
     ConversationRead,
 )
-from shared.models.enums import PromptType
+from shared.models.enums import CalculationStatus, PromptType
 from shared.models.message_schema import MessageRead
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
 from shared.models.sse_schema import (
@@ -141,10 +141,21 @@ async def run_turn(
     if conversation is None or conversation.user_uuid != principal.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
 
-    # Conversations are project chats only; the single-shot dispatcher has its own stateless endpoint.
-    if conversation.prompt_type != PromptType.PROJECT_CHAT:
+    # Project chats continue here; an ekt_calculator conversation also continues here for follow-up
+    # questions, but only once its run has completed -- mid-run it is driven by the calculation
+    # resume endpoint, not a free-text turn. The single-shot dispatcher has its own stateless endpoint.
+    if conversation.prompt_type not in (PromptType.PROJECT_CHAT, PromptType.EKT_CALCULATOR):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="conversation is not a project chat"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="conversation is not continuable as a chat",
+        )
+    if (
+        conversation.prompt_type == PromptType.EKT_CALCULATOR
+        and conversation.calculation_status != CalculationStatus.COMPLETE
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="calculation is not complete; resume the calculation instead of chatting",
         )
 
     events = project_chat.run_turn(

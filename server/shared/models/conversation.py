@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from shared.models.enums import PromptType
+from shared.models.enums import CalculationStatus, PromptType
 
 
 class Conversation(BaseModel):
@@ -15,6 +15,8 @@ class Conversation(BaseModel):
     user_uuid: UUID
     project_uuid: UUID | None = None
     prompt_type: PromptType
+    calculation_status: CalculationStatus | None = None
+    lv_item_uuid: UUID | None = None
     title: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -28,4 +30,6 @@ class NewConversation(BaseModel):
     user_uuid: UUID
     prompt_type: PromptType
     project_uuid: UUID | None = None
+    calculation_status: CalculationStatus | None = None
+    lv_item_uuid: UUID | None = None
     title: str | None = None

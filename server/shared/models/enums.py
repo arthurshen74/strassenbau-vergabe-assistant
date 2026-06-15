@@ -39,6 +39,16 @@ class PromptType(StrEnum):
     MULTI_QUESTION_GENERATOR = "multi_question_generator"
     LV_EXTRACTION = "lv_extraction"
     CONVERSATION_NAME = "conversation_name"
+    EKT_CALCULATOR = "ekt_calculator"
+
+
+class CalculationStatus(StrEnum):
+    """Lifecycle of an ekt_calculator conversation's graph run."""
+
+    RUNNING = "running"
+    AWAITING_INPUT = "awaiting_input"
+    COMPLETE = "complete"
+    FAILED = "failed"
 
 
 class UsageOperation(StrEnum):

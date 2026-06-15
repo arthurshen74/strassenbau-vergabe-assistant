@@ -5,6 +5,7 @@
 
 import type { MessageRead } from '../../../types/generated';
 import { AggregateResultMessage } from './AggregateResultMessage';
+import { EktResultMessage } from './EktResultMessage';
 import { LvResultMessage } from './LvResultMessage';
 import { MapResultMessage } from './MapResultMessage';
 import { RetrievalTraceMessage } from './RetrievalTraceMessage';
@@ -17,6 +18,8 @@ export const TOOL_GET_LV_SINGLE_ITEM = 'get_lv_single_item';
 export const TOOL_GET_LV_GROUP_ITEMS = 'get_lv_group_items';
 export const TOOL_AGGREGATE_LV_ITEMS = 'aggregate_lv_items';
 export const TOOL_RENDER_MAP = 'render_map';
+// Emitted by the EKT calculator run (CalculatorRunService), not a project-chat tool.
+export const TOOL_EKT_RESULT = 'ekt_result';
 
 export function ToolResultMessage({
   m,
@@ -40,6 +43,8 @@ export function ToolResultMessage({
       );
     case TOOL_RENDER_MAP:
       return <MapResultMessage data={m.data ?? null} projectUuid={projectUuid} />;
+    case TOOL_EKT_RESULT:
+      return <EktResultMessage data={m.data ?? null} />;
     default:
       return null;
   }

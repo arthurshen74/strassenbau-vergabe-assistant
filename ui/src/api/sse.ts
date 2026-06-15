@@ -19,6 +19,8 @@ interface RunStreamOptions<T extends { event: string }> {
   body?: unknown;
   parse: (eventName: string, dataJson: string) => T | null;
   onEvent: (event: T) => void;
+  /** Called once with the response headers when the stream opens (e.g. to read X-Conversation-Uuid). */
+  onOpen?: (headers: Headers) => void;
   signal?: AbortSignal;
 }
 
@@ -28,6 +30,7 @@ async function runStream<T extends { event: string }>({
   body,
   parse,
   onEvent,
+  onOpen,
   signal,
 }: RunStreamOptions<T>): Promise<void> {
   const startedAt = performance.now();
@@ -47,6 +50,7 @@ async function runStream<T extends { event: string }>({
   }
   const requestId = res.headers.get('X-Request-Id');
   log.sse('stream_open', { path, requestId });
+  onOpen?.(res.headers);
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -107,6 +111,7 @@ export interface PostStreamOptions {
   path: string;
   body: unknown;
   onEvent: (event: SSEEvent) => void;
+  onOpen?: (headers: Headers) => void;
   signal?: AbortSignal;
 }
 
@@ -115,9 +120,18 @@ export function postStream({
   path,
   body,
   onEvent,
+  onOpen,
   signal,
 }: PostStreamOptions): Promise<void> {
-  return runStream<SSEEvent>({ path, method: 'POST', body, parse: parseSSEPayload, onEvent, signal });
+  return runStream<SSEEvent>({
+    path,
+    method: 'POST',
+    body,
+    parse: parseSSEPayload,
+    onEvent,
+    onOpen,
+    signal,
+  });
 }
 
 export interface EventStreamOptions<T extends { event: string }> {

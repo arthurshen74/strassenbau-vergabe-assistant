@@ -20,7 +20,10 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
 
 def test_shipped_prompt_files_cover_every_prompt_type() -> None:
     versions = load_prompt_versions()
-    assert {v.prompt_type for v in versions} == set(PromptType)
+    # ekt_calculator's prompts are hardcoded in shared/services/calculator/llm_calls.py, not the
+    # prompt registry, so it ships no .prompt file.
+    expected = set(PromptType) - {PromptType.EKT_CALCULATOR}
+    assert {v.prompt_type for v in versions} == expected
 
 
 def test_parse_valid_file(tmp_path: Path) -> None:

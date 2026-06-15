@@ -28,12 +28,17 @@ import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Annotated, TypedDict
+from uuid import UUID
 
 import yaml
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send, interrupt
 
+from shared.clients.llm.client import LLMClient
+from shared.models.enums import RetrievalModality
 from shared.services.calculator import llm_calls
 from shared.services.calculator.form223 import build_form_223_row
 from shared.services.calculator.formulas import FORMULAS
@@ -46,6 +51,7 @@ from shared.services.calculator.models import (
     ReviewFlag,
 )
 from shared.services.calculator.stores import STORES, climate, fleet_availability
+from shared.services.retrieval.config import RetrievalConfig
 
 REGISTRY_DIR = Path(__file__).parent / "registry"
 CONFIDENCE_GATE = 0.7          # classification below this -> HITL interrupt
@@ -54,9 +60,22 @@ FLAG_THRESHOLD = 0.8           # judgments below this -> batched review flag
 # Async `query -> formatted evidence snippets` callable; None runs without retrieval.
 ContextRetriever = Callable[[str], Awaitable[list[str]]]
 
-# Driver sources whose values live in project documents, not the position text itself.
-# Judgment drivers additionally get retrieval when the registry gives them a hint.
-RETRIEVED_DRIVER_SOURCES = ("plan", "project")
+# Driver source discriminators (registry YAML <-> graph). lv_text reads the LV position; tool:*
+# drivers are fetched deterministically; everything else (plan/project/judgment) is resolved from
+# retrieved tender-document context only.
+DRIVER_SOURCE_LV_TEXT = "lv_text"
+DRIVER_SOURCE_TOOL_PREFIX = "tool:"
+DRIVER_SOURCE_CLIMATE = "tool:climate"
+
+# The calculator's retrieval policy: hybrid dense + BM25 fused by RRF, multi-question expansion,
+# cross-encoder rerank, PLUS scope (project documents + the LV). Shared by every entry point so the
+# CLI and the conversation-backed service resolve drivers against the same evidence.
+CALCULATOR_RETRIEVAL_CONFIG = RetrievalConfig(
+    modality=RetrievalModality.PLUS,
+    multi_query=True,
+    use_bm25=True,
+    use_cross_encoder=True,
+)
 
 # Interrupt payload stages; the CLI dispatches its prompts on these.
 STAGE_CLASSIFICATION = "classification"
@@ -72,8 +91,22 @@ REASONING_LLM = "llm"
 REASONING_PROVIDER = "provider"
 
 
+def _write_live(entry: dict) -> None:
+    """Emit one reasoning entry to the custom stream so the UI and logs see it the moment it is
+    created, mid-node. The sequential driver loop is a single graph node, so without this its
+    per-driver progress would be buffered until the whole node returns (stream_mode='updates' only
+    yields per node). No-op when the run isn't streaming with custom mode (CLI / ainvoke)."""
+    try:
+        writer = get_stream_writer()
+    except RuntimeError:
+        return
+    writer(entry)
+
+
 def reason(stage: str, kind: str, text: str) -> dict:
-    return {"stage": stage, "kind": kind, "text": text}
+    entry = {"stage": stage, "kind": kind, "text": text}
+    _write_live(entry)
+    return entry
 
 
 def reason_llm(stage: str, steps: list[str], provider: str | None) -> list[dict]:
@@ -119,6 +152,8 @@ REGISTRIES = load_registries()
 # ------------------------------------------------------------------- state --
 class AgentState(TypedDict, total=False):
     position: dict                     # the LV position + context docs
+    project_uuid: UUID                 # attribution for usage / execution-log telemetry
+    conversation_uuid: UUID            # set when driven from the chat UI (None in the CLI)
     work_type: str
     classification_notes: str
     classification_confidence: float
@@ -218,16 +253,20 @@ def hitl_confirm_drivers(state: AgentState) -> dict:
     })
     overrides = answer.get("drivers", {})
     if not overrides:
-        return {}
+        return {"reasoning_log": [reason("hitl_confirm_drivers", REASONING_NARRATION,
+                                         "Kalkulator accepted the assumed drivers as-is.")]}
     einheit_by_id = {d.id: d.einheit for d in reg.drivers}
     drivers, new_prov = dict(state["drivers"]), dict(prov)
+    log = []
     for driver_id, raw in overrides.items():
         value = raw
         if einheit_by_id.get(driver_id) not in NON_NUMERIC_EINHEITEN:
             value = coerce_numeric(raw)
         drivers[driver_id] = value
         new_prov[driver_id] = {"source": PROVENANCE_HITL, "confidence": 1.0}
-    return {"drivers": drivers, "driver_provenance": new_prov}
+        log.append(reason("hitl_confirm_drivers", REASONING_NARRATION,
+                          f"Kalkulator set {driver_id} = {value}."))
+    return {"drivers": drivers, "driver_provenance": new_prov, "reasoning_log": log}
 
 
 def derive_drivers(state: AgentState) -> dict:
@@ -272,7 +311,9 @@ def fan_out(state: AgentState):
     return [Send("cost_operation",
                  {"op_def": op.model_dump(by_alias=True),
                   "drivers": state["drivers"],
-                  "kurztext": state["position"]["kurztext"]})
+                  "kurztext": state["position"]["kurztext"],
+                  "project_uuid": state.get("project_uuid"),
+                  "conversation_uuid": state.get("conversation_uuid")})
             for op in reg.operations]
 
 
@@ -325,8 +366,17 @@ def route_feedback(state: AgentState) -> dict:
 
 
 # ------------------------------------------------------------------- build --
-def build_graph(retriever: ContextRetriever | None = None):
-    """Compile the agent graph. The LLM-judging nodes close over `retriever`."""
+def build_graph(
+    retriever: ContextRetriever | None = None,
+    llm: LLMClient | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
+):
+    """Compile the agent graph. The LLM-judging nodes close over `retriever` and `llm`.
+
+    `llm` is the shared transport the three judging sites call through (telemetry +
+    provider-reasoning capture); it is unused in mock mode, so it may be None there.
+    `checkpointer` persists graph state across the HITL interrupts; defaults to an in-process
+    MemorySaver (the conversation-backed service injects an AsyncPostgresSaver)."""
 
     async def retrieve(query: str) -> list[str]:
         return await retriever(query) if retriever is not None else []
@@ -336,7 +386,9 @@ def build_graph(retriever: ContextRetriever | None = None):
                  for r in REGISTRIES.values()]
         snippets = await retrieve(state["position"]["kurztext"])
         res, provider = await llm_calls.classify_position(
-            state["position"], index, snippets)
+            llm, state["position"], index, snippets,
+            project_uuid=state.get("project_uuid"),
+            conversation_uuid=state.get("conversation_uuid"))
         log = [reason("classify", REASONING_NARRATION,
                       "I need to assign the position to a Leistung.")]
         log += reason_llm("classify", res.reasoning, provider)
@@ -348,53 +400,78 @@ def build_graph(retriever: ContextRetriever | None = None):
                 "reasoning_log": log}
 
     async def resolve_drivers(state: AgentState) -> dict:
+        """Resolve each driver in turn: gather its evidence, ask the LLM for ONE decision,
+        record value + provenance + reasoning. Sequential (not batched) so a human can follow
+        the chain and later drivers can lean on the ones resolved before them."""
         reg = REGISTRIES[state["work_type"]]
-        # tool-sourced drivers are fetched deterministically and never asked of
-        # (or shown to) the LLM, so it cannot flag them as unresolvable
-        specs = [d.model_dump() for d in reg.drivers
-                 if not d.source.startswith("tool:")]
-        tool_values = {d.id: climate()["ambient_temp_c"]
-                       for d in reg.drivers if d.source == "tool:climate"}
-        kurztext = state["position"]["kurztext"]
-        retrieved = {d.id: await retrieve(f"{d.hint or d.id} - {kurztext}")
-                     for d in reg.drivers
-                     if d.hint or d.source in RETRIEVED_DRIVER_SOURCES}
-        log = [reason("resolve_drivers", REASONING_NARRATION,
-                      f"I need to resolve the {len(specs)} drivers the calculation "
-                      f"requires; retrieved document context for "
-                      f"{len(retrieved)} of them.")]
-        res, provider = await llm_calls.resolve_drivers(
-            specs, {"position": state["position"], "retrieved_context": retrieved})
-        log += reason_llm("resolve_drivers", res.reasoning, provider)
+        position = state["position"]
+        kurztext = position["kurztext"]
+        project_uuid = state.get("project_uuid")
+        conversation_uuid = state.get("conversation_uuid")
         einheit_by_id = {d.id: d.einheit for d in reg.drivers}
-        drivers, prov, flags = dict(tool_values), {}, []
-        for dv in res.drivers:
-            if dv.id in tool_values:
-                prov[dv.id] = {"source": "tool:climate", "confidence": 1.0}
-                continue
-            value = dv.value
-            einheit = einheit_by_id.get(dv.id)
+
+        # tool-sourced drivers are fetched deterministically and never asked of the LLM.
+        drivers = {d.id: climate()["ambient_temp_c"]
+                   for d in reg.drivers if d.source == DRIVER_SOURCE_CLIMATE}
+        prov = {d_id: {"source": DRIVER_SOURCE_CLIMATE, "confidence": 1.0} for d_id in drivers}
+        to_resolve = [d for d in reg.drivers
+                      if not d.source.startswith(DRIVER_SOURCE_TOOL_PREFIX)]
+        flags: list[dict] = []
+        log = [reason("resolve_drivers", REASONING_NARRATION,
+                      f"I need to resolve {len(to_resolve)} drivers, one at a time: "
+                      f"{', '.join(d.id for d in to_resolve)}.")]
+
+        for d in to_resolve:
+            if d.source == DRIVER_SOURCE_LV_TEXT:
+                evidence = {"lv_position": {"kurztext": kurztext,
+                                            "langtext": position.get("langtext")}}
+                log.append(reason("resolve_drivers", REASONING_NARRATION,
+                                  f"Resolving {d.id} ({d.source}) from the LV position text."))
+            else:                                   # plan / project / judgment: retrieved only
+                snippets = await retrieve(f"{d.hint or d.id} - {kurztext}")
+                evidence = {"retrieved_context": snippets}
+                log.append(reason("resolve_drivers", REASONING_NARRATION,
+                                  f"Resolving {d.id} ({d.source}); retrieved "
+                                  f"{len(snippets)} document snippet(s)."))
+
+            decision, provider = await llm_calls.resolve_one_driver(
+                llm, d.model_dump(), evidence, drivers,
+                project_uuid=project_uuid, conversation_uuid=conversation_uuid)
+            log += reason_llm("resolve_drivers", decision.reasoning, provider)
+
+            einheit = einheit_by_id.get(d.id)
+            value = decision.value
             if value is not None and einheit not in NON_NUMERIC_EINHEITEN:
                 value = coerce_numeric(value)
-            drivers[dv.id] = value
-            prov[dv.id] = {"source": dv.source_quote or "judgment",
-                           "confidence": dv.confidence}
-            if dv.value is None:
-                flags.append(ReviewFlag(where=f"driver:{dv.id}", kind="missing_data",
-                                        detail="not found in documents").model_dump())
+            drivers[d.id] = value
+            prov[d.id] = {"source": decision.source_quote or "judgment",
+                          "confidence": decision.confidence,
+                          "reasoning": decision.reasoning}
+
+            if decision.value is None:
+                flags.append(ReviewFlag(where=f"driver:{d.id}", kind="missing_data",
+                                        detail=decision.note or "not found in documents"
+                                        ).model_dump())
+                log.append(reason("resolve_drivers", REASONING_NARRATION,
+                                  f"{d.id}: not found -> flagged "
+                                  f"({decision.note or 'no value'})."))
             elif value is None:
-                flags.append(ReviewFlag(where=f"driver:{dv.id}", kind="missing_data",
-                                        detail=f"non-numeric value {dv.value!r} "
+                flags.append(ReviewFlag(where=f"driver:{d.id}", kind="missing_data",
+                                        detail=f"non-numeric value {decision.value!r} "
                                                f"(einheit {einheit})").model_dump())
-            elif dv.confidence < FLAG_THRESHOLD:
-                flags.append(ReviewFlag(where=f"driver:{dv.id}", kind="low_confidence",
-                                        detail=f"{value} @ {dv.confidence:.2f}").model_dump())
-        for note in res.flags:
-            flags.append(ReviewFlag(where="drivers", kind="low_confidence",
-                                    detail=note).model_dump())
+                log.append(reason("resolve_drivers", REASONING_NARRATION,
+                                  f"{d.id}: non-numeric value {decision.value!r} -> flagged."))
+            else:
+                if decision.confidence < FLAG_THRESHOLD:
+                    flags.append(ReviewFlag(where=f"driver:{d.id}", kind="low_confidence",
+                                            detail=f"{value} @ {decision.confidence:.2f}"
+                                            ).model_dump())
+                log.append(reason("resolve_drivers", REASONING_NARRATION,
+                                  f"{d.id} = {value} {einheit or ''} @ "
+                                  f"{decision.confidence:.2f}."))
+
         log.append(reason("resolve_drivers", REASONING_NARRATION,
-                          f"Resolved {len(drivers)} drivers, "
-                          f"{len(flags)} flagged for review."))
+                          f"Resolved {len(drivers)} drivers, {len(flags)} flagged for review."))
         return {"drivers": drivers, "driver_provenance": prov,
                 "review_flags": flags, "reasoning_log": log}
 
@@ -418,9 +495,12 @@ def build_graph(retriever: ContextRetriever | None = None):
             log.append(reason(stage, REASONING_NARRATION,
                               f"I need to choose the Bauweise for '{op.label}'."))
             sel, provider = await llm_calls.select_method(
+                llm,
                 {"id": op.id, "label": op.label,
                  "methods": [m.model_dump() for m in op.methods]},
-                rel, fleet_availability(), notes=notes)
+                rel, fleet_availability(), notes=notes,
+                project_uuid=payload.get("project_uuid"),
+                conversation_uuid=payload.get("conversation_uuid"))
             log += reason_llm(stage, sel.reasoning, provider)
             if sel.method == "escalate":
                 flags.append(ReviewFlag(where=f"operation:{op.id}", kind="blocked",
@@ -485,4 +565,4 @@ def build_graph(retriever: ContextRetriever | None = None):
     g.add_edge("assess_risk", "hitl_review")
     g.add_edge("hitl_review", "route_feedback")
     g.add_edge("route_feedback", END)
-    return g.compile(checkpointer=MemorySaver())
+    return g.compile(checkpointer=checkpointer or MemorySaver())

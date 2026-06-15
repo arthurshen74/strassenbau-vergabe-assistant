@@ -60,6 +60,13 @@ prompt_execution_log = Table(
         nullable=True,
         index=True,
     ),
+    Column(
+        "conversation_uuid",
+        UUID(as_uuid=True),
+        ForeignKey("conversations.conversation_uuid", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    ),
     Column("success", Boolean, nullable=False),
     Column("error_message", Text, nullable=True),
     Column("sent_at", DateTime(timezone=True), nullable=True),

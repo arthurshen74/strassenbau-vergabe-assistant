@@ -25,6 +25,7 @@ EVENT_TEXT_DELTA = "text_delta"
 EVENT_FUNCTION_CALL = "function_call"
 EVENT_FUNCTION_CALL_OUTPUT = "function_call_output"
 EVENT_UI_NOTICE = "ui_notice"
+EVENT_INTERRUPT = "interrupt"
 EVENT_DONE = "done"
 
 # Event-data payload keys.
@@ -37,6 +38,8 @@ DATA_RESULT = "data"
 DATA_ERRORS = "errors"
 DATA_CONTENT = "content"
 DATA_LEVEL = "level"
+DATA_STAGE = "stage"
+DATA_PAYLOAD = "payload"
 
 
 class NoticeLevel(StrEnum):
@@ -88,6 +91,17 @@ class SSEUiNotice(BaseModel):
     level: NoticeLevel = NoticeLevel.INFO
 
 
+class SSEInterrupt(BaseModel):
+    """A HITL pause in the EKT calculator run: the UI renders a control for `stage` and posts the
+    decision to the calculation resume endpoint. `payload` is the interrupt value from the graph."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["interrupt"]
+    stage: str
+    payload: dict[str, Any]
+
+
 class SSEDone(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -95,6 +109,11 @@ class SSEDone(BaseModel):
 
 
 SSEEvent = Annotated[
-    SSETextDelta | SSEFunctionCall | SSEFunctionCallOutput | SSEUiNotice | SSEDone,
+    SSETextDelta
+    | SSEFunctionCall
+    | SSEFunctionCallOutput
+    | SSEUiNotice
+    | SSEInterrupt
+    | SSEDone,
     Field(discriminator="event"),
 ]

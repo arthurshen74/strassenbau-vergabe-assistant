@@ -20,6 +20,7 @@ from collections.abc import AsyncIterator
 from uuid import UUID
 
 from fastapi import Depends, Request
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
@@ -30,6 +31,7 @@ from shared.clients.rerank import RerankClient
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient
 from shared.db.unit_of_work import UnitOfWork
+from shared.services.calculator.run_service import CalculatorRunService
 from shared.services.dispatcher import Dispatcher
 from shared.services.project_chat import ProjectChatService
 from shared.services.retrieval import RetrievalService
@@ -61,6 +63,26 @@ def get_reranker(request: Request) -> RerankClient:
 
 def get_telemetry_sinks(request: Request) -> TelemetrySinks:
     return request.app.state.telemetry_sinks
+
+
+def get_calculator_checkpointer(request: Request) -> BaseCheckpointSaver:
+    return request.app.state.calculator_checkpointer
+
+
+def get_calculator_run_service(
+    engine: AsyncEngine = Depends(get_engine),
+    llm: LLMClient = Depends(get_llm_client),
+    embeddings: EmbeddingsClient = Depends(get_embeddings),
+    search: SearchClient = Depends(get_search),
+    reranker: RerankClient = Depends(get_reranker),
+    checkpointer: BaseCheckpointSaver = Depends(get_calculator_checkpointer),
+) -> CalculatorRunService:
+    retrieval = RetrievalService(
+        engine=engine, llm=llm, embeddings=embeddings, search=search, reranker=reranker
+    )
+    return CalculatorRunService(
+        engine=engine, llm=llm, retrieval=retrieval, checkpointer=checkpointer
+    )
 
 
 def get_dispatcher(

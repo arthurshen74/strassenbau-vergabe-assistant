@@ -1,87 +1,49 @@
 """The THREE places an LLM lives in this agent - nowhere else.
 
   1. classify_position   -> ClassificationResult   (which registry file?)
-  2. resolve_drivers     -> DriverResolution       (read documents, decide judgment drivers)
+  2. resolve_one_driver  -> DriverDecision         (read documents / decide ONE driver)
   3. select_method       -> MethodSelection        (pick the Bauweise per operation)
 
-Everything else in the pipeline is deterministic code. All three sites share
-the same contract: structured output with explicit `reasoning` steps, confidence
-+ notes, and an absolute ban on producing or converting numbers beyond reading
-values verbatim from text.
+Everything else in the pipeline is deterministic code. All three sites share the
+same contract: structured output with explicit `reasoning` steps, confidence + notes,
+and an absolute ban on producing or converting numbers beyond reading values verbatim
+from text. Drivers are resolved ONE at a time (a call per driver) so the conversation
+reads as a followable chain and later drivers can lean on earlier ones.
 
-Calls go to OpenRouter (settings.calculator_model) as structured outputs and
-return a (result, provider_reasoning) tuple. The provider's reasoning summary
-is requested via settings.calculator_reasoning_effort and captured from the raw
-HTTP body with an httpx response hook, because langchain-openai drops
-OpenRouter's non-standard `message.reasoning` field during parsing. With
-settings.calculator_mock the canned-but-realistic replies are returned instead;
-they are wired to the FSS demo position (L101 / OZ 01.03.0004).
+Calls go through the shared `LLMClient` (settings.calculator_model over OpenRouter),
+which records usage + execution-log telemetry and, via `chat_with_reasoning`, returns
+the provider's reasoning summary alongside the validated output. The summary is requested
+with settings.calculator_reasoning_effort and is best-effort (None when the model emits
+none). Temperature is omitted because the calculator model is a reasoning model. With
+settings.calculator_mock the canned-but-realistic replies are returned instead; they are
+wired to the FSS demo position (L101 / OZ 01.03.0004).
 """
 
 from __future__ import annotations
 
 import json
-from typing import TypeVar
+from uuid import UUID
 
-import httpx
-from langchain_core.utils import convert_to_secret_str
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
-
+from shared.clients.llm.client import (
+    LLMClient,
+    MESSAGE_CONTENT,
+    MESSAGE_ROLE,
+    ROLE_SYSTEM,
+    ROLE_USER,
+)
 from shared.config import settings
 from shared.services.calculator.models import (
     ClassificationResult,
-    DriverResolution,
-    DriverValue,
+    DriverDecision,
     MethodSelection,
 )
 
-# The ChatOpenAI base_url is the chat-completions URL without its endpoint suffix; one
-# settings value is the source of truth for the OpenRouter host.
-_CHAT_COMPLETIONS_SUFFIX = "/chat/completions"
 
-T = TypeVar("T", bound=BaseModel)
-
-
-class _ReasoningCapture:
-    """httpx response hook that lifts OpenRouter's `message.reasoning` summary
-    from the raw chat-completions body (best-effort; absent on error bodies and
-    on models that return no reasoning)."""
-
-    def __init__(self) -> None:
-        self.reasoning: str | None = None
-
-    async def __call__(self, response: httpx.Response) -> None:
-        await response.aread()
-        try:
-            message = response.json()["choices"][0]["message"]
-        except (ValueError, LookupError):
-            return
-        reasoning = message.get("reasoning")
-        if isinstance(reasoning, str) and reasoning.strip():
-            self.reasoning = reasoning.strip()
-
-
-async def _ainvoke(schema: type[T], messages: list[tuple[str, str]]) -> tuple[T, str | None]:
-    capture = _ReasoningCapture()
-    extra_body = {}
-    if settings.calculator_reasoning_effort is not None:
-        # summary "detailed" nudges OpenAI models to emit a summary; even so the
-        # field is null whenever the model produces no summarizable reasoning.
-        extra_body["reasoning"] = {"effort": settings.calculator_reasoning_effort,
-                                   "summary": "detailed"}
-    async with httpx.AsyncClient(event_hooks={"response": [capture]}) as http_client:
-        model = ChatOpenAI(
-            model=settings.calculator_model,
-            base_url=settings.openrouter_api_url_chat.removesuffix(_CHAT_COMPLETIONS_SUFFIX),
-            api_key=convert_to_secret_str(settings.openrouter_api_key or ""),
-            extra_body=extra_body,
-            http_async_client=http_client,
-        )
-        result = await model.with_structured_output(
-            schema, method="function_calling"
-        ).ainvoke(messages)
-    return result, capture.reasoning
+def _messages(system: str, user: str) -> list[dict[str, str]]:
+    return [
+        {MESSAGE_ROLE: ROLE_SYSTEM, MESSAGE_CONTENT: system},
+        {MESSAGE_ROLE: ROLE_USER, MESSAGE_CONTENT: user},
+    ]
 
 
 # =============================================================================
@@ -113,7 +75,13 @@ Rules:
 
 
 async def classify_position(
-    position: dict, registry_index: list[dict], context_snippets: list[str]
+    llm: LLMClient,
+    position: dict,
+    registry_index: list[dict],
+    context_snippets: list[str],
+    *,
+    project_uuid: UUID | None = None,
+    conversation_uuid: UUID | None = None,
 ) -> tuple[ClassificationResult, str | None]:
     if settings.calculator_mock:
         return ClassificationResult(
@@ -128,82 +96,118 @@ async def classify_position(
             f"Registered work types:\n{json.dumps(registry_index, ensure_ascii=False, indent=2)}\n\n"
             f"Retrieved project context:\n"
             f"{json.dumps(context_snippets, ensure_ascii=False, indent=2)}")
-    return await _ainvoke(ClassificationResult,
-                          [("system", CLASSIFY_SYSTEM), ("user", user)])
+    return await llm.chat_with_reasoning(
+        model=settings.calculator_model,
+        messages=_messages(CLASSIFY_SYSTEM, user),
+        output_model=ClassificationResult,
+        temperature=None,
+        reasoning_effort=settings.calculator_reasoning_effort,
+        strict=False,
+        project_uuid=project_uuid,
+        conversation_uuid=conversation_uuid,
+    )
 
 
 # =============================================================================
-# PROMPT 2 - DRIVER RESOLUTION  (extraction + judgment drivers, flagged)
+# PROMPT 2 - DRIVER RESOLUTION  (ONE call per driver; evidence-only)
 # =============================================================================
-DRIVERS_SYSTEM = """\
-You are the driver-resolution stage of a German road-construction cost agent.
-The registry for this work type defines the drivers (facts) the deterministic
-calculation needs. Your job is to fill them from the documents - never from
-your own knowledge.
+DRIVER_SYSTEM = """\
+You are the driver-resolution stage of a German road-construction cost agent. You
+resolve ONE driver - a fact the deterministic calculation needs - from the supplied
+evidence, never from your own knowledge and never from anything outside the evidence.
 
 You will be given:
-- The driver specs: id, source, einheit, and (for judgment drivers) options.
-- The LV position text.
-- Per-driver retrieved project context (plan and Baubeschreibung excerpts,
-  found by semantic search over the tender documents).
+- One driver spec: id, source, einheit, decision rule (description) and, for a
+  judgment driver, its options.
+- The evidence for this driver: for an lv_text driver, the LV position text; for a
+  plan/project/judgment driver, excerpts retrieved from the tender documents by
+  semantic + keyword search.
+- The drivers already resolved earlier this run, for judgment calls that depend on them.
 
-Rules per driver, by its `source`:
-- lv_text / plan / project: READ the value from the matching document. Copy it
-  as written (convert nothing, compute nothing). Put the verbatim snippet in
-  source_quote. If the unit in the text differs from the requested einheit,
-  report what the text says and flag it - do not convert.
-- judgment: choose EXACTLY ONE of the offered options, using the documents and
-  the retrieved context. Explain nothing in the value; the choice IS the value.
-  These are judgment calls - be honest in confidence.
-- Anything you cannot find: value null, and add a human-readable entry to
-  flags. NEVER fill a gap with a typical or assumed value.
+Rules by source:
+- lv_text / plan / project: READ the value from the evidence and copy it verbatim
+  (convert nothing, compute nothing); put the exact snippet in source_quote. If the
+  text's unit differs from einheit, report what the text says and note it - do not convert.
+- judgment: choose EXACTLY ONE of the offered options using the evidence and the
+  decision rule. The choice IS the value; put your justification in reasoning, not value.
+- If the evidence does not contain the value: value null and say why in note. NEVER
+  fill a gap with a typical or assumed value.
 
-confidence: per driver. Direct verbatim read => 0.95+. Inferred from context
-(e.g. deriving access_class from strip width + Handeinbau hints) => 0.6-0.8.
-reasoning: fill FIRST with 2-5 short steps covering the non-obvious reads and
-every judgment call (evidence -> rule -> conclusion).
+confidence: direct verbatim read => 0.95+; inferred from context => 0.6-0.8.
+reasoning: fill FIRST with 2-5 short steps (evidence -> rule -> conclusion), English
+with the German terms kept verbatim.
 You extract and decide; you never calculate.
 """
 
+# Canned per-driver replies for --mock, wired to the FSS demo position (OZ 01.03.0004).
+_MOCK_DRIVER_DECISIONS: dict[str, DriverDecision] = {
+    "material_spec": DriverDecision(
+        reasoning=['Langtext names "Baustoffgemisch 0/32 ... B2-Material" verbatim.',
+                   "Grading 0/32 + class B2 -> catalog key FSS 0/32 B2."],
+        value="FSS 0/32 B2",
+        source_quote="Baustoffgemisch 0/32 ... B2-Material, gebr. Naturgestein nach "
+                     "ZTV-StB LSBB St 21", confidence=0.97),
+    "einbaudicke_cm": DriverDecision(
+        reasoning=["Langtext states the Einbaudicke directly.", "lv_text: copy verbatim."],
+        value=20, source_quote="Einbaudicke '= 20 cm'", confidence=0.97),
+    "ev2_target_mpa": DriverDecision(
+        reasoning=["Langtext gives the Verformungsmodul target.", "lv_text: copy verbatim."],
+        value=45, source_quote="Verdichtungsgrad/Verformungsmodul 'Ev2 = 45 MPa.'",
+        confidence=0.97),
+    "strip_length_m": DriverDecision(
+        reasoning=["Plan excerpt gives the abgerechnete Laenge of the Verbreiterungsstreifen.",
+                   "Single Bauphase -> Ausbaulaenge is the full strip length."],
+        value=1000, source_quote="plan: Verbreiterungsstreifen, abgerechnete Laenge",
+        confidence=0.9),
+    "strip_width_m": DriverDecision(
+        reasoning=["Streifenbreite cited in the sibling OZ 01.03.0005 Hinweis."],
+        value=0.5, source_quote="Streifenbreite >/= 50,0 cm (Hinweis zur OZ 01.03.0005)",
+        confidence=0.85),
+    "haul_distance_km": DriverDecision(
+        reasoning=["Project context names the naechstes Lieferwerk distance."],
+        value=12, source_quote="project: naechstes Lieferwerk", confidence=0.8),
+    "section_scope": DriverDecision(
+        reasoning=["Documents name a single Bauphase for the strip -> single_length."],
+        value="single_length", confidence=0.8),
+    "access_class": DriverDecision(
+        reasoning=["Narrow Verbreiterungsstreifen + Handeinbau hint in sibling OZ 01.03.0005.",
+                   "Confined vs open -> confined."],
+        value="confined", confidence=0.72),
+    "loss_profile": DriverDecision(
+        reasoning=["Nichttragfaehige Teilflaechen + narrow strip -> elevated loss vs standard."],
+        value="elevated", confidence=0.70),
+}
 
-async def resolve_drivers(
-    driver_specs: list[dict], context: dict
-) -> tuple[DriverResolution, str | None]:
+
+async def resolve_one_driver(
+    llm: LLMClient,
+    spec: dict,
+    evidence: dict,
+    resolved: dict,
+    *,
+    project_uuid: UUID | None = None,
+    conversation_uuid: UUID | None = None,
+) -> tuple[DriverDecision, str | None]:
     if settings.calculator_mock:
-        return DriverResolution(
-            reasoning=["Material, Dicke and Ev2 read verbatim from the Langtext.",
-                       "Strip geometry comes from the plan excerpt; width is cited in the "
-                       "sibling OZ 01.03.0005 Hinweis.",
-                       "Narrow strip + Handeinbau hint + nichttragfaehige Teilflaechen -> "
-                       "confined access and elevated loss."],
-            drivers=[
-            DriverValue(id="material_spec", value="FSS 0/32 B2", einheit="text",
-                        source_quote="Baustoffgemisch 0/32 ... B2-Material, gebr. Naturgestein "
-                                     "nach ZTV-StB LSBB St 21", confidence=0.97),
-            DriverValue(id="einbaudicke_cm", value=20, einheit="cm",
-                        source_quote="Einbaudicke '= 20 cm'", confidence=0.97),
-            DriverValue(id="ev2_target_mpa", value=45, einheit="MPa",
-                        source_quote="Verdichtungsgrad/Verformungsmodul 'Ev2 = 45 MPa.'",
-                        confidence=0.97),
-            DriverValue(id="strip_length_m", value=1000, einheit="m",
-                        source_quote="plan: Verbreiterungsstreifen, abgerechnete Laenge",
-                        confidence=0.9),
-            DriverValue(id="strip_width_m", value=0.5, einheit="m",
-                        source_quote="Streifenbreite >/= 50,0 cm (Hinweis zur OZ 01.03.0005)",
-                        confidence=0.85),
-            DriverValue(id="haul_distance_km", value=12, einheit="km",
-                        source_quote="project: naechstes Lieferwerk", confidence=0.8),
-            DriverValue(id="ambient_temp_c", value=16.0, einheit="degC",
-                        source_quote="tool:climate normals, build window", confidence=0.9),
-            DriverValue(id="access_class", value="confined", confidence=0.72),
-            DriverValue(id="loss_profile", value="elevated", confidence=0.70),
-        ], flags=["access_class and loss_profile are judgment calls: narrow "
-                  "Verbreiterungsstreifen + Handeinbau hint in sibling OZ 01.03.0005 "
-                  "+ nichttragfaehige Teilflaechen -> confined access, elevated loss."]), None
-    user = (f"Driver specs:\n{json.dumps(driver_specs, ensure_ascii=False, indent=2)}\n\n"
-            f"Context documents:\n{json.dumps(context, ensure_ascii=False, indent=2)}")
-    return await _ainvoke(DriverResolution,
-                          [("system", DRIVERS_SYSTEM), ("user", user)])
+        decision = _MOCK_DRIVER_DECISIONS.get(spec["id"])
+        if decision is None:
+            decision = DriverDecision(value=None, confidence=0.0,
+                                      note="mock: no canned value for this driver")
+        return decision, None
+    user = (f"Driver to resolve:\n{json.dumps(spec, ensure_ascii=False, indent=2)}\n\n"
+            f"Evidence (use ONLY this):\n{json.dumps(evidence, ensure_ascii=False, indent=2)}\n\n"
+            f"Drivers already resolved this run:\n"
+            f"{json.dumps(resolved, ensure_ascii=False, indent=2, default=str)}")
+    return await llm.chat_with_reasoning(
+        model=settings.calculator_model,
+        messages=_messages(DRIVER_SYSTEM, user),
+        output_model=DriverDecision,
+        temperature=None,
+        reasoning_effort=settings.calculator_reasoning_effort,
+        strict=False,
+        project_uuid=project_uuid,
+        conversation_uuid=conversation_uuid,
+    )
 
 
 # =============================================================================
@@ -238,8 +242,16 @@ Rules:
 """
 
 
-async def select_method(operation: dict, drivers: dict, fleet: dict,
-                        notes: list[str]) -> tuple[MethodSelection, str | None]:
+async def select_method(
+    llm: LLMClient,
+    operation: dict,
+    drivers: dict,
+    fleet: dict,
+    notes: list[str],
+    *,
+    project_uuid: UUID | None = None,
+    conversation_uuid: UUID | None = None,
+) -> tuple[MethodSelection, str | None]:
     if settings.calculator_mock:
         canned = {
             "distribute": MethodSelection(
@@ -270,5 +282,13 @@ async def select_method(operation: dict, drivers: dict, fleet: dict,
             f"Fleet availability:\n{json.dumps(fleet, indent=2)}\n\n"
             f"Retrieved context and reasoning notes:\n"
             f"{json.dumps(notes, ensure_ascii=False, indent=2)}")
-    return await _ainvoke(MethodSelection,
-                          [("system", METHOD_SYSTEM), ("user", user)])
+    return await llm.chat_with_reasoning(
+        model=settings.calculator_model,
+        messages=_messages(METHOD_SYSTEM, user),
+        output_model=MethodSelection,
+        temperature=None,
+        reasoning_effort=settings.calculator_reasoning_effort,
+        strict=False,
+        project_uuid=project_uuid,
+        conversation_uuid=conversation_uuid,
+    )

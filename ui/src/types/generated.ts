@@ -156,7 +156,8 @@ export interface PromptVersionRead {
     | "aggregate_lv_membership"
     | "multi_question_generator"
     | "lv_extraction"
-    | "conversation_name";
+    | "conversation_name"
+    | "ekt_calculator";
   version: number;
   model_name: string;
   system_prompt: string;
@@ -172,7 +173,8 @@ export interface PromptVersionCreate {
     | "aggregate_lv_membership"
     | "multi_question_generator"
     | "lv_extraction"
-    | "conversation_name";
+    | "conversation_name"
+    | "ekt_calculator";
   model_name: string;
   system_prompt: string;
   temperature?: number | null;
@@ -189,7 +191,10 @@ export interface ConversationRead {
     | "aggregate_lv_membership"
     | "multi_question_generator"
     | "lv_extraction"
-    | "conversation_name";
+    | "conversation_name"
+    | "ekt_calculator";
+  calculation_status?: ("running" | "awaiting_input" | "complete" | "failed") | null;
+  lv_item_uuid?: string | null;
   title?: string | null;
   created_at: string;
   updated_at: string;
@@ -202,7 +207,8 @@ export interface ConversationCreate {
     | "aggregate_lv_membership"
     | "multi_question_generator"
     | "lv_extraction"
-    | "conversation_name";
+    | "conversation_name"
+    | "ekt_calculator";
   project_uuid?: string | null;
   title?: string | null;
 }
@@ -437,6 +443,14 @@ export interface AggregateCoverage {
   total: number;
 }
 
+export interface AggregateTraceEntry {
+  stage: "entry_started" | "items_loaded" | "matched" | "result_ready";
+  at: string;
+  data: {
+    [k: string]: unknown;
+  };
+}
+
 export interface AggregateResult {
   predicate: string;
   unit?: string | null;
@@ -444,6 +458,7 @@ export interface AggregateResult {
   breakdown: AggregateLineItem[];
   bedarfs_eventual: AggregateLineItem[];
   coverage: AggregateCoverage;
+  trace?: AggregateTraceEntry[];
 }
 
 // ---- Types pinned by scripts/export_schema.py ----
@@ -516,6 +531,14 @@ export interface SSEUiNotice {
   level?: "info" | "error";
 }
 
+export interface SSEInterrupt {
+  event: "interrupt";
+  stage: string;
+  payload: {
+    [k: string]: unknown;
+  };
+}
+
 export interface SSEDone {
   event: "done";
 }
@@ -533,4 +556,5 @@ export type SSEEvent =
   | SSEFunctionCall
   | SSEFunctionCallOutput
   | SSEUiNotice
+  | SSEInterrupt
   | SSEDone;

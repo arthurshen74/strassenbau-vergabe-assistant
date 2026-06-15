@@ -36,13 +36,14 @@ from shared.db.engine import make_engine
 from shared.models.lv_item import LVItem
 from shared.repositories.lv_items import LVItemRepository
 from shared.services.calculator.graph import (
+    CALCULATOR_RETRIEVAL_CONFIG,
     REASONING_LLM,
     REASONING_NARRATION,
     STAGE_CLASSIFICATION,
     STAGE_DRIVER_CONFIRMATION,
     build_graph,
 )
-from shared.services.retrieval import RetrievalConfig, RetrievalService
+from shared.services.retrieval import RetrievalService
 
 PHOENIX_PROJECT = "ekt-calculator"
 
@@ -92,17 +93,18 @@ async def main() -> None:
             print(f"no LV position {args.oz} in project {args.project}", file=sys.stderr)
             raise SystemExit(1)
 
-        config = RetrievalConfig()
+        config = CALCULATOR_RETRIEVAL_CONFIG
 
         async def retrieve(query: str) -> list[str]:
             ctx = await retrieval.retrieve_context(query, args.project, config)
             return [c.chunk_text for c in ctx.context]
 
-        app = build_graph(retriever=None if args.mock else retrieve)
+        app = build_graph(retriever=None if args.mock else retrieve, llm=llm)
         cfg = {"configurable": {"thread_id": f"ekt-{args.project}-{args.oz}"}}
 
         print(f"position {item.oz}: {item.kurztext} — {item.menge} {item.einheit}")
-        pending = await _stream(app, cfg, {"position": _position(item)})
+        pending = await _stream(app, cfg,
+                                {"position": _position(item), "project_uuid": args.project})
         while pending is not None:
             command = await _prompt_for_resume(app, cfg, pending)
             pending = await _stream(app, cfg, command)

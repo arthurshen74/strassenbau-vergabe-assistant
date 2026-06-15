@@ -49,6 +49,12 @@ REQUEST_TOOLS = "tools"
 REQUEST_TOOL_CHOICE = "tool_choice"
 REQUEST_STREAM = "stream"
 REQUEST_STREAM_OPTIONS = "stream_options"
+REQUEST_REASONING = "reasoning"
+
+# Reasoning request sub-object (OpenRouter): ask the model to emit a reasoning summary.
+REASONING_EFFORT = "effort"
+REASONING_SUMMARY = "summary"
+REASONING_SUMMARY_DETAILED = "detailed"
 
 # response_format / json_schema sub-object keys and the response_format discriminator value.
 RESPONSE_FORMAT_TYPE = "type"
@@ -68,7 +74,9 @@ MESSAGE_ROLE = "role"
 MESSAGE_CONTENT = "content"
 MESSAGE_REFUSAL = "refusal"
 MESSAGE_TOOL_CALLS = "tool_calls"
+MESSAGE_REASONING = "reasoning"
 ROLE_SYSTEM = "system"
+ROLE_USER = "user"
 
 # Response object keys.
 RESPONSE_CHOICES = "choices"
@@ -191,6 +199,86 @@ class LLMClient:
     ) -> str | T:
         """Run a chat completion. With `output_model`, request JSON-schema-constrained output
         and return a validated instance; without it, return the raw assistant text."""
+        _, content = await self._invoke(
+            model=model,
+            messages=messages,
+            output_model=output_model,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            chat_prompt_type=chat_prompt_type,
+            chat_prompt_version=chat_prompt_version,
+            project_uuid=project_uuid,
+            ingest_job_uuid=ingest_job_uuid,
+            document_uuid=document_uuid,
+            conversation_uuid=conversation_uuid,
+            reasoning_effort=None,
+        )
+        if output_model is None:
+            return content
+        return output_model.model_validate_json(content)
+
+    async def chat_with_reasoning(
+        self,
+        *,
+        model: str,
+        messages: Sequence[ChatMessage | Mapping[str, Any]],
+        output_model: type[T],
+        temperature: float | None = 0.0,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+        strict: bool = True,
+        chat_prompt_type: str | None = None,
+        chat_prompt_version: int | None = None,
+        project_uuid: UUID | None = None,
+        ingest_job_uuid: UUID | None = None,
+        document_uuid: UUID | None = None,
+        conversation_uuid: UUID | None = None,
+    ) -> tuple[T, str | None]:
+        """Like `chat` with a structured `output_model`, but also returns the provider's reasoning
+        summary (OpenRouter's `message.reasoning`). The summary is best-effort: None when the model
+        or routed provider emits none. `reasoning_effort` requests one when set."""
+        message, content = await self._invoke(
+            model=model,
+            messages=messages,
+            output_model=output_model,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            chat_prompt_type=chat_prompt_type,
+            chat_prompt_version=chat_prompt_version,
+            project_uuid=project_uuid,
+            ingest_job_uuid=ingest_job_uuid,
+            document_uuid=document_uuid,
+            conversation_uuid=conversation_uuid,
+            reasoning_effort=reasoning_effort,
+            strict=strict,
+        )
+        raw = message.get(MESSAGE_REASONING)
+        summary = raw.strip() if isinstance(raw, str) and raw.strip() else None
+        return output_model.model_validate_json(content), summary
+
+    async def _invoke(
+        self,
+        *,
+        model: str,
+        messages: Sequence[ChatMessage | Mapping[str, Any]],
+        output_model: type[T] | None,
+        temperature: float | None,
+        top_p: float | None,
+        max_tokens: int | None,
+        chat_prompt_type: str | None,
+        chat_prompt_version: int | None,
+        project_uuid: UUID | None,
+        ingest_job_uuid: UUID | None,
+        document_uuid: UUID | None,
+        conversation_uuid: UUID | None,
+        reasoning_effort: str | None,
+        strict: bool = True,
+    ) -> tuple[dict[str, Any], str]:
+        """Run one completion end to end: build payload, post, emit usage + execution log, raise on
+        refusal/truncation, and return the response message dict and its text content."""
         payload: dict[str, Any] = {
             REQUEST_MODEL: model,
             REQUEST_MESSAGES: [_serialize_message(m) for m in messages],
@@ -205,8 +293,13 @@ class LLMClient:
         if max_tokens is not None:
             payload[REQUEST_MAX_TOKENS] = max_tokens
         if output_model is not None:
-            payload[REQUEST_RESPONSE_FORMAT] = _json_schema_response_format(output_model)
+            payload[REQUEST_RESPONSE_FORMAT] = _json_schema_response_format(output_model, strict)
             payload[REQUEST_PROVIDER] = {PROVIDER_REQUIRE_PARAMETERS: True}
+        if reasoning_effort is not None:
+            payload[REQUEST_REASONING] = {
+                REASONING_EFFORT: reasoning_effort,
+                REASONING_SUMMARY: REASONING_SUMMARY_DETAILED,
+            }
 
         sent_at = datetime.now(UTC)
         response = await self._client.post(self._chat_url, headers=self._headers(), json=payload)
@@ -224,7 +317,7 @@ class LLMClient:
         returned_at = datetime.now(UTC)
 
         # Emit usage before the refusal/truncation checks: a content-filtered or length-truncated
-        # 200 still bills tokens, so the cost must be recorded even though chat() then raises.
+        # 200 still bills tokens, so the cost must be recorded even though we then raise.
         await self._emit_usage(
             body,
             model=model,
@@ -269,6 +362,7 @@ class LLMClient:
             chat_prompt_version=chat_prompt_version,
             project_uuid=project_uuid,
             ingest_job_uuid=ingest_job_uuid,
+            conversation_uuid=conversation_uuid,
         )
 
         if is_refusal:
@@ -278,9 +372,7 @@ class LLMClient:
             logger.warning("LLM output truncated: model=%s", model)
             raise OutputTruncatedError(error_message or "output truncated")
 
-        if output_model is None:
-            return content
-        return output_model.model_validate_json(content)
+        return message, content
 
     async def stream_chat(
         self,
@@ -405,6 +497,7 @@ class LLMClient:
             chat_prompt_version=chat_prompt_version,
             project_uuid=project_uuid,
             ingest_job_uuid=ingest_job_uuid,
+            conversation_uuid=conversation_uuid,
         )
 
     async def _emit_usage(
@@ -455,6 +548,7 @@ class LLMClient:
         chat_prompt_version: int | None,
         project_uuid: UUID | None,
         ingest_job_uuid: UUID | None,
+        conversation_uuid: UUID | None,
     ) -> None:
         # Execution logging must never fail the chat call: swallow and log any error.
         try:
@@ -484,6 +578,7 @@ class LLMClient:
                 request_id=body.get(RESPONSE_ID),
                 project_uuid=project_uuid,
                 ingest_job_uuid=ingest_job_uuid,
+                conversation_uuid=conversation_uuid,
                 error_message=error_message,
                 sent_at=sent_at,
                 returned_at=returned_at,
@@ -536,12 +631,16 @@ class _ToolCallBuf:
         return ToolCall(id=self.id, name=self.name, arguments=self.arguments or "{}")
 
 
-def _json_schema_response_format(output_model: type[BaseModel]) -> dict[str, Any]:
+def _json_schema_response_format(
+    output_model: type[BaseModel], strict: bool = True
+) -> dict[str, Any]:
+    # strict=True makes the provider enforce all-keys-required + additionalProperties:false; models
+    # with optional/defaulted fields must pass strict=False and lean on Pydantic validation instead.
     return {
         RESPONSE_FORMAT_TYPE: RESPONSE_FORMAT_JSON_SCHEMA,
         RESPONSE_FORMAT_JSON_SCHEMA: {
             JSON_SCHEMA_NAME: output_model.__name__,
-            JSON_SCHEMA_STRICT: True,
+            JSON_SCHEMA_STRICT: strict,
             JSON_SCHEMA_SCHEMA: output_model.model_json_schema(),
         },
     }
