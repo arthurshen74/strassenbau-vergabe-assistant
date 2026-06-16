@@ -1,0 +1,62 @@
+# Leistungs-Registry: Planum herstellen
+# Rule: `prior:` refs are only valid WITHIN an operation.
+# Feinplanieren the formation to +/-2 cm plus the Ev2 acceptance proof. Reuses the grader/
+# loader methods (criteria rewritten for Feinplanum) over a feinplanum-specific performance
+# rate; the proof is the area-based sibling of the FSS Plattendruckversuch.
+work_type: planum_herstellen
+version: "2026-06-16"
+triggers:
+  keywords: [Planum, Planum herstellen, Feinplanum, Feinplanieren, Erdplanum,
+             Verformungsmodul, Sollhöhe]
+
+drivers:
+  - {id: flaeche_m2,      source: plan,         einheit: m2,
+     hint: "Planumsflaeche herzustellende Flaeche Planum Flaeche"}
+  - {id: ev2_target_mpa,  source: lv_text,      einheit: MPa}
+  - {id: haul_distance_km, source: project,     einheit: km,
+     hint: "Entfernung Bauhof Anfahrt Baustelle Geraet"}
+  - {id: access_class,    source: judgment,     options: [open, confined]}
+
+operations:
+
+  - id: feinplanum
+    label: "Planum feinplanieren"
+    methods:
+      - {id: motor_grader_3dgnss, machine_class: grader_3d,
+         criteria: "large open areas, GNSS surface model, fine trimming to +/-2 cm Sollhöhe"}
+      - {id: dozer_loader_grader, machine_class: loader_small,
+         criteria: "confined or irregular areas, small patches, profile by small loader/grader"}
+    selection:
+      on: [flaeche_m2, access_class]
+      consult: [fleet_availability, reasoning_notes]
+    requirements:
+      - goal: "Calculate feinplanum duration over the area"
+        formula: duration_by_area_performance
+        out: {id: plan_hours, einheit: h}
+        params:
+          quantity_m2: {from: drivers, field: flaeche_m2}
+          perf_m2_h:   {from: store, call: performance_rate, args: [operation_id, method_id, access_class]}
+      - goal: "Cost the machine hours"
+        formula: equipment_cost
+        params:
+          hours:      {from: prior, ref: plan_hours}
+          rate_eur_h: {from: store, call: bgl_rate, args: [machine_class]}
+      - goal: "Cost the crew bound to the machine"
+        formula: crew_cost
+        params:
+          hours: {from: prior, ref: plan_hours}
+          crew:  {from: store, call: crew_norm, args: [method_id]}
+      - goal: "Cost machine mobilization to site"
+        formula: machine_mobilization
+        params:
+          distance_km: {from: drivers, field: haul_distance_km}
+          machine:     {from: store, call: mobilization_rate, args: [machine_class]}
+
+  - id: nachweis
+    label: "Verformungsmodul-Nachweis (Plattendruckversuch)"
+    requirements:
+      - goal: "Cost the Ev2 {ev2_target_mpa} MPa proof tests over the Planum area"
+        formula: proof_test_area_cost
+        params:
+          area_m2: {from: drivers, field: flaeche_m2}
+          norm:    {from: store, call: test_norm, args_const: [plattendruck]}

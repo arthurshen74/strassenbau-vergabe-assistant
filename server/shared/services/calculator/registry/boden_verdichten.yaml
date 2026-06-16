@@ -1,0 +1,57 @@
+# Leistungs-Registry: Boden verdichten
+# Rule: `prior:` refs are only valid WITHIN an operation.
+# Verdichten des Untergrunds (e.g. in Einschnitten). Single method-driven operation; the
+# Bodenart steers Walzenzug vs Rüttelplatte. Area-based duration (m2/h), no material supply.
+work_type: boden_verdichten
+version: "2026-06-16"
+triggers:
+  keywords: [Boden verdichten, Verdichten, Untergrund, Einschnitt, Erdplanum verdichten,
+             Untergrund verdichten, Bodenverdichtung]
+
+drivers:
+  - {id: flaeche_m2,      source: plan,         einheit: m2,
+     hint: "zu verdichtende Flaeche Untergrund Einschnitt Flaeche"}
+  - id: bodenart
+    source: judgment
+    options: [bindiger Boden, nichtbindiger Boden, gemischtkörniger Boden]
+    description: >-
+      Soil type of the Untergrund as named in the documents. Bindige/gemischtkörnige Böden
+      favour a Walzenzug (kneading compaction); confined areas favour the Rüttelplatte.
+  - {id: haul_distance_km, source: project,     einheit: km,
+     hint: "Entfernung Bauhof Anfahrt Baustelle Geraet"}
+  - {id: access_class,    source: judgment,     options: [open, confined]}
+
+operations:
+
+  - id: verdichten
+    label: "Boden / Untergrund verdichten"
+    methods:
+      - {id: walzenzug,     machine_class: walzenzug,
+         criteria: "large open areas, Untergrund/Erdplanum, vibratory roller, contiguous runs"}
+      - {id: ruettelplatte, machine_class: plate_500kg,
+         criteria: "confined areas, Einschnitte edges, around fixtures, small areas"}
+    selection:
+      on: [flaeche_m2, access_class, bodenart]
+      consult: [fleet_availability, reasoning_notes]
+    requirements:
+      - goal: "Calculate compaction duration over the area"
+        formula: duration_by_area_performance
+        out: {id: verd_hours, einheit: h}
+        params:
+          quantity_m2: {from: drivers, field: flaeche_m2}
+          perf_m2_h:   {from: store, call: performance_rate, args: [operation_id, method_id, access_class]}
+      - goal: "Cost the machine hours"
+        formula: equipment_cost
+        params:
+          hours:      {from: prior, ref: verd_hours}
+          rate_eur_h: {from: store, call: bgl_rate, args: [machine_class]}
+      - goal: "Cost the crew bound to the machine"
+        formula: crew_cost
+        params:
+          hours: {from: prior, ref: verd_hours}
+          crew:  {from: store, call: crew_norm, args: [method_id]}
+      - goal: "Cost machine mobilization to site"
+        formula: machine_mobilization
+        params:
+          distance_km: {from: drivers, field: haul_distance_km}
+          machine:     {from: store, call: mobilization_rate, args: [machine_class]}

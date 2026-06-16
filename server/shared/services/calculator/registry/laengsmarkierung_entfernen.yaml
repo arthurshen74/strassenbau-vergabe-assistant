@@ -1,0 +1,64 @@
+# Leistungs-Registry: Längsmarkierung entfernen
+# Rule: `prior:` refs are only valid WITHIN an operation.
+# Abgerechnet wird der entfernte Strich (m); bei Doppelstrichen zwei Striche.
+# A single method-driven removal operation: the Bauweise (Fräsen / Wasserhochdruck /
+# Feinstfräsen) is the judgment, costed per running metre of removed Strich. The listed
+# machines are self-collecting, so the "Abfall aufnehmen" step is covered by the operation.
+work_type: laengsmarkierung_entfernen
+version: "2026-06-16"
+triggers:
+  keywords: [Längsmarkierung entfernen, Markierung entfernen, Strich entfernen,
+             Demarkierung, Fahrbahnmarkierung entfernen, Sperrflächenumrandung]
+
+drivers:
+  - {id: strich_length_m, source: plan,         einheit: m,
+     hint: "Laenge Laengsmarkierung Strich abgerechnete Laenge entfernte Markierung"}
+  - id: markierungsstoffart
+    source: judgment
+    options: [Farbe, Plastik, Folie]
+    description: >-
+      Material of the existing Markierung as named in the Langtext (Markierungsstoffart
+      Farbe / Plastik / Folie). Thicker Plastik/Folie favours a milling technique;
+      thin Farbe can also be taken by Wasserhochdruck or Feinstfräsen.
+  - {id: untergrund,      source: judgment,     options: [Asphaltdeckschicht, Betondecke],
+     hint: "Auf Asphaltdeckschicht Betondecke Unterlage"}
+  - {id: haul_distance_km, source: project,     einheit: km,
+     hint: "Entfernung Bauhof Anfahrt Baustelle"}
+  - {id: access_class,    source: judgment,     options: [open, confined]}
+
+operations:
+
+  - id: markierung_entfernen
+    label: "Längsmarkierung entfernen"
+    methods:
+      - {id: markierung_fraesen, machine_class: markierungsfraese,
+         criteria: "Plastik/Folie or thick Markierung, durable removal, Asphaltdeckschicht"}
+      - {id: wasserhochdruck,    machine_class: wasserhochdruckgeraet,
+         criteria: "Farbe or vorübergehende Markierung, surface-gentle, no Fräsriefen wanted"}
+      - {id: feinstfraesen,      machine_class: feinstfraese,
+         criteria: "flat removal with Schnittlinienabstand control on Asphaltdeckschicht, shallow"}
+    selection:
+      on: [markierungsstoffart, untergrund, access_class]
+      consult: [fleet_availability, reasoning_notes]
+    requirements:
+      - goal: "Calculate removal duration over the Strich length"
+        formula: duration_by_length_performance
+        out: {id: entf_hours, einheit: h}
+        params:
+          quantity_m: {from: drivers, field: strich_length_m}
+          perf_m_h:   {from: store, call: performance_rate, args: [operation_id, method_id, access_class]}
+      - goal: "Cost the machine hours"
+        formula: equipment_cost
+        params:
+          hours:      {from: prior, ref: entf_hours}
+          rate_eur_h: {from: store, call: bgl_rate, args: [machine_class]}
+      - goal: "Cost the crew bound to the machine"
+        formula: crew_cost
+        params:
+          hours: {from: prior, ref: entf_hours}
+          crew:  {from: store, call: crew_norm, args: [method_id]}
+      - goal: "Cost machine mobilization to site"
+        formula: machine_mobilization
+        params:
+          distance_km: {from: drivers, field: haul_distance_km}
+          machine:     {from: store, call: mobilization_rate, args: [machine_class]}

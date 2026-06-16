@@ -1,0 +1,52 @@
+# Leistungs-Registry: Unterlage reinigen
+# Rule: `prior:` refs are only valid WITHIN an operation.
+# Cleaning the fertiggestellte/sanierte Asphaltfläche before the next layer. A single
+# method-driven operation; the selbstaufnehmende Kehrmaschine collects the Kehrgut, so the
+# "Kehrgut nach Wahl des AN verwerten" step is covered by the machine pass.
+work_type: unterlage_reinigen
+version: "2026-06-16"
+triggers:
+  keywords: [Unterlage reinigen, Reinigen, Kehrmaschine, Kehrgut, Fahrbahn reinigen,
+             selbstaufnehmende Kehrmaschine, Abkehren]
+
+drivers:
+  - {id: flaeche_m2,      source: plan,         einheit: m2,
+     hint: "zu reinigende Flaeche Unterlage Asphaltflaeche Verkehrsflaeche"}
+  - {id: haul_distance_km, source: project,     einheit: km,
+     hint: "Entfernung Bauhof Anfahrt Baustelle"}
+  - {id: access_class,    source: judgment,     options: [open, confined]}
+
+operations:
+
+  - id: reinigen
+    label: "Unterlage reinigen"
+    methods:
+      - {id: kehrmaschine,        machine_class: kehrmaschine,
+         criteria: "open contiguous Asphaltflächen, selbstaufnehmende Kehrmaschine, large areas"}
+      - {id: handreinigung_klein, machine_class: kleingeraet,
+         criteria: "confined areas, edges, around fixtures, small or irregular surfaces"}
+    selection:
+      on: [flaeche_m2, access_class]
+      consult: [fleet_availability, reasoning_notes]
+    requirements:
+      - goal: "Calculate cleaning duration over the area"
+        formula: duration_by_area_performance
+        out: {id: clean_hours, einheit: h}
+        params:
+          quantity_m2: {from: drivers, field: flaeche_m2}
+          perf_m2_h:   {from: store, call: performance_rate, args: [operation_id, method_id, access_class]}
+      - goal: "Cost the machine hours"
+        formula: equipment_cost
+        params:
+          hours:      {from: prior, ref: clean_hours}
+          rate_eur_h: {from: store, call: bgl_rate, args: [machine_class]}
+      - goal: "Cost the crew bound to the machine"
+        formula: crew_cost
+        params:
+          hours: {from: prior, ref: clean_hours}
+          crew:  {from: store, call: crew_norm, args: [method_id]}
+      - goal: "Cost machine mobilization to site"
+        formula: machine_mobilization
+        params:
+          distance_km: {from: drivers, field: haul_distance_km}
+          machine:     {from: store, call: mobilization_rate, args: [machine_class]}

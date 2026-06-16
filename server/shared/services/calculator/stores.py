@@ -35,6 +35,31 @@ MATERIAL_PROPERTIES = {
     "RC-Gemisch 0/45": {"bulk_density_t_m3": 1.95,           # recycled aggregate
                         "loss": {"standard": 0.06, "elevated": 0.13},
                         "moisture_delta": 0.04},
+    # Bankettmaterial (gebr. Naturgestein, Mineralgemisch nach ZTV-StB LSBB)
+    "Mineralgemisch 0/32 B2": {"bulk_density_t_m3": 2.15,
+                               "loss": {"standard": 0.04, "elevated": 0.10},
+                               "moisture_delta": 0.03},
+    "Mineralgemisch 0/45 B2": {"bulk_density_t_m3": 2.18,
+                               "loss": {"standard": 0.04, "elevated": 0.09},
+                               "moisture_delta": 0.03},
+    "Schotter 0/32 gebr. Naturgestein": {"bulk_density_t_m3": 2.20,
+                                         "loss": {"standard": 0.03, "elevated": 0.08},
+                                         "moisture_delta": 0.025},
+    # Fräsgut (milled-asphalt arisings); loss 0 - order_tonnage is reused purely as
+    # volume*in-place-density for the haul tonnage, no Mehrmenge applies.
+    "Fräsasphalt": {"bulk_density_t_m3": 2.40,
+                    "loss": {"standard": 0.0, "elevated": 0.0}},
+    # Dünne Asphaltdeckschicht in Kaltbauweise (DSK); kg_m2 = the firm-standard
+    # Einbaumenge (Trockenmasse) for that mix - the application-rate sibling of the
+    # Aufwandswert, so the LLM selects the DSK type and never reads the kg/m2.
+    "DSK 5": {"kg_m2": 18.0},
+    "DSK 8": {"kg_m2": 22.0},
+    "DSK 11": {"kg_m2": 28.0},
+    # Bitumenemulsionen für Schichtenverbund (Anspritzen); emulsion_kg_m2 = the
+    # firm-standard Bindemittelmenge per grade (the application rate, not read from text).
+    "C 70 BP 4-OB": {"emulsion_kg_m2": 2.0},
+    "C 60 B 1-S": {"emulsion_kg_m2": 0.40},
+    "C 67 B 4": {"emulsion_kg_m2": 0.50},
     # Asphaltmischgut (ZTV Asphalt-StB)
     "AC 22 T S": {"bulk_density_t_m3": 2.40,
                   "loss": {"standard": 0.02, "elevated": 0.05}},
@@ -53,6 +78,15 @@ MATERIAL_PRICES = {        # EUR per t delivered ab Werk/Mischwerk, unless noted
     "KFS 0/32": 9.80,
     "STS 0/32 C90/3": 14.80,
     "RC-Gemisch 0/45": 7.50,
+    "Mineralgemisch 0/32 B2": 13.50,
+    "Mineralgemisch 0/45 B2": 12.80,
+    "Schotter 0/32 gebr. Naturgestein": 15.50,
+    "DSK 5": 350.00,           # DSK mix incl. Bindemittel, ab Werk
+    "DSK 8": 330.00,
+    "DSK 11": 320.00,
+    "C 70 BP 4-OB": 0.72,      # per kg, polymermodifiziert
+    "C 60 B 1-S": 0.65,        # per kg
+    "C 67 B 4": 0.66,          # per kg
     "AC 22 T S": 96.00,
     "AC 32 T S": 92.00,
     "AC 16 B S": 104.00,
@@ -75,6 +109,11 @@ BGL_RATES = {              # EUR / operating hour
     "roller_7t": 62.0, "plate_500kg": 18.0,
     "fertiger": 260.0, "tandem_roller_8t": 75.0, "roller_1_5t": 35.0,
     "verlegegeraet": 65.0, "kleingeraet": 12.0,
+    "walzenzug": 85.0,                       # Erd-/Bodenverdichtung
+    "kehrmaschine": 70.0,                    # selbstaufnehmend
+    "kaltfraese_gross": 320.0, "kaltfraese_klein": 140.0,
+    "markierungsfraese": 55.0, "wasserhochdruckgeraet": 110.0, "feinstfraese": 70.0,
+    "dsk_fertiger": 180.0,                   # DSK-Einbaugerät (Slurry-Fertiger)
 }
 MOBILIZATION = {           # transport of the machine to site
     "grader_3d":   {"eur_km": 7.0, "flat_eur": 220.0},
@@ -86,6 +125,14 @@ MOBILIZATION = {           # transport of the machine to site
     "roller_1_5t": {"eur_km": 2.0, "flat_eur": 60.0},
     "verlegegeraet": {"eur_km": 4.0, "flat_eur": 120.0},
     "kleingeraet": {"eur_km": 1.0, "flat_eur": 30.0},
+    "walzenzug": {"eur_km": 5.0, "flat_eur": 170.0},
+    "kehrmaschine": {"eur_km": 3.0, "flat_eur": 90.0},
+    "kaltfraese_gross": {"eur_km": 9.0, "flat_eur": 400.0},
+    "kaltfraese_klein": {"eur_km": 4.0, "flat_eur": 150.0},
+    "markierungsfraese": {"eur_km": 2.0, "flat_eur": 80.0},
+    "wasserhochdruckgeraet": {"eur_km": 3.0, "flat_eur": 150.0},
+    "feinstfraese": {"eur_km": 2.5, "flat_eur": 100.0},
+    "dsk_fertiger": {"eur_km": 6.0, "flat_eur": 250.0},
 }
 
 # --- performance rates: the equipment-side sibling of the Aufwandswert --------
@@ -113,6 +160,38 @@ PERFORMANCE_RATES = {
     ("verlegen", "einlage_maschinell", "confined"):   180.0,
     ("verlegen", "einlage_manuell", "open"):          140.0,
     ("verlegen", "einlage_manuell", "confined"):       90.0,
+    # Boden/Untergrund verdichten (m2/h)
+    ("verdichten", "walzenzug", "open"):              800.0,
+    ("verdichten", "walzenzug", "confined"):          350.0,
+    ("verdichten", "ruettelplatte", "open"):          200.0,
+    ("verdichten", "ruettelplatte", "confined"):      120.0,
+    # Planum herstellen / feinplanieren (m2/h)
+    ("feinplanum", "motor_grader_3dgnss", "open"):     900.0,
+    ("feinplanum", "motor_grader_3dgnss", "confined"): 400.0,
+    ("feinplanum", "dozer_loader_grader", "open"):     500.0,
+    ("feinplanum", "dozer_loader_grader", "confined"): 250.0,
+    # Unterlage reinigen (m2/h)
+    ("reinigen", "kehrmaschine", "open"):            2500.0,
+    ("reinigen", "kehrmaschine", "confined"):        1200.0,
+    ("reinigen", "handreinigung_klein", "open"):      400.0,
+    ("reinigen", "handreinigung_klein", "confined"):  250.0,
+    # Asphalt fräsen (m2/h)
+    ("fraesen", "kaltfraese_gross", "open"):          500.0,
+    ("fraesen", "kaltfraese_gross", "confined"):      200.0,
+    ("fraesen", "kaltfraese_klein", "open"):          150.0,
+    ("fraesen", "kaltfraese_klein", "confined"):       90.0,
+    # DSK in Kaltbauweise einbauen (m2/h)
+    ("dsk_einbau", "dsk_fertiger", "open"):           600.0,
+    ("dsk_einbau", "dsk_fertiger", "confined"):       250.0,
+    ("dsk_einbau", "dsk_kleingeraet", "open"):        120.0,
+    ("dsk_einbau", "dsk_kleingeraet", "confined"):     70.0,
+    # Längsmarkierung entfernen (m/h of removed Strich)
+    ("markierung_entfernen", "markierung_fraesen", "open"):     400.0,
+    ("markierung_entfernen", "markierung_fraesen", "confined"): 250.0,
+    ("markierung_entfernen", "wasserhochdruck", "open"):        300.0,
+    ("markierung_entfernen", "wasserhochdruck", "confined"):    180.0,
+    ("markierung_entfernen", "feinstfraesen", "open"):          350.0,
+    ("markierung_entfernen", "feinstfraesen", "confined"):      200.0,
 }
 
 # --- crews & labour ------------------------------------------------------------
@@ -127,6 +206,16 @@ CREW_NORMS = {  # method -> crew composition bound to the machine hours
     "kleinwalze":          {"size": 1, "labor_profile": "general"},
     "einlage_maschinell":  {"size": 3, "labor_profile": "general"},
     "einlage_manuell":     {"size": 4, "labor_profile": "general"},
+    "walzenzug":           {"size": 1, "labor_profile": "qualified_operator"},
+    "kehrmaschine":        {"size": 1, "labor_profile": "general"},
+    "handreinigung_klein": {"size": 2, "labor_profile": "general"},
+    "kaltfraese_gross":    {"size": 3, "labor_profile": "general"},
+    "kaltfraese_klein":    {"size": 2, "labor_profile": "general"},
+    "markierung_fraesen":  {"size": 2, "labor_profile": "general"},
+    "wasserhochdruck":     {"size": 2, "labor_profile": "general"},
+    "feinstfraesen":       {"size": 2, "labor_profile": "general"},
+    "dsk_fertiger":        {"size": 3, "labor_profile": "general"},
+    "dsk_kleingeraet":     {"size": 3, "labor_profile": "general"},
 }
 LABOR_PROFILES = {  # Mittellohn EUR/h incl. Lohnzusatzkosten
     "general": 42.0,
@@ -150,6 +239,10 @@ FLEET_AVAILABILITY = {  # consulted by method selection (LLM site 3)
     "fertiger": True, "tandem_roller_8t": True, "roller_1_5t": True,
     "verlegegeraet": False,    # nudges einlage selection toward manual / rental
     "kleingeraet": True,
+    "walzenzug": True, "kehrmaschine": True,
+    "kaltfraese_gross": True, "kaltfraese_klein": True,
+    "markierungsfraese": True, "wasserhochdruckgeraet": True, "feinstfraese": True,
+    "dsk_fertiger": True,
 }
 CLIMATE_NORMALS = {"default": {"ambient_temp_c": 16.0}}   # stub for tool:climate
 

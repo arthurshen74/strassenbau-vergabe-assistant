@@ -47,7 +47,7 @@ classify ──(confidence gate)──> [hitl_classify?] ──> resolve_drivers
 
 | File | Role |
 |---|---|
-| `registry/*.yaml` | The knowledge base: drivers, derived drivers, operations, methods + criteria, requirement rows (goal → formula → param sources). One file per work type: `fss_herstellen`, `asphalttragschicht_herstellen`, `asphalteinlage_einbauen` |
+| `registry/*.yaml` | The knowledge base: drivers, derived drivers, operations, methods + criteria, requirement rows (goal → formula → param sources). One file per work type. Layer building: `fss_herstellen`, `asphalttragschicht_herstellen`, `bankett_befestigen`, `dsk_herstellen`; surface prep: `planum_herstellen`, `boden_verdichten`, `unterlage_reinigen`, `asphalt_fraesen`, `laengsmarkierung_entfernen`; interlayer/bond: `asphalteinlage_einbauen`, `bitumenemulsion_aufspruehen` |
 | `models.py` | Pydantic: registry schema, LLM structured outputs, cost lines + provenance |
 | `stores.py` | Deterministic value stores (mocked): material props/prices, interlayer products, BGL rates, performance rates, crews, fleet |
 | `formulas.py` | Formula registry: Pydantic input schema + pure function per formula id. **Only origin of numbers.** |

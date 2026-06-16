@@ -44,6 +44,14 @@ EXPECTED_WORK_TYPES = {
     "fss_herstellen",
     "asphalttragschicht_herstellen",
     "asphalteinlage_einbauen",
+    "bankett_befestigen",
+    "laengsmarkierung_entfernen",
+    "dsk_herstellen",
+    "unterlage_reinigen",
+    "asphalt_fraesen",
+    "planum_herstellen",
+    "boden_verdichten",
+    "bitumenemulsion_aufspruehen",
 }
 
 

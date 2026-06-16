@@ -62,6 +62,15 @@ class EmulsionCostIn(BaseModel):
 class AreaUnitCostIn(BaseModel):
     area_m2: float; rate_eur_m2: float
 
+class LengthDurationIn(BaseModel):
+    quantity_m: float; perf_m_h: float
+
+class CoverageTonnageIn(BaseModel):
+    area_m2: float; material: dict
+
+class ProofTestAreaIn(BaseModel):
+    area_m2: float; norm: dict
+
 
 # ---------------------------------------------------------------- functions --
 def layer_volume(p: LayerVolumeIn):
@@ -131,6 +140,18 @@ def emulsion_cost(p: EmulsionCostIn):
 def area_unit_cost(p: AreaUnitCostIn):
     return {"eur": round(p.area_m2 * p.rate_eur_m2, 2)}
 
+def duration_by_length_performance(p: LengthDurationIn):
+    return {"value": round(p.quantity_m / p.perf_m_h, 2), "einheit": "h"}
+
+def coverage_tonnage(p: CoverageTonnageIn):
+    t = p.area_m2 * p.material["kg_m2"] / 1000.0
+    return {"value": round(t, 2), "einheit": "t",
+            "note": f"{p.material['kg_m2']} kg/m2 over {p.area_m2} m2"}
+
+def proof_test_area_cost(p: ProofTestAreaIn):
+    n = math.ceil(p.area_m2 / p.norm["area_per_test_m2"])
+    return {"eur": round(n * p.norm["eur_per_test"], 2), "note": f"{n} tests"}
+
 
 FORMULAS = {
     "layer_volume": (LayerVolumeIn, layer_volume),
@@ -148,6 +169,9 @@ FORMULAS = {
     "interlayer_material_cost": (InterlayerMaterialIn, interlayer_material_cost),
     "emulsion_cost": (EmulsionCostIn, emulsion_cost),
     "area_unit_cost": (AreaUnitCostIn, area_unit_cost),
+    "duration_by_length_performance": (LengthDurationIn, duration_by_length_performance),
+    "coverage_tonnage": (CoverageTonnageIn, coverage_tonnage),
+    "proof_test_area_cost": (ProofTestAreaIn, proof_test_area_cost),
 }
 
 # VHB 223 Kostenart per cost-producing formula (registry rows without `out`).
@@ -163,5 +187,6 @@ FORMULA_KOSTENART = {
     "machine_mobilization": Kostenart.GERAETE,
     "delivery_cost": Kostenart.SONSTIGES,
     "proof_test_cost": Kostenart.SONSTIGES,
+    "proof_test_area_cost": Kostenart.SONSTIGES,
     "area_unit_cost": Kostenart.SONSTIGES,
 }

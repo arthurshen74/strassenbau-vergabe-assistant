@@ -95,6 +95,42 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Aufmaß** — Quantity survey / measurement. The formal measurement of work actually performed, used for billing. Out of scope for now; mentioned for completeness.
 
+## Road-Construction Operations and Materials
+
+The Kalkulation subsystem (`server/shared/services/calculator`) prices individual road-construction Leistungen; each work type is one registry YAML. These terms name the operations and materials those registries encode, and recur in Position Langtexte.
+
+**Oberbau** — Pavement structure. The bound and unbound layers above the Planum (Tragschichten plus Deckschicht) that carry traffic. Sized per RStO by Belastungsklasse.
+
+**Baustoffgemisch** — Aggregate mix. A graded granular material named by grading band (0/32, 0/45, 0/56) and class (B2/B3, C90/3); the input for unbound layers.
+
+**Tragschicht ohne Bindemittel** (ToB) — Unbound base course. A compacted granular layer with no binder; the umbrella for Frostschutzschicht, Schottertragschicht, and Kies-FSS. Built to ZTV SoB-StB.
+
+**Frostschutzschicht** (FSS) — Frost-protection layer. The lowest unbound base layer (a ToB), built from a Baustoffgemisch to protect the Oberbau against frost heave. The `fss_herstellen` work type.
+
+**Schottertragschicht** (STS) — Crushed-stone base course. An unbound base (ToB) of graded crushed stone (e.g. STS 0/32 C90/3).
+
+**Asphalttragschicht** (ATS) — Asphalt base course. The bound base layer of asphalt mix (e.g. AC 22 T, AC 32 T) beneath the binder and surface courses. The `asphalttragschicht_herstellen` work type.
+
+**Planum** — Formation level. The finished, trimmed top surface of the earthworks/subgrade on which the Oberbau is built; held to a height tolerance (e.g. ±2 cm) and proven by Ev2. The `planum_herstellen` work type.
+
+**Bankett** — Shoulder. The strip alongside the carriageway edge. **Bankettbefestigung** reinforces it with a profiled, compacted mineral mix (gebrochenes Naturgestein) tied into the new Fahrbahnkante. The `bankett_befestigen` work type.
+
+**Dünne Asphaltdeckschicht in Kaltbauweise** (DSK) — Thin cold-laid asphalt surface course (slurry surfacing). A thin wearing course applied cold and metered by mass (Trockenmasse, kg/m²), e.g. DSK 5. The `dsk_herstellen` work type.
+
+**Asphalteinlage** — Asphalt interlayer. A reinforcing grid (Asphaltgittergewebe) or fleece (Asphaltvlies) laid between asphalt layers to retard cracking; bonded with Bitumenemulsion. The `asphalteinlage_einbauen` work type.
+
+**Schichtenverbund** — Interlayer bond. The adhesive bond between adjacent asphalt layers, established by spraying a Bitumenemulsion (Anspritzen / Haftbrücke) before the next layer is laid. The `bitumenemulsion_aufspruehen` work type.
+
+**Bitumenemulsion** — Bituminous emulsion. The bond-coat binder sprayed for Schichtenverbund (e.g. C 70 BP 4-OB per TL BE-StB), dosed in kg/m².
+
+**(Kalt-)Fräsen** — (Cold) milling. Removing asphalt to a set **Frästiefe** (milling depth) and taking up the **Fräsgut** / **Fräsasphalt** (millings) for recycling. The `asphalt_fraesen` work type.
+
+**Längsmarkierung** — Longitudinal road marking (lane and edge lines). Removed by milling, Wasserhochdruck (water-jet), or Feinstfräsen; billed per running metre of removed Strich. The `laengsmarkierung_entfernen` work type.
+
+**Verdichten** / **Verdichtung** — Compaction. Densifying a soil or layer (Walzenzug, Tandemwalze, Rüttelplatte) to a Verdichtungsgrad / Ev2 target. The `boden_verdichten` work type covers subgrade in Einschnitten.
+
+**Unterlage reinigen** — Cleaning the substrate (e.g. a milled or sanitised asphalt surface) before the next layer, typically with a selbstaufnehmende Kehrmaschine. The `unterlage_reinigen` work type.
+
 ## Cost and Pricing
 
 **Einheitspreis** (EP) — Unit price. The price per unit of a Position (e.g., €23.45/m²). The Kalkulator's principal output for each Normalposition is its Einheitspreis.
@@ -107,6 +143,20 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Gewerk** (Pl. Gewerke) — Trade. A category of work executed as a coherent unit by one crew or one specialty (earthworks, asphalt, drainage, signage, etc.). LVs are typically structured so that all Positionen within a hierarchical branch belong to one Gewerk.
 
+**EKT** — Einzelkosten der Teilleistungen. The direct costs of a single Teilleistung — wages (Lohn), materials (Stoffe), equipment (Geräte), and other (Sonstiges) — before overhead and profit. The Kalkulation subsystem computes the EKT per Position; they roll up into the Einheitspreis.
+
+**Bauweise** — Construction method. The specific technique chosen to execute an operation (e.g. Fertiger vs. Handeinbau, Walze vs. Rüttelplatte). The calculator selects one Bauweise per operation and prices its machine plus crew accordingly.
+
+**Aufwandswert** — Labour expenditure value. Man-hours required per unit of output (e.g. h/m³) — the firm's productivity benchmark. The calculator's equipment performance rate (output per machine hour) is its machine-side sibling.
+
+**BGL** — Baugeräteliste. The standard catalogue of construction-equipment hourly rates (Verrechnungssätze). The calculator's equipment costs read BGL-style rates per machine class.
+
+**Mittellohn** — Average wage. The blended hourly labour rate including Lohnzusatzkosten (social and ancillary costs), applied to crew hours.
+
+**Nachkalkulation** — Post-calculation. Comparing as-built actual costs against the bid to refine the firm's productivity and price data; the intended feedback source for the calculator's stores.
+
+**VHB Formblatt 223** — A form from the Vergabe- und Vertragshandbuch breaking the Einheitspreis into its components (a Zeitansatz plus Lohn / Stoffe / Geräte / Sonstiges per unit, ohne USt). The calculator emits a 223-style row on approval; closely related to the EFB forms.
+
 ## Standards and Regulatory References
 
 These are not directly ingested but appear constantly in the ZTV and Baubeschreibung. Developers will see them referenced in test data and example documents; they do not need to understand the technical content.
@@ -118,6 +168,14 @@ These are not directly ingested but appear constantly in the ZTV and Baubeschrei
 **ZTV Asphalt-StB**, **ZTV E-StB**, **ZTV SoB-StB** — Federal-level standard ZTVs for asphalt, earthworks, and unbound base layers respectively. The project-specific ZTV in a tender typically references these and adds or modifies clauses on top.
 
 **RAS** — Richtlinien für die Anlage von Straßen. Road design guidelines covering geometric design, alignment, and intersections.
+
+**TL BE-StB** — Technische Lieferbedingungen für Bitumenemulsionen. The federal delivery spec naming bitumen-emulsion grades (e.g. C 70 BP 4-OB) used for Schichtenverbund.
+
+**Belastungsklasse** (Bk) — Load class. The traffic-load class per RStO (Bk100 down to Bk0.3) that sizes the Oberbau and constrains material and Bauweise selection. Appears in Langtexte as e.g. "Bk 1,0 bis Bk 3,2".
+
+**Ev2** / **Verformungsmodul** — Deformation modulus. The stiffness of a compacted layer or Planum (in MN/m² ≈ MPa), read from the second loading cycle of the Plattendruckversuch; the acceptance criterion for compaction (e.g. "Ev2 = 45 MPa").
+
+**Plattendruckversuch** — Static plate load test. The field test yielding Ev1/Ev2, used to prove compaction of unbound layers and the Planum.
 
 ## System and Infrastructure Terms
 
