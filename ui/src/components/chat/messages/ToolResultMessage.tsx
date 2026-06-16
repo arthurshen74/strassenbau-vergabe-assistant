@@ -36,7 +36,7 @@ export function ToolResultMessage({
     case TOOL_GET_LV_SINGLE_ITEM:
     case TOOL_GET_LV_ALL:
     case TOOL_GET_LV_GROUP_ITEMS:
-      return <LvResultMessage data={m.data ?? null} />;
+      return <LvResultMessage data={m.data ?? null} projectUuid={projectUuid} />;
     case TOOL_AGGREGATE_LV_ITEMS:
       return (
         <AggregateResultMessage data={m.data ?? null} projectUuid={projectUuid} />

@@ -16,6 +16,7 @@ import { ChevronRightIcon } from '@heroicons/react/16/solid';
 
 import { useProjectLvItems } from '../../../api/projects';
 import { LVItemDetailDialog } from '../../../views/main/LVItemDetailDialog';
+import { useRunCalculation } from '../../../views/main/useRunCalculation';
 import type { AggregateResult, LVItem } from '../../../types/generated';
 import { ItemTable } from './ItemTable';
 
@@ -116,6 +117,7 @@ export function AggregateResultMessage({
   projectUuid?: string;
 }) {
   const lvItems = useProjectLvItems(projectUuid);
+  const { runCalculation, starting } = useRunCalculation(projectUuid);
   const [selected, setSelected] = useState<LVItem | null>(null);
 
   const result = asResult(data);
@@ -194,6 +196,8 @@ export function AggregateResultMessage({
         item={selected}
         open={selected !== null}
         onClose={() => setSelected(null)}
+        onRunCalculation={projectUuid ? runCalculation : undefined}
+        starting={selected !== null && starting === selected.oz}
       />
     </div>
   );

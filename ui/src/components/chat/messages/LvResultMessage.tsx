@@ -10,6 +10,7 @@ import {
   LVItemDetailContent,
   LVItemDetailDialog,
 } from '../../../views/main/LVItemDetailDialog';
+import { useRunCalculation } from '../../../views/main/useRunCalculation';
 import type { LVItem } from '../../../types/generated';
 import { ItemTable } from './ItemTable';
 
@@ -74,9 +75,12 @@ function LvItemList({
 
 export function LvResultMessage({
   data,
+  projectUuid,
 }: {
   data: Record<string, unknown> | null;
+  projectUuid?: string;
 }) {
+  const { runCalculation, starting } = useRunCalculation(projectUuid);
   const [selected, setSelected] = useState<LVItem | null>(null);
 
   const single = asItem(data?.lv_item);
@@ -106,6 +110,8 @@ export function LvResultMessage({
         item={selected}
         open={selected !== null}
         onClose={() => setSelected(null)}
+        onRunCalculation={projectUuid ? runCalculation : undefined}
+        starting={selected !== null && starting === selected.oz}
       />
     </div>
   );

@@ -4,8 +4,10 @@
 // card, which caps the Langtext height via constrainLangtext.
 
 import clsx from 'clsx';
+import { CalculatorIcon } from '@heroicons/react/16/solid';
 
-import { Dialog, DialogBody, DialogTitle } from '../../components/ui/dialog';
+import { Button } from '../../components/ui/button';
+import { Dialog, DialogActions, DialogBody, DialogTitle } from '../../components/ui/dialog';
 import type { LVItem } from '../../types/generated';
 
 function Field({
@@ -64,10 +66,14 @@ export function LVItemDetailDialog({
   item,
   open,
   onClose,
+  onRunCalculation,
+  starting = false,
 }: {
   item: LVItem | null;
   open: boolean;
   onClose: () => void;
+  onRunCalculation?: (oz: string) => void;
+  starting?: boolean;
 }) {
   return (
     <Dialog open={open} onClose={onClose} size="2xl">
@@ -76,6 +82,14 @@ export function LVItemDetailDialog({
         <DialogBody>
           <LVItemDetailContent item={item} />
         </DialogBody>
+      )}
+      {item && onRunCalculation && (
+        <DialogActions>
+          <Button color="green" disabled={starting} onClick={() => onRunCalculation(item.oz)}>
+            <CalculatorIcon data-slot="icon" />
+            {starting ? 'Starting…' : 'Run calculation'}
+          </Button>
+        </DialogActions>
       )}
     </Dialog>
   );
