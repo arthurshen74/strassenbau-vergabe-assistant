@@ -87,6 +87,124 @@ disturbs callers pinned to an older one. Prompts are seeded from `.prompt` files
 - **Ingest console** — live per-job activity stream, job status, and requeue of stuck jobs.
 - **Embedding cache** — optional Postgres-backed cache to avoid re-embedding identical text.
 
+## The EKT Calculation Agent
+
+A second agent, distinct from Project Chat, turns a single LV Position into a costed estimate. Where
+chat answers questions, the calculation agent *produces numbers*: it generates the **EKT** data for a
+position.
+
+### What an EKT position is
+
+**EKT** — *Einzelkosten der Teilleistungen* — are the direct costs of one Teilleistung (one LV
+Position), broken into four Kostenarten before any overhead, risk, or profit:
+
+- **Lohn** — labour
+- **Stoffe** — materials
+- **Geräte** — equipment (machines, plant)
+- **Sonstiges** — other / third-party (deliveries, quality-assurance tests, Fremdleistungen)
+
+Each per-position EKT also carries a **Zeitansatz** (labour hours per unit). The agent emits one
+position's breakdown as a **VHB Formblatt 223**-style row (Aufgliederung der Einheitspreise, *ohne
+USt*). The per-unit EKT rolls up into the **Einheitspreis** the bidder enters against that Position in
+the Leistungsverzeichnis, and across all positions these breakdowns make up the **Urkalkulation** — the
+costing that stands behind the bid.
+
+### Why the calculation is sealed
+
+In a German public tender the priced LV is what the Auftraggeber evaluates, but the underlying
+Urkalkulation — captured on the standardised **EFB**-Preis forms, of which the per-position VHB
+Formblatt 223 is one — is normally submitted in a **sealed envelope** and left unopened. The
+Auftraggeber opens it only in defined circumstances:
+
+- **Preisprüfung of an abnormally low bid** — to test whether a suspiciously low price is *auskömmlich*
+  (cost-covering) before the contract may be awarded under "best bid" rules.
+- **Nachtragskalkulation** — when scope changes, the unit prices for geänderte oder zusätzliche
+  Leistungen (Nachträge) are derived *on the basis of* the original calculation rather than negotiated
+  from scratch.
+- **Disputes over unit prices** — e.g. price adjustment when executed Mengen deviate from the tendered
+  quantities, or other claims where the contractor must evidence the original cost basis.
+
+A clean, defensible per-position breakdown is therefore valuable long after award, not just at bid time.
+
+### The business problem it solves
+
+A road-construction contractor stays in business by keeping a healthy pipeline of *profitable*
+projects to bid on, and **cost estimation is the key driver** of that. Inaccurate estimation pushes a
+bid the wrong way:
+
+- **Overbidding** loses the award — especially under tightly regulated "best bid" regimes where price
+  dominates selection.
+- **Underbidding** is doubly dangerous. A bid far below the field can be *excluded* outright as
+  abnormally low; a bid that survives the threshold but still under-prices the work turns the project
+  into a loss.
+
+The winning posture is an estimate accurate enough to **price risk correctly across the whole scope**.
+The most reliable way there is **bottom-up estimation** — building cost up from the scope and the bill
+of quantities — and nearly every German road-construction tender ships enough documentation
+(Leistungsverzeichnis, Baubeschreibung, ZTV, Baugrundgutachten, plans) to support it. The catch is
+time: a single position done by hand can take anywhere from **an hour to half a day**. The agent's goal
+is to deliver a detailed, sourced bottom-up EKT breakdown per position in **minutes**. Its target user
+is the **Kalkulator** (cost estimator) at the contractor.
+
+### Using the agent
+
+1. **Ingest the project documents.** Upload the tender's documents to the project. A **GAEB file is
+   required** — *GAEB 90 (`.d83`)* or *GAEB XML (`.x83`)* — because it is parsed into the structured
+   LVItems the calculator costs; prose documents (PDF) supply the surrounding context for retrieval.
+2. **Pick a Position and click "Run Calculation".** The button sits on each row of the LV positions
+   table, in the position detail dialog, and on the LV result cards in Project Chat. It opens a
+   dedicated calculation conversation for that Position's OZ.
+3. **Answer the agent when it pauses.** The run is mostly autonomous, but it stops for human input at a
+   few points — to confirm which **Leistung** the position is (when classification confidence is low),
+   to confirm or correct **driver** values it had to assume, and for a final **review** of the costed
+   result before it is committed. When the agent **cannot find a required value** in the documents, it
+   surfaces the gap here; the Kalkulator can run a **RAG search** over the project to locate the value
+   and feed it back. Corrected values are recorded with full provenance and a confidence of 1.0.
+4. **Read the result.** On approval the conversation shows the EKT card — total and per-unit price plus
+   the Zeitansatz / Lohn / Stoffe / Geräte / Sonstiges breakdown — and the conversation becomes an
+   ordinary project chat thread for follow-up questions.
+
+### How it is built (technical decisions)
+
+The design deliberately separates **LLM judgment** (what the documents say) from **deterministic
+computation** (the arithmetic of cost), so that numbers are auditable and never hallucinated.
+
+- **YAML Leistungen registry.** Each supported road-construction service is a versioned YAML file under
+  `server/shared/services/calculator/registry/` (currently 11: `fss_herstellen`,
+  `asphalttragschicht_herstellen`, `asphalt_fraesen`, `dsk_herstellen`, `planum_herstellen`,
+  `boden_verdichten`, `bankett_befestigen`, `bitumenemulsion_aufspruehen`, `asphalteinlage_einbauen`,
+  `unterlage_reinigen`, `laengsmarkierung_entfernen`). A registry declares the **drivers** (input facts
+  to resolve), **derived drivers** (formulas computed once), and **operations** (the costing procedure,
+  with optional Bauweise methods). Adding a Leistung is authoring a file, not changing code.
+- **Deterministic Store, with a clean seam to a real one.** Material densities and prices, BGL machine
+  rates, performance rates, and labour profiles live in an in-memory Store
+  (`server/shared/services/calculator/stores.py`) exposed as named accessor functions that registry
+  formulas call by name. This is a stand-in for the firm's golden data (Nachkalkulation, supplier
+  quotes, BGL); because every lookup goes through a registered accessor, swapping the dicts for
+  versioned database tables is a localised change behind the same interface.
+- **Sequential, RAG-based driver lookup.** Drivers are resolved **one at a time**, not in a batch, so a
+  human can follow the chain and later drivers can build on earlier ones. Each driver is read from its
+  declared source — the LV Langtext directly, or the project documents via the standard retrieval
+  pipeline (Plus modality, multi-query, BM25, cross-encoder rerank). Values are **copied verbatim with a
+  source quote**; the LLM never computes or invents them. A value that cannot be found does not abort
+  the run — it is recorded as a `missing_data` flag and raised in the human review (or earlier, as a
+  driver the user must confirm).
+- **LangGraph workflow with human-in-the-loop interrupts.** The agent is a LangGraph graph —
+  `classify → resolve_drivers → (confirm) → derive → plan/cost operations → aggregate EKT → assess risk
+  → review`. The three pause points are real graph `interrupt()`s resumed with `Command(resume=…)`.
+  State is checkpointed so a pause survives across HTTP requests: an in-memory `MemorySaver` for the CLI
+  harness, and `AsyncPostgresSaver` keyed by the conversation UUID for the API.
+- **SSE-streamed reasoning.** The run streams over Server-Sent Events in dual mode — live custom
+  reasoning entries as each driver resolves, plus completed-node updates for persistence and to signal
+  interrupts — so the long `resolve_drivers` step renders progressively instead of buffering.
+- **Form 223 / Kostenart mapping.** Every cost-producing formula maps to exactly one Kostenart
+  (`Lohn`/`Stoffe`/`Geräte`/`Sonstiges`); on approval the agent buckets the cost lines, sums labour
+  hours into the Zeitansatz, divides by the position quantity, and emits the per-unit `Form223Row`.
+
+> Layering **Allgemeinbaukosten** and **Zuschläge** (the VHB 221/222 overhead and markup that turn the
+> EKT into the full Einheitspreis) on top of the breakdown is a deferred follow-up; the agent currently
+> produces the per-position 223-style EKT itself.
+
 ## Getting Started
 
 Runs locally via Docker Compose. Copy `.env.example` to `.env` and fill in an `OPENROUTER_API_KEY`

@@ -28,3 +28,4 @@ dist-ssr
 # format, ...) that many modules import. Re-include that source directory.
 !src/lib/
 !src/lib/**
+.vite/
