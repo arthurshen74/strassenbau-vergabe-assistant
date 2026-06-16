@@ -141,9 +141,11 @@ async def run_turn(
     if conversation is None or conversation.user_uuid != principal.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
 
-    # Project chats continue here; an ekt_calculator conversation also continues here for follow-up
-    # questions, but only once its run has completed -- mid-run it is driven by the calculation
-    # resume endpoint, not a free-text turn. The single-shot dispatcher has its own stateless endpoint.
+    # Project chats continue here; an ekt_calculator conversation also continues here while it is a
+    # chat -- the pre-run gate (awaiting_start, where the Kalkulator can discuss or ask to run) and
+    # follow-up questions once the run has completed. Mid-run (running / awaiting_input) it is driven
+    # by the calculation resume endpoint, not a free-text turn. The single-shot dispatcher has its
+    # own stateless endpoint.
     if conversation.prompt_type not in (PromptType.PROJECT_CHAT, PromptType.EKT_CALCULATOR):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -151,11 +153,12 @@ async def run_turn(
         )
     if (
         conversation.prompt_type == PromptType.EKT_CALCULATOR
-        and conversation.calculation_status != CalculationStatus.COMPLETE
+        and conversation.calculation_status
+        not in (CalculationStatus.AWAITING_START, CalculationStatus.COMPLETE)
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="calculation is not complete; resume the calculation instead of chatting",
+            detail="calculation is mid-run; resume the calculation instead of chatting",
         )
 
     events = project_chat.run_turn(

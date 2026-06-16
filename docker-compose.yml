@@ -3,13 +3,13 @@ services:
     image: arizephoenix/phoenix:latest
     container_name: strassenbau-vergabe-assistant-phoenix
     ports:
-      - "6006:6006"   # web UI + HTTP OTLP collector (POST /v1/traces)
-      - "4317:4317"   # gRPC OTLP collector
+      - '6006:6006' # web UI + HTTP OTLP collector (POST /v1/traces)
+      - '4317:4317' # gRPC OTLP collector
     environment:
       - PHOENIX_WORKING_DIR=/mnt/data
     volumes:
       - ./data/phoenix:/mnt/data
-    restart: unless-stopped  
+    restart: unless-stopped
   postgres:
     image: postgres:latest
     container_name: strassenbau-vergabe-assistant-postgres
@@ -19,6 +19,7 @@ services:
       - '5432:5432'
     volumes:
       - ./data/postgres:/var/lib/postgresql
+      - ./sql:/sql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s

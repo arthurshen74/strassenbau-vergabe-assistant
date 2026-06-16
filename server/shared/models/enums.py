@@ -45,6 +45,9 @@ class PromptType(StrEnum):
 class CalculationStatus(StrEnum):
     """Lifecycle of an ekt_calculator conversation's graph run."""
 
+    # Created and shown as a chat gate; the graph has not started. The user can discuss the position
+    # (project chat) or ask to run it, which advances to RUNNING.
+    AWAITING_START = "awaiting_start"
     RUNNING = "running"
     AWAITING_INPUT = "awaiting_input"
     COMPLETE = "complete"

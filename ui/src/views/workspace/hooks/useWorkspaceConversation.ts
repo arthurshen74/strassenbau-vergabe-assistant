@@ -18,7 +18,7 @@
 // After the first turn of a fresh conversation we kick off server-side
 // auto-naming so the sidebar title stops reading "Untitled".
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { postStream } from '../../../api/sse';
 import { conversationKeys, useNameConversation } from '../../../api/conversations';
@@ -64,11 +64,19 @@ interface StreamState {
 export function useWorkspaceConversation(
   conversationId: string,
   retrievalConfig?: TurnRetrievalConfig,
+  onToolCall?: (name: string) => void,
 ) {
   const qc = useQueryClient();
   const setStreamActive = useUIStore((s) => s.setStreamActive);
   const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
   const nameConversation = useNameConversation();
+
+  // Held in a ref so sendMessage stays stable even when the caller passes an inline callback. The
+  // callback is only invoked mid-stream (after a turn opens), so the post-commit update is in time.
+  const onToolCallRef = useRef(onToolCall);
+  useEffect(() => {
+    onToolCallRef.current = onToolCall;
+  }, [onToolCall]);
 
   const [streamMessages, setStreamMessages] = useState<DisplayMessage[]>([]);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -160,6 +168,7 @@ export function useWorkspaceConversation(
                 streamStateRef.current.toolNameByCallId[e.call_id] = e.name;
                 toolGroupEnds[e.call_id] = log.group.tool(e.name, e.call_id);
                 log.tool('args_keys', Object.keys(e.arguments));
+                onToolCallRef.current?.(e.name);
                 break;
               }
               case 'function_call_output': {

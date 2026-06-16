@@ -28,7 +28,9 @@ from api.deps import (
 from api.sse import SSE_MEDIA_TYPE, format_sse
 from shared.models.conversation import Conversation, NewConversation
 from shared.models.conversation_schema import ConversationRead
-from shared.models.enums import CalculationStatus, PromptType
+from shared.models.enums import CalculationStatus, MessageKind, PromptType
+from shared.models.lv_item import LVItem
+from shared.models.message import NewMessage
 from shared.models.sse_schema import (
     DATA,
     DATA_CONTENT,
@@ -41,6 +43,7 @@ from shared.models.sse_schema import (
 )
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.lv_items import LVItemRepository
+from shared.repositories.messages import MessageRepository
 from shared.services.calculator.run_service import CalculatorRunService
 
 logger = logging.getLogger(__name__)
@@ -49,6 +52,27 @@ router = APIRouter(tags=["calculations"])
 
 # Length of the LV Kurztext kept in the conversation title.
 TITLE_KURZTEXT_LEN = 60
+
+# The assistant message that opens a fresh calculation gate: run now, or discuss the position first.
+# The Kalkulator's reply is handled as a normal project-chat turn; asking to run trips the agent's
+# start_calculation tool, which the UI turns into the live calculation stream.
+GATE_PROMPT = (
+    "Möchten Sie diese Kalkulation jetzt durchführen?\n\n"
+    "1. Ja — starten Sie den Kalkulationsagenten.\n"
+    "2. Nein — lassen Sie uns zuerst über diese Position sprechen."
+)
+
+
+def _lv_details_text(item: LVItem) -> str:
+    """The LV position rendered as the gate's first message (plain assistant text)."""
+    lines = [
+        f"**Position {item.oz}** — {item.kurztext}",
+        f"Menge: {item.menge} {item.einheit}",
+    ]
+    langtext = item.langtext_resolved or item.langtext
+    if langtext:
+        lines.extend(("", langtext))
+    return "\n".join(lines)
 
 
 class CalculationResume(BaseModel):
@@ -74,8 +98,10 @@ async def create_calculation(
     principal: Principal = Depends(get_current_user),
     engine: AsyncEngine = Depends(get_engine),
 ) -> ConversationRead:
-    """Create the ekt_calculator conversation for an LV position. The UI redirects to it and opens
-    the stream; the run is addressable by conversation_uuid alone via the stored lv_item_uuid."""
+    """Create the ekt_calculator conversation for an LV position and seed the gate. The UI redirects
+    to it and shows a chat gate (the position + a run/discuss prompt); the graph starts only once the
+    Kalkulator asks to run. The run is addressable by conversation_uuid alone via the stored
+    lv_item_uuid."""
     async with engine.connect() as conn:
         item = await LVItemRepository(conn).get_by_project_and_oz(project_uuid, oz)
     if item is None:
@@ -90,10 +116,21 @@ async def create_calculation(
                 prompt_type=PromptType.EKT_CALCULATOR,
                 project_uuid=project_uuid,
                 lv_item_uuid=item.lv_item_uuid,
-                calculation_status=CalculationStatus.RUNNING,
+                calculation_status=CalculationStatus.AWAITING_START,
                 title=f"EKT {oz}: {item.kurztext[:TITLE_KURZTEXT_LEN]}",
             )
         )
+    # One message per transaction: created_at is transaction-time, so separate transactions give
+    # the position a strictly earlier timestamp than the prompt and the gate renders them in order.
+    for content in (_lv_details_text(item), GATE_PROMPT):
+        async with engine.begin() as conn:
+            await MessageRepository(conn).add(
+                NewMessage(
+                    conversation_uuid=conversation.conversation_uuid,
+                    kind=MessageKind.ASSISTANT,
+                    content=content,
+                )
+            )
     return ConversationRead.model_validate(conversation.model_dump())
 
 

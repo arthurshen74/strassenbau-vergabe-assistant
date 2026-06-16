@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -27,12 +28,12 @@ def get_ingest_admin_service(
 
 @router.get("", response_model=list[IngestJobConsoleRead])
 async def list_ingest_jobs(
-    status: IngestStatus | None = None,
+    status: Annotated[list[IngestStatus] | None, Query()] = None,
     project_uuid: UUID | None = None,
     _principal: Principal = Depends(get_current_user),
     service: IngestAdminService = Depends(get_ingest_admin_service),
 ) -> list[IngestJobConsoleRead]:
-    jobs = await service.list_jobs(status=status, project_uuid=project_uuid)
+    jobs = await service.list_jobs(statuses=status, project_uuid=project_uuid)
     return [IngestJobConsoleRead.model_validate(job) for job in jobs]
 
 

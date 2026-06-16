@@ -13,19 +13,29 @@ import type { IngestActivityLine, IngestJobConsoleRead } from '../types/generate
 
 export type IngestJobStatus = IngestJobConsoleRead['status'];
 
+// Jobs not yet in a terminal state. Single source of truth for the "Active" filter and for the
+// poll cadence below.
+export const ACTIVE_STATUSES: IngestJobStatus[] = ['queued', 'running'];
+
+// Poll fast while jobs are in flight; idle slowly otherwise so newly queued jobs still surface.
+const ACTIVE_POLL_MS = 2500;
+const IDLE_POLL_MS = 8000;
+
 export interface IngestJobFilters {
-  status?: IngestJobStatus;
+  statuses?: IngestJobStatus[];
   project_uuid?: string;
-  [key: string]: string | undefined;
 }
 
-function queryString(params: Record<string, string | undefined>): string {
+function buildQuery(filters: IngestJobFilters): string {
   const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== '') sp.set(k, v);
-  }
+  for (const status of filters.statuses ?? []) sp.append('status', status);
+  if (filters.project_uuid) sp.set('project_uuid', filters.project_uuid);
   const s = sp.toString();
   return s ? `?${s}` : '';
+}
+
+function hasActiveJobs(jobs: IngestJobConsoleRead[] | undefined): boolean {
+  return jobs?.some((job) => ACTIVE_STATUSES.includes(job.status)) ?? false;
 }
 
 export const ingestJobKeys = {
@@ -37,7 +47,10 @@ export function useIngestJobs(filters: IngestJobFilters) {
   return useQuery({
     queryKey: ingestJobKeys.list(filters),
     queryFn: () =>
-      api.get<IngestJobConsoleRead[]>(`/ingest-jobs${queryString(filters)}`),
+      api.get<IngestJobConsoleRead[]>(`/ingest-jobs${buildQuery(filters)}`),
+    refetchInterval: (query) =>
+      hasActiveJobs(query.state.data) ? ACTIVE_POLL_MS : IDLE_POLL_MS,
+    refetchIntervalInBackground: false,
   });
 }
 

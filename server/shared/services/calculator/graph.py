@@ -23,6 +23,7 @@ graph runs document-blind (mock/offline).
 
 from __future__ import annotations
 
+import logging
 import operator
 import re
 from collections.abc import Awaitable, Callable
@@ -91,14 +92,29 @@ REASONING_LLM = "llm"
 REASONING_PROVIDER = "provider"
 
 
+logger = logging.getLogger(__name__)
+
+# Diagnostic: the writer being unavailable under a streaming run means live reasoning is silently
+# dropped (the "stuck, then a burst" symptom). Expected to be absent only for CLI / ainvoke, so we
+# warn once per process rather than per entry.
+_writer_unavailable_warned = False
+
+
 def _write_live(entry: dict) -> None:
     """Emit one reasoning entry to the custom stream so the UI and logs see it the moment it is
     created, mid-node. The sequential driver loop is a single graph node, so without this its
     per-driver progress would be buffered until the whole node returns (stream_mode='updates' only
     yields per node). No-op when the run isn't streaming with custom mode (CLI / ainvoke)."""
+    global _writer_unavailable_warned
     try:
         writer = get_stream_writer()
     except RuntimeError:
+        if not _writer_unavailable_warned:
+            logger.warning(
+                "calculator stream writer unavailable (get_stream_writer raised); live reasoning "
+                "deltas will not stream. Expected only for CLI/ainvoke, not an SSE run."
+            )
+            _writer_unavailable_warned = True
         return
     writer(entry)
 

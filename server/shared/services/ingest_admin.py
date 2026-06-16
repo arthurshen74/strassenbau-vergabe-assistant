@@ -9,7 +9,7 @@ an id cursor, emitting new lines until the job is terminal and drained.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -33,11 +33,14 @@ class IngestAdminService:
         self._engine = engine
 
     async def list_jobs(
-        self, *, status: IngestStatus | None = None, project_uuid: UUID | None = None
+        self,
+        *,
+        statuses: Sequence[IngestStatus] | None = None,
+        project_uuid: UUID | None = None,
     ) -> list[IngestJobConsoleRow]:
         async with self._engine.connect() as conn:
             return await IngestJobRepository(conn).list_for_console(
-                status=status, project_uuid=project_uuid
+                statuses=statuses, project_uuid=project_uuid
             )
 
     async def requeue(self, job_uuid: UUID) -> IngestJob | None:

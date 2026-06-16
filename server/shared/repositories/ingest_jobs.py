@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import and_, func, insert, or_, select, update
@@ -186,10 +187,13 @@ class IngestJobRepository:
         return IngestJob.model_validate(dict(row)) if row else None
 
     async def list_for_console(
-        self, *, status: IngestStatus | None = None, project_uuid: UUID | None = None
+        self,
+        *,
+        statuses: Sequence[IngestStatus] | None = None,
+        project_uuid: UUID | None = None,
     ) -> list[IngestJobConsoleRow]:
         """Jobs for the ops console, newest first, joined to each job's document file name and
-        project name, optionally filtered by status and/or project."""
+        project name, optionally filtered to a set of statuses and/or a project."""
         stmt = (
             select(
                 ingest_jobs.c.job_uuid,
@@ -209,8 +213,8 @@ class IngestJobRepository:
                 ).join(projects, documents.c.project_uuid == projects.c.project_uuid)
             )
         )
-        if status is not None:
-            stmt = stmt.where(ingest_jobs.c.status == status)
+        if statuses:
+            stmt = stmt.where(ingest_jobs.c.status.in_(statuses))
         if project_uuid is not None:
             stmt = stmt.where(documents.c.project_uuid == project_uuid)
         stmt = stmt.order_by(ingest_jobs.c.created_at.desc())

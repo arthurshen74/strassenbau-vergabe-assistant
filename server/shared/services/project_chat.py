@@ -26,7 +26,7 @@ from shared.clients.factory import TelemetrySinks
 from shared.clients.llm.client import LLMClient
 from shared.clients.storage.client import StorageClient
 from shared.models.conversation import Conversation
-from shared.models.enums import MessageKind, PromptType
+from shared.models.enums import CalculationStatus, MessageKind, PromptType
 from shared.models.message import Message, NewMessage
 from shared.models.prompt_version import PromptVersion
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
@@ -65,6 +65,16 @@ from shared.services.prompt_runner import PromptVersionNotFoundError
 from shared.services.retrieval import RetrievalConfig, RetrievalService
 
 logger = logging.getLogger(__name__)
+
+# Appended to the chat system prompt while a calculation is in its pre-run gate: the model answers
+# questions about the position normally, but calls start_calculation the moment the user wants to run.
+GATE_SYSTEM_SUFFIX = (
+    "\n\nDiese Unterhaltung entscheidet, ob die EKT-Kalkulation für die vorliegende LV-Position "
+    "gestartet wird. Beantworte Fragen zur Position normal. Sobald der Nutzer die Kalkulation "
+    'starten möchte (z. B. "1", "ja", "starten", "berechnen", "los"), rufe das Werkzeug '
+    "start_calculation auf und kündige kurz an, dass die Kalkulation startet. Rufe start_calculation "
+    "ausschließlich auf ausdrücklichen Wunsch des Nutzers auf."
+)
 
 
 def config_from_request(dto: TurnRetrievalConfig | None) -> RetrievalConfig:
@@ -114,7 +124,16 @@ class ProjectChatService:
         messages = [
             {ROLE: m.role, CONTENT: m.content} for m in to_user_assistant_messages(history)
         ]
+        # A calculator conversation in its pre-run gate gets the start_calculation tool and a prompt
+        # nudge; otherwise this is an ordinary project chat (or a completed run's follow-up).
+        allow_start = (
+            conversation.prompt_type == PromptType.EKT_CALCULATOR
+            and conversation.calculation_status == CalculationStatus.AWAITING_START
+        )
         prompt = await self._load_prompt()
+        system_prompt = (
+            prompt.system_prompt + GATE_SYSTEM_SUFFIX if allow_start else prompt.system_prompt
+        )
         agent = ProjectChatAgent(
             project_uuid=project_uuid,
             config=config,
@@ -122,11 +141,12 @@ class ProjectChatService:
             retrieval=self._retrieval,
             aggregate=AggregateLVService(engine=self._engine, llm=self._llm),
             storage=self._storage,
-            system_prompt=prompt.system_prompt,
+            system_prompt=system_prompt,
             chat_model=prompt.model_name,
             temperature=prompt.temperature,
             prompt_type=PromptType.PROJECT_CHAT.value,
             conversation_uuid=conversation_id,
+            allow_start_calculation=allow_start,
         )
 
         assistant_parts: list[str] = []

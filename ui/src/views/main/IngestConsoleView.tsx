@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ArrowPathIcon, CommandLineIcon } from '@heroicons/react/16/solid';
 
 import {
+  ACTIVE_STATUSES,
   useIngestJobs,
   useRequeueIngestJob,
   type IngestJobStatus,
@@ -27,7 +28,22 @@ import { ErrorState } from '../../components/feedback/ErrorState';
 import { formatTimestamp } from '../../lib/format';
 import { IngestActivityTerminal } from './IngestActivityTerminal';
 
-const STATUSES: IngestJobStatus[] = ['queued', 'running', 'done', 'failed'];
+type StatusFilter = '' | 'active' | IngestJobStatus;
+
+const FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: '', label: 'All' },
+  { value: 'active', label: 'Active / Queued' },
+  { value: 'queued', label: 'queued' },
+  { value: 'running', label: 'running' },
+  { value: 'done', label: 'done' },
+  { value: 'failed', label: 'failed' },
+];
+
+function filterStatuses(filter: StatusFilter): IngestJobStatus[] | undefined {
+  if (filter === '') return undefined;
+  if (filter === 'active') return ACTIVE_STATUSES;
+  return [filter];
+}
 
 const STATUS_COLOR: Record<IngestJobStatus, 'zinc' | 'blue' | 'green' | 'red'> = {
   queued: 'zinc',
@@ -40,12 +56,24 @@ const ACTION =
   'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-50';
 
 export function IngestConsoleView() {
-  const [status, setStatus] = useState<IngestJobStatus | ''>('');
+  const [filter, setFilter] = useState<StatusFilter>('');
   const [activityJob, setActivityJob] = useState<string | null>(null);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
 
-  const query = useIngestJobs({ status: status || undefined });
+  const query = useIngestJobs({ statuses: filterStatuses(filter) });
   const requeue = useRequeueIngestJob();
   const rows = query.data ?? [];
+
+  // The list polls in the background; reflect only manual refetches on the button so it doesn't
+  // spin on every poll tick.
+  const onRefresh = async () => {
+    setManualRefreshing(true);
+    try {
+      await query.refetch();
+    } finally {
+      setManualRefreshing(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -53,11 +81,11 @@ export function IngestConsoleView() {
         <Heading level={4}>Ingest Console</Heading>
         <Button
           plain
-          disabled={query.isFetching}
-          onClick={() => query.refetch()}
+          disabled={manualRefreshing}
+          onClick={onRefresh}
           aria-label="Refresh jobs"
         >
-          <ArrowPathIcon className={query.isFetching ? 'animate-spin' : undefined} />
+          <ArrowPathIcon className={manualRefreshing ? 'animate-spin' : undefined} />
           Refresh
         </Button>
       </div>
@@ -65,13 +93,12 @@ export function IngestConsoleView() {
       <label className="flex w-56 flex-col gap-1 text-xs text-zinc-500">
         Status
         <Select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as IngestJobStatus | '')}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as StatusFilter)}
         >
-          <option value="">All</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
+          {FILTER_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </Select>

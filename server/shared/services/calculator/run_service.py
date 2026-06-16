@@ -13,6 +13,7 @@ the API knows whether a turn is a resume (awaiting_input) or a follow-up chat (c
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID, uuid4
@@ -133,6 +134,11 @@ class CalculatorRunService:
         await self._set_status(conversation_id, CalculationStatus.RUNNING)
         _trace(conversation_id, "--- streaming calculation segment ---")
         interrupted = False
+        # Diagnostic counters: distinguish "graph never streamed reasoning" (custom writer broken)
+        # from "graph streamed fine but the client/transport dropped it". Traced at segment end.
+        started_at = time.monotonic()
+        custom_count = 0
+        update_count = 0
         try:
             # "custom" carries each reasoning entry live as a node produces it (so the long
             # per-driver node streams incrementally); "updates" carries completed-node output for
@@ -141,10 +147,17 @@ class CalculatorRunService:
                 payload, config, stream_mode=["updates", "custom"]
             ):
                 if mode == "custom":
+                    custom_count += 1
+                    if custom_count == 1:
+                        _trace(
+                            conversation_id,
+                            f"first reasoning delta after {time.monotonic() - started_at:.2f}s",
+                        )
                     text = _format_reasoning(chunk)
                     _trace(conversation_id, text.rstrip("\n"))
                     yield _text_delta(text)
                     continue
+                update_count += 1
                 if INTERRUPT_KEY in chunk:
                     value = chunk[INTERRUPT_KEY][0].value
                     _trace(conversation_id, f"PAUSED ({value.get('stage')}); awaiting input")
@@ -164,6 +177,17 @@ class CalculatorRunService:
             yield _ui_notice(NOTICE_PROCESSING_ERROR, NoticeLevel.ERROR)
             yield {EVENT: EVENT_DONE, DATA: {}}
             return
+
+        _trace(
+            conversation_id,
+            f"segment stats: {custom_count} reasoning deltas, {update_count} node updates",
+        )
+        if custom_count == 0 and update_count > 0:
+            _trace(
+                conversation_id,
+                "WARNING: nodes produced output but streamed 0 reasoning deltas -- the custom "
+                "writer is inactive (see graph._write_live); the UI will look stuck until the result.",
+            )
 
         if interrupted:
             await self._set_status(conversation_id, CalculationStatus.AWAITING_INPUT)

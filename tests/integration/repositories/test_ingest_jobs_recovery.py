@@ -172,5 +172,10 @@ async def test_list_for_console_filters_by_project_and_status(conn: AsyncConnect
     assert [j.job_uuid for j in a_jobs] == [job_a]
 
     await repo.set_status(job_b, IngestStatus.FAILED)
-    failed = await repo.list_for_console(status=IngestStatus.FAILED)
+    failed = await repo.list_for_console(statuses=[IngestStatus.FAILED])
     assert [j.job_uuid for j in failed] == [job_b]
+
+    active = await repo.list_for_console(
+        statuses=[IngestStatus.QUEUED, IngestStatus.RUNNING]
+    )
+    assert [j.job_uuid for j in active] == [job_a]
