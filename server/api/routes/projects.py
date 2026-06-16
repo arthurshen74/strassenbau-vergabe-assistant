@@ -6,7 +6,7 @@ from typing import Literal
 from uuid import UUID
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
@@ -14,12 +14,14 @@ from api.deps import (
     Principal,
     get_connection,
     get_current_user,
+    get_embeddings,
     get_engine,
     get_search,
     get_storage,
     get_uow,
 )
 from api.sse import SSE_HEARTBEAT, SSE_MEDIA_TYPE, format_sse
+from shared.clients.embeddings import EmbeddingsClient
 from shared.clients.maps.client import MAP_CONTENT_TYPE
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient, map_object_key
@@ -42,6 +44,7 @@ from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.document_detail import DocumentDetailService
 from shared.services.ingestion.status_stream import HEARTBEAT, stream_project_status
+from shared.services.lv_item_search import LVItemSearchService
 from shared.services.project_service import ProjectService, UploadInput
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -94,6 +97,14 @@ def get_document_detail_service(
     return DocumentDetailService(engine, search)
 
 
+def get_lv_item_search_service(
+    engine: AsyncEngine = Depends(get_engine),
+    embeddings: EmbeddingsClient = Depends(get_embeddings),
+    search: SearchClient = Depends(get_search),
+) -> LVItemSearchService:
+    return LVItemSearchService(engine=engine, embeddings=embeddings, search=search)
+
+
 @router.get("", response_model=list[ProjectRead])
 async def list_projects(
     service: ProjectService = Depends(get_project_service),
@@ -135,6 +146,18 @@ async def list_lv_items(
 ) -> list[LVItem]:
     """All LV positions for the project's LV document, ordered by oz."""
     return await service.list_lv_items(project_uuid)
+
+
+@router.get("/{project_uuid}/lv-items/search", response_model=list[LVItem])
+async def search_lv_items(
+    project_uuid: UUID,
+    q: str = Query(..., min_length=1),
+    limit: int = Query(default=50, ge=1, le=200),
+    service: LVItemSearchService = Depends(get_lv_item_search_service),
+) -> list[LVItem]:
+    """LV positions matching q in relevance order: hybrid BM25 + semantic search over the
+    project's LV_ITEM chunks, with exact oz/stl_nr position matches surfaced first."""
+    return await service.search(project_uuid, q, limit=limit)
 
 
 @router.get("/{project_uuid}/ingest/stream")

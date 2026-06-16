@@ -1,15 +1,19 @@
-// LV Positions tab body: a table of the project's LV items (OZ, Kurztext, Langtext, Menge,
-// Einheit). Clicking a row opens the full position in a detail dialog.
+// LV Positions tab body: a searchable table of the project's LV items (OZ, Kurztext, Langtext,
+// Menge, Einheit). Submitting a query runs the hybrid BM25/semantic search over the project's
+// LV_ITEM chunks and re-orders the table by relevance; clearing it restores the full list.
+// Clicking a row opens the full position in a detail dialog.
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { MagnifyingGlassIcon } from '@heroicons/react/16/solid';
 
 import { createCalculation } from '../../api/calculations';
 import { conversationKeys } from '../../api/conversations';
-import { useProjectLvItems } from '../../api/projects';
+import { useLvItemSearch, useProjectLvItems } from '../../api/projects';
 import { useMainWindowStore } from '../../store/mainWindow';
 import { Button } from '../../components/ui/button';
+import { Input, InputGroup } from '../../components/ui/input';
 import {
   Table,
   TableBody,
@@ -31,6 +35,9 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
   const closeMainWindow = useMainWindowStore((s) => s.closeMainWindow);
   const [selected, setSelected] = useState<LVItem | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [query, setQuery] = useState('');
+  const search = useLvItemSearch(projectUuid, query);
 
   // Create the ekt_calculator conversation, seed the list cache so it resolves immediately, close
   // the (global) main window overlay so the conversation underneath is visible, then redirect to it;
@@ -57,58 +64,99 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
     );
   }
 
-  const items = lvItems.data ?? [];
-  if (items.length === 0) return <Text>No LV positions yet.</Text>;
+  const allItems = lvItems.data ?? [];
+  if (allItems.length === 0) return <Text>No LV positions yet.</Text>;
+
+  const searching = query.length > 0;
+  const items = searching ? (search.data ?? []) : allItems;
+
+  const submitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setQuery(draft.trim());
+  };
+  const clearSearch = () => {
+    setDraft('');
+    setQuery('');
+  };
 
   return (
     <>
-      <Table dense>
-        <TableHead>
-          <TableRow>
-            <TableHeader>OZ</TableHeader>
-            <TableHeader>Kurztext</TableHeader>
-            <TableHeader>Langtext</TableHeader>
-            <TableHeader className="text-right">Menge</TableHeader>
-            <TableHeader>Einheit</TableHeader>
-            <TableHeader />
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {items.map((item) => (
-            <TableRow
-              key={item.lv_item_uuid}
-              onClick={() => setSelected(item)}
-              className="cursor-pointer hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5"
-            >
-              <TableCell className="font-medium whitespace-nowrap">{item.oz}</TableCell>
-              <TableCell>
-                <div className="max-w-[150px] truncate" title={item.kurztext}>
-                  {item.kurztext}
-                </div>
-              </TableCell>
-              <TableCell>
-                <div className="max-w-[300px] truncate" title={item.langtext}>
-                  {item.langtext}
-                </div>
-              </TableCell>
-              <TableCell className="text-right whitespace-nowrap">{String(item.menge)}</TableCell>
-              <TableCell className="whitespace-nowrap">{item.einheit}</TableCell>
-              <TableCell className="whitespace-nowrap text-right">
-                <Button
-                  outline
-                  disabled={starting === item.oz}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void runCalculation(item.oz);
-                  }}
-                >
-                  {starting === item.oz ? 'Starting…' : 'Run calculation'}
-                </Button>
-              </TableCell>
+      <form onSubmit={submitSearch} className="flex items-center gap-2">
+        <div className="flex-1">
+          <InputGroup>
+            <MagnifyingGlassIcon data-slot="icon" />
+            <Input
+              type="search"
+              name="q"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Search LV positions by keyword, phrase, or OZ…"
+              aria-label="Search LV positions"
+            />
+          </InputGroup>
+        </div>
+        {searching && (
+          <Button type="button" plain onClick={clearSearch}>
+            Clear
+          </Button>
+        )}
+      </form>
+
+      {searching && search.isPending ? (
+        <LoadingState label="Searching…" />
+      ) : searching && search.isError ? (
+        <ErrorState message={(search.error as Error).message} onRetry={() => search.refetch()} />
+      ) : items.length === 0 ? (
+        <Text>No positions match “{query}”.</Text>
+      ) : (
+        <Table dense>
+          <TableHead>
+            <TableRow>
+              <TableHeader>OZ</TableHeader>
+              <TableHeader>Kurztext</TableHeader>
+              <TableHeader>Langtext</TableHeader>
+              <TableHeader className="text-right">Menge</TableHeader>
+              <TableHeader>Einheit</TableHeader>
+              <TableHeader />
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {items.map((item) => (
+              <TableRow
+                key={item.lv_item_uuid}
+                onClick={() => setSelected(item)}
+                className="cursor-pointer hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5"
+              >
+                <TableCell className="font-medium whitespace-nowrap">{item.oz}</TableCell>
+                <TableCell>
+                  <div className="max-w-[150px] truncate" title={item.kurztext}>
+                    {item.kurztext}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="max-w-[300px] truncate" title={item.langtext}>
+                    {item.langtext}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right whitespace-nowrap">{String(item.menge)}</TableCell>
+                <TableCell className="whitespace-nowrap">{item.einheit}</TableCell>
+                <TableCell className="whitespace-nowrap text-right">
+                  <Button
+                    outline
+                    disabled={starting === item.oz}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void runCalculation(item.oz);
+                    }}
+                  >
+                    {starting === item.oz ? 'Starting…' : 'Run calculation'}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
       <LVItemDetailDialog
         item={selected}

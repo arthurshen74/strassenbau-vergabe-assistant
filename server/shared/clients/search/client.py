@@ -331,6 +331,33 @@ class SearchClient:
         resp = await self._es.search(index=self._index, query=query, size=size)
         return [_hit_to_scored_chunk(hit) for hit in resp["hits"]["hits"]]
 
+    async def keyword_search(
+        self,
+        query_text: str,
+        scope_filter: dict[str, Any],
+        fields: Sequence[str],
+        *,
+        size: int = settings.retriever_candidate_k,
+    ) -> list[ScoredChunk]:
+        """Exact-match the query against any of the given keyword fields (e.g. oz/stl_nr),
+        scoped by the same filter as the dense/lexical searches. Empty unless the query is the
+        exact value of one of those fields, so a prose query contributes nothing."""
+        query = {
+            "bool": {
+                "filter": [scope_filter],
+                "must": [
+                    {
+                        "bool": {
+                            "minimum_should_match": 1,
+                            "should": [{"term": {field: query_text}} for field in fields],
+                        }
+                    }
+                ],
+            }
+        }
+        resp = await self._es.search(index=self._index, query=query, size=size)
+        return [_hit_to_scored_chunk(hit) for hit in resp["hits"]["hits"]]
+
     async def archive_source(
         self, source_doc_uuid: UUID, source_doc_type: SourceDocType
     ) -> int:

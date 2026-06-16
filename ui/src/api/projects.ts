@@ -20,6 +20,8 @@ export const projectKeys = {
   detail: (uuid: string) => ['project', uuid] as const,
   documents: (uuid: string) => ['project', uuid, 'documents'] as const,
   lvItems: (uuid: string) => ['project', uuid, 'lv-items'] as const,
+  lvItemSearch: (uuid: string, q: string) =>
+    ['project', uuid, 'lv-items', 'search', q] as const,
 };
 
 export function useProjects() {
@@ -50,6 +52,17 @@ export function useProjectLvItems(uuid: string | undefined) {
     queryKey: uuid ? projectKeys.lvItems(uuid) : ['project', 'none', 'lv-items'],
     queryFn: () => api.get<LVItem[]>(`/projects/${uuid}/lv-items`),
     enabled: !!uuid,
+  });
+}
+
+// Hybrid BM25/semantic search over the project's LV_ITEM chunks; enabled only once a query is
+// submitted, so an empty box keeps the full list (useProjectLvItems) on screen.
+export function useLvItemSearch(uuid: string, query: string) {
+  return useQuery({
+    queryKey: projectKeys.lvItemSearch(uuid, query),
+    queryFn: () =>
+      api.get<LVItem[]>(`/projects/${uuid}/lv-items/search?q=${encodeURIComponent(query)}`),
+    enabled: query.length > 0,
   });
 }
 

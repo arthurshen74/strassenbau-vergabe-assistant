@@ -77,6 +77,16 @@ class LVItemRepository:
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [LVItem.model_validate(dict(r)) for r in rows]
 
+    async def list_by_uuids(self, lv_item_uuids: Sequence[UUID]) -> list[LVItem]:
+        """LV items for the given uuids in arbitrary order; the caller re-orders by relevance.
+        Backs hybrid LV item search, which ranks lv_item_uuids in Elasticsearch then loads
+        the rows."""
+        if not lv_item_uuids:
+            return []
+        stmt = select(lv_items).where(lv_items.c.lv_item_uuid.in_(list(lv_item_uuids)))
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [LVItem.model_validate(dict(r)) for r in rows]
+
     async def list_uuids_by_document(self, document_uuid: UUID) -> list[UUID]:
         """LV item UUIDs for a document; empty for a non-LV document. Targets the ES
         LV_ITEM chunks (keyed by lv_item_uuid) when the document is deleted, before the
