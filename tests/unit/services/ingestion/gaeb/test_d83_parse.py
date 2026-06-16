@@ -161,7 +161,7 @@ def test_hinweis_governs_following_positions_until_gruppe_ends() -> None:
     assert items["02.0001"].hinweis is None  # scope ended with the LV-Gruppe
 
 
-def test_vorbemerkung_and_file_level_hinweis_apply_to_all_positions() -> None:
+def test_vorbemerkung_is_file_wide_but_leading_hinweis_scopes_to_its_gruppe() -> None:
     items = _by_oz(
         _parse(
             [
@@ -170,17 +170,27 @@ def test_vorbemerkung_and_file_level_hinweis_apply_to_all_positions() -> None:
                 _record("T9"),
                 _eroeffnung(MASK_FLAT),
                 _hinweis_begin(),
-                _langtext("Datei-Hinweis."),
+                _langtext("Hinweis zur Verkehrssicherung."),
+                _gruppe("00"),
+                _gruppe_name("Verkehrssicherung"),
+                _position("000001"),
+                _kurztext("In Abschnitt 00"),
+                _gruppe_end(),
                 _gruppe("01"),
-                _gruppe_name("Bau"),
+                _gruppe_name("Anderes Gewerk"),
                 _position("010001"),
-                _kurztext("Eins"),
+                _kurztext("In Abschnitt 01"),
                 _gruppe_end(),
                 _abschluss(),
             ]
         )
     )
-    assert items["01.0001"].hinweis == "Vertragliche Regelung gilt überall.\n\nDatei-Hinweis."
+    # The contractual Vorbemerkung (T1) governs every position, across both Abschnitte.
+    assert items["00.0001"].hinweis == (
+        "Vertragliche Regelung gilt überall.\n\nHinweis zur Verkehrssicherung."
+    )
+    # The leading 20-Hinweis introduces Abschnitt 00 only; it must not leak into 01.
+    assert items["01.0001"].hinweis == "Vertragliche Regelung gilt überall."
 
 
 def test_backref_wie_in_voriger_position_composes_delta() -> None:

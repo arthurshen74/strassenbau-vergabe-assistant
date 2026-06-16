@@ -3,9 +3,11 @@
 The reader is a small state machine over the Zeilenarten: `11`/`12` open an LV-Gruppe and
 name it (emitted as a Titel item), `21` starts a Teilleistung whose `25`/`26` records carry
 the Kurz-/Langtext, `20` starts a Hinweistext whose `26` records govern every following
-priced position until the enclosing LV-Gruppe closes (`31`), and `T1` records before the
-Eroeffnungssatz act as a file-level Hinweis. Price- and statistics-records (`23`, `27`, ...)
-carry nothing the LV emission needs and are skipped.
+priced position until the enclosing LV-Gruppe closes (`31`); a Hinweistext that precedes a
+top-level LV-Gruppe is absorbed by that group, so it governs only that Abschnitt and not
+the rest of the file. `T1` records before the Eroeffnungssatz are a file-level Vorbemerkung
+that applies to every position. Price- and statistics-records (`23`, `27`, ...) carry
+nothing the LV emission needs and are skipped.
 """
 
 from __future__ import annotations
@@ -108,7 +110,8 @@ class _Reader:
         self._mask: rec.OzMask | None = None
         self._items: list[_ItemBuilder] = []
         self._warnings: list[str] = []
-        self._file_hinweis_blocks: list[str] = []
+        self._file_vorbemerkung_blocks: list[str] = []
+        self._pending_hinweis_blocks: list[str] = []
         self._groups: list[_Group] = []
         self._sink = _Sink.NONE
         self._position: _ItemBuilder | None = None
@@ -149,6 +152,7 @@ class _Reader:
         elif za == rec.ZA_GRUPPE_BEGIN:
             self._set_sink(_Sink.GROUP_TITLE)
             self._open_gruppe(line)
+            self._absorb_pending_hinweis()
         elif za == rec.ZA_HINWEIS_BEGIN:
             self._set_sink(_Sink.HINWEIS)
         elif za == rec.ZA_POSITION_BEGIN:
@@ -186,14 +190,24 @@ class _Reader:
         return [builder.finish() for builder in self._items], self._warnings
 
     def _set_sink(self, sink: _Sink) -> None:
-        """Switch the text sink, finalising a completed Hinweis/Vorbemerkung block."""
+        """Switch the text sink, filing a completed Hinweis/Vorbemerkung block into scope."""
         if self._sink in (_Sink.HINWEIS, _Sink.VORBEMERKUNG) and self._block_lines:
             block = _dedent(self._block_lines)
             if block:
-                scope = self._groups[-1].hinweis_blocks if self._groups else self._file_hinweis_blocks
-                scope.append(block)
+                self._store_block(block)
         self._block_lines = []
         self._sink = sink
+
+    def _store_block(self, block: str) -> None:
+        """File a finished text block into its governing scope: the open LV-Gruppe if any,
+        else a file-level Vorbemerkung (T1) that governs every position, else a Hinweis held
+        until the next top-level LV-Gruppe it introduces absorbs it."""
+        if self._groups:
+            self._groups[-1].hinweis_blocks.append(block)
+        elif self._sink is _Sink.VORBEMERKUNG:
+            self._file_vorbemerkung_blocks.append(block)
+        else:
+            self._pending_hinweis_blocks.append(block)
 
     def _read_eroeffnung(self, line: str) -> None:
         if self._mask is not None:
@@ -208,6 +222,13 @@ class _Reader:
         builder = _ItemBuilder(oz=self._format_oz(line), is_title=True)
         self._items.append(builder)
         self._groups.append(_Group(builder=builder))
+
+    def _absorb_pending_hinweis(self) -> None:
+        """Hand a Hinweis that preceded this LV-Gruppe to the group, so it governs only this
+        Abschnitt and pops at its Abschluss (ZA 31) instead of every later Abschnitt."""
+        if self._pending_hinweis_blocks:
+            self._groups[-1].hinweis_blocks = self._pending_hinweis_blocks
+            self._pending_hinweis_blocks = []
 
     def _open_position(self, line: str) -> None:
         builder = _ItemBuilder(
@@ -224,8 +245,11 @@ class _Reader:
         self._position = builder
 
     def _governing_hinweis_blocks(self) -> list[str]:
-        """The Hinweis blocks in scope, outermost first: file level, then each open group."""
-        blocks = list(self._file_hinweis_blocks)
+        """The Hinweis blocks in scope, outermost first: file-level Vorbemerkungen, a Hinweis
+        still waiting for its LV-Gruppe (it governs root positions before any group), then
+        each open group."""
+        blocks = list(self._file_vorbemerkung_blocks)
+        blocks.extend(self._pending_hinweis_blocks)
         for group in self._groups:
             blocks.extend(group.hinweis_blocks)
         return blocks
