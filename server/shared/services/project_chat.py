@@ -56,6 +56,7 @@ from shared.repositories.prompt_versions import PromptVersionRepository
 from shared.services.aggregate_lv import AggregateLVService
 from shared.services.messages import CONTENT, ROLE, to_user_assistant_messages
 from shared.services.project_chat_agent import (
+    TOOL_CALCULATE_EKT,
     AgentToken,
     AgentToolCall,
     AgentToolResult,
@@ -66,14 +67,19 @@ from shared.services.retrieval import RetrievalConfig, RetrievalService
 
 logger = logging.getLogger(__name__)
 
-# Appended to the chat system prompt while a calculation is in its pre-run gate: the model answers
-# questions about the position normally, but calls start_calculation the moment the user wants to run.
-GATE_SYSTEM_SUFFIX = (
-    "\n\nDiese Unterhaltung entscheidet, ob die EKT-Kalkulation für die vorliegende LV-Position "
-    "gestartet wird. Beantworte Fragen zur Position normal. Sobald der Nutzer die Kalkulation "
-    'starten möchte (z. B. "1", "ja", "starten", "berechnen", "los"), rufe das Werkzeug '
-    "start_calculation auf und kündige kurz an, dass die Kalkulation startet. Rufe start_calculation "
-    "ausschließlich auf ausdrücklichen Wunsch des Nutzers auf."
+# Prepended so a position chat is grounded in its bound LV item: "this position" resolves to it.
+POSITION_SYSTEM_TEMPLATE = (
+    "\n\nDiese Unterhaltung bezieht sich auf die folgende LV-Position. Wenn der Nutzer von "
+    '"dieser Position" spricht, ist diese gemeint:\n{position}'
+)
+
+# Appended while a position chat can still start its calculation: answer questions normally, but
+# call calculate_ekt the moment the user asks to run the EKT calculation for the position.
+CALC_SYSTEM_SUFFIX = (
+    "\n\nWenn der Nutzer die EKT-Kalkulation für diese Position durchführen möchte (z. B. "
+    '"Kalkuliere die EKT für diese Position", "berechne die Position", "starte die Kalkulation"), '
+    "rufe das Werkzeug calculate_ekt auf und kündige kurz an, dass die Kalkulation startet. Rufe "
+    "calculate_ekt ausschließlich auf ausdrücklichen Wunsch des Nutzers auf."
 )
 
 
@@ -106,7 +112,12 @@ class ProjectChatService:
         self._sinks = sinks
 
     async def run_turn(
-        self, conversation: Conversation, user_content: str, config: RetrievalConfig
+        self,
+        conversation: Conversation,
+        user_content: str,
+        config: RetrievalConfig,
+        *,
+        position_context: str | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         conversation_id = conversation.conversation_uuid
         project_uuid = conversation.project_uuid
@@ -124,16 +135,18 @@ class ProjectChatService:
         messages = [
             {ROLE: m.role, CONTENT: m.content} for m in to_user_assistant_messages(history)
         ]
-        # A calculator conversation in its pre-run gate gets the start_calculation tool and a prompt
-        # nudge; otherwise this is an ordinary project chat (or a completed run's follow-up).
+        # A position chat (EKT_CALCULATOR) is grounded in its bound LV item and, until the
+        # calculation has run, gets the calculate_ekt tool + a nudge so it starts on request.
         allow_start = (
             conversation.prompt_type == PromptType.EKT_CALCULATOR
             and conversation.calculation_status == CalculationStatus.AWAITING_START
         )
         prompt = await self._load_prompt()
-        system_prompt = (
-            prompt.system_prompt + GATE_SYSTEM_SUFFIX if allow_start else prompt.system_prompt
-        )
+        system_prompt = prompt.system_prompt
+        if position_context is not None:
+            system_prompt += POSITION_SYSTEM_TEMPLATE.format(position=position_context)
+        if allow_start:
+            system_prompt += CALC_SYSTEM_SUFFIX
         agent = ProjectChatAgent(
             project_uuid=project_uuid,
             config=config,
@@ -146,7 +159,7 @@ class ProjectChatService:
             temperature=prompt.temperature,
             prompt_type=PromptType.PROJECT_CHAT.value,
             conversation_uuid=conversation_id,
-            allow_start_calculation=allow_start,
+            allow_calculate_ekt=allow_start,
         )
 
         assistant_parts: list[str] = []
@@ -156,6 +169,11 @@ class ProjectChatService:
                     assistant_parts.append(event.content)
                     yield _text_delta(event.content)
                 elif isinstance(event, AgentToolCall):
+                    if event.name == TOOL_CALCULATE_EKT:
+                        # Control signal only: surface it so the caller can chain the calculation,
+                        # but don't persist it -- it carries no data and isn't part of the transcript.
+                        yield _function_call(event.call_id, event.name, event.arguments)
+                        continue
                     await self._persist(
                         NewMessage(
                             conversation_uuid=conversation_id,
@@ -167,6 +185,8 @@ class ProjectChatService:
                     )
                     yield _function_call(event.call_id, event.name, event.arguments)
                 else:  # AgentToolResult
+                    if event.name == TOOL_CALCULATE_EKT:
+                        continue  # the signal's result is internal to the agent loop; drop it
                     await self._persist(
                         NewMessage(
                             conversation_uuid=conversation_id,

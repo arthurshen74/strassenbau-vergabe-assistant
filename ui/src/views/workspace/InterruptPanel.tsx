@@ -1,6 +1,7 @@
-// Renders the control for a paused EKT calculator run and posts the Kalkulator's decision back via
-// the resume endpoint. One control per interrupt stage: pick the Leistung (classification), confirm
-// or correct the assumed drivers (driver confirmation), or act on the EKT (review).
+// Renders the control for a paused EKT calculation and posts the Kalkulator's decision back as a
+// structured resume on the turn endpoint. One control per interrupt stage: pick the Leistung
+// (classification), confirm or correct the assumed drivers (driver confirmation), or act on the EKT
+// (review).
 
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -9,7 +10,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Strong, Text } from '../../components/ui/text';
 import type { CalculationResume } from '../../api/calculations';
-import type { PendingInterrupt } from './useCalculatorConversation';
+import type { PendingInterrupt } from './hooks/useWorkspaceConversation';
 
 // Interrupt stages, matching the backend STAGE_* constants in shared/services/calculator/graph.py.
 const STAGE_CLASSIFICATION = 'classification';
@@ -101,38 +102,61 @@ function ClassificationGate({ payload, onResume, disabled }: PanelProps) {
 
 function DriverConfirm({ payload, onResume, disabled }: PanelProps) {
   const confirm = asRecordArray(payload.confirm);
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  // Each field is pre-filled with the value the agent resolved (from the documents, an assumption,
+  // or the pre-run chat). Leaving a field unchanged accepts that value; editing it sends a
+  // correction. Only changed fields are submitted, so untouched values keep their provenance.
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(confirm.map((d) => [str(d.id), str(d.value)])),
+  );
+  const edited = confirm.some((d) => {
+    const id = str(d.id);
+    const next = (values[id] ?? '').trim();
+    return next !== '' && next !== str(d.value);
+  });
   const submit = () => {
-    const cleaned: Record<string, unknown> = {};
-    for (const [id, value] of Object.entries(overrides)) {
-      if (value.trim() !== '') cleaned[id] = value.trim();
+    const corrections: Record<string, unknown> = {};
+    for (const d of confirm) {
+      const id = str(d.id);
+      const next = (values[id] ?? '').trim();
+      if (next !== '' && next !== str(d.value)) corrections[id] = next;
     }
-    onResume({ drivers: cleaned });
+    onResume({ drivers: corrections });
   };
   return (
-    <Panel title="Confirm assumed drivers">
-      <div className="flex flex-col gap-3">
+    <Panel title="Confirm the drivers">
+      <Text className="text-xs">
+        Each value is what the agent resolved. Leave it to accept, or edit it to correct it, then
+        confirm.
+      </Text>
+      <div className="flex flex-col gap-3 pt-2">
         {confirm.map((d) => {
           const id = str(d.id);
+          const source = str(d.source);
           return (
             <div key={id} className="flex flex-col gap-1">
               <Text>
-                <Strong>{id}</Strong> = {str(d.value)} {str(d.einheit)}
+                <Strong>{id}</Strong>
+                {d.einheit ? ` (${str(d.einheit)})` : ''}
               </Text>
               {d.description ? <Text className="text-xs">{str(d.description)}</Text> : null}
               <Input
-                placeholder={`accept ${str(d.value)} or type a correction`}
-                value={overrides[id] ?? ''}
+                value={values[id] ?? ''}
                 disabled={disabled}
-                onChange={(e) => setOverrides((o) => ({ ...o, [id]: e.target.value }))}
+                onChange={(e) => setValues((v) => ({ ...v, [id]: e.target.value }))}
               />
+              {source ? (
+                <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Source: {source}
+                  {d.confidence != null ? ` · confidence ${str(d.confidence)}` : ''}
+                </Text>
+              ) : null}
             </div>
           );
         })}
       </div>
       <div className="pt-3">
         <Button disabled={disabled} onClick={submit}>
-          Confirm drivers
+          {edited ? 'Apply corrections & continue' : 'Accept values & continue'}
         </Button>
       </div>
     </Panel>

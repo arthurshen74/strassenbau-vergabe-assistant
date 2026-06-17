@@ -15,7 +15,11 @@ import {
 } from '../../api/conversations';
 import { useProject } from '../../api/projects';
 import { useStartProjectChat } from '../main/useStartProjectChat';
-import { useWorkspaceConversation } from './hooks/useWorkspaceConversation';
+import {
+  useWorkspaceConversation,
+  type PendingInterrupt,
+} from './hooks/useWorkspaceConversation';
+import { InterruptPanel } from './InterruptPanel';
 import { MessageList } from '../../components/chat/MessageList';
 import { ChatInput } from '../../components/chat/ChatInput';
 import { RetrievalConfigBar } from '../../components/chat/RetrievalConfigBar';
@@ -23,7 +27,30 @@ import { useRetrievalConfig } from '../../store/retrievalConfig';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
 import type { SlashCommandSpec } from '../../lib/slash-commands';
+import type { ConversationRead, MessageRead } from '../../types/generated';
 import type { DisplayMessage } from '../../components/chat/types';
+
+// The synthetic tool_name the run service persists a HITL interrupt prompt under (run_service.py).
+const TOOL_INTERRUPT = 'interrupt';
+
+// Rebuild the pending interrupt from the last persisted prompt when reopening a paused calculation
+// (no live stream is in flight, so the interrupt event won't replay).
+function derivePendingInterrupt(
+  conversation: ConversationRead | undefined,
+  messages: MessageRead[] | undefined,
+): PendingInterrupt | null {
+  if (!conversation || conversation.calculation_status !== 'awaiting_input' || !messages) {
+    return null;
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.kind === 'function_call' && m.tool_name === TOOL_INTERRUPT && m.arguments) {
+      const args = m.arguments as Record<string, unknown>;
+      return { stage: typeof args.stage === 'string' ? args.stage : '', payload: args };
+    }
+  }
+  return null;
+}
 
 // Client-side slash commands for project chat (short-circuit the LLM via ChatInput.onSlashCommand).
 const SLASH_CLEAR = '/clear';
@@ -53,8 +80,9 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
   const project = useProject(projectUuid);
   const retrievalConfig = useRetrievalConfig(conversationId);
   const messagesQuery = useConversationMessages(conversationId);
-  const { streamMessages, streamingMessageId, isStreaming, sendMessage } =
+  const { streamMessages, streamingMessageId, isStreaming, pendingInterrupt, sendMessage, sendResume } =
     useWorkspaceConversation(conversationId, retrievalConfig);
+  const isPositionChat = conversation.data?.prompt_type === 'ekt_calculator';
 
   const onSlashCommand = (cmd: string) => {
     if (cmd === SLASH_CLEAR) {
@@ -80,16 +108,9 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     );
   }, [messagesQuery.data, streamMessages]);
 
-  // Show the ThinkingIndicator after the last user message while the
-  // agent is processing but hasn't emitted visible output yet.
-  const lastVisibleKind = [...merged]
-    .reverse()
-    .find(
-      (m) =>
-        m.kind !== 'function_call' &&
-        !(m.kind === 'function_call_output' && !m.success),
-    )?.kind;
-  const isThinking = isStreaming && lastVisibleKind === 'user';
+  // Show the ThinkingIndicator while a turn is streaming but no assistant text is open yet — the
+  // wait after the user message (chat / calc start) and before the first reasoning line of a resume.
+  const isThinking = isStreaming && streamingMessageId === null;
 
   if (conversation.isLoading) {
     return <LoadingState />;
@@ -103,8 +124,13 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     );
   }
 
-  const title =
-    project.data?.project_name ?? conversation.data?.title ?? 'Project chat';
+  const title = isPositionChat
+    ? (conversation.data?.title ?? 'EKT-Position')
+    : (project.data?.project_name ?? conversation.data?.title ?? 'Project chat');
+
+  // While a calculation is paused at a HITL gate, the structured panel replaces the chat input.
+  const interrupt =
+    pendingInterrupt ?? derivePendingInterrupt(conversation.data, messagesQuery.data);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -118,17 +144,26 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
         projectUuid={projectUuid}
       />
 
-      <RetrievalConfigBar conversationId={conversationId} />
-
-      <ChatInput
-        onSend={sendMessage}
-        onSlashCommand={onSlashCommand}
-        slashCommands={PROJECT_CHAT_SLASH_COMMANDS}
-        disabled={isStreaming}
-        placeholder="Ask about this project… (/clear, /close, /remove)"
-        draftKey={`ws:${conversationId}`}
-        hint={isStreaming ? 'Thinking…' : undefined}
-      />
+      {interrupt ? (
+        <InterruptPanel interrupt={interrupt} onResume={sendResume} disabled={isStreaming} />
+      ) : (
+        <>
+          <RetrievalConfigBar conversationId={conversationId} />
+          <ChatInput
+            onSend={sendMessage}
+            onSlashCommand={onSlashCommand}
+            slashCommands={PROJECT_CHAT_SLASH_COMMANDS}
+            disabled={isStreaming}
+            placeholder={
+              isPositionChat
+                ? 'Über diese Position chatten, oder um die Kalkulation bitten…'
+                : 'Ask about this project… (/clear, /close, /remove)'
+            }
+            draftKey={`ws:${conversationId}`}
+            hint={isStreaming ? 'Thinking…' : undefined}
+          />
+        </>
+      )}
     </div>
   );
 }

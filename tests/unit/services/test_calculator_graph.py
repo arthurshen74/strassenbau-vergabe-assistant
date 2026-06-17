@@ -12,6 +12,7 @@ from langgraph.types import Command
 
 from shared.config import settings
 from shared.services.calculator.graph import (
+    PROVENANCE_CHAT,
     PROVENANCE_HITL,
     REASONING_LLM,
     REASONING_NARRATION,
@@ -20,6 +21,7 @@ from shared.services.calculator.graph import (
     build_graph,
     coerce_numeric,
     derive_drivers,
+    driver_catalog,
 )
 
 
@@ -158,3 +160,34 @@ async def test_driver_confirmation_accept_keeps_resolved_value(monkeypatch):
                for e in log)
     assert any(e["kind"] == REASONING_LLM and e["stage"].startswith("operation:")
                for e in log)
+
+
+def test_driver_catalog_dedups_across_registries():
+    catalog = driver_catalog()
+    ids = [c["id"] for c in catalog]
+    assert ids == list(dict.fromkeys(ids))      # one entry per id, even across registries
+    assert "strip_length_m" in ids
+    assert {"id", "description", "einheit"} <= set(catalog[0])
+
+
+async def test_seed_drivers_override_document_resolution(monkeypatch):
+    monkeypatch.setattr(settings, "calculator_mock", True)
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "seed-flow"}}
+
+    # The Kalkulator set strip_length_m in the pre-run chat; the mock would otherwise resolve 1000.
+    result = await app.ainvoke(
+        {"position": POSITION, "seed_drivers": {"strip_length_m": "250"}}, cfg
+    )
+    payload = result["__interrupt__"][0].value
+    assert payload["stage"] == STAGE_DRIVER_CONFIRMATION
+    # The confirm prompt shows the chat value (coerced), not the mock-resolved 1000.
+    assert payload["confirm"][0]["value"] == 250.0
+
+    state = (await app.aget_state(cfg)).values
+    assert state["drivers"]["strip_length_m"] == 250.0
+    assert state["driver_provenance"]["strip_length_m"] == {
+        "source": PROVENANCE_CHAT, "confidence": 1.0,
+    }
+    texts = [e["text"] for e in state["reasoning_log"] if e["kind"] == REASONING_NARRATION]
+    assert any("set by Kalkulator in the pre-run chat" in t for t in texts)

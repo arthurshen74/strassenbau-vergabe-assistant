@@ -87,7 +87,7 @@ export function LVItemDetailDialog({
         <DialogActions>
           <Button color="green" disabled={starting} onClick={() => onRunCalculation(item.oz)}>
             <CalculatorIcon data-slot="icon" />
-            {starting ? 'Starting…' : 'Run calculation'}
+            {starting ? 'Opening…' : 'Position Chat'}
           </Button>
         </DialogActions>
       )}

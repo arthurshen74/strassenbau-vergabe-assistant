@@ -64,9 +64,10 @@ TOOL_GET_LV_SINGLE_ITEM = "get_lv_single_item"
 TOOL_GET_LV_GROUP_ITEMS = "get_lv_group_items"
 TOOL_AGGREGATE_LV_ITEMS = "aggregate_lv_items"
 TOOL_RENDER_MAP = "render_map"
-# Available only in an ekt_calculator pre-run gate: a control signal, not a data tool. Calling it
-# carries no payload; the UI watches for this call and opens the live calculation stream.
-TOOL_START_CALCULATION = "start_calculation"
+# Available only in a position chat before its calculation has run: a control signal, not a data
+# tool. Calling it carries no payload; the turn processor watches for it and continues into the
+# calculation in the same stream.
+TOOL_CALCULATE_EKT = "calculate_ekt"
 
 # Tool-result payload keys the UI reads out of `data`.
 RESULT_LV_ITEM = "lv_item"
@@ -137,11 +138,11 @@ class ProjectChatAgent:
         temperature: float | None,
         prompt_type: str,
         conversation_uuid: UUID | None = None,
-        allow_start_calculation: bool = False,
+        allow_calculate_ekt: bool = False,
     ) -> None:
         self._project_uuid = project_uuid
         self._conversation_uuid = conversation_uuid
-        self._allow_start_calculation = allow_start_calculation
+        self._allow_calculate_ekt = allow_calculate_ekt
         self._config = config
         self._engine = engine
         self._retrieval = retrieval
@@ -252,10 +253,10 @@ class ProjectChatAgent:
                 },
             )
 
-        @tool(TOOL_START_CALCULATION)
-        async def start_calculation() -> str:
-            """Start the EKT calculation agent for this LV position. Call this only when the user
-            explicitly asks to run, start, or proceed with the calculation."""
+        @tool(TOOL_CALCULATE_EKT)
+        async def calculate_ekt() -> str:
+            """Run the EKT calculation agent for this LV position. Call this only when the user
+            explicitly asks to calculate, run, or start the EKT calculation for the position."""
             return "Die Kalkulation wird gestartet."
 
         tools = [
@@ -267,8 +268,8 @@ class ProjectChatAgent:
             aggregate_lv_items,
             render_map,
         ]
-        if self._allow_start_calculation:
-            tools.append(start_calculation)
+        if self._allow_calculate_ekt:
+            tools.append(calculate_ekt)
         return tools
 
     async def _retrieve(

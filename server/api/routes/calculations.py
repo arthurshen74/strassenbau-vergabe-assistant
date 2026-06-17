@@ -1,70 +1,37 @@
-"""EKT calculator run endpoints: create a run for an LV position, stream it, resume across HITL pauses.
+"""Create a position-chat conversation for an LV position.
 
-The flow is conversation-first: `create` makes the `ekt_calculator` conversation (owned by the
-principal, so it shows in the project conversation list) and returns it; the UI redirects to that
-conversation and opens `stream`, which runs the graph in this API request and streams SSE until the
-first HITL interrupt or completion. `resume` continues a paused run from its Postgres checkpoint with
-the Kalkulator's structured decision. After the run completes, follow-up questions go through the
-normal `/conversations/{uuid}/turn` endpoint (project chat)."""
+The flow is conversation-first: this endpoint makes the `ekt_calculator` conversation (owned by the
+principal, so it shows in the project conversation list), bound to the LV position via
+`lv_item_uuid`, and seeds the opening message with the position details. The UI redirects to it and
+the user chats about the position; asking to run the EKT calculation trips the agent's
+`calculate_ekt` tool, which the `/conversations/{uuid}/turn` endpoint continues into the calculation
+(streaming reasoning, pausing at HITL gates, resuming via the same turn endpoint)."""
 
 from __future__ import annotations
 
-import logging
-from collections.abc import AsyncIterator
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from api.deps import (
-    Principal,
-    get_calculator_run_service,
-    get_current_user,
-    get_engine,
-)
-from api.sse import SSE_MEDIA_TYPE, format_sse
-from shared.models.conversation import Conversation, NewConversation
+from api.deps import Principal, get_current_user, get_engine
+from shared.models.conversation import NewConversation
 from shared.models.conversation_schema import ConversationRead
 from shared.models.enums import CalculationStatus, MessageKind, PromptType
 from shared.models.lv_item import LVItem
 from shared.models.message import NewMessage
-from shared.models.sse_schema import (
-    DATA,
-    DATA_CONTENT,
-    DATA_LEVEL,
-    EVENT,
-    EVENT_DONE,
-    EVENT_UI_NOTICE,
-    NOTICE_PROCESSING_ERROR,
-    NoticeLevel,
-)
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.messages import MessageRepository
-from shared.services.calculator.run_service import CalculatorRunService
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["calculations"])
 
 # Length of the LV Kurztext kept in the conversation title.
 TITLE_KURZTEXT_LEN = 60
 
-# The assistant message that opens a fresh calculation gate: run now, or discuss the position first.
-# The Kalkulator's reply is handled as a normal project-chat turn; asking to run trips the agent's
-# start_calculation tool, which the UI turns into the live calculation stream.
-GATE_PROMPT = (
-    "Möchten Sie diese Kalkulation jetzt durchführen?\n\n"
-    "1. Ja — starten Sie den Kalkulationsagenten.\n"
-    "2. Nein — lassen Sie uns zuerst über diese Position sprechen."
-)
-
 
 def _lv_details_text(item: LVItem) -> str:
-    """The LV position rendered as the gate's first message (plain assistant text)."""
+    """The LV position rendered as the position chat's opening assistant message."""
     lines = [
         f"**Position {item.oz}** — {item.kurztext}",
         f"Menge: {item.menge} {item.einheit}",
@@ -73,18 +40,6 @@ def _lv_details_text(item: LVItem) -> str:
     if langtext:
         lines.extend(("", langtext))
     return "\n".join(lines)
-
-
-class CalculationResume(BaseModel):
-    """The Kalkulator's structured decision for the current interrupt. Exactly the fields the
-    paused stage consumes: work_type (classification), drivers (driver confirmation), action
-    (EKT review). Empty `drivers` means accept the assumed values as-is."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    work_type: str | None = None
-    drivers: dict[str, Any] | None = None
-    action: str | None = None
 
 
 @router.post(
@@ -98,10 +53,10 @@ async def create_calculation(
     principal: Principal = Depends(get_current_user),
     engine: AsyncEngine = Depends(get_engine),
 ) -> ConversationRead:
-    """Create the ekt_calculator conversation for an LV position and seed the gate. The UI redirects
-    to it and shows a chat gate (the position + a run/discuss prompt); the graph starts only once the
-    Kalkulator asks to run. The run is addressable by conversation_uuid alone via the stored
-    lv_item_uuid."""
+    """Create the position-chat conversation for an LV position and seed its opening message. The UI
+    redirects to it; the user chats about the position and can ask to run the EKT calculation, which
+    the turn endpoint continues into the calculation. `awaiting_start` here means "position chat,
+    calculation not yet run"."""
     async with engine.connect() as conn:
         item = await LVItemRepository(conn).get_by_project_and_oz(project_uuid, oz)
     if item is None:
@@ -120,96 +75,12 @@ async def create_calculation(
                 title=f"EKT {oz}: {item.kurztext[:TITLE_KURZTEXT_LEN]}",
             )
         )
-    # One message per transaction: created_at is transaction-time, so separate transactions give
-    # the position a strictly earlier timestamp than the prompt and the gate renders them in order.
-    for content in (_lv_details_text(item), GATE_PROMPT):
-        async with engine.begin() as conn:
-            await MessageRepository(conn).add(
-                NewMessage(
-                    conversation_uuid=conversation.conversation_uuid,
-                    kind=MessageKind.ASSISTANT,
-                    content=content,
-                )
+    async with engine.begin() as conn:
+        await MessageRepository(conn).add(
+            NewMessage(
+                conversation_uuid=conversation.conversation_uuid,
+                kind=MessageKind.ASSISTANT,
+                content=_lv_details_text(item),
             )
+        )
     return ConversationRead.model_validate(conversation.model_dump())
-
-
-@router.post("/conversations/{conversation_uuid}/calculation/stream")
-async def stream_calculation(
-    conversation_uuid: UUID,
-    principal: Principal = Depends(get_current_user),
-    engine: AsyncEngine = Depends(get_engine),
-    service: CalculatorRunService = Depends(get_calculator_run_service),
-) -> StreamingResponse:
-    """Run the calculation graph and stream it until the first HITL interrupt or completion."""
-    async with engine.connect() as conn:
-        conversation = await ConversationRepository(conn).get(conversation_uuid)
-        item = (
-            await LVItemRepository(conn).get(conversation.lv_item_uuid)
-            if conversation is not None and conversation.lv_item_uuid is not None
-            else None
-        )
-    _require_calculation(conversation, principal)
-    if conversation.calculation_status == CalculationStatus.COMPLETE:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="calculation already complete"
-        )
-    if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="calculation has no LV position"
-        )
-    events = service.start(conversation, item)
-    return StreamingResponse(
-        _event_stream(events, conversation_uuid), media_type=SSE_MEDIA_TYPE
-    )
-
-
-@router.post("/conversations/{conversation_uuid}/calculation/resume")
-async def resume_calculation(
-    conversation_uuid: UUID,
-    payload: CalculationResume,
-    principal: Principal = Depends(get_current_user),
-    engine: AsyncEngine = Depends(get_engine),
-    service: CalculatorRunService = Depends(get_calculator_run_service),
-) -> StreamingResponse:
-    """Resume a paused run from its checkpoint with the Kalkulator's decision."""
-    async with engine.connect() as conn:
-        conversation = await ConversationRepository(conn).get(conversation_uuid)
-    _require_calculation(conversation, principal)
-    if conversation.calculation_status != CalculationStatus.AWAITING_INPUT:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="calculation is not awaiting input"
-        )
-    decision = payload.model_dump(exclude_none=True)
-    events = service.resume(conversation, decision)
-    return StreamingResponse(
-        _event_stream(events, conversation_uuid), media_type=SSE_MEDIA_TYPE
-    )
-
-
-def _require_calculation(conversation: Conversation | None, principal: Principal) -> None:
-    if conversation is None or conversation.user_uuid != principal.user_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
-    if conversation.prompt_type != PromptType.EKT_CALCULATOR:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="conversation is not a calculation"
-        )
-
-
-async def _event_stream(
-    events: AsyncIterator[dict[str, Any]], conversation_uuid: UUID
-) -> AsyncIterator[str]:
-    # The 200 + headers are already committed once streaming starts, so an exception here cannot
-    # become an HTTP error; surface it as a ui_notice + done instead and log the cause server-side.
-    try:
-        async for event in events:
-            yield format_sse(event)
-    except Exception:
-        logger.exception("calculation stream failed conversation=%s", conversation_uuid)
-        yield format_sse(
-            {
-                EVENT: EVENT_UI_NOTICE,
-                DATA: {DATA_CONTENT: NOTICE_PROCESSING_ERROR, DATA_LEVEL: NoticeLevel.ERROR},
-            }
-        )
-        yield format_sse({EVENT: EVENT_DONE, DATA: {}})

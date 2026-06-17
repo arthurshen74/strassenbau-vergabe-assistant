@@ -116,6 +116,21 @@ class MethodSelection(BaseModel):
     notes: str = Field(description="Which criteria + drivers decided it")
 
 
+class ChatDriverAssignment(BaseModel):
+    """One driver value the Kalkulator set explicitly in the pre-run chat. All fields required so the
+    schema stays strict-compatible (no optional/defaulted fields)."""
+    driver_id: str = Field(description="The exact driver id from the offered catalog")
+    value: str = Field(description="The value the Kalkulator stated, copied verbatim (no conversion)")
+    quote: str = Field(description="The chat snippet that assigned it")
+
+
+class ChatDriverSeeds(BaseModel):
+    """LLM pre-step: the explicit driver assignments lifted from the pre-run conversation. Empty
+    list when the chat set no driver."""
+    assignments: list[ChatDriverAssignment] = Field(
+        description="Every explicit assignment found; [] when none")
+
+
 # --------------------------------------------------------- runtime artifacts --
 class Kostenart(StrEnum):
     """VHB 223 cost categories; every cost-producing formula maps to exactly one."""

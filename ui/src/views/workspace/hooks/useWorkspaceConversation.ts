@@ -18,16 +18,23 @@
 // After the first turn of a fresh conversation we kick off server-side
 // auto-naming so the sidebar title stops reading "Untitled".
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { postStream } from '../../../api/sse';
 import { conversationKeys, useNameConversation } from '../../../api/conversations';
+import type { CalculationResume } from '../../../api/calculations';
 import { promptKeys } from '../../../api/prompts';
 import { log } from '../../../lib/logger';
 import { useUIStore } from '../../../store/ui';
 import { useMainWindowStore, viewKindForTool } from '../../../store/mainWindow';
 import type { MessageRead, TurnRetrievalConfig } from '../../../types/generated';
 import type { DisplayMessage } from '../../../components/chat/types';
+
+// A paused EKT calculation awaiting the Kalkulator's structured decision at a HITL gate.
+export interface PendingInterrupt {
+  stage: string;
+  payload: Record<string, unknown>;
+}
 
 // IDs prefixed `local-` are placeholders until the server reconciles. The
 // server-issued ids replace them on the next messages refetch.
@@ -64,23 +71,16 @@ interface StreamState {
 export function useWorkspaceConversation(
   conversationId: string,
   retrievalConfig?: TurnRetrievalConfig,
-  onToolCall?: (name: string) => void,
 ) {
   const qc = useQueryClient();
   const setStreamActive = useUIStore((s) => s.setStreamActive);
   const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
   const nameConversation = useNameConversation();
 
-  // Held in a ref so sendMessage stays stable even when the caller passes an inline callback. The
-  // callback is only invoked mid-stream (after a turn opens), so the post-commit update is in time.
-  const onToolCallRef = useRef(onToolCall);
-  useEffect(() => {
-    onToolCallRef.current = onToolCall;
-  }, [onToolCall]);
-
   const [streamMessages, setStreamMessages] = useState<DisplayMessage[]>([]);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [pendingInterrupt, setPendingInterrupt] = useState<PendingInterrupt | null>(null);
   const streamStateRef = useRef<StreamState>({
     openAssistantId: null,
     toolNameByCallId: {},
@@ -98,21 +98,31 @@ export function useWorkspaceConversation(
     [qc],
   );
 
-  const sendMessage = useCallback(
-    async (text: string) => {
+  // One streaming turn: `body` is either {content} (a chat message, possibly kicking off the
+  // calculation) or {resume} (a structured HITL decision). `userText` adds the user bubble for a
+  // chat message; null for a resume (it's answered structurally, not as a chat turn).
+  const runTurn = useCallback(
+    async (body: Record<string, unknown>, userText: string | null) => {
       // First turn iff no messages are persisted yet — drives auto-naming.
       const existing =
         qc.getQueryData<MessageRead[]>(conversationKeys.messages(conversationId)) ?? [];
       const isFirstTurn = existing.length === 0;
 
-      const userMsg = newMessage({
-        message_uuid: localId('user'),
-        conversation_uuid: conversationId,
-        kind: 'user',
-        content: text,
+      // Drop notices retained from a prior turn; add the user bubble for a chat message.
+      setStreamMessages((prev) => {
+        const cleaned = prev.filter((m) => m.kind !== 'ui_notice');
+        if (userText === null) return cleaned;
+        return [
+          ...cleaned,
+          newMessage({
+            message_uuid: localId('user'),
+            conversation_uuid: conversationId,
+            kind: 'user',
+            content: userText,
+          }),
+        ];
       });
-      // Drop notices retained from a prior turn so each turn starts clean.
-      setStreamMessages((prev) => [...prev.filter((m) => m.kind !== 'ui_notice'), userMsg]);
+      setPendingInterrupt(null);
 
       streamStateRef.current = { openAssistantId: null, toolNameByCallId: {} };
       setIsStreaming(true);
@@ -122,7 +132,7 @@ export function useWorkspaceConversation(
 
       const endTurnGroup = log.group.dispatcher('turn', {
         conversationId,
-        text_len: text.length,
+        text_len: userText?.length ?? 0,
       });
       const toolGroupEnds: Record<string, () => void> = {};
       let textDeltaCount = 0;
@@ -131,24 +141,19 @@ export function useWorkspaceConversation(
       try {
         await postStream({
           path: `/conversations/${conversationId}/turn`,
-          body: retrievalConfig
-            ? { content: text, retrieval: retrievalConfig }
-            : { content: text },
+          body,
           signal: ctrl.signal,
           onEvent: (e) => {
             switch (e.event) {
               case 'text_delta': {
                 textDeltaCount += 1;
                 textDeltaChars += e.content.length;
-                setStreamMessages((prev) => {
-                  const openId = streamStateRef.current.openAssistantId;
-                  if (openId) {
-                    return prev.map((m) =>
-                      m.message_uuid === openId && m.kind === 'assistant'
-                        ? { ...m, content: (m.content ?? '') + e.content }
-                        : m,
-                    );
-                  }
+                // The side effects (new id, the openAssistantId ref write, setStreamingMessageId)
+                // run HERE in the event callback, never inside the setStreamMessages updater:
+                // StrictMode double-invokes updaters, and an impure updater would set the ref on the
+                // first invoke then take the wrong branch on the second and silently drop the
+                // message. The updaters below are pure (idempotent under double-invocation).
+                if (streamStateRef.current.openAssistantId === null) {
                   const id = localId('assistant');
                   streamStateRef.current.openAssistantId = id;
                   setStreamingMessageId(id);
@@ -158,8 +163,17 @@ export function useWorkspaceConversation(
                     kind: 'assistant',
                     content: e.content,
                   });
-                  return [...prev, msg];
-                });
+                  setStreamMessages((prev) => [...prev, msg]);
+                } else {
+                  const openId = streamStateRef.current.openAssistantId;
+                  setStreamMessages((prev) =>
+                    prev.map((m) =>
+                      m.message_uuid === openId && m.kind === 'assistant'
+                        ? { ...m, content: (m.content ?? '') + e.content }
+                        : m,
+                    ),
+                  );
+                }
                 break;
               }
               case 'function_call': {
@@ -168,7 +182,6 @@ export function useWorkspaceConversation(
                 streamStateRef.current.toolNameByCallId[e.call_id] = e.name;
                 toolGroupEnds[e.call_id] = log.group.tool(e.name, e.call_id);
                 log.tool('args_keys', Object.keys(e.arguments));
-                onToolCallRef.current?.(e.name);
                 break;
               }
               case 'function_call_output': {
@@ -223,6 +236,12 @@ export function useWorkspaceConversation(
                 ]);
                 break;
               }
+              case 'interrupt':
+                // The calculation paused at a HITL gate; park it so the InterruptPanel can render.
+                streamStateRef.current.openAssistantId = null;
+                setStreamingMessageId(null);
+                setPendingInterrupt({ stage: e.stage, payload: e.payload });
+                break;
               case 'done':
                 streamStateRef.current.openAssistantId = null;
                 setStreamingMessageId(null);
@@ -278,7 +297,6 @@ export function useWorkspaceConversation(
     },
     [
       conversationId,
-      retrievalConfig,
       qc,
       setStreamActive,
       invalidateForTool,
@@ -287,5 +305,27 @@ export function useWorkspaceConversation(
     ],
   );
 
-  return { streamMessages, streamingMessageId, isStreaming, sendMessage };
+  const sendMessage = useCallback(
+    (text: string) =>
+      runTurn(
+        retrievalConfig ? { content: text, retrieval: retrievalConfig } : { content: text },
+        text,
+      ),
+    [runTurn, retrievalConfig],
+  );
+
+  // Answer the current HITL gate; the calculation continues streaming in this turn.
+  const sendResume = useCallback(
+    (decision: CalculationResume) => runTurn({ resume: decision }, null),
+    [runTurn],
+  );
+
+  return {
+    streamMessages,
+    streamingMessageId,
+    isStreaming,
+    pendingInterrupt,
+    sendMessage,
+    sendResume,
+  };
 }

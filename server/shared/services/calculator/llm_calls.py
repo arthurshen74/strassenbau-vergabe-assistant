@@ -33,6 +33,7 @@ from shared.clients.llm.client import (
 )
 from shared.config import settings
 from shared.services.calculator.models import (
+    ChatDriverSeeds,
     ClassificationResult,
     DriverDecision,
     MethodSelection,
@@ -292,3 +293,55 @@ async def select_method(
         project_uuid=project_uuid,
         conversation_uuid=conversation_uuid,
     )
+
+
+# =============================================================================
+# PRE-STEP - CHAT DRIVER SEEDS  (lift explicit driver values from the pre-run chat)
+# =============================================================================
+SEED_SYSTEM = """\
+You read the pre-calculation conversation between a Kalkulator (user) and the assistant, and
+extract ONLY the driver values the Kalkulator explicitly told the calculation to use.
+
+You will be given:
+- The conversation transcript (role user = the Kalkulator, role assistant = the agent).
+- The driver catalog: each driver's id, decision rule (description) and einheit.
+
+Rules:
+1. Extract an assignment ONLY when the Kalkulator explicitly instructs that a value be used for a
+   driver - e.g. "use 250 as strip_length_m", "set the Einbaulaenge to 250 m", "nimm 250 m als
+   strip_length_m". Map natural references (e.g. "Einbaulaenge") to the matching driver id using the
+   catalog descriptions.
+2. driver_id MUST be copied exactly from the catalog. Never invent an id or use one not offered.
+3. value: copy what the Kalkulator stated verbatim (convert nothing, compute nothing).
+4. Do NOT extract a value the assistant merely found, proposed, or mentioned unless the Kalkulator
+   then told the calculation to use it. When in doubt, omit it. An empty list is the correct answer
+   when the chat set no driver explicitly.
+"""
+
+
+async def extract_chat_drivers(
+    llm: LLMClient,
+    transcript: list[dict],
+    driver_catalog: list[dict],
+    *,
+    project_uuid: UUID | None = None,
+    conversation_uuid: UUID | None = None,
+) -> ChatDriverSeeds:
+    if settings.calculator_mock:
+        return ChatDriverSeeds(assignments=[])
+    user = (f"Conversation transcript:\n{json.dumps(transcript, ensure_ascii=False, indent=2)}\n\n"
+            f"Driver catalog (choose ids ONLY from here):\n"
+            f"{json.dumps(driver_catalog, ensure_ascii=False, indent=2)}")
+    # strict=False (Pydantic-validated): matches the other calculator sites; OpenAI/Azure reject a
+    # strict json_schema that isn't all-required + additionalProperties:false. No reasoning summary.
+    seeds, _ = await llm.chat_with_reasoning(
+        model=settings.calculator_model,
+        messages=_messages(SEED_SYSTEM, user),
+        output_model=ChatDriverSeeds,
+        temperature=None,
+        reasoning_effort=None,
+        strict=False,
+        project_uuid=project_uuid,
+        conversation_uuid=conversation_uuid,
+    )
+    return seeds

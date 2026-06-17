@@ -84,6 +84,7 @@ STAGE_DRIVER_CONFIRMATION = "driver_confirmation"
 STAGE_EKT_REVIEW = "ekt_review"
 
 PROVENANCE_HITL = "set by Kalkulator (HITL)"
+PROVENANCE_CHAT = "set by Kalkulator (pre-run chat)"
 
 # reasoning_log entry kinds: deterministic stage narration, the LLM's structured
 # reasoning steps, and the provider's raw reasoning summary (best-effort).
@@ -165,11 +166,29 @@ def load_registries() -> dict[str, Registry]:
 REGISTRIES = load_registries()
 
 
+def driver_catalog() -> list[dict]:
+    """Every distinct, seedable driver across the registries (id + decision rule + einheit).
+
+    The chat-seed extractor runs before classification, so it cannot yet know the work_type and is
+    offered the union of all registries' drivers. Tool-sourced drivers are excluded - they are fetched
+    deterministically and not set from chat."""
+    catalog: dict[str, dict] = {}
+    for reg in REGISTRIES.values():
+        for d in reg.drivers:
+            if d.source.startswith(DRIVER_SOURCE_TOOL_PREFIX):
+                continue
+            catalog.setdefault(
+                d.id, {"id": d.id, "description": d.description, "einheit": d.einheit}
+            )
+    return list(catalog.values())
+
+
 # ------------------------------------------------------------------- state --
 class AgentState(TypedDict, total=False):
     position: dict                     # the LV position + context docs
     project_uuid: UUID                 # attribution for usage / execution-log telemetry
     conversation_uuid: UUID            # set when driven from the chat UI (None in the CLI)
+    seed_drivers: dict                 # driver_id -> value the Kalkulator set in the pre-run chat
     work_type: str
     classification_notes: str
     classification_confidence: float
@@ -400,13 +419,20 @@ def build_graph(
     async def classify(state: AgentState) -> dict:
         index = [{"work_type": r.work_type, "keywords": r.triggers.get("keywords", [])}
                  for r in REGISTRIES.values()]
+        # Narrate BEFORE the slow awaits (retrieval + the classification LLM). Otherwise the first
+        # node streams nothing until both return, so the run shows a long silent head that reads as
+        # "thinking, no streaming" before everything bursts at the gate.
+        log = [reason("classify", REASONING_NARRATION,
+                      "I need to assign the position to a Leistung."),
+               reason("classify", REASONING_NARRATION,
+                      "Retrieving project context around the position.")]
         snippets = await retrieve(state["position"]["kurztext"])
+        log.append(reason("classify", REASONING_NARRATION,
+                          f"Retrieved {len(snippets)} snippet(s); classifying the position."))
         res, provider = await llm_calls.classify_position(
             llm, state["position"], index, snippets,
             project_uuid=state.get("project_uuid"),
             conversation_uuid=state.get("conversation_uuid"))
-        log = [reason("classify", REASONING_NARRATION,
-                      "I need to assign the position to a Leistung.")]
         log += reason_llm("classify", res.reasoning, provider)
         log.append(reason("classify", REASONING_NARRATION,
                           f"Assigned {res.work_type} @ {res.confidence:.2f}: {res.notes}"))
@@ -437,25 +463,52 @@ def build_graph(
                       f"I need to resolve {len(to_resolve)} drivers, one at a time: "
                       f"{', '.join(d.id for d in to_resolve)}.")]
 
+        # Driver values the Kalkulator set in the pre-run chat take precedence over document
+        # resolution: use them directly (HITL provenance) and skip the LLM call for that driver.
+        seeds = state.get("seed_drivers") or {}
+        applied_seeds = [d.id for d in to_resolve if d.id in seeds]
+        if applied_seeds:
+            log.append(reason("resolve_drivers", REASONING_NARRATION,
+                              f"Using {len(applied_seeds)} value(s) the Kalkulator set in the "
+                              f"pre-run chat: {', '.join(applied_seeds)}."))
+
         for d in to_resolve:
+            einheit = einheit_by_id.get(d.id)
+            if d.id in seeds:
+                raw = seeds[d.id]
+                value = raw if einheit in NON_NUMERIC_EINHEITEN else coerce_numeric(raw)
+                drivers[d.id] = value
+                prov[d.id] = {"source": PROVENANCE_CHAT, "confidence": 1.0}
+                if value is None:
+                    flags.append(ReviewFlag(where=f"driver:{d.id}", kind="missing_data",
+                                            detail=f"chat value {raw!r} non-numeric "
+                                                   f"(einheit {einheit})").model_dump())
+                    log.append(reason("resolve_drivers", REASONING_NARRATION,
+                                      f"{d.id}: chat value {raw!r} non-numeric -> flagged."))
+                else:
+                    log.append(reason("resolve_drivers", REASONING_NARRATION,
+                                      f"{d.id} = {value} {einheit or ''} (set by Kalkulator in the "
+                                      f"pre-run chat); skipping document resolution."))
+                continue
+
             if d.source == DRIVER_SOURCE_LV_TEXT:
                 evidence = {"lv_position": {"kurztext": kurztext,
                                             "langtext": position.get("langtext")}}
                 log.append(reason("resolve_drivers", REASONING_NARRATION,
                                   f"Resolving {d.id} ({d.source}) from the LV position text."))
             else:                                   # plan / project / judgment: retrieved only
+                log.append(reason("resolve_drivers", REASONING_NARRATION,
+                                  f"Resolving {d.id} ({d.source}); searching the documents."))
                 snippets = await retrieve(f"{d.hint or d.id} - {kurztext}")
                 evidence = {"retrieved_context": snippets}
                 log.append(reason("resolve_drivers", REASONING_NARRATION,
-                                  f"Resolving {d.id} ({d.source}); retrieved "
-                                  f"{len(snippets)} document snippet(s)."))
+                                  f"Retrieved {len(snippets)} document snippet(s) for {d.id}."))
 
             decision, provider = await llm_calls.resolve_one_driver(
                 llm, d.model_dump(), evidence, drivers,
                 project_uuid=project_uuid, conversation_uuid=conversation_uuid)
             log += reason_llm("resolve_drivers", decision.reasoning, provider)
 
-            einheit = einheit_by_id.get(d.id)
             value = decision.value
             if value is not None and einheit not in NON_NUMERIC_EINHEITEN:
                 value = coerce_numeric(value)
@@ -507,9 +560,9 @@ def build_graph(
 
         if op.methods:                                       # LLM site 3 (judgment)
             rel = {k: drivers.get(k) for k in (op.selection.on if op.selection else [])}
-            notes = await retrieve(f"{op.label} Bauweise - {payload['kurztext']}")
             log.append(reason(stage, REASONING_NARRATION,
                               f"I need to choose the Bauweise for '{op.label}'."))
+            notes = await retrieve(f"{op.label} Bauweise - {payload['kurztext']}")
             sel, provider = await llm_calls.select_method(
                 llm,
                 {"id": op.id, "label": op.label,

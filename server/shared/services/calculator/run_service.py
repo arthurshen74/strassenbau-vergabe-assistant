@@ -52,12 +52,20 @@ from shared.models.sse_schema import (
 )
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
+from shared.services.calculator import llm_calls
 from shared.services.calculator.graph import (
     CALCULATOR_RETRIEVAL_CONFIG,
     REASONING_LLM,
     REASONING_PROVIDER,
     ContextRetriever,
     build_graph,
+    driver_catalog,
+)
+from shared.services.messages import (
+    CONTENT,
+    ROLE,
+    ROLE_USER,
+    to_user_assistant_messages,
 )
 from shared.services.retrieval import RetrievalService
 
@@ -93,9 +101,39 @@ class CalculatorRunService:
             "position": _position(item),
             "project_uuid": conversation.project_uuid,
             "conversation_uuid": conversation.conversation_uuid,
+            "seed_drivers": await self._seed_drivers_from_chat(conversation),
         }
         async for event in self._run_segment(conversation, payload):
             yield event
+
+    async def _seed_drivers_from_chat(self, conversation: Conversation) -> dict[str, Any]:
+        """Lift explicit driver assignments the Kalkulator made in the pre-run chat (e.g. "use 250
+        as strip_length_m") so the run starts with them set, instead of re-resolving them from the
+        documents. Empty when there was no chat, or the chat set no driver."""
+        conversation_id = conversation.conversation_uuid
+        async with self._engine.connect() as conn:
+            history = await MessageRepository(conn).list_for_conversation(conversation_id)
+        transcript = [
+            {ROLE: m.role, CONTENT: m.content} for m in to_user_assistant_messages(history)
+        ]
+        if not any(m[ROLE] == ROLE_USER for m in transcript):
+            return {}
+        seeds = await llm_calls.extract_chat_drivers(
+            self._llm,
+            transcript,
+            driver_catalog(),
+            project_uuid=conversation.project_uuid,
+            conversation_uuid=conversation_id,
+        )
+        result: dict[str, Any] = {}
+        for assignment in seeds.assignments:
+            result[assignment.driver_id] = assignment.value
+            _trace(
+                conversation_id,
+                f"chat seed: {assignment.driver_id} = {assignment.value!r} "
+                f"({assignment.quote})",
+            )
+        return result
 
     async def resume(
         self, conversation: Conversation, decision: dict[str, Any]

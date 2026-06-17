@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from api.deps import (
     Principal,
+    get_calculator_run_service,
     get_connection,
     get_current_user,
     get_llm_client,
@@ -20,30 +22,36 @@ from api.deps import (
 from api.sse import SSE_MEDIA_TYPE, format_sse
 from shared.clients.llm.client import LLMClient
 from shared.db.unit_of_work import UnitOfWork
-from shared.models.conversation import NewConversation
+from shared.models.conversation import Conversation, NewConversation
 from shared.models.conversation_schema import (
     ConversationCostRead,
     ConversationCreate,
     ConversationRead,
 )
 from shared.models.enums import CalculationStatus, PromptType
+from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
 from shared.models.sse_schema import (
     DATA,
     DATA_CONTENT,
     DATA_LEVEL,
+    DATA_NAME,
     EVENT,
     EVENT_DONE,
+    EVENT_FUNCTION_CALL,
     EVENT_UI_NOTICE,
     NOTICE_PROCESSING_ERROR,
     NoticeLevel,
 )
 from shared.repositories.conversations import ConversationRepository
+from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.messages import MessageRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
+from shared.services.calculator.run_service import CalculatorRunService
 from shared.services.conversation_naming import ConversationNamingService
 from shared.services.project_chat import ProjectChatService, config_from_request
+from shared.services.project_chat_agent import TOOL_CALCULATE_EKT
 from shared.services.prompt_runner import PromptRunner
 from shared.services.security import InputRejectedError, guard_user_input
 
@@ -52,11 +60,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
-class TurnRequest(BaseModel):
+class CalculationResume(BaseModel):
+    """The Kalkulator's structured decision for the current HITL gate of a paused calculation.
+    Exactly the fields the paused stage consumes: work_type (classification), drivers (driver
+    confirmation), action (EKT review). Empty `drivers` means accept the assumed values as-is."""
+
     model_config = ConfigDict(extra="forbid")
 
-    content: str = Field(min_length=1)
+    work_type: str | None = None
+    drivers: dict[str, Any] | None = None
+    action: str | None = None
+
+
+class TurnRequest(BaseModel):
+    """One turn of a chat conversation. Exactly one of `content` (a free-text message, which for a
+    position chat may ask to run the calculation) or `resume` (a structured decision answering a
+    paused calculation's HITL gate)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    content: str | None = Field(default=None, min_length=1)
+    resume: CalculationResume | None = None
     retrieval: TurnRetrievalConfig | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_input(self) -> TurnRequest:
+        if (self.content is None) == (self.resume is None):
+            raise ValueError("provide exactly one of `content` or `resume`")
+        return self
 
 
 def get_conversation_naming_service(
@@ -129,41 +160,27 @@ async def run_turn(
     principal: Principal = Depends(get_current_user),
     conn: AsyncConnection = Depends(get_connection),
     project_chat: ProjectChatService = Depends(get_project_chat_service),
+    calc: CalculatorRunService = Depends(get_calculator_run_service),
 ) -> StreamingResponse:
-    try:
-        guard_user_input(payload.content)
-    except InputRejectedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-
+    """One streaming turn. `content` is a free-text message (project chat, or position chat that may
+    ask to run the calculation); `resume` is a structured decision answering a paused calculation's
+    HITL gate. A position-chat message that trips calculate_ekt streams the calculation in the SAME
+    response, until its first gate or completion."""
     conversation = await ConversationRepository(conn).get(conversation_uuid)
     if conversation is None or conversation.user_uuid != principal.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
-
-    # Project chats continue here; an ekt_calculator conversation also continues here while it is a
-    # chat -- the pre-run gate (awaiting_start, where the Kalkulator can discuss or ask to run) and
-    # follow-up questions once the run has completed. Mid-run (running / awaiting_input) it is driven
-    # by the calculation resume endpoint, not a free-text turn. The single-shot dispatcher has its
-    # own stateless endpoint.
     if conversation.prompt_type not in (PromptType.PROJECT_CHAT, PromptType.EKT_CALCULATOR):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="conversation is not continuable as a chat",
         )
-    if (
-        conversation.prompt_type == PromptType.EKT_CALCULATOR
-        and conversation.calculation_status
-        not in (CalculationStatus.AWAITING_START, CalculationStatus.COMPLETE)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="calculation is mid-run; resume the calculation instead of chatting",
-        )
 
-    events = project_chat.run_turn(
-        conversation, payload.content, config_from_request(payload.retrieval)
-    )
+    config = config_from_request(payload.retrieval)
+    if payload.resume is not None:
+        events = _resume_events(calc, conversation, payload.resume)
+    else:
+        assert payload.content is not None  # the schema validator guarantees one of the two
+        events = await _content_events(conn, project_chat, calc, conversation, payload.content, config)
 
     async def event_stream() -> AsyncIterator[str]:
         # The 200 + headers are already committed once streaming starts, so an exception here
@@ -173,7 +190,7 @@ async def run_turn(
             async for event in events:
                 yield format_sse(event)
         except Exception:
-            logger.exception("project chat turn stream failed conversation=%s", conversation_uuid)
+            logger.exception("chat turn stream failed conversation=%s", conversation_uuid)
             yield format_sse(
                 {
                     EVENT: EVENT_UI_NOTICE,
@@ -183,6 +200,98 @@ async def run_turn(
             yield format_sse({EVENT: EVENT_DONE, DATA: {}})
 
     return StreamingResponse(event_stream(), media_type=SSE_MEDIA_TYPE)
+
+
+def _resume_events(
+    calc: CalculatorRunService, conversation: Conversation, resume: CalculationResume
+) -> AsyncIterator[dict[str, Any]]:
+    """Validate and drive a paused calculation's resume; raises before streaming starts."""
+    if conversation.prompt_type != PromptType.EKT_CALCULATOR:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="resume is only valid for a calculation"
+        )
+    if conversation.calculation_status != CalculationStatus.AWAITING_INPUT:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="calculation is not awaiting input"
+        )
+    return calc.resume(conversation, resume.model_dump(exclude_none=True))
+
+
+async def _content_events(
+    conn: AsyncConnection,
+    project_chat: ProjectChatService,
+    calc: CalculatorRunService,
+    conversation: Conversation,
+    content: str,
+    config: Any,
+) -> AsyncIterator[dict[str, Any]]:
+    """Validate and build the event stream for a free-text turn; raises before streaming starts."""
+    try:
+        guard_user_input(content)
+    except InputRejectedError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if conversation.prompt_type != PromptType.EKT_CALCULATOR:
+        return project_chat.run_turn(conversation, content, config)
+
+    # Position chat: a free-text turn is valid while no calculation is running (before it starts,
+    # or for Q&A after it completes). Mid-run it must be resumed, not chatted.
+    if conversation.calculation_status not in (
+        CalculationStatus.AWAITING_START,
+        CalculationStatus.COMPLETE,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="calculation is mid-run; resume it instead of chatting",
+        )
+    item = (
+        await LVItemRepository(conn).get(conversation.lv_item_uuid)
+        if conversation.lv_item_uuid is not None
+        else None
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="conversation has no LV position"
+        )
+    return _position_chat_then_maybe_calc(project_chat, calc, conversation, item, content, config)
+
+
+async def _position_chat_then_maybe_calc(
+    project_chat: ProjectChatService,
+    calc: CalculatorRunService,
+    conversation: Conversation,
+    item: LVItem,
+    content: str,
+    config: Any,
+) -> AsyncIterator[dict[str, Any]]:
+    """Stream the position-chat turn; if the agent trips calculate_ekt, continue into the
+    calculation in the same response (until its first HITL gate or completion). calculate_ekt is a
+    control signal: it is neither persisted nor shown, only used here to chain the run."""
+    kicked = False
+    async for event in project_chat.run_turn(
+        conversation, content, config, position_context=_position_context(item)
+    ):
+        if event[EVENT] == EVENT_DONE:
+            continue  # defer the terminal done until any chained calculation finishes
+        if event[EVENT] == EVENT_FUNCTION_CALL and event[DATA].get(DATA_NAME) == TOOL_CALCULATE_EKT:
+            kicked = True
+            continue
+        yield event
+    if kicked:
+        async for event in calc.start(conversation, item):
+            if event[EVENT] == EVENT_DONE:
+                continue
+            yield event
+    yield {EVENT: EVENT_DONE, DATA: {}}
+
+
+def _position_context(item: LVItem) -> str:
+    """The bound LV position rendered for the position-chat system prompt."""
+    lines = [f"Position {item.oz}: {item.kurztext}", f"Menge: {item.menge} {item.einheit}"]
+    langtext = item.langtext_resolved or item.langtext
+    if langtext:
+        lines.append(langtext)
+    return "\n".join(lines)
 
 
 @router.post("/{conversation_uuid}/name", response_model=ConversationRead)

@@ -125,7 +125,7 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
                     }}
                   >
                     <CalculatorIcon data-slot="icon" />
-                    {starting === item.oz ? 'Starting…' : 'Run calculation'}
+                    {starting === item.oz ? 'Opening…' : 'Position Chat'}
                   </Button>
                 </TableCell>
               </TableRow>
