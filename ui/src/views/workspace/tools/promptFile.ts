@@ -12,6 +12,7 @@ const FRONTMATTER_FENCE = '---';
 const FRONTMATTER_KEY_MODEL_NAME = 'model_name';
 const FRONTMATTER_KEY_TEMPERATURE = 'temperature';
 const FRONTMATTER_KEY_TOP_P = 'top_p';
+const FRONTMATTER_KEY_REASONING_EFFORT = 'reasoning_effort';
 
 // Fields derived from the file itself, never set in frontmatter.
 const DERIVED_KEYS = ['prompt_type', 'system_prompt'] as const;
@@ -19,6 +20,7 @@ const ALLOWED_KEYS = [
   FRONTMATTER_KEY_MODEL_NAME,
   FRONTMATTER_KEY_TEMPERATURE,
   FRONTMATTER_KEY_TOP_P,
+  FRONTMATTER_KEY_REASONING_EFFORT,
 ] as const;
 
 type PromptType = PromptVersionCreate['prompt_type'];
@@ -30,6 +32,10 @@ export const PROMPT_TYPES: readonly PromptType[] = [
   'multi_question_generator',
   'lv_extraction',
   'conversation_name',
+  'ekt_classify',
+  'ekt_resolve_driver',
+  'ekt_select_method',
+  'ekt_seed_drivers',
 ];
 
 type Scalar = string | number | null;
@@ -73,6 +79,7 @@ export function parsePromptFile(filename: string, text: string): PromptVersionCr
     system_prompt: body,
     temperature: numberOrNull(meta, FRONTMATTER_KEY_TEMPERATURE),
     top_p: numberOrNull(meta, FRONTMATTER_KEY_TOP_P),
+    reasoning_effort: stringOrNull(meta, FRONTMATTER_KEY_REASONING_EFFORT),
   };
 }
 
@@ -116,4 +123,11 @@ function numberOrNull(meta: Record<string, Scalar>, key: string): number | null 
   if (v === undefined || v === null) return null;
   if (typeof v === 'number') return v;
   throw new PromptFileError(`Frontmatter '${key}' must be a number or null.`);
+}
+
+function stringOrNull(meta: Record<string, Scalar>, key: string): string | null {
+  const v = meta[key];
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'string') return v;
+  throw new PromptFileError(`Frontmatter '${key}' must be a string or null.`);
 }

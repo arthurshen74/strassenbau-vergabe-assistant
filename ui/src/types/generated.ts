@@ -157,12 +157,17 @@ export interface PromptVersionRead {
     | "multi_question_generator"
     | "lv_extraction"
     | "conversation_name"
-    | "ekt_calculator";
+    | "ekt_calculator"
+    | "ekt_classify"
+    | "ekt_resolve_driver"
+    | "ekt_select_method"
+    | "ekt_seed_drivers";
   version: number;
   model_name: string;
   system_prompt: string;
   temperature?: number | null;
   top_p?: number | null;
+  reasoning_effort?: string | null;
   created_at: string;
 }
 
@@ -174,11 +179,16 @@ export interface PromptVersionCreate {
     | "multi_question_generator"
     | "lv_extraction"
     | "conversation_name"
-    | "ekt_calculator";
+    | "ekt_calculator"
+    | "ekt_classify"
+    | "ekt_resolve_driver"
+    | "ekt_select_method"
+    | "ekt_seed_drivers";
   model_name: string;
   system_prompt: string;
   temperature?: number | null;
   top_p?: number | null;
+  reasoning_effort?: string | null;
 }
 
 export interface ConversationRead {
@@ -192,8 +202,12 @@ export interface ConversationRead {
     | "multi_question_generator"
     | "lv_extraction"
     | "conversation_name"
-    | "ekt_calculator";
-  calculation_status?: ("running" | "awaiting_input" | "complete" | "failed") | null;
+    | "ekt_calculator"
+    | "ekt_classify"
+    | "ekt_resolve_driver"
+    | "ekt_select_method"
+    | "ekt_seed_drivers";
+  calculation_status?: ("awaiting_start" | "running" | "awaiting_input" | "complete" | "failed") | null;
   lv_item_uuid?: string | null;
   title?: string | null;
   created_at: string;
@@ -208,7 +222,11 @@ export interface ConversationCreate {
     | "multi_question_generator"
     | "lv_extraction"
     | "conversation_name"
-    | "ekt_calculator";
+    | "ekt_calculator"
+    | "ekt_classify"
+    | "ekt_resolve_driver"
+    | "ekt_select_method"
+    | "ekt_seed_drivers";
   project_uuid?: string | null;
   title?: string | null;
 }

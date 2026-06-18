@@ -27,6 +27,10 @@ const TYPE_COLOR: Record<PromptVersionRead['prompt_type'], BadgeColor> = {
   lv_extraction: 'sky',
   conversation_name: 'rose',
   ekt_calculator: 'zinc',
+  ekt_classify: 'purple',
+  ekt_resolve_driver: 'blue',
+  ekt_select_method: 'green',
+  ekt_seed_drivers: 'amber',
 };
 
 // The route returns a bare array; the dispatcher tool returns `{prompts: [...]}`.
@@ -102,6 +106,7 @@ export function PromptList({ data }: { data?: unknown }) {
             <div className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               {p.temperature != null && <span>temp {p.temperature}</span>}
               {p.top_p != null && <span>top_p {p.top_p}</span>}
+              {p.reasoning_effort != null && <span>effort {p.reasoning_effort}</span>}
               <span>{formatRelativeTime(p.created_at)}</span>
             </div>
             <details className="text-xs">

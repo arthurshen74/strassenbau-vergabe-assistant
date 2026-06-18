@@ -10,13 +10,16 @@ and an absolute ban on producing or converting numbers beyond reading values ver
 from text. Drivers are resolved ONE at a time (a call per driver) so the conversation
 reads as a followable chain and later drivers can lean on earlier ones.
 
-Calls go through the shared `LLMClient` (settings.calculator_model over OpenRouter),
-which records usage + execution-log telemetry and, via `chat_with_reasoning`, returns
-the provider's reasoning summary alongside the validated output. The summary is requested
-with settings.calculator_reasoning_effort and is best-effort (None when the model emits
-none). Temperature is omitted because the calculator model is a reasoning model. With
-settings.calculator_mock the canned-but-realistic replies are returned instead; they are
-wired to the FSS demo position (L101 / OZ 01.03.0004).
+Each site runs on a DB-backed, versioned PromptVersion (PromptType.EKT_CLASSIFY /
+EKT_RESOLVE_DRIVER / EKT_SELECT_METHOD, plus EKT_SEED_DRIVERS for the pre-run chat-seed
+extractor). The caller resolves the PromptVersion once (shared.services.calculator.prompts)
+and passes it in; the model, system prompt, temperature and reasoning effort all come from
+it, and prompt_type/version tag the usage + execution log. Calls go through the shared
+`LLMClient` over OpenRouter, which records that telemetry and, via `chat_with_reasoning`,
+returns the provider's reasoning summary alongside the validated output (best-effort: None
+when the model emits none, or when the prompt sets no reasoning effort). With
+settings.calculator_mock the canned-but-realistic replies are returned instead (the prompt
+is unused); they are wired to the FSS demo position (L101 / OZ 01.03.0004).
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ from shared.clients.llm.client import (
     ROLE_USER,
 )
 from shared.config import settings
+from shared.models.prompt_version import PromptVersion
 from shared.services.calculator.models import (
     ChatDriverSeeds,
     ClassificationResult,
@@ -50,37 +54,13 @@ def _messages(system: str, user: str) -> list[dict[str, str]]:
 # =============================================================================
 # PROMPT 1 - CLASSIFICATION  (gate: low confidence -> HITL interrupt)
 # =============================================================================
-CLASSIFY_SYSTEM = """\
-You are the classification stage of a German road-construction cost-estimation
-agent (Kalkulation). You read one LV position (Leistungsverzeichnis) and assign
-it to exactly one registered work type (Leistung).
-
-You will be given:
-- The position text (OZ, Kurztext, Langtext), usually in German.
-- The list of registered work_type codes, each with trigger keywords.
-- Optionally: retrieved project context around this position (Baubeschreibung,
-  neighbouring positions).
-
-Rules:
-1. Choose ONLY from the offered work_type codes. If none fits, answer "unknown".
-2. Do not guess from the OZ number alone; the Langtext governs.
-3. confidence: 0.9+ only when the text names the Leistung essentially verbatim
-   (e.g. "Frostschutzschicht herstellen" -> fss_herstellen). Ambiguity, mixed
-   scopes, or unfamiliar wording => 0.7 or below.
-4. notes: 1-2 sentences citing the decisive wording, in English with the
-   German terms kept verbatim.
-5. reasoning: fill FIRST with 2-5 short steps (evidence -> rule -> conclusion),
-   in English with the German terms kept verbatim.
-6. You classify; you never estimate, compute, or mention costs or quantities.
-"""
-
-
 async def classify_position(
     llm: LLMClient,
     position: dict,
     registry_index: list[dict],
     context_snippets: list[str],
     *,
+    prompt: PromptVersion | None = None,
     project_uuid: UUID | None = None,
     conversation_uuid: UUID | None = None,
 ) -> tuple[ClassificationResult, str | None]:
@@ -93,17 +73,20 @@ async def classify_position(
             work_type="fss_herstellen", confidence=0.93,
             notes='Langtext opens with "Frostschutzschicht herstellen" and names '
                   'Baustoffgemisch 0/32 - direct match on the fss_herstellen triggers.'), None
+    assert prompt is not None  # live mode: the caller always supplies the loaded PromptVersion
     user = (f"LV position:\n{json.dumps(position, ensure_ascii=False, indent=2)}\n\n"
             f"Registered work types:\n{json.dumps(registry_index, ensure_ascii=False, indent=2)}\n\n"
             f"Retrieved project context:\n"
             f"{json.dumps(context_snippets, ensure_ascii=False, indent=2)}")
     return await llm.chat_with_reasoning(
-        model=settings.calculator_model,
-        messages=_messages(CLASSIFY_SYSTEM, user),
+        model=prompt.model_name,
+        messages=_messages(prompt.system_prompt, user),
         output_model=ClassificationResult,
-        temperature=None,
-        reasoning_effort=settings.calculator_reasoning_effort,
+        temperature=prompt.temperature,
+        reasoning_effort=prompt.reasoning_effort,
         strict=False,
+        chat_prompt_type=prompt.prompt_type.value,
+        chat_prompt_version=prompt.version,
         project_uuid=project_uuid,
         conversation_uuid=conversation_uuid,
     )
@@ -112,34 +95,6 @@ async def classify_position(
 # =============================================================================
 # PROMPT 2 - DRIVER RESOLUTION  (ONE call per driver; evidence-only)
 # =============================================================================
-DRIVER_SYSTEM = """\
-You are the driver-resolution stage of a German road-construction cost agent. You
-resolve ONE driver - a fact the deterministic calculation needs - from the supplied
-evidence, never from your own knowledge and never from anything outside the evidence.
-
-You will be given:
-- One driver spec: id, source, einheit, decision rule (description) and, for a
-  judgment driver, its options.
-- The evidence for this driver: for an lv_text driver, the LV position text; for a
-  plan/project/judgment driver, excerpts retrieved from the tender documents by
-  semantic + keyword search.
-- The drivers already resolved earlier this run, for judgment calls that depend on them.
-
-Rules by source:
-- lv_text / plan / project: READ the value from the evidence and copy it verbatim
-  (convert nothing, compute nothing); put the exact snippet in source_quote. If the
-  text's unit differs from einheit, report what the text says and note it - do not convert.
-- judgment: choose EXACTLY ONE of the offered options using the evidence and the
-  decision rule. The choice IS the value; put your justification in reasoning, not value.
-- If the evidence does not contain the value: value null and say why in note. NEVER
-  fill a gap with a typical or assumed value.
-
-confidence: direct verbatim read => 0.95+; inferred from context => 0.6-0.8.
-reasoning: fill FIRST with 2-5 short steps (evidence -> rule -> conclusion), English
-with the German terms kept verbatim.
-You extract and decide; you never calculate.
-"""
-
 # Canned per-driver replies for --mock, wired to the FSS demo position (OZ 01.03.0004).
 _MOCK_DRIVER_DECISIONS: dict[str, DriverDecision] = {
     "material_spec": DriverDecision(
@@ -186,6 +141,7 @@ async def resolve_one_driver(
     evidence: dict,
     resolved: dict,
     *,
+    prompt: PromptVersion | None = None,
     project_uuid: UUID | None = None,
     conversation_uuid: UUID | None = None,
 ) -> tuple[DriverDecision, str | None]:
@@ -195,17 +151,20 @@ async def resolve_one_driver(
             decision = DriverDecision(value=None, confidence=0.0,
                                       note="mock: no canned value for this driver")
         return decision, None
+    assert prompt is not None  # live mode: the caller always supplies the loaded PromptVersion
     user = (f"Driver to resolve:\n{json.dumps(spec, ensure_ascii=False, indent=2)}\n\n"
             f"Evidence (use ONLY this):\n{json.dumps(evidence, ensure_ascii=False, indent=2)}\n\n"
             f"Drivers already resolved this run:\n"
             f"{json.dumps(resolved, ensure_ascii=False, indent=2, default=str)}")
     return await llm.chat_with_reasoning(
-        model=settings.calculator_model,
-        messages=_messages(DRIVER_SYSTEM, user),
+        model=prompt.model_name,
+        messages=_messages(prompt.system_prompt, user),
         output_model=DriverDecision,
-        temperature=None,
-        reasoning_effort=settings.calculator_reasoning_effort,
+        temperature=prompt.temperature,
+        reasoning_effort=prompt.reasoning_effort,
         strict=False,
+        chat_prompt_type=prompt.prompt_type.value,
+        chat_prompt_version=prompt.version,
         project_uuid=project_uuid,
         conversation_uuid=conversation_uuid,
     )
@@ -214,35 +173,6 @@ async def resolve_one_driver(
 # =============================================================================
 # PROMPT 3 - METHOD SELECTION  (the Bauweise judgment, per operation)
 # =============================================================================
-METHOD_SYSTEM = """\
-You are the method-selection (Bauweise) stage of a German road-construction
-cost agent, deciding HOW one operation will be executed.
-
-You will be given:
-- The operation and its candidate methods, each with applicability criteria
-  written by the firm's Kalkulatoren.
-- The resolved drivers the registry marked relevant for this decision.
-- Fleet availability (which machine classes the firm can actually field).
-- Retrieved project context and Kalkulator reasoning notes for similar
-  situations.
-
-Rules:
-1. Choose EXACTLY ONE of the offered method ids. Never invent a method.
-2. Apply the criteria to the drivers explicitly: your notes must say which
-   criterion matched which driver value (e.g. "strip_width 0.5 m < drum width
-   ~1.7 m -> ruettelplatte").
-3. A method whose machine_class is unavailable in the fleet needs a strong
-   reason to be chosen anyway (e.g. rental noted) - prefer available ones.
-4. If no method's criteria fit the drivers, answer "escalate".
-5. confidence reflects criteria fit, not eloquence. Conflicting criteria or
-   missing drivers => below 0.8 (the run continues; low confidence is batched
-   into the final human review, so honesty is cheap and wrong certainty is not).
-6. reasoning: fill FIRST with 2-5 short steps applying each candidate's
-   criteria to the driver values (evidence -> criterion -> conclusion).
-7. You select; you never estimate durations or costs.
-"""
-
-
 async def select_method(
     llm: LLMClient,
     operation: dict,
@@ -250,6 +180,7 @@ async def select_method(
     fleet: dict,
     notes: list[str],
     *,
+    prompt: PromptVersion | None = None,
     project_uuid: UUID | None = None,
     conversation_uuid: UUID | None = None,
 ) -> tuple[MethodSelection, str | None]:
@@ -278,18 +209,21 @@ async def select_method(
             return sel, None
         return MethodSelection(method=operation["methods"][0]["id"], confidence=0.9,
                                notes="mock: first offered method"), None
+    assert prompt is not None  # live mode: the caller always supplies the loaded PromptVersion
     user = (f"Operation:\n{json.dumps(operation, ensure_ascii=False, indent=2)}\n\n"
             f"Relevant drivers:\n{json.dumps(drivers, ensure_ascii=False, indent=2)}\n\n"
             f"Fleet availability:\n{json.dumps(fleet, indent=2)}\n\n"
             f"Retrieved context and reasoning notes:\n"
             f"{json.dumps(notes, ensure_ascii=False, indent=2)}")
     return await llm.chat_with_reasoning(
-        model=settings.calculator_model,
-        messages=_messages(METHOD_SYSTEM, user),
+        model=prompt.model_name,
+        messages=_messages(prompt.system_prompt, user),
         output_model=MethodSelection,
-        temperature=None,
-        reasoning_effort=settings.calculator_reasoning_effort,
+        temperature=prompt.temperature,
+        reasoning_effort=prompt.reasoning_effort,
         strict=False,
+        chat_prompt_type=prompt.prompt_type.value,
+        chat_prompt_version=prompt.version,
         project_uuid=project_uuid,
         conversation_uuid=conversation_uuid,
     )
@@ -298,49 +232,33 @@ async def select_method(
 # =============================================================================
 # PRE-STEP - CHAT DRIVER SEEDS  (lift explicit driver values from the pre-run chat)
 # =============================================================================
-SEED_SYSTEM = """\
-You read the pre-calculation conversation between a Kalkulator (user) and the assistant, and
-extract ONLY the driver values the Kalkulator explicitly told the calculation to use.
-
-You will be given:
-- The conversation transcript (role user = the Kalkulator, role assistant = the agent).
-- The driver catalog: each driver's id, decision rule (description) and einheit.
-
-Rules:
-1. Extract an assignment ONLY when the Kalkulator explicitly instructs that a value be used for a
-   driver - e.g. "use 250 as strip_length_m", "set the Einbaulaenge to 250 m", "nimm 250 m als
-   strip_length_m". Map natural references (e.g. "Einbaulaenge") to the matching driver id using the
-   catalog descriptions.
-2. driver_id MUST be copied exactly from the catalog. Never invent an id or use one not offered.
-3. value: copy what the Kalkulator stated verbatim (convert nothing, compute nothing).
-4. Do NOT extract a value the assistant merely found, proposed, or mentioned unless the Kalkulator
-   then told the calculation to use it. When in doubt, omit it. An empty list is the correct answer
-   when the chat set no driver explicitly.
-"""
-
-
 async def extract_chat_drivers(
     llm: LLMClient,
     transcript: list[dict],
     driver_catalog: list[dict],
     *,
+    prompt: PromptVersion | None = None,
     project_uuid: UUID | None = None,
     conversation_uuid: UUID | None = None,
 ) -> ChatDriverSeeds:
     if settings.calculator_mock:
         return ChatDriverSeeds(assignments=[])
+    assert prompt is not None  # live mode: the caller always supplies the loaded PromptVersion
     user = (f"Conversation transcript:\n{json.dumps(transcript, ensure_ascii=False, indent=2)}\n\n"
             f"Driver catalog (choose ids ONLY from here):\n"
             f"{json.dumps(driver_catalog, ensure_ascii=False, indent=2)}")
     # strict=False (Pydantic-validated): matches the other calculator sites; OpenAI/Azure reject a
-    # strict json_schema that isn't all-required + additionalProperties:false. No reasoning summary.
+    # strict json_schema that isn't all-required + additionalProperties:false. The seed prompt sets
+    # no reasoning effort, so no reasoning summary is requested.
     seeds, _ = await llm.chat_with_reasoning(
-        model=settings.calculator_model,
-        messages=_messages(SEED_SYSTEM, user),
+        model=prompt.model_name,
+        messages=_messages(prompt.system_prompt, user),
         output_model=ChatDriverSeeds,
-        temperature=None,
-        reasoning_effort=None,
+        temperature=prompt.temperature,
+        reasoning_effort=prompt.reasoning_effort,
         strict=False,
+        chat_prompt_type=prompt.prompt_type.value,
+        chat_prompt_version=prompt.version,
         project_uuid=project_uuid,
         conversation_uuid=conversation_uuid,
     )

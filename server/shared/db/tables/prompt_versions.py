@@ -34,6 +34,8 @@ prompt_versions = Table(
     Column("system_prompt", Text, nullable=False),
     Column("temperature", Float, nullable=True),
     Column("top_p", Float, nullable=True),
+    # OpenRouter reasoning effort (e.g. "low"); NULL for non-reasoning prompts.
+    Column("reasoning_effort", Text, nullable=True),
     Column(
         "created_at",
         DateTime(timezone=True),

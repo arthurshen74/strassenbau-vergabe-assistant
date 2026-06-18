@@ -74,11 +74,13 @@ log, the OpenRouter usage log, or the ingest console.
 ### Prompt Library
 
 Every LLM call is dispatched through a versioned prompt store. A `PromptVersion` is immutable and pins
-`prompt_type`, `version`, model, temperature, and sampling settings; creating a new version never
-disturbs callers pinned to an older one. Prompts are seeded from `.prompt` files
+`prompt_type`, `version`, model, temperature, sampling settings, and reasoning effort; creating a new
+version never disturbs callers pinned to an older one. Prompts are seeded from `.prompt` files
 (`server/scripts/seed/prompts/`) and managed/edited in the UI. Active prompt types: `dispatcher`,
 `project_chat`, `lv_extraction`, `aggregate_lv_membership`, `multi_question_generator`,
-`conversation_name`. (Response schemas for structured output live in code, not the database.)
+`conversation_name`, and the EKT calculation graph's `ekt_classify`, `ekt_resolve_driver`,
+`ekt_select_method`, `ekt_seed_drivers`. (Response schemas for structured output live in code, not
+the database.)
 
 ### Operational surfaces
 

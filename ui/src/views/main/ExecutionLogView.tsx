@@ -34,6 +34,10 @@ const PROMPT_TYPES = [
   'multi_question_generator',
   'lv_extraction',
   'conversation_name',
+  'ekt_classify',
+  'ekt_resolve_driver',
+  'ekt_select_method',
+  'ekt_seed_drivers',
 ];
 const PAGE_SIZE = 100;
 

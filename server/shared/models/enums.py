@@ -39,7 +39,14 @@ class PromptType(StrEnum):
     MULTI_QUESTION_GENERATOR = "multi_question_generator"
     LV_EXTRACTION = "lv_extraction"
     CONVERSATION_NAME = "conversation_name"
+    # ekt_calculator is a conversation discriminator (a position chat that owns a calculator run),
+    # not a seeded prompt; the position chat itself runs on PROJECT_CHAT. The four ekt_* below are
+    # the EKT calculation graph's structured LLM prompts (shared/services/calculator/llm_calls.py).
     EKT_CALCULATOR = "ekt_calculator"
+    EKT_CLASSIFY = "ekt_classify"
+    EKT_RESOLVE_DRIVER = "ekt_resolve_driver"
+    EKT_SELECT_METHOD = "ekt_select_method"
+    EKT_SEED_DRIVERS = "ekt_seed_drivers"
 
 
 class CalculationStatus(StrEnum):

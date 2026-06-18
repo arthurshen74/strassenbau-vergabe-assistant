@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 import operator
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Annotated, TypedDict
 from uuid import UUID
@@ -39,7 +39,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send, interrupt
 
 from shared.clients.llm.client import LLMClient
-from shared.models.enums import RetrievalModality
+from shared.models.enums import PromptType, RetrievalModality
+from shared.models.prompt_version import PromptVersion
 from shared.services.calculator import llm_calls
 from shared.services.calculator.form223 import build_form_223_row
 from shared.services.calculator.formulas import FORMULAS
@@ -404,14 +405,18 @@ def route_feedback(state: AgentState) -> dict:
 def build_graph(
     retriever: ContextRetriever | None = None,
     llm: LLMClient | None = None,
+    prompts: Mapping[PromptType, PromptVersion] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
 ):
-    """Compile the agent graph. The LLM-judging nodes close over `retriever` and `llm`.
+    """Compile the agent graph. The LLM-judging nodes close over `retriever`, `llm` and `prompts`.
 
     `llm` is the shared transport the three judging sites call through (telemetry +
-    provider-reasoning capture); it is unused in mock mode, so it may be None there.
+    provider-reasoning capture); it is unused in mock mode, so it may be None there. `prompts`
+    holds the resolved PromptVersion per calculator prompt type (loaded up front by the caller via
+    shared.services.calculator.prompts); unused in mock mode, so it may be omitted there.
     `checkpointer` persists graph state across the HITL interrupts; defaults to an in-process
     MemorySaver (the conversation-backed service injects an AsyncPostgresSaver)."""
+    prompts = prompts or {}
 
     async def retrieve(query: str) -> list[str]:
         return await retriever(query) if retriever is not None else []
@@ -431,6 +436,7 @@ def build_graph(
                           f"Retrieved {len(snippets)} snippet(s); classifying the position."))
         res, provider = await llm_calls.classify_position(
             llm, state["position"], index, snippets,
+            prompt=prompts.get(PromptType.EKT_CLASSIFY),
             project_uuid=state.get("project_uuid"),
             conversation_uuid=state.get("conversation_uuid"))
         log += reason_llm("classify", res.reasoning, provider)
@@ -506,6 +512,7 @@ def build_graph(
 
             decision, provider = await llm_calls.resolve_one_driver(
                 llm, d.model_dump(), evidence, drivers,
+                prompt=prompts.get(PromptType.EKT_RESOLVE_DRIVER),
                 project_uuid=project_uuid, conversation_uuid=conversation_uuid)
             log += reason_llm("resolve_drivers", decision.reasoning, provider)
 
@@ -568,6 +575,7 @@ def build_graph(
                 {"id": op.id, "label": op.label,
                  "methods": [m.model_dump() for m in op.methods]},
                 rel, fleet_availability(), notes=notes,
+                prompt=prompts.get(PromptType.EKT_SELECT_METHOD),
                 project_uuid=payload.get("project_uuid"),
                 conversation_uuid=payload.get("conversation_uuid"))
             log += reason_llm(stage, sel.reasoning, provider)

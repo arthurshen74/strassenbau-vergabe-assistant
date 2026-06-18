@@ -123,6 +123,9 @@ export function PromptImportDialog({
             <div className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               {parsed.temperature != null && <span>temp {parsed.temperature}</span>}
               {parsed.top_p != null && <span>top_p {parsed.top_p}</span>}
+              {parsed.reasoning_effort != null && (
+                <span>effort {parsed.reasoning_effort}</span>
+              )}
             </div>
             <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
               {parsed.system_prompt}

@@ -18,6 +18,7 @@ class PromptVersion(BaseModel):
     system_prompt: str
     temperature: float | None = None
     top_p: float | None = None
+    reasoning_effort: str | None = None
     created_at: datetime
 
 
@@ -32,3 +33,4 @@ class NewPromptVersion(BaseModel):
     system_prompt: str
     temperature: float | None = 0.0
     top_p: float | None = None
+    reasoning_effort: str | None = None

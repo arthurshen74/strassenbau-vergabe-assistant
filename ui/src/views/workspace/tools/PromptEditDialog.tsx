@@ -30,6 +30,7 @@ export function PromptEditDialog({
   const [temperature, setTemperature] = useState(
     prompt.temperature == null ? '' : String(prompt.temperature),
   );
+  const [reasoningEffort, setReasoningEffort] = useState(prompt.reasoning_effort ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const close = () => {
@@ -41,10 +42,12 @@ export function PromptEditDialog({
   const parsedTemperature = temperature.trim() === '' ? null : Number(temperature);
   const temperatureInvalid =
     parsedTemperature !== null && Number.isNaN(parsedTemperature);
+  const parsedReasoningEffort = reasoningEffort.trim() === '' ? null : reasoningEffort.trim();
   const unchanged =
     modelName === prompt.model_name &&
     systemPrompt === prompt.system_prompt &&
-    parsedTemperature === (prompt.temperature ?? null);
+    parsedTemperature === (prompt.temperature ?? null) &&
+    parsedReasoningEffort === (prompt.reasoning_effort ?? null);
 
   const submit = async () => {
     setError(null);
@@ -55,6 +58,7 @@ export function PromptEditDialog({
         system_prompt: systemPrompt,
         temperature: parsedTemperature,
         top_p: prompt.top_p,
+        reasoning_effort: parsedReasoningEffort,
       });
       close();
     } catch (err) {
@@ -96,6 +100,15 @@ export function PromptEditDialog({
             value={temperature}
             placeholder="none"
             onChange={(e) => setTemperature(e.target.value)}
+            className="mt-2"
+          />
+        </Field>
+        <Field>
+          <Label>Reasoning effort</Label>
+          <Input
+            value={reasoningEffort}
+            placeholder="none (e.g. low, medium, high)"
+            onChange={(e) => setReasoningEffort(e.target.value)}
             className="mt-2"
           />
         </Field>

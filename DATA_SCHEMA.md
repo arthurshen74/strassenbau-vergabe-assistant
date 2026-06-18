@@ -180,6 +180,7 @@ classDiagram
         +text system_prompt
         +float temperature
         +float? top_p
+        +text? reasoning_effort
         +float? min_p
         +list~ChatMessage~ initial_messages
         +timestamptz created_at postgres_only

@@ -32,6 +32,10 @@ def test_enum_values() -> None:
         "lv_extraction",
         "conversation_name",
         "ekt_calculator",
+        "ekt_classify",
+        "ekt_resolve_driver",
+        "ekt_select_method",
+        "ekt_seed_drivers",
     }
 
 

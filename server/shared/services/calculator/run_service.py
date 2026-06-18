@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -23,10 +23,12 @@ from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.llm.client import LLMClient
+from shared.config import settings
 from shared.models.conversation import Conversation
-from shared.models.enums import CalculationStatus, MessageKind
+from shared.models.enums import CalculationStatus, MessageKind, PromptType
 from shared.models.lv_item import LVItem
 from shared.models.message import NewMessage
+from shared.models.prompt_version import PromptVersion
 from shared.models.sse_schema import (
     DATA,
     DATA_ARGUMENTS,
@@ -61,6 +63,7 @@ from shared.services.calculator.graph import (
     build_graph,
     driver_catalog,
 )
+from shared.services.calculator.prompts import load_calculator_prompts
 from shared.services.messages import (
     CONTENT,
     ROLE,
@@ -97,16 +100,29 @@ class CalculatorRunService:
         self, conversation: Conversation, item: LVItem
     ) -> AsyncIterator[dict[str, Any]]:
         """Begin a run for one LV position; stream until the first interrupt or completion."""
+        prompts = await self._load_prompts()
         payload = {
             "position": _position(item),
             "project_uuid": conversation.project_uuid,
             "conversation_uuid": conversation.conversation_uuid,
-            "seed_drivers": await self._seed_drivers_from_chat(conversation),
+            "seed_drivers": await self._seed_drivers_from_chat(
+                conversation, prompts.get(PromptType.EKT_SEED_DRIVERS)
+            ),
         }
-        async for event in self._run_segment(conversation, payload):
+        async for event in self._run_segment(conversation, payload, prompts):
             yield event
 
-    async def _seed_drivers_from_chat(self, conversation: Conversation) -> dict[str, Any]:
+    async def _load_prompts(self) -> dict[PromptType, PromptVersion]:
+        """Resolve the calculator's DB-backed prompt versions once per run segment. Mock runs skip
+        the LLM sites entirely, so they need no prompts (and none may be seeded)."""
+        if settings.calculator_mock:
+            return {}
+        async with self._engine.connect() as conn:
+            return await load_calculator_prompts(conn)
+
+    async def _seed_drivers_from_chat(
+        self, conversation: Conversation, seed_prompt: PromptVersion | None
+    ) -> dict[str, Any]:
         """Lift explicit driver assignments the Kalkulator made in the pre-run chat (e.g. "use 250
         as strip_length_m") so the run starts with them set, instead of re-resolving them from the
         documents. Empty when there was no chat, or the chat set no driver."""
@@ -122,6 +138,7 @@ class CalculatorRunService:
             self._llm,
             transcript,
             driver_catalog(),
+            prompt=seed_prompt,
             project_uuid=conversation.project_uuid,
             conversation_uuid=conversation_id,
         )
@@ -139,13 +156,22 @@ class CalculatorRunService:
         self, conversation: Conversation, decision: dict[str, Any]
     ) -> AsyncIterator[dict[str, Any]]:
         """Continue a paused run from its checkpoint with the Kalkulator's decision."""
-        async for event in self._run_segment(conversation, Command(resume=decision)):
+        prompts = await self._load_prompts()
+        async for event in self._run_segment(
+            conversation, Command(resume=decision), prompts
+        ):
             yield event
 
-    def _app(self, project_uuid: UUID, conversation_uuid: UUID):
+    def _app(
+        self,
+        project_uuid: UUID,
+        conversation_uuid: UUID,
+        prompts: Mapping[PromptType, PromptVersion],
+    ):
         return build_graph(
             retriever=self._retriever(project_uuid, conversation_uuid),
             llm=self._llm,
+            prompts=prompts,
             checkpointer=self._checkpointer,
         )
 
@@ -162,11 +188,14 @@ class CalculatorRunService:
         return retrieve
 
     async def _run_segment(
-        self, conversation: Conversation, payload: Any
+        self,
+        conversation: Conversation,
+        payload: Any,
+        prompts: Mapping[PromptType, PromptVersion],
     ) -> AsyncIterator[dict[str, Any]]:
         conversation_id = conversation.conversation_uuid
         assert conversation.project_uuid is not None  # ekt_calculator runs are project-scoped
-        app = self._app(conversation.project_uuid, conversation_id)
+        app = self._app(conversation.project_uuid, conversation_id, prompts)
         config = {"configurable": {"thread_id": str(conversation_id)}}
 
         await self._set_status(conversation_id, CalculationStatus.RUNNING)

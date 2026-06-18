@@ -20,8 +20,8 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
 
 def test_shipped_prompt_files_cover_every_prompt_type() -> None:
     versions = load_prompt_versions()
-    # ekt_calculator's prompts are hardcoded in shared/services/calculator/llm_calls.py, not the
-    # prompt registry, so it ships no .prompt file.
+    # ekt_calculator is a conversation discriminator, not a seeded prompt (the position chat runs on
+    # project_chat), so it ships no .prompt file. The EKT graph's own prompts (ekt_classify etc.) do.
     expected = set(PromptType) - {PromptType.EKT_CALCULATOR}
     assert {v.prompt_type for v in versions} == expected
 
@@ -50,6 +50,27 @@ def test_optional_fields_default(tmp_path: Path) -> None:
 def test_null_temperature_parses_to_none(tmp_path: Path) -> None:
     f = _write(tmp_path, "dispatcher.prompt", "---\nmodel_name: m\ntemperature: null\n---\nBody.\n")
     assert parse_prompt_file(f).temperature is None
+
+
+def test_reasoning_effort_parses_from_frontmatter(tmp_path: Path) -> None:
+    f = _write(
+        tmp_path, "dispatcher.prompt", "---\nmodel_name: m\nreasoning_effort: low\n---\nBody.\n"
+    )
+    assert parse_prompt_file(f).reasoning_effort == "low"
+
+
+def test_reasoning_effort_defaults_to_none(tmp_path: Path) -> None:
+    f = _write(tmp_path, "dispatcher.prompt", "---\nmodel_name: m\n---\nBody.\n")
+    assert parse_prompt_file(f).reasoning_effort is None
+
+
+def test_shipped_ekt_prompts_request_reasoning_summary_except_seed() -> None:
+    by_type = {v.prompt_type: v for v in load_prompt_versions()}
+    assert by_type[PromptType.EKT_CLASSIFY].reasoning_effort == "low"
+    assert by_type[PromptType.EKT_RESOLVE_DRIVER].reasoning_effort == "low"
+    assert by_type[PromptType.EKT_SELECT_METHOD].reasoning_effort == "low"
+    # The chat-seed extractor wants no reasoning summary, mirroring the prior hardcoded behavior.
+    assert by_type[PromptType.EKT_SEED_DRIVERS].reasoning_effort is None
 
 
 def test_body_preserved_verbatim_with_outer_whitespace_stripped(tmp_path: Path) -> None:

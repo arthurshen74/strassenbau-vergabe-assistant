@@ -43,6 +43,7 @@ from shared.services.calculator.graph import (
     STAGE_DRIVER_CONFIRMATION,
     build_graph,
 )
+from shared.services.calculator.prompts import load_calculator_prompts
 from shared.services.retrieval import RetrievalService
 
 PHOENIX_PROJECT = "ekt-calculator"
@@ -99,7 +100,13 @@ async def main() -> None:
             ctx = await retrieval.retrieve_context(query, args.project, config)
             return [c.chunk_text for c in ctx.context]
 
-        app = build_graph(retriever=None if args.mock else retrieve, llm=llm)
+        prompts: dict = {}
+        if not args.mock:
+            async with engine.connect() as conn:
+                prompts = await load_calculator_prompts(conn)
+        app = build_graph(
+            retriever=None if args.mock else retrieve, llm=llm, prompts=prompts
+        )
         cfg = {"configurable": {"thread_id": f"ekt-{args.project}-{args.oz}"}}
 
         print(f"position {item.oz}: {item.kurztext} — {item.menge} {item.einheit}")
