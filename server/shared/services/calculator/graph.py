@@ -1,3 +1,4 @@
+# pyright: reportTypedDictNotRequiredAccess=false
 """LangGraph wiring for the EKT Position Calculation Agent.
 
 Topology (matches the state diagram):
@@ -100,7 +101,6 @@ logger = logging.getLogger(__name__)
 # dropped (the "stuck, then a burst" symptom). Expected to be absent only for CLI / ainvoke, so we
 # warn once per process rather than per entry.
 _writer_unavailable_warned = False
-
 
 def _write_live(entry: dict) -> None:
     """Emit one reasoning entry to the custom stream so the UI and logs see it the moment it is
@@ -403,10 +403,10 @@ def route_feedback(state: AgentState) -> dict:
 
 # ------------------------------------------------------------------- build --
 def build_graph(
-    retriever: ContextRetriever | None = None,
-    llm: LLMClient | None = None,
-    prompts: Mapping[PromptType, PromptVersion] | None = None,
-    checkpointer: BaseCheckpointSaver | None = None,
+    retriever: ContextRetriever,
+    llm: LLMClient,
+    prompts: Mapping[PromptType, PromptVersion],
+    checkpointer: BaseCheckpointSaver,
 ):
     """Compile the agent graph. The LLM-judging nodes close over `retriever`, `llm` and `prompts`.
 
@@ -483,7 +483,7 @@ def build_graph(
             if d.id in seeds:
                 raw = seeds[d.id]
                 value = raw if einheit in NON_NUMERIC_EINHEITEN else coerce_numeric(raw)
-                drivers[d.id] = value
+                drivers[d.id] = value # type: ignore
                 prov[d.id] = {"source": PROVENANCE_CHAT, "confidence": 1.0}
                 if value is None:
                     flags.append(ReviewFlag(where=f"driver:{d.id}", kind="missing_data",
@@ -519,7 +519,7 @@ def build_graph(
             value = decision.value
             if value is not None and einheit not in NON_NUMERIC_EINHEITEN:
                 value = coerce_numeric(value)
-            drivers[d.id] = value
+            drivers[d.id] = value # type: ignore
             prov[d.id] = {"source": decision.source_quote or "judgment",
                           "confidence": decision.confidence,
                           "reasoning": decision.reasoning}
@@ -622,7 +622,7 @@ def build_graph(
     g.add_node("hitl_confirm_drivers", hitl_confirm_drivers)
     g.add_node("derive_drivers", derive_drivers)
     g.add_node("plan_operations", plan_operations)
-    g.add_node("cost_operation", cost_operation)
+    g.add_node("cost_operation", cost_operation) # type: ignore
     g.add_node("aggregate_etk", aggregate_etk)
     g.add_node("assess_risk", assess_risk)
     g.add_node("hitl_review", hitl_review)
