@@ -4,7 +4,7 @@
 // card, which caps the Langtext height via constrainLangtext.
 
 import clsx from 'clsx';
-import { CalculatorIcon } from '@heroicons/react/16/solid';
+import { CalculatorIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/16/solid';
 
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '../../components/ui/dialog';
@@ -37,13 +37,15 @@ function Field({
 export function LVItemDetailContent({
   item,
   constrainLangtext = false,
+  showOz = true,
 }: {
   item: LVItem;
   constrainLangtext?: boolean;
+  showOz?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <Field label="OZ" value={item.oz} />
+      {showOz && <Field label="OZ" value={item.oz} />}
       <Field
         label={item.stl_nr ? `Kurztext (STL-Nr ${item.stl_nr})` : 'Kurztext'}
         value={item.kurztext}
@@ -68,19 +70,38 @@ export function LVItemDetailDialog({
   onClose,
   onRunCalculation,
   starting = false,
+  onPrev,
+  onNext,
 }: {
   item: LVItem | null;
   open: boolean;
   onClose: () => void;
   onRunCalculation?: (oz: string) => void;
   starting?: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
 }) {
+  const navigable = onPrev !== undefined || onNext !== undefined;
   return (
     <Dialog open={open} onClose={onClose} size="2xl">
-      <DialogTitle>{item ? `OZ ${item.oz}` : 'LV Position'}</DialogTitle>
+      <div className="flex items-center justify-between gap-4">
+        <DialogTitle className="mb-0">{item ? `OZ ${item.oz}` : 'LV Position'}</DialogTitle>
+        {navigable && (
+          <div className="flex shrink-0 gap-2">
+            <Button outline disabled={!onPrev} onClick={onPrev}>
+              <ChevronLeftIcon data-slot="icon" />
+              Back
+            </Button>
+            <Button outline disabled={!onNext} onClick={onNext}>
+              Next
+              <ChevronRightIcon data-slot="icon" />
+            </Button>
+          </div>
+        )}
+      </div>
       {item && (
-        <DialogBody>
-          <LVItemDetailContent item={item} />
+        <DialogBody className="max-h-[75vh] overflow-y-auto">
+          <LVItemDetailContent item={item} showOz={false} />
         </DialogBody>
       )}
       {item && onRunCalculation && (

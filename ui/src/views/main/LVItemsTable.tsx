@@ -45,6 +45,14 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
   const searching = query.length > 0;
   const items = searching ? (search.data ?? []) : allItems;
 
+  // Neighbors of the open item within the currently displayed list, for the dialog's Back/Next.
+  const selectedIndex = selected
+    ? items.findIndex((i) => i.lv_item_uuid === selected.lv_item_uuid)
+    : -1;
+  const prevItem = selectedIndex > 0 ? items[selectedIndex - 1] : undefined;
+  const nextItem =
+    selectedIndex >= 0 && selectedIndex < items.length - 1 ? items[selectedIndex + 1] : undefined;
+
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setQuery(draft.trim());
@@ -140,6 +148,8 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
         onClose={() => setSelected(null)}
         onRunCalculation={runCalculation}
         starting={selected !== null && starting === selected.oz}
+        onPrev={prevItem ? () => setSelected(prevItem) : undefined}
+        onNext={nextItem ? () => setSelected(nextItem) : undefined}
       />
     </>
   );
