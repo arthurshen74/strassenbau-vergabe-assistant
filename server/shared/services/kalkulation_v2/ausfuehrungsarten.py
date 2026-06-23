@@ -15,6 +15,9 @@ AUSFUEHRUNGSARTEN: dict[str, Ausführungsart] = {
     "MARKFRAESE":   Ausführungsart(code="AA_MARKFRAESE", name="maschinell – Markierungsfräse", geraetebezug="Markierungsfräse"),
     "KOLONNE":      Ausführungsart(code="AA_KOLONNE", name="manuell – Kolonne", geraetebezug="Kolonne"),
     "GRADER":       Ausführungsart(code="AA_GRADER", name="maschinell – Grader + Walze", geraetebezug="Grader; Walze"),
+    "RADLADER_SOLO": Ausführungsart(code="AA_RADLADER", name="maschinell – Radlader", geraetebezug="Radlader"),
+    "GRADER_SOLO":  Ausführungsart(code="AA_GRADER_SOLO", name="maschinell – Grader", geraetebezug="Grader"),
+    "FERTIGER":     Ausführungsart(code="AA_FERTIGER", name="maschinell – Fertiger", geraetebezug="Fertiger"),
     "WALZE":        Ausführungsart(code="AA_WALZE", name="maschinell – Walze", geraetebezug="Walze"),
     "ASPHALT_HAND": Ausführungsart(code="AA_ASPHALT_HAND", name="manuell – Handeinbau + Walze", geraetebezug="Kolonne; Walze"),
 }

@@ -25,7 +25,14 @@ BAUVERFAHREN: dict[str, Bauverfahren] = {
     "BV_FRAESEN":        _bv("BV_FRAESEN",        "Asphalt fräsen, Kaltfräse",                           "FRAESEN"),
     "BV_AUFBRECHEN":     _bv("BV_AUFBRECHEN",     "Asphalt aufbrechen und aufnehmen, Bagger m. Meißel",  "AUFBRECHEN"),
     "BV_PLANUM":         _bv("BV_PLANUM",         "Planum herstellen, Grader + Walze",                   "PLANUM"),
+    "BV_PLANUM_VERDICHTEN": _bv("BV_PLANUM_VERDICHTEN", "Planum herstellen und verdichten, Grader + Walze",
+                                "PLANUM", "VERDICHTEN"),  # multi-Vorgang: both steps work off flaeche_m2
     "BV_VERDICHTEN":     _bv("BV_VERDICHTEN",     "Boden verdichten, Walze",                             "VERDICHTEN"),
     "BV_ASPHALT_EINBAU": _bv("BV_ASPHALT_EINBAU", "Asphalttragschicht einbauen, Fertiger + Walze",       "ASPHALT_EINBAU"),
     "BV_NAHT":           _bv("BV_NAHT",           "Naht herstellen, PmB-Fugenband",                      "NAHT"),
+    # --- FSS: two machinery-driven recipes; compaction (FSS_VERDICHTEN) is identical in both ---
+    "BV_FSS_GRADER":   _bv("BV_FSS_GRADER",   "FSS: Radlader legen + Grader profilieren + Walze",
+                           "FSS_LEGEN", "FSS_PROFIL", "FSS_VERDICHTEN"),
+    "BV_FSS_FERTIGER": _bv("BV_FSS_FERTIGER", "FSS: Fertiger (legen+abziehen) + Walze",
+                           "FSS_FERTIGER", "FSS_VERDICHTEN"),
 }

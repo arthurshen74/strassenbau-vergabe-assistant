@@ -32,7 +32,7 @@ from __future__ import annotations
 import ast
 import operator
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from enum import Enum
 from uuid import UUID, uuid4
 
@@ -203,6 +203,8 @@ _CMP = {ast.Lt: operator.lt, ast.LtE: operator.le, ast.Gt: operator.gt,
 _FUNKTIONEN = {
     "abs": abs, "min": min, "max": max,
     "round": lambda x, n=0: Decimal(x).quantize(Decimal(1).scaleb(-int(n))),
+    "ceil": lambda x: Decimal(x).to_integral_value(rounding=ROUND_CEILING),
+    "floor": lambda x: Decimal(x).to_integral_value(rounding=ROUND_FLOOR),
 }
 
 

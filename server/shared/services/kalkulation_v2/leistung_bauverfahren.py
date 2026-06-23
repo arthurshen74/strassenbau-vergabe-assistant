@@ -34,11 +34,12 @@ LEISTUNG_BAUVERFAHREN: dict[str, list[str]] = {
     "L_AUFBRECHEN":         ["BV_AUFBRECHEN", "BV_FRAESEN"],
     "L_BODEN_LOESEN":       ["BV_BODENABTRAG"],
     "L_PLANUM":             ["BV_PLANUM"],
+    "L_PLANUM_VERDICHTET":  ["BV_PLANUM_VERDICHTEN"],
     "L_BODEN_VERDICHTEN":   ["BV_VERDICHTEN"],
-    "L_FSS_EV45":           ["BV_EINBAU"],
+    "L_FSS_EV45":           ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
     "L_ASPHALTTRAGSCHICHT": ["BV_ASPHALT_EINBAU"],
     "L_NAHT":               ["BV_NAHT"],
-    "L_FSS_EV100":          ["BV_EINBAU"],
+    "L_FSS_EV100":          ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
 }
 
 

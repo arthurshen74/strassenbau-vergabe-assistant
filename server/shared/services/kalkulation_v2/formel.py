@@ -90,3 +90,35 @@ formel("trans_boden", "tonnage_abtrag * transport_eur_pro_t_km * entfernung_km",
 formel("trans_fraesgut", "tonnage_fraesgut * transport_eur_pro_t_km * entfernung_km", "€")
 formel("trans_aufbruch", "tonnage_aufbruch * transport_eur_pro_t_km * entfernung_km", "€")
 formel("trans_asphalt", "menge_t * transport_eur_pro_t_km * entfernung_km", "€")
+
+
+# --------------------------------------------------------------------------- #
+# FSS decomposition: lay / profile / compact, all derived from the booked m³.
+# Geometry bridge — area from booked volume and the (extracted) layer thickness:
+formel("flaeche_m2", "volumen_m3 / schichtdicke_m", "m²", "Fläche (aus Volumen/Schichtdicke)")
+# Lifts: a layer thicker than the max lift goes in several passes of lay+level+compact.
+formel("anzahl_lagen", "ceil(schichtdicke_m / max_lagendicke_b2_m)", "-", "Anzahl Lagen")
+# Walzübergänge as a (clamped) linear function of the Ev2 target, then rounded up.
+formel("verdicht_uebergaenge",
+       "ceil(verdicht_uebergaenge_ev45 + (max(ev2_anker_min, min(ev2_anker_max, ev2_ziel)) - ev2_anker_min) "
+       "* (verdicht_uebergaenge_ev100 - verdicht_uebergaenge_ev45) / (ev2_anker_max - ev2_anker_min))",
+       "-", "Walzübergänge aus Ev2-Ziel")
+
+# Operating hours per step
+formel("fss_legen_stunden", "volumen_m3 / radlader_leistung_m3_pro_h", "h")          # Radlader: by volume
+formel("fss_profil_stunden", "flaeche_m2 * anzahl_lagen / profil_leistung_m2_pro_h", "h")  # Grader: area x lifts
+formel("fss_verdicht_stunden",
+       "flaeche_m2 * anzahl_lagen * verdicht_uebergaenge / walze_uebergang_leistung_m2_pro_h", "h")
+formel("fss_fertiger_stunden", "flaeche_m2 / fertiger_leistung_m2_pro_h", "h")        # Fertiger: lay+level, area
+
+# Machine cost lines (rate incl. Verschleiß + fuel)
+formel("mk_fss_legen", "fss_legen_stunden * (radlader_stundensatz_eur + radlader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("mk_fss_profil", "fss_profil_stunden * (grader_stundensatz_eur + grader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("mk_fss_verdicht", "fss_verdicht_stunden * (walze_stundensatz_eur + walze_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("mk_fss_fertiger", "fss_fertiger_stunden * (fertiger_stundensatz_eur + fertiger_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+
+# Labour: laying carries the crew; solo machine steps carry one operator (PLACEHOLDER staffing)
+formel("lohn_fss_legen", "fss_legen_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
+formel("lohn_fss_profil", "fss_profil_stunden * stundenlohn_eur", "€")
+formel("lohn_fss_verdicht", "fss_verdicht_stunden * stundenlohn_eur", "€")
+formel("lohn_fss_fertiger", "fss_fertiger_stunden * stundenlohn_eur * anzahl_arbeiter", "€")

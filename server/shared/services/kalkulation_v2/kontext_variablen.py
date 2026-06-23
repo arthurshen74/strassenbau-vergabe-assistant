@@ -47,9 +47,16 @@ eingabe("markierung_leistung_m_pro_h", "Abtragsleistung Markierung", "m/h",
 # NOTE: true source is STAMMDATEN (supplier price list) once a Lieferant is chosen.
 eingabe("materialpreis_eur_pro_t", "Materialpreis", "€/t",
         "Materialpreis des gewählten Baustoffs beim Lieferanten zum Stichtag.")
+eingabe("schichtdicke_m", "Schichtdicke (eingebaut, verdichtet)", "m",
+        "Aus Langtext: Dicke der herzustellenden Schicht; oft in cm angegeben (in m umrechnen).")
+eingabe("ev2_ziel", "Verdichtungsanforderung Ev2", "MPa",
+        "Aus Langtext: geforderter Verformungsmodul Ev2 (MN/m²) auf der fertigen Schicht.")
 
 # --- geometry (one is set per position from `menge`) ---
-for _g, _e in [("flaeche_m2", "m²"), ("laenge_m", "m"), ("volumen_m3", "m³"), ("menge_t", "t")]:
+# flaeche_m2 is intentionally NOT here: when a position is booked in m² it is filled
+# directly from `menge` (and the resolver short-circuits on the booked value); when a
+# position is booked in m³, flaeche_m2 is DERIVED via volumen_m3 / schichtdicke_m (see formel.py).
+for _g, _e in [("laenge_m", "m"), ("volumen_m3", "m³"), ("menge_t", "t")]:
     geometrie(_g, _e)
 
 # --- situational inputs with a default fallback ---

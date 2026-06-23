@@ -58,6 +58,19 @@ konst("walze_leistung_m2_pro_h", "400", "m²/h")
 konst("asphalt_einbau_leistung_t_pro_h", "18", "t/h", "Handeinbau 2-lagig")
 konst("naht_leistung_m_pro_h", "150", "m/h")
 
+# --- FSS decomposition: lay / profile / compact rates (PLACEHOLDERS – set in rate book) ---
+konst("radlader_leistung_m3_pro_h", "40", "m³/h", "Liefer-/Legeleistung Radlader (FSS)")
+konst("profil_leistung_m2_pro_h", "500", "m²/h", "Profilierleistung Grader (je Lage)")
+konst("walze_uebergang_leistung_m2_pro_h", "1200", "m²/(h·Übergang)", "Walzleistung je Übergang")
+konst("fertiger_stundensatz_eur", "180", "€/h", "Fertiger inkl. Verschleiß")
+konst("fertiger_l_pro_h", "25", "l/h")
+konst("fertiger_leistung_m2_pro_h", "600", "m²/h", "Einbau+Abziehen Fertiger (ein Zug)")
+konst("max_lagendicke_b2_m", "0.30", "m", "max. verdichtete Lagendicke B2 0/32")
+# Ev2 target -> Walzübergänge: linear zwischen zwei Ankern, dann aufgerundet
+konst("verdicht_uebergaenge_ev45", "3", "-", "Übergänge @ Ev2=45")
+konst("verdicht_uebergaenge_ev100", "6", "-", "Übergänge @ Ev2=100")
+konst("ev2_anker_min", "45", "MPa"); konst("ev2_anker_max", "100", "MPa")
+
 # --- master-data bridges (pull from the chosen Baustoff) ---
 stammdaten("dichte_t_pro_m3", "baustoff.rohdichte_t_pro_m3", "t/m³", "Rohdichte Baustoff")
 stammdaten("verdichtungsfaktor", "baustoff.verdichtungsfaktor", "-", "Verdichtungsfaktor")

@@ -52,11 +52,11 @@ POSITIONEN: list[Position] = [
     P("01.03.0001", "L_BODEN_LOESEN", "200", baustoff="BODEN_KL_3_5", entfernung_km="16", anzahl_arbeiter="3"),
     P("01.03.0002", "L_PLANUM", "950"),
     P("01.03.0003", "L_BODEN_VERDICHTEN", "950"),
-    P("01.03.0004", "L_FSS_EV45", "100", baustoff="MG_B2_0_32", materialpreis_eur_pro_t="19.00", entfernung_km="14"),
+    P("01.03.0004", "L_FSS_EV45", "100", baustoff="MG_B2_0_32", materialpreis_eur_pro_t="19.00", entfernung_km="14", schichtdicke_m="0.40", ev2_ziel="45"),
     P("01.03.0005", "L_ASPHALTTRAGSCHICHT", "400", entfernung_km="30", anzahl_arbeiter="4"),
     P("01.03.0006", "L_NAHT", "1500"),
     P("01.03.0007", "L_BODEN_LOESEN", "60", baustoff="BODEN_KL_3_5", entfernung_km="16"),
     P("01.03.0008", "L_PLANUM", "300"),
     P("01.03.0009", "L_BODEN_VERDICHTEN", "300"),
-    P("01.03.0010", "L_FSS_EV100", "60", baustoff="MG_B2_0_32", materialpreis_eur_pro_t="19.00", entfernung_km="14"),
+    P("01.03.0010", "L_FSS_EV100", "60", baustoff="MG_B2_0_32", materialpreis_eur_pro_t="19.00", entfernung_km="14", schichtdicke_m="0.40", ev2_ziel="100"),
 ]
