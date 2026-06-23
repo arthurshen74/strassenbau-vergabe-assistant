@@ -71,6 +71,19 @@ konst("verdicht_uebergaenge_ev45", "3", "-", "Übergänge @ Ev2=45")
 konst("verdicht_uebergaenge_ev100", "6", "-", "Übergänge @ Ev2=100")
 konst("ev2_anker_min", "45", "MPa"); konst("ev2_anker_max", "100", "MPa")
 
+# --- Bankettbefestigung: narrow-strip productivity + dedicated gear (PLACEHOLDERS) ---
+# Same machines as FSS for lay/profile (same €/h) but slower on a ~1,0 m strip:
+konst("bankett_legen_leistung_m3_pro_h", "25", "m³/h", "Liefer-/Legeleistung Radlader (Bankett)")
+konst("bankett_profil_leistung_m2_pro_h", "300", "m²/h", "Profilierleistung Grader (Bankett, je Lage)")
+# Compaction: kleine Tandemwalze (reuses the Ev2->Übergänge curve, lower output/Übergang):
+konst("bankettwalze_stundensatz_eur", "45", "€/h", "kleine Tandemwalze inkl. Verschleiß")
+konst("bankettwalze_l_pro_h", "6", "l/h")
+konst("bankettwalze_uebergang_leistung_m2_pro_h", "700", "m²/(h·Übergang)", "Walzleistung Bankett je Übergang")
+# Bankettfertiger (lay + level to Quergefälle in one pass):
+konst("bankettfertiger_stundensatz_eur", "120", "€/h", "Bankettfertiger inkl. Verschleiß")
+konst("bankettfertiger_l_pro_h", "14", "l/h")
+konst("bankettfertiger_leistung_m2_pro_h", "350", "m²/h", "Einbau+Abziehen Bankettfertiger")
+
 # --- master-data bridges (pull from the chosen Baustoff) ---
 stammdaten("dichte_t_pro_m3", "baustoff.rohdichte_t_pro_m3", "t/m³", "Rohdichte Baustoff")
 stammdaten("verdichtungsfaktor", "baustoff.verdichtungsfaktor", "-", "Verdichtungsfaktor")

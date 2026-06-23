@@ -35,4 +35,9 @@ BAUVERFAHREN: dict[str, Bauverfahren] = {
                            "FSS_LEGEN", "FSS_PROFIL", "FSS_VERDICHTEN"),
     "BV_FSS_FERTIGER": _bv("BV_FSS_FERTIGER", "FSS: Fertiger (legen+abziehen) + Walze",
                            "FSS_FERTIGER", "FSS_VERDICHTEN"),
+    # --- Bankettbefestigung: two machinery-driven recipes; compaction identical in both ---
+    "BV_BANKETT_GRADER":   _bv("BV_BANKETT_GRADER",   "Bankett: Radlader legen + Grader profilieren + Tandemwalze",
+                               "BANKETT_LEGEN", "BANKETT_PROFIL", "BANKETT_VERDICHTEN"),
+    "BV_BANKETT_FERTIGER": _bv("BV_BANKETT_FERTIGER", "Bankett: Bankettfertiger (legen+profilieren) + Tandemwalze",
+                               "BANKETT_FERTIGER", "BANKETT_VERDICHTEN"),
 }

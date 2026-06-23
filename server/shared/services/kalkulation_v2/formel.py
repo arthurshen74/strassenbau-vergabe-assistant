@@ -122,3 +122,24 @@ formel("lohn_fss_legen", "fss_legen_stunden * stundenlohn_eur * anzahl_arbeiter"
 formel("lohn_fss_profil", "fss_profil_stunden * stundenlohn_eur", "€")
 formel("lohn_fss_verdicht", "fss_verdicht_stunden * stundenlohn_eur", "€")
 formel("lohn_fss_fertiger", "fss_fertiger_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
+
+
+# --------------------------------------------------------------------------- #
+# Bankettbefestigung: same skeleton as FSS (m³->area bridge, lifts, Ev2->passes)
+# but narrow-strip productivity and Bankett-specific gear. Material/transport and
+# the anzahl_lagen / verdicht_uebergaenge / flaeche_m2 formulas are reused as-is.
+formel("bankett_legen_stunden", "volumen_m3 / bankett_legen_leistung_m3_pro_h", "h")
+formel("bankett_profil_stunden", "flaeche_m2 * anzahl_lagen / bankett_profil_leistung_m2_pro_h", "h")
+formel("bankett_verdicht_stunden",
+       "flaeche_m2 * anzahl_lagen * verdicht_uebergaenge / bankettwalze_uebergang_leistung_m2_pro_h", "h")
+formel("bankett_fertiger_stunden", "flaeche_m2 / bankettfertiger_leistung_m2_pro_h", "h")
+
+formel("mk_bankett_legen", "bankett_legen_stunden * (radlader_stundensatz_eur + radlader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("mk_bankett_profil", "bankett_profil_stunden * (grader_stundensatz_eur + grader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("mk_bankett_verdicht", "bankett_verdicht_stunden * (bankettwalze_stundensatz_eur + bankettwalze_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("mk_bankett_fertiger", "bankett_fertiger_stunden * (bankettfertiger_stundensatz_eur + bankettfertiger_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+
+formel("lohn_bankett_legen", "bankett_legen_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
+formel("lohn_bankett_profil", "bankett_profil_stunden * stundenlohn_eur", "€")
+formel("lohn_bankett_verdicht", "bankett_verdicht_stunden * stundenlohn_eur", "€")
+formel("lohn_bankett_fertiger", "bankett_fertiger_stunden * stundenlohn_eur * anzahl_arbeiter", "€")

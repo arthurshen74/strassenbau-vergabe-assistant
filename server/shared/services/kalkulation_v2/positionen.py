@@ -34,7 +34,7 @@ def P(oz, leistung, menge, baustoff=None, bauverfahren=None, **kontext):
 POSITIONEN: list[Position] = [
     P("01.00.0002", "L_BANKETT_ABTRAGEN", "500", baustoff="GROBK_BODEN", entfernung_km="18", anzahl_arbeiter="3"),
     P("01.00.0003", "L_BODEN_EINBAU_GROBK", "100", baustoff="GROBK_BODEN", materialpreis_eur_pro_t="9.50", entfernung_km="14"),
-    P("01.00.0004", "L_BANKETTBEF_B2", "570", baustoff="MG_B2_0_32", materialpreis_eur_pro_t="19.00", entfernung_km="14", anzahl_arbeiter="3"),
+    P("01.00.0004", "L_BANKETTBEF_B2", "570", baustoff="MG_B2_0_32", materialpreis_eur_pro_t="19.00", entfernung_km="14", anzahl_arbeiter="3", schichtdicke_m="0.20", ev2_ziel="70"),
     P("01.00.0005", "L_OBERBODEN", "120", baustoff="OBERBODEN", materialpreis_eur_pro_t="7.00", entfernung_km="8"),
     P("01.01.0001", "L_ERSCHWERNIS_FRAESEN", "40"),
     P("01.01.0002", "L_ERSCHWERNIS_ASPHALT", "40"),

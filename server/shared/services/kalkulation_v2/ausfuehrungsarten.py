@@ -18,6 +18,8 @@ AUSFUEHRUNGSARTEN: dict[str, Ausführungsart] = {
     "RADLADER_SOLO": Ausführungsart(code="AA_RADLADER", name="maschinell – Radlader", geraetebezug="Radlader"),
     "GRADER_SOLO":  Ausführungsart(code="AA_GRADER_SOLO", name="maschinell – Grader", geraetebezug="Grader"),
     "FERTIGER":     Ausführungsart(code="AA_FERTIGER", name="maschinell – Fertiger", geraetebezug="Fertiger"),
+    "BANKETTWALZE": Ausführungsart(code="AA_BANKETTWALZE", name="maschinell – kleine Tandemwalze (Bankett)", geraetebezug="Tandemwalze klein"),
+    "BANKETT_FERTIGER": Ausführungsart(code="AA_BANKETT_FERTIGER", name="maschinell – Bankettfertiger", geraetebezug="Bankettfertiger"),
     "WALZE":        Ausführungsart(code="AA_WALZE", name="maschinell – Walze", geraetebezug="Walze"),
     "ASPHALT_HAND": Ausführungsart(code="AA_ASPHALT_HAND", name="manuell – Handeinbau + Walze", geraetebezug="Kolonne; Walze"),
 }
