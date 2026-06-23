@@ -16,9 +16,9 @@ from bauverfahren import BAUVERFAHREN
 # leistung_code -> ordered list of candidate Bauverfahren keys (first = default)
 LEISTUNG_BAUVERFAHREN: dict[str, list[str]] = {
     "L_BANKETT_ABTRAGEN":   ["BV_BODENABTRAG"],
-    "L_BODEN_EINBAU_GROBK": ["BV_EINBAU"],
+    "L_BODEN_EINBAU_GROBK": ["BV_BODEN_GROBK"],
     "L_BANKETTBEF_B2":      ["BV_BANKETT_GRADER", "BV_BANKETT_FERTIGER"],
-    "L_OBERBODEN":          ["BV_EINBAU"],
+    "L_OBERBODEN":          ["BV_OBERBODEN_GRADER", "BV_OBERBODEN_HAND"],
     "L_ERSCHWERNIS_FRAESEN": ["BV_ERSCHWERNIS"],
     "L_ERSCHWERNIS_ASPHALT": ["BV_ERSCHWERNIS"],
     "L_MARK_FARBE":         ["BV_MARKIERUNG"],
@@ -40,6 +40,20 @@ LEISTUNG_BAUVERFAHREN: dict[str, list[str]] = {
     "L_ASPHALTTRAGSCHICHT": ["BV_ASPHALT_EINBAU"],
     "L_NAHT":               ["BV_NAHT"],
     "L_FSS_EV100":          ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
+    "L_REINIGEN_KEHREN":    ["BV_REINIGEN_KEHREN"],
+    "L_REINIGEN_HD":        ["BV_REINIGEN_HD"],
+    "L_ANSPRITZEN_GRID":          ["BV_ANSPRITZEN"],
+    "L_ANSPRITZEN_VERBUND_FRAES": ["BV_ANSPRITZEN"],
+    "L_ANSPRITZEN_VERBUND_FRISCH": ["BV_ANSPRITZEN"],
+    "L_ASPHALTEINLAGE":          ["BV_GRID"],
+    "L_ASPHALT_TRAGSCHICHT_AC22": ["BV_ASPHALT_EINBAU"],
+    "L_ASPHALT_BINDER_AC16":     ["BV_ASPHALT_EINBAU"],
+    "L_ASPHALT_DECK_AC8":        ["BV_ASPHALT_EINBAU"],
+    "L_ABSTUMPFUNG":             ["BV_ABSTUMPFEN"],
+    "L_KEHREN_VSM":              ["BV_REINIGEN_KEHREN"],
+    "L_NAHT_QUER_PMB":           ["BV_NAHT"],
+    "L_NAHT_AUFWEITEN":          ["BV_NAHT_AUFWEITEN"],
+    "L_FUGENFUELLUNG_N2":        ["BV_FUGENFUELLUNG"],
 }
 
 

@@ -42,20 +42,25 @@ konst("naht_geraet_stundensatz_eur", "25", "€/h"); konst("naht_geraet_l_pro_h"
 
 # --- material / disposal rates ---
 konst("dichte_asphalt_t_pro_m3", "2.40", "t/m³", "Rohdichte Asphalt")
-konst("entsorgung_fraesasphalt_eur_pro_t", "5.00", "€/t")
+konst("entsorgung_fraesasphalt_eur_pro_t", "5.00", "€/t")  # superseded by class formula (kept for back-compat)
+# Fräsgut disposal/recycling by Belastungsklasse (PLACEHOLDERS — set from Schadstoffgutachten):
+konst("ent_fraesgut_verwertbar", "0.00", "€/t", "1 verwertbar/unbelastet (oft Gutschrift, hier 0)")
+konst("ent_fraesgut_belastet", "25.00", "€/t", "2 belastet, nicht teerhaltig")
+konst("ent_fraesgut_pechhaltig", "110.00", "€/t", "3 pechhaltig/teerhaltig (PAK) – Sonderabfall")
 konst("entsorgung_boden_z2_eur_pro_t", "16.00", "€/t")
 konst("erschwernis_zulage_eur_pro_m", "8.50", "€/m")
+konst("entsorgung_demark_eur_pro_m", "0.15", "€/m", "Abfall Demarkierung aufnehmen+verwerten (Platzhalter)")
 konst("asphalt_preis_eur_pro_t", "72.00", "€/t", "Asphaltmischgut AC 32 T S")
 konst("pmb_preis_eur_pro_t", "850.00", "€/t", "Polymermod. Bitumen")
 konst("naht_material_g_pro_m_cm", "50", "g/(m·cm)")
-konst("naht_dicke_cm", "16", "cm")
+# naht_dicke_cm is now per-position (LANGTEXT) — see kontext_variablen.py
 
 # --- fixed machine outputs (depth-independent) ---
 konst("einbau_leistung_m3_pro_h", "35", "m³/h")
 konst("bagger_leistung_m3_pro_h", "45", "m³/h")
 konst("planum_leistung_m2_pro_h", "250", "m²/h")
 konst("walze_leistung_m2_pro_h", "400", "m²/h")
-konst("asphalt_einbau_leistung_t_pro_h", "18", "t/h", "Handeinbau 2-lagig")
+konst("asphalt_einbau_leistung_t_pro_h", "90", "t/h", "Fertiger + Beschicker + Walzen (maschinell)")
 konst("naht_leistung_m_pro_h", "150", "m/h")
 
 # --- FSS decomposition: lay / profile / compact rates (PLACEHOLDERS – set in rate book) ---
@@ -83,6 +88,46 @@ konst("bankettwalze_uebergang_leistung_m2_pro_h", "700", "m²/(h·Übergang)", "
 konst("bankettfertiger_stundensatz_eur", "120", "€/h", "Bankettfertiger inkl. Verschleiß")
 konst("bankettfertiger_l_pro_h", "14", "l/h")
 konst("bankettfertiger_leistung_m2_pro_h", "350", "m²/h", "Einbau+Abziehen Bankettfertiger")
+
+# --- Grobkörniger Boden (Auffüllung unter Banketten, Einzelflächen) — PLACEHOLDERS ---
+# LV nennt KEIN Ev2/DPr -> fester Übergangs-Ansatz (Standardverdichtung), nicht Ev2-getrieben.
+# Einzelflächen -> niedrige Produktivität.
+konst("boden_legen_leistung_m3_pro_h", "30", "m³/h", "Liefer-/Einbauleistung Radlader (Einzelflächen)")
+konst("boden_profil_leistung_m2_pro_h", "250", "m²/h", "Profil/Planum Grader (einbegriffen)")
+konst("boden_verdicht_uebergaenge", "4", "-", "Walzübergänge (fester Ansatz, kein Ev2 im LV)")
+konst("boden_verdicht_leistung_m2_pro_h_uebergang", "800", "m²/(h·Übergang)", "Walzleistung Boden je Übergang")
+
+# --- Oberboden andecken (Bankettbereich, dünn ≤5 cm, KEINE Verdichtung) — PLACEHOLDERS ---
+konst("oberboden_andeck_hand_m2_pro_h", "80", "m²/h", "Andeckleistung Kolonne (Hand)")
+konst("oberboden_andeck_grader_m2_pro_h", "400", "m²/h", "Andeckleistung Grader")
+
+# --- Unterlage reinigen: sweeper vs high-pressure wash-vacuum (PLACEHOLDERS) ---
+konst("kehr_leistung_m2_pro_h", "1200", "m²/h", "selbstaufn. Kehrmaschine, Einzelflächen")
+konst("kehrmaschine_stundensatz_eur", "60", "€/h"); konst("kehrmaschine_l_pro_h", "8", "l/h")
+konst("ent_kehrgut_eur_pro_m2", "0.05", "€/m²", "Kehrgut verwerten (leichtes Kehrgut)")
+konst("hd_reinigung_leistung_m2_pro_h", "1500", "m²/h", "HD-Wasch-Sauganlage, 0–6 km/h × 2,30 m")
+konst("hd_waschsaug_stundensatz_eur", "320", "€/h", "HD-Wasch-Sauganlage inkl. Wasser/Verschleiß")
+konst("hd_waschsaug_l_pro_h", "40", "l/h")
+konst("ent_waschschlamm_eur_pro_m2", "0.25", "€/m²", "Waschschlamm verwerten (Platzhalter; s. Belastung)")
+
+# --- Anspritzen / Schichtenverbund (Rampenspritzgerät) — PLACEHOLDERS ---
+konst("anspritz_leistung_m2_pro_h", "4000", "m²/h", "Spritzleistung Rampenspritzgerät")
+konst("spritzgeraet_stundensatz_eur", "90", "€/h"); konst("spritzgeraet_l_pro_h", "10", "l/h")
+
+# --- Asphalt paving train + supporting works (PLACEHOLDERS) ---
+konst("asphalt_zug_geraet_eur_pro_h", "520", "€/h", "Fertiger+Beschicker+2 Walzen inkl. Verschleiß/Kraftstoff")
+konst("asphalt_kolonne", "6", "Pers.", "Einbaukolonne")
+konst("grid_verlege_leistung_m2_pro_h", "400", "m²/h", "Asphalteinlage verlegen (Fachpersonal)")
+konst("grid_geraet_stundensatz_eur", "40", "€/h"); konst("grid_kolonne", "4", "Pers.")
+konst("abstreukoernung_preis_eur_pro_t", "30", "€/t", "Abstreukörnung LFK 1/3")
+konst("abstreuen_leistung_m2_pro_h", "3000", "m²/h", "maschinell abstreuen + einwalzen")
+konst("abstreuer_stundensatz_eur", "75", "€/h"); konst("abstreuer_l_pro_h", "9", "l/h")
+konst("ent_abstreu_eur_pro_m2", "0.05", "€/m²", "loses Abstreugut aufnehmen+verwerten")
+konst("naht_aufweiten_leistung_m_pro_h", "60", "m/h", "Fuge schneiden/aufweiten 25×10 mm")
+konst("fugenmasse_preis_eur_pro_t", "1800", "€/t", "heiß verarbeitbare Fugenmasse N2 + Voranstrich")
+konst("fugenmasse_dichte_t_pro_m3", "1.10", "t/m³")
+konst("fugenfuellung_leistung_m_pro_h", "80", "m/h")
+konst("fugen_geraet_stundensatz_eur", "30", "€/h"); konst("fugen_geraet_l_pro_h", "3", "l/h")
 
 # --- master-data bridges (pull from the chosen Baustoff) ---
 stammdaten("dichte_t_pro_m3", "baustoff.rohdichte_t_pro_m3", "t/m³", "Rohdichte Baustoff")

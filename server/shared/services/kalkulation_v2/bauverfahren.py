@@ -40,4 +40,20 @@ BAUVERFAHREN: dict[str, Bauverfahren] = {
                                "BANKETT_LEGEN", "BANKETT_PROFIL", "BANKETT_VERDICHTEN"),
     "BV_BANKETT_FERTIGER": _bv("BV_BANKETT_FERTIGER", "Bankett: Bankettfertiger (legen+profilieren) + Tandemwalze",
                                "BANKETT_FERTIGER", "BANKETT_VERDICHTEN"),
+    # --- Grobkörniger Boden: single recipe (bulk subgrade fill; no paver fork) ---
+    "BV_BODEN_GROBK": _bv("BV_BODEN_GROBK", "Grobk. Boden: liefern/legen + profilieren (Planum) + verdichten",
+                          "BODEN_GROBK_LEGEN", "BODEN_GROBK_PROFIL", "BODEN_GROBK_VERDICHTEN"),
+    # --- Oberboden andecken: no compaction; hand default, grader alternative ---
+    "BV_OBERBODEN_HAND":   _bv("BV_OBERBODEN_HAND",   "Oberboden andecken von Hand (Kolonne), ohne Verdichtung",
+                               "OBERBODEN_HAND"),
+    "BV_OBERBODEN_GRADER": _bv("BV_OBERBODEN_GRADER", "Oberboden andecken mit Grader, ohne Verdichtung",
+                               "OBERBODEN_GRADER"),
+    # --- Unterlage reinigen: one prescribed method each ---
+    "BV_REINIGEN_KEHREN": _bv("BV_REINIGEN_KEHREN", "Unterlage reinigen, selbstaufnehmende Kehrmaschine", "REINIGEN_KEHREN"),
+    "BV_REINIGEN_HD":     _bv("BV_REINIGEN_HD",     "Unterlage reinigen, Hochdruck-Wasch-Sauganlage", "REINIGEN_HD"),
+    "BV_ANSPRITZEN":      _bv("BV_ANSPRITZEN",      "Bitumenemulsion aufsprühen (Schichtenverbund)", "ANSPRITZEN"),
+    "BV_GRID":            _bv("BV_GRID",            "Asphalteinlage liefern und verlegen", "GRID_EINBAU"),
+    "BV_ABSTUMPFEN":      _bv("BV_ABSTUMPFEN",      "Abstumpfung aufbringen und einwalzen", "ABSTUMPFEN"),
+    "BV_NAHT_AUFWEITEN":  _bv("BV_NAHT_AUFWEITEN",  "Naht/Anschluss zur Fuge aufweiten", "NAHT_AUFWEITEN"),
+    "BV_FUGENFUELLUNG":   _bv("BV_FUGENFUELLUNG",   "Fugenfüllung herstellen (Fugenmasse N2)", "FUGENFUELLUNG"),
 }

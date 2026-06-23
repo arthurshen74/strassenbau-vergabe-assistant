@@ -47,6 +47,36 @@ eingabe("markierung_leistung_m_pro_h", "Abtragsleistung Markierung", "m/h",
 # NOTE: true source is STAMMDATEN (supplier price list) once a Lieferant is chosen.
 eingabe("materialpreis_eur_pro_t", "Materialpreis", "€/t",
         "Materialpreis des gewählten Baustoffs beim Lieferanten zum Stichtag.")
+eingabe("bindemittelmenge_kg_pro_m2", "Bindemittelmenge (Spritzmenge)", "kg/m²",
+        "Aus LV-Langtext: Spritzmenge der Bitumenemulsion (kg/m²). Achtung Einheit: g/m² in kg/m² umrechnen.")
+eingabe("einbaudicke_cm", "Einbaudicke (Asphaltschicht)", "cm",
+        "Aus LV-Langtext: Einbaudicke der Asphaltschicht (cm). Bei t-Abrechnung nicht nötig.")
+eingabe("abstreumenge_kg_pro_m2", "Abstreumenge", "kg/m²",
+        "Aus LV-Langtext: Menge der Abstreukörnung (kg/m²).")
+eingabe("naht_dicke_cm", "Schichtdicke an der Naht", "cm",
+        "Aus LV-Langtext: Dicke der Schicht an der Naht (cm); steuert die PmB-Menge (g/m je cm).")
+eingabe("grid_preis_eur_pro_m2", "Preis Asphalteinlage", "€/m²",
+        "Produktpreis der Asphalteinlage (Bieterprodukt) je m² überbauter Fläche.")
+eingabe("fugenspalttiefe_mm", "Fugenspalttiefe", "mm", "Aus LV-Langtext: Fugenspalttiefe (mm).")
+eingabe("fugenspaltbreite_mm", "Fugenspaltbreite", "mm", "Aus LV-Langtext: Fugenspaltbreite (mm).")
+
+# Belastungsklasse des Fräsguts — NOT in the position Langtext. It lives in the
+# Schadstoff-/PAK-Gutachten of the Vergabeunterlagen, so the cascade is RAG -> HITL
+# with NO konstante fallback: the cost swing (verwertbar≈0 vs pechhaltig≈110 €/t) is
+# too large to silently default. The agent MUST resolve it.
+KONTEXT_VARIABLEN["fraesgut_klasse"] = VarDef(
+    name="fraesgut_klasse",
+    bezeichnung="Belastungsklasse Fräsgut (1=verwertbar, 2=belastet, 3=pechhaltig)",
+    einheit="-",
+    aufloesung=[
+        Schritt(methode=M.RAG,
+                prompt="Belastung des auszubauenden Asphalts bestimmen. Quelle: Schadstoff-/PAK-"
+                       "Untersuchung bzw. Bodengutachten der Vergabeunterlagen (NICHT der Positions-"
+                       "Langtext). Klassifizieren: 1=verwertbar/unbelastet, 2=belastet (nicht teerhaltig), "
+                       "3=pechhaltig/teerhaltig (PAK). Hinweise auf Altbestand (z. B. 'ehem. Sommerweg', "
+                       "Pflasterunterlage) erhöhen das Teer-Risiko.",
+                konfidenz_schwelle=D("0.80")),
+        Schritt(methode=M.HITL)])
 eingabe("schichtdicke_m", "Schichtdicke (eingebaut, verdichtet)", "m",
         "Aus Langtext: Dicke der herzustellenden Schicht; oft in cm angegeben (in m umrechnen).")
 eingabe("ev2_ziel", "Verdichtungsanforderung Ev2", "MPa",
@@ -56,8 +86,10 @@ eingabe("ev2_ziel", "Verdichtungsanforderung Ev2", "MPa",
 # flaeche_m2 is intentionally NOT here: when a position is booked in m² it is filled
 # directly from `menge` (and the resolver short-circuits on the booked value); when a
 # position is booked in m³, flaeche_m2 is DERIVED via volumen_m3 / schichtdicke_m (see formel.py).
-for _g, _e in [("laenge_m", "m"), ("volumen_m3", "m³"), ("menge_t", "t")]:
+for _g, _e in [("laenge_m", "m"), ("volumen_m3", "m³")]:
     geometrie(_g, _e)
+# menge_t is NOT a booked placeholder: t-billed positions fill it from `menge`
+# (resolver short-circuits); m²-billed asphalt derives it (see formel.py).
 
 # --- situational inputs with a default fallback ---
 mit_default("anzahl_arbeiter", "Kolonnenstärke", "Pers", "2", M.HITL)
