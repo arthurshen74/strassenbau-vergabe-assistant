@@ -6,12 +6,6 @@ position into an auditable unit price by selecting a construction method and
 resolving every cost-driving variable through an ordered cascade of sources —
 LV text, RAG, human, master data, formula, constant.
 
-> **Naming note for integration:** the engine file referenced below as
-> `model.py` is currently `kalkulation_model_v2.py` in this codebase. Every
-> module does `from kalkulation_model_v2 import ...`. After renaming to
-> `model.py`, update those imports project-wide. Nothing else depends on the
-> name.
-
 ---
 
 ## 1. The core idea
@@ -31,7 +25,7 @@ Ausführungsart  HOW the operation is done — which machine/crew.
 
 The separation of **Leistung** (what) from **Bauverfahren** (how) is the load-bearing
 design decision. One Leistung can be fulfilled by several candidate Bauverfahren;
-the calculator *selects* one based on machinery/access/context. This is why the
+the calculator _selects_ one based on machinery/access/context. This is why the
 model absorbed ~12 distinct cost-driver patterns across 5 trades without the
 engine or the spine changing once.
 
@@ -46,12 +40,13 @@ for reproducible, auditable bids.
 
 ---
 
-## 2. The engine — `model.py` (formerly `kalkulation_model_v2.py`)
+## 2. The engine — `model.py`
 
 The one compiled artifact. No project dependencies (pydantic + stdlib). Every
 other module imports from it. Key contents:
 
 **Enums**
+
 - `AufloesungsMethode` — `LANGTEXT, RAG, HITL, STAMMDATEN, FORMEL, KONSTANTE`.
   The vocabulary of how a variable gets its value. The first three are filled by
   the agent/human **before** calc; the last three are computed **by** the calc.
@@ -60,6 +55,7 @@ other module imports from it. Key contents:
 - `Datentyp` — dezimal/ganzzahl/text/bool (mostly informational).
 
 **Variable & resolution model**
+
 - `AufloesungsSchritt` — one step in a cascade: `methode`, optional `prompt`
   (LLM instruction for LANGTEXT/RAG), `konfidenz_schwelle`, `stammdaten_pfad`
   (e.g. `"baustoff.rohdichte_t_pro_m3"`), `formel_name`, `konstante`.
@@ -73,11 +69,13 @@ other module imports from it. Key contents:
   or master-data path). **This is the audit record.**
 
 **Master-data model**
+
 - `Baustoff` (material: kategorie, körnung, density, base price …),
   `Baustofflieferant` (supplier: standort, lat/lon, price list, `preis_fuer()`),
   `BaustoffPreis`.
 
 **Runtime**
+
 - `Kalkulationskontext` — per-position state: `werte` (dict of resolved
   VariablenWert — **filled by the StateGraph and by the calc**), `stammdaten`
   (e.g. `{"baustoff": <Baustoff>}`), `stichtag`.
@@ -114,17 +112,20 @@ Each file is an authored, static catalog. Design intent: **each file ≈ one
 future Postgres table**; string keys between files are unenforced foreign keys.
 
 ### `ausfuehrungsarten.py`
+
 Exports `AUSFUEHRUNGSARTEN` (dict key → `Ausführungsart`). The machine/crew
 configurations (Bagger, Kaltfräse, Walze, Bankettwalze, Fertiger, Beschicker,
 Rampenspritzgerät, HD-Wasch-Sauganlage, …). Depends only on `model`.
 
 ### `vorgaenge.py`
+
 Exports `VORGAENGE` (key → `Vorgang`). Each Vorgang binds an Ausführungsart and
 maps Kostenart → cost-variable-name. The atomic operations (fräsen, schneiden,
 FSS legen/profilieren/verdichten, asphalt einbau, anspritzen, naht, …). Depends
 on `model`, `ausfuehrungsarten`.
 
 ### `bauverfahren.py`
+
 Exports `BAUVERFAHREN` (key → `Bauverfahren`). **Static, authored** recipes —
 each lists its Vorgänge by key via the `_bv(code, name, *vorgang_keys)` helper.
 A recipe can chain several Vorgänge (e.g. FSS = legen + profilieren + verdichten).
@@ -132,13 +133,16 @@ Depends on `model`, `vorgaenge`. (Earlier this was wrongly derived 1:1 from
 VORGAENGE; it is now hand-authored.)
 
 ### `leistungen.py`
+
 Exports `LEISTUNGEN` (code → `Leistung`). **Leaf** services: code, name,
 `einheit`, optional `standard_kennung` (STLB/STL-Nr). No method reference.
 Depends only on `model`.
 
 ### `leistung_bauverfahren.py` — the selection seam
+
 Exports `LEISTUNG_BAUVERFAHREN` (leistung_code → ordered list of candidate
 bauverfahren keys, first = default), plus:
+
 - `kandidaten(leistung_key)` — the candidate set.
 - `waehle_bauverfahren(leistung_key, praeferenz=None)` — honours a valid
   preference, else returns the default. **This is the StateGraph's "decide on a
@@ -158,6 +162,7 @@ These three modules populate the **catalog of variables** the spine references.
 They are merged in `Store.py` into one `KATALOG`.
 
 ### `stammdaten.py`
+
 Exports `STAMMDATEN_VARIABLEN`. The **rate book**: `KONSTANTE` variables (fuel,
 wages, machine €/h, productivities, disposal rates, …) via `konst(...)`, plus a
 few `STAMMDATEN` bridge variables that read master-data fields (e.g.
@@ -165,8 +170,10 @@ few `STAMMDATEN` bridge variables that read master-data fields (e.g.
 **Almost every number here is a flagged placeholder.**
 
 ### `kontext_variablen.py`
+
 Exports `KONTEXT_VARIABLEN`. The **situational inputs** with their cascades.
 Helpers:
+
 - `eingabe(name, bez, einheit, rag_prompt)` → cascade `LANGTEXT → RAG → HITL`
   (extracted from the LV).
 - `geometrie(name, einheit)` → filled from the LV `menge` (HITL fallback).
@@ -182,6 +189,7 @@ directly (see `formel.py`), which is how a position booked in m³ or m² produce
 the area/tonnage the cost lines need.
 
 ### `formel.py`
+
 Exports `FORMELN` (name → `Formel`) and `FORMEL_VARIABLEN` (each formula also
 registers a `VariableDefinition` whose single cascade step is `FORMEL`). The
 `formel(name, ausdruck, einheit, …)` helper does both. Contains every computed
@@ -204,6 +212,7 @@ einbaudicke_cm/100 × dichte_asphalt`), passes-from-Ev2, lifts, and the
 ## 5. Materials & suppliers (master data)
 
 ### `lieferanten.py`
+
 Exports `LIEFERANTEN` (52 fictional suppliers at **real, geocodable** German
 towns with lat/lon), plus `haversine_km`, `entfernung_km` (×1.3 detour factor),
 `naechste_lieferanten`. Depends on `model`. **Caveat in-file:** coordinates are
@@ -211,6 +220,7 @@ towns with lat/lon), plus `haversine_km`, `entfernung_km` (×1.3 detour factor),
 key; haversine ≠ road distance (swap in OSRM/Google for production).
 
 ### `materialien.py`
+
 Exports `BAUSTOFFE` (26 canonical `Baustoff`: FSS, STS, mineral mixes, asphalt
 mixes, bitumen, soils) and category groupings. `bestuecke()` gives each supplier
 a type-appropriate assortment; `guenstigster_lieferant()` = cheapest delivered
@@ -218,6 +228,7 @@ a type-appropriate assortment; `guenstigster_lieferant()` = cheapest delivered
 source of truth for materials.
 
 ### `lieferanten_preise.py`
+
 Exports `PREISE` — a **static** flat join table of
 `(lieferant_code, baustoff_code, preis_eur_pro_t)` (515 rows, hand-editable, no
 runtime RNG), and `lade_preise(...)` which attaches them to supplier objects.
@@ -234,6 +245,7 @@ Depends on `model`. This is the future supplier-price table.
 ## 6. Positions & assembler
 
 ### `positionen.py`
+
 Defines the `Position` model — `oz`, `leistung_key` (→ LEISTUNGEN),
 **optional** `bauverfahren_key` (override; default None ⇒ use the mapping's
 default candidate), `menge`, `baustoff_code`, `kontext` (dict of extracted
@@ -242,8 +254,10 @@ Landesstraße L 101 mill-and-fill). In production the StateGraph builds Position
 objects; this fixture stands in for "what the agent will have extracted."
 
 ### `Store.py` — the assembler & entry point
+
 Imports everything, builds `KATALOG` (the merge above) and `FORMELN`, and
 exposes:
+
 - `_GEOM = {"m2":"flaeche_m2","m":"laenge_m","m3":"volumen_m3","t":"menge_t"}` —
   maps a position's Einheit to the geometry variable booked from `menge`.
 - `baue_kontext(pos, einheit)` — builds a `Kalkulationskontext`: books the
@@ -267,19 +281,19 @@ Position" turn-processor carrying the LV `kurztext/langtext/hinweise/menge/
 einheit` as permanent context, with the hybrid BM25/semantic RAG corpus wired
 in. "Let's calculate this position" launches a calculation **subgraph that
 inherits the chat transcript as state**, streams its reasoning back into the
-*same* chat via the existing reasoning-output mechanism, and pauses for human
+_same_ chat via the existing reasoning-output mechanism, and pauses for human
 review before computing. Scope is **per-position**: there is no project-level
 shared context yet (see the cross-position note in §9).
 
 The engine's split still holds — `LANGTEXT/RAG/HITL` are the agent's job (fill
 `ctx.werte`), `FORMEL/STAMMDATEN/KONSTANTE` are the calc's — but the agent phase
 gains a **chat-precedence source above the catalog cascade** and a **mandatory
-human-confirmation gate below it**, and the *method* (Leistung + Bauverfahren)
+human-confirmation gate below it**, and the _method_ (Leistung + Bauverfahren)
 is itself a confirmed decision, not an automatic one.
 
 ### Resolution precedence (per variable)
 
-The catalog's `aufloesung` cascade is the *playbook* the graph follows, wrapped
+The catalog's `aufloesung` cascade is the _playbook_ the graph follows, wrapped
 by chat-precedence on top and human review at the bottom:
 
 ```
@@ -304,13 +318,13 @@ proposes the `leistung_key` and the candidate Bauverfahren (default highlighted)
 and the user **confirms the Leistung and selects the Bauverfahren**. Recipe
 selection is a real decision: for multi-candidate Leistungen (FSS grader-train vs
 fertiger; aufbrechen vs mill-out) the choice can move the price more than any
-single variable. *This gate must precede variable resolution*, because the
+single variable. _This gate must precede variable resolution_, because the
 required-variable worklist is derived from the chosen recipe — correcting the
 Leistung re-derives the candidate set, and changing the recipe re-derives the
 worklist.
 
 **Gate B — Variable review + confirm (HITL interrupt).** Every variable the calc
-will consume is presented for accept/override; the submit *is* the final
+will consume is presented for accept/override; the submit _is_ the final
 confirmation, after which compute proceeds.
 
 **What "every variable" means — and why rates are included.** The worklist is not
@@ -326,7 +340,7 @@ review:
 - **Stammdaten** (`STAMMDATEN` lookups — densities, supplier prices) — master
   data.
 
-FORMEL intermediates are *not* in the review (they are derived) but *are* in the
+FORMEL intermediates are _not_ in the review (they are derived) but _are_ in the
 output transparency table.
 
 ### Confidence-tiered presentation (configurable)
@@ -398,18 +412,18 @@ model stays the calc's concern; the state is the superset that produces it.
    prompt from the prompt library** (the new prompt-type to add: prompt-type,
    system text, model, temperature, top_p). Langtext is authoritative; ignore
    boilerplate bled into Hinweise.
-4. **method_review** — *Gate A* interrupt: confirm Leistung, select Bauverfahren
+4. **method_review** — _Gate A_ interrupt: confirm Leistung, select Bauverfahren
    from `kandidaten(leistung_key)`. (Correcting Leistung re-runs 3→4; a different
    recipe re-runs 5.)
 5. **derive_required_variables** — walk the confirmed recipe's formula tree to all
-   leaves → `benoetigte_variablen`. *Graph topology is identical for every
-   position; the worklist is data-derived, never hardcoded.*
+   leaves → `benoetigte_variablen`. _Graph topology is identical for every
+   position; the worklist is data-derived, never hardcoded._
 6. **resolve_variables** — for each leaf not chat-pinned: extracted inputs run the
    cascade (LANGTEXT prompt from library → RAG via the existing corpus graph with
    `rag_prompt` as intent → DEFAULT); rates/stammdaten are catalog lookups. Each
    yields a candidate `VariablenWert` with confidence + `beleg`; set `review_tier`
    from the threshold + high-stakes flags.
-7. **variable_review** — *Gate B* interrupt: surfaced tier shown for decision,
+7. **variable_review** — _Gate B_ interrupt: surfaced tier shown for decision,
    collapsed tier available on expand; accept/override each; submit confirms the
    full set → write `werte`.
 8. **compute** — build the context, call `kalkuliere`. Deterministic.
@@ -419,7 +433,7 @@ model stays the calc's concern; the state is the superset that produces it.
 
 `kalkuliere` returns the EKT plus per-cost-line provenance, and the transparency
 table **falls out of the resolver for free**: after a full calc, `ctx.werte`
-holds *every* variable touched — confirmed inputs, `STAMMDATEN` lookups,
+holds _every_ variable touched — confirmed inputs, `STAMMDATEN` lookups,
 `KONSTANTE` rates, and every `FORMEL` intermediate — each tagged `quelle`/`beleg`.
 
 - **EKT row** — unit price + GP for the position list.
@@ -443,7 +457,9 @@ holds *every* variable touched — confirmed inputs, `STAMMDATEN` lookups,
 - **RAG graph** — `resolve_variables`' RAG step calls the existing hybrid graph,
   passing the variable's catalog `rag_prompt` as retrieval intent; the answer + its
   source snippet become the candidate's `wert` + `beleg`.
-
+- **HITL Gates** - since the primary interface is a ReactJS chat-based UI, we can use custom
+  written React components to render the decision/edit gates in the UI. I prefer this
+  approach to a text-only chat-based HITL gate.
 
 ## 8. Dependency graph (import order)
 
@@ -466,64 +482,25 @@ Store.py  imports ALL of the above (assembler/entry point)
 
 ---
 
-## 9. Honest limitations (read before trusting numbers)
+## 9. Integration checklist for Claude Code
 
-- **Structure is validated; magnitudes are not.** ~60 rates in `stammdaten.py`
-  are placeholders. The validated 41-position section total (~€558k) has the
-  right *shape* and the wrong *precision*. Calibration > coverage from here.
-- **Asphalt & tack are material-dominated (83–97 %).** Their accuracy rides
-  almost entirely on mix/emulsion prices that are currently per-position
-  placeholders, not master data. Fix this first.
-- **Disposal classes carry the biggest risk.** `fraesgut_klasse` and the related
-  Waschschlamm disposal can swing six figures on a binary the LV doesn't state.
-  Provenance + HITL exist; the rate magnitudes don't.
-- **Duplication tax.** Six+ near-identical lay/profile/compact/clean families
-  (`fss_`, `bankett_`, `boden_`, `oberboden_`, `kehr_`, `hd_`) differ only in
-  rate constants. They want consolidation into one parametrised primitive whose
-  rates and pass-source are data.
-- **Kompaktasphalt** (binder+deck "heiß auf heiß") is modeled as two passes;
-  tonnage-additivity makes this roughly self-correcting, but the combined-pass
-  efficiency isn't captured (slight over-count of the ~11 % that is operation).
-- **VSM / Verkehrssicherung** is not costed where the LV requires it (e.g. the
-  post-opening sweep on a live road).
-- **Validation is partial** — only `leistung_bauverfahren.validate()` (mapping
-  integrity at load). A `validate_store()` (all cost-variable references resolve;
-  every position's variables are reachable) and a recipe-feasibility check are
-  not yet built.
-- **Per-position scope only.** The calculation runs one position at a time with
-  no project-level shared context. A bid-wide fact like `fraesgut_klasse`
-  (contamination) logically applies to every milling position, but today it must
-  be resolved/confirmed independently per position — so it can be entered
-  inconsistently across positions with nothing to reconcile them. Deferred by
-  design; a shared bid-level context (resolved once, inherited as a default) is
-  future work.
-- **Engine cruft** — the legacy demo in `model.py` (`baue_katalog`,
-  `baue_kontext`, `demo`, …) should be removed; it duplicates names the live
-  `Store.py` system owns.
-
----
-
-## 10. Integration checklist for Claude Code
-
-1. Rename `kalkulation_model_v2.py` → `model.py`; update all
-   `from kalkulation_model_v2 import` → `from model import`.
-2. Delete the legacy `baue_katalog`/`baue_kontext`/`demo` block from `model.py`.
-3. Treat `Store.py`'s `KATALOG`/`FORMELN`/`baue_kontext`/`kalkuliere` as the
+1. Delete the legacy `baue_katalog`/`baue_kontext`/`demo` block from `model.py`.
+2. Treat `Store.py`'s `KATALOG`/`FORMELN`/`baue_kontext`/`kalkuliere` as the
    live API the StateGraph calls.
-4. Replace the `POSITIONEN` fixture with StateGraph-built `Position` objects.
-5. The StateGraph fills `ctx.werte` (LANGTEXT/RAG/HITL) **before** calling
+3. Replace the `POSITIONEN` fixture with StateGraph-built `Position` objects.
+4. The StateGraph fills `ctx.werte` (LANGTEXT/RAG/HITL) **before** calling
    `kalkuliere`; the resolver does the rest deterministically.
-6. Carry `VariablenWert.{quelle, konfidenz, beleg}` through to the chat/output
+5. Carry `VariablenWert.{quelle, konfidenz, beleg}` through to the chat/output
    layer — that is the audit trail and the review trigger.
-7. The calculation subgraph is launched from the existing per-position chat
+6. The calculation subgraph is launched from the existing per-position chat
    ("let's calculate this position"), inherits `chat_verlauf` as precedence
    source 0, and streams reasoning via the existing mechanism (§7).
-8. Extend the prompt library with the new prompt-types (Leistung classification,
+7. Extend the prompt library with the new prompt-types (Leistung classification,
    langtext extraction, output narration); wire the existing hybrid RAG graph
    into `resolve_variables`.
-9. Two human gates: method review (Leistung + Bauverfahren) then variable review
+8. Two human gates: method review (Leistung + Bauverfahren) then variable review
    (all leaves, tiered by `konfidenz_schwelle_review`, default 0.75; rates and
    stammdaten overridable but collapsed by default).
-10. Output three artifacts: EKT row, long-form description, and the
-    Nachweistabelle rendered from `ctx.werte` (the derivation tree with
-    provenance).
+9. Output three artifacts: EKT row, long-form description, and the
+   Nachweistabelle rendered from `ctx.werte` (the derivation tree with
+   provenance).
