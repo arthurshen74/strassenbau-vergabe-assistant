@@ -6,7 +6,7 @@ end), `resume` continues from the checkpoint with the Kalkulator's decision. Eac
 maps the graph's `reasoning_log` to `text_delta` events and persists them as assistant
 messages (the `ProjectChatService` idiom: short transactions, never one held open across the
 stream), surfaces an interrupt as an `interrupt` event + a persisted prompt, and emits the
-final EKT/Form 223 as a `function_call_output`. `calculation_status` tracks the lifecycle so
+final EKT row + Nachweistabelle as a `function_call_output`. `calculation_status` tracks the lifecycle so
 the API knows whether a turn is a resume (awaiting_input) or a follow-up chat (complete).
 """
 
@@ -54,20 +54,17 @@ from shared.models.sse_schema import (
 )
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
-from shared.services.calculator import llm_calls
 from shared.services.calculator.graph import (
     CALCULATOR_RETRIEVAL_CONFIG,
     REASONING_LLM,
     REASONING_PROVIDER,
     ContextRetriever,
     build_graph,
-    driver_catalog,
 )
 from shared.services.calculator.prompts import load_calculator_prompts
 from shared.services.messages import (
     CONTENT,
     ROLE,
-    ROLE_USER,
     to_user_assistant_messages,
 )
 from shared.services.retrieval import RetrievalService
@@ -99,15 +96,21 @@ class CalculatorRunService:
     async def start(
         self, conversation: Conversation, item: LVItem
     ) -> AsyncIterator[dict[str, Any]]:
-        """Begin a run for one LV position; stream until the first interrupt or completion."""
+        """Begin a run for one LV position; stream until the first interrupt or completion.
+
+        A run reuses `thread_id = conversation_uuid`, so a re-calculation (the Kalkulator asks
+        to recalculate, e.g. with a different value) must start from a clean checkpoint —
+        otherwise the prior run's reducer channels (reasoning_log, warnungen) accumulate and the
+        finished END state blocks a fresh start. We wipe the thread first; it is a no-op on the
+        first run, and safe because a mid-run conversation is 409-guarded against a new start."""
+        await self._checkpointer.adelete_thread(str(conversation.conversation_uuid))
         prompts = await self._load_prompts()
         payload = {
             "position": _position(item),
             "project_uuid": conversation.project_uuid,
             "conversation_uuid": conversation.conversation_uuid,
-            "seed_drivers": await self._seed_drivers_from_chat(
-                conversation, prompts.get(PromptType.EKT_SEED_DRIVERS)
-            ),
+            "chat_verlauf": await self._chat_transcript(conversation),
+            "vorgaben": {},
         }
         async for event in self._run_segment(conversation, payload, prompts):
             yield event
@@ -120,37 +123,16 @@ class CalculatorRunService:
         async with self._engine.connect() as conn:
             return await load_calculator_prompts(conn)
 
-    async def _seed_drivers_from_chat(
-        self, conversation: Conversation, seed_prompt: PromptVersion | None
-    ) -> dict[str, Any]:
-        """Lift explicit driver assignments the Kalkulator made in the pre-run chat (e.g. "use 250
-        as strip_length_m") so the run starts with them set, instead of re-resolving them from the
-        documents. Empty when there was no chat, or the chat set no driver."""
-        conversation_id = conversation.conversation_uuid
+    async def _chat_transcript(self, conversation: Conversation) -> list[dict[str, Any]]:
+        """The pre-launch user/assistant transcript (precedence source 0). The graph's
+        extract_chat_values node harvests the values the Kalkulator already stated from it."""
         async with self._engine.connect() as conn:
-            history = await MessageRepository(conn).list_for_conversation(conversation_id)
-        transcript = [
+            history = await MessageRepository(conn).list_for_conversation(
+                conversation.conversation_uuid
+            )
+        return [
             {ROLE: m.role, CONTENT: m.content} for m in to_user_assistant_messages(history)
         ]
-        if not any(m[ROLE] == ROLE_USER for m in transcript):
-            return {}
-        seeds = await llm_calls.extract_chat_drivers(
-            self._llm,
-            transcript,
-            driver_catalog(),
-            prompt=seed_prompt,
-            project_uuid=conversation.project_uuid,
-            conversation_uuid=conversation_id,
-        )
-        result: dict[str, Any] = {}
-        for assignment in seeds.assignments:
-            result[assignment.driver_id] = assignment.value
-            _trace(
-                conversation_id,
-                f"chat seed: {assignment.driver_id} = {assignment.value!r} "
-                f"({assignment.quote})",
-            )
-        return result
 
     async def resume(
         self, conversation: Conversation, decision: dict[str, Any]
@@ -285,10 +267,14 @@ class CalculatorRunService:
         self, app: Any, config: dict[str, Any], conversation_id: UUID
     ) -> AsyncIterator[dict[str, Any]]:
         state = (await app.aget_state(config)).values
+        if state.get("abgebrochen"):
+            yield _ui_notice("Kalkulation abgebrochen.", NoticeLevel.INFO)
+            return
         data = {
-            "ekt": state.get("ekt"),
-            "form_223": state.get("form_223"),
-            "review_flags": state.get("review_flags", []),
+            "ekt_zeile": state.get("ekt_zeile"),
+            "nachweis_tabelle": state.get("nachweis_tabelle", []),
+            "beschreibung": state.get("beschreibung"),
+            "warnungen": state.get("warnungen", []),
         }
         call_id = uuid4().hex
         await self._persist(
@@ -342,8 +328,10 @@ def _position(item: LVItem) -> dict[str, Any]:
         "oz": item.oz,
         "kurztext": item.kurztext,
         "langtext": item.langtext_resolved or item.langtext,
-        "boq_menge": float(item.menge),
-        "boq_einheit": item.einheit,
+        "hinweis": item.hinweis,
+        "menge": str(item.menge),
+        "einheit": item.einheit,
+        "baustoff_code": None,
     }
 
 

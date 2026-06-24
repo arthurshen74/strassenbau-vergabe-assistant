@@ -255,8 +255,10 @@ class ProjectChatAgent:
 
         @tool(TOOL_CALCULATE_EKT)
         async def calculate_ekt() -> str:
-            """Run the EKT calculation agent for this LV position. Call this only when the user
-            explicitly asks to calculate, run, or start the EKT calculation for the position."""
+            """Run (or re-run) the EKT calculation agent for this LV position. Call this when the
+            user explicitly asks to calculate, run, start, OR recalculate the position's EKT —
+            including a recalculation with a different value (e.g. "recalculate with tiefe_cm = 5").
+            Values the user states in the chat are picked up automatically as inputs."""
             return "Die Kalkulation wird gestartet."
 
         tools = [

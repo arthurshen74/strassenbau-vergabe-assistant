@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from model import Baustoff, D
-from lieferanten import LIEFERANTEN, entfernung_km
-from lieferanten_preise import lade_preise
+from shared.services.kalkulation_v2.model import Baustoff, D
+from shared.services.kalkulation_v2.lieferanten import LIEFERANTEN, entfernung_km
+from shared.services.kalkulation_v2.lieferanten_preise import lade_preise
 
 STICHTAG = date(2026, 6, 22)
 TRANSPORT_EUR_PRO_T_KM = D("0.12")          # for delivered-price comparison

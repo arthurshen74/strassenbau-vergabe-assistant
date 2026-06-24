@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-from model import D
+from shared.services.kalkulation_v2.model import D
 
 
 class Position(BaseModel):

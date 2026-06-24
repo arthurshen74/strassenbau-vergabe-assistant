@@ -7,7 +7,7 @@ material catalog. These are reference data — slow-moving, editable in the UI,
 the same for every bid. Exports STAMMDATEN_VARIABLEN (variable name -> definition).
 """
 
-from model import (
+from shared.services.kalkulation_v2.model import (
     AufloesungsMethode as M, AufloesungsSchritt as Schritt, D, VariableDefinition as VarDef,
 )
 

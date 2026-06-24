@@ -9,7 +9,7 @@ is a context value). Multiple Positionen may instantiate one Leistung at differe
 mengen. Exports LEISTUNGEN.
 """
 
-from model import Leistung
+from shared.services.kalkulation_v2.model import Leistung
 
 
 def L(code, name, einheit, stlb=None):

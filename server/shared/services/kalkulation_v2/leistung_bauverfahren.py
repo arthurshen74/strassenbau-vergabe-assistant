@@ -10,8 +10,8 @@ least one candidate and every candidate is a real Bauverfahren.
 Exports LEISTUNG_BAUVERFAHREN, kandidaten(), waehle_bauverfahren().
 """
 
-from leistungen import LEISTUNGEN
-from bauverfahren import BAUVERFAHREN
+from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
+from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
 
 # leistung_code -> ordered list of candidate Bauverfahren keys (first = default)
 LEISTUNG_BAUVERFAHREN: dict[str, list[str]] = {

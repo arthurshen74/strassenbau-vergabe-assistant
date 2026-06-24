@@ -5,7 +5,7 @@ Each names a machine/crew configuration. Vorgänge reference these by key.
 Exports AUSFUEHRUNGSARTEN (key -> Ausführungsart).
 """
 
-from model import Ausführungsart
+from shared.services.kalkulation_v2.model import Ausführungsart
 
 AUSFUEHRUNGSARTEN: dict[str, Ausführungsart] = {
     "BAGGER":       Ausführungsart(code="AA_BAGGER", name="maschinell – Bagger", geraetebezug="Bagger"),

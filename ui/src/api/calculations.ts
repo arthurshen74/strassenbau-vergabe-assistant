@@ -8,10 +8,13 @@ import { api } from './client';
 import type { ConversationRead } from '../types/generated';
 
 // The Kalkulator's structured decision for the current HITL gate; the fields the paused stage reads.
+//   - method_review (Gate A): confirm the Leistung and select the Bauverfahren.
+//   - variable_review (Gate B): overrides maps a variable name -> its corrected value (changed leaves only).
 export interface CalculationResume {
-  work_type?: string;
-  drivers?: Record<string, unknown>;
-  action?: string;
+  leistung_key?: string;
+  bauverfahren_key?: string;
+  overrides?: Record<string, unknown>;
+  cancel?: boolean;
 }
 
 export function createCalculation(projectUuid: string, oz: string): Promise<ConversationRead> {

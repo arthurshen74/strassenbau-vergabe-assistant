@@ -9,7 +9,7 @@ the Kalkulator resolves the dependency graph lazily at calc time.
 Exports FORMELN (name -> Formel) and FORMEL_VARIABLEN (name -> VariableDefinition).
 """
 
-from model import (
+from shared.services.kalkulation_v2.model import (
     AufloesungsMethode as M, AufloesungsSchritt as Schritt, Formel, VariableDefinition as VarDef,
 )
 

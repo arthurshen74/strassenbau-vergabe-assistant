@@ -8,8 +8,8 @@ fact that most recipes happen to contain a single Vorgang today is incidental, a
 recipe is free to chain several. Exports BAUVERFAHREN.
 """
 
-from model import Bauverfahren
-from vorgaenge import VORGAENGE
+from shared.services.kalkulation_v2.model import Bauverfahren
+from shared.services.kalkulation_v2.vorgaenge import VORGAENGE
 
 
 def _bv(code, name, *vorgang_keys) -> Bauverfahren:

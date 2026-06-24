@@ -1,7 +1,9 @@
 // Renders the control for a paused EKT calculation and posts the Kalkulator's decision back as a
-// structured resume on the turn endpoint. One control per interrupt stage: pick the Leistung
-// (classification), confirm or correct the assumed drivers (driver confirmation), or act on the EKT
-// (review).
+// structured resume on the turn endpoint. One control per interrupt stage:
+//   - method_review (Gate A): confirm the Leistung and select the Bauverfahren.
+//   - variable_review (Gate B): accept/override every worklist leaf, tiered by confidence — the
+//     surfaced tier (low-confidence + high-stakes) shown for decision, the collapsed tier (rates,
+//     Stammdaten) pre-accepted but expandable and overridable.
 
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -12,10 +14,9 @@ import { Strong, Text } from '../../components/ui/text';
 import type { CalculationResume } from '../../api/calculations';
 import type { PendingInterrupt } from './hooks/useWorkspaceConversation';
 
-// Interrupt stages, matching the backend STAGE_* constants in shared/services/calculator/graph.py.
-const STAGE_CLASSIFICATION = 'classification';
-const STAGE_DRIVER_CONFIRMATION = 'driver_confirmation';
-const STAGE_EKT_REVIEW = 'ekt_review';
+// Interrupt stages, matching the backend STAGE_* constants in shared/services/calculator/state.py.
+const STAGE_METHOD_REVIEW = 'method_review';
+const STAGE_VARIABLE_REVIEW = 'variable_review';
 
 interface PanelProps {
   payload: Record<string, unknown>;
@@ -33,10 +34,6 @@ function asRecordArray(v: unknown): Record<string, unknown>[] {
     : [];
 }
 
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
-}
-
 function str(v: unknown): string {
   return v == null ? '' : String(v);
 }
@@ -51,14 +48,10 @@ export function InterruptPanel({
   disabled?: boolean;
 }) {
   switch (interrupt.stage) {
-    case STAGE_CLASSIFICATION:
-      return (
-        <ClassificationGate payload={interrupt.payload} onResume={onResume} disabled={disabled} />
-      );
-    case STAGE_DRIVER_CONFIRMATION:
-      return <DriverConfirm payload={interrupt.payload} onResume={onResume} disabled={disabled} />;
-    case STAGE_EKT_REVIEW:
-      return <EktReview payload={interrupt.payload} onResume={onResume} disabled={disabled} />;
+    case STAGE_METHOD_REVIEW:
+      return <MethodReview payload={interrupt.payload} onResume={onResume} disabled={disabled} />;
+    case STAGE_VARIABLE_REVIEW:
+      return <VariableReview payload={interrupt.payload} onResume={onResume} disabled={disabled} />;
     default:
       return null;
   }
@@ -73,119 +66,272 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function ClassificationGate({ payload, onResume, disabled }: PanelProps) {
-  const options = asStringArray(payload.options);
-  const suggestion = str(payload.agent_suggestion);
-  return (
-    <Panel title="Confirm the Leistung">
-      <Text>
-        Suggested: <Strong>{suggestion}</Strong>
-        {payload.confidence != null ? ` (${str(payload.confidence)})` : ''}
-      </Text>
-      {payload.notes ? <Text className="text-xs">{str(payload.notes)}</Text> : null}
-      <div className="flex flex-wrap gap-2 pt-2">
-        {options.map((opt) =>
-          opt === suggestion ? (
-            <Button key={opt} disabled={disabled} onClick={() => onResume({ work_type: opt })}>
-              {opt} (suggested)
-            </Button>
-          ) : (
-            <Button key={opt} outline disabled={disabled} onClick={() => onResume({ work_type: opt })}>
-              {opt}
-            </Button>
-          ),
-        )}
-      </div>
-    </Panel>
-  );
+// --- Gate A: confirm/correct the Leistung, select the Bauverfahren ----------
+interface KatalogEintrag {
+  leistung_key: string;
+  name: string;
+  kandidaten: string[];
 }
 
-function DriverConfirm({ payload, onResume, disabled }: PanelProps) {
-  const confirm = asRecordArray(payload.confirm);
-  // Each field is pre-filled with the value the agent resolved (from the documents, an assumption,
-  // or the pre-run chat). Leaving a field unchanged accepts that value; editing it sends a
-  // correction. Only changed fields are submitted, so untouched values keep their provenance.
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(confirm.map((d) => [str(d.id), str(d.value)])),
-  );
-  const edited = confirm.some((d) => {
-    const id = str(d.id);
-    const next = (values[id] ?? '').trim();
-    return next !== '' && next !== str(d.value);
-  });
-  const submit = () => {
-    const corrections: Record<string, unknown> = {};
-    for (const d of confirm) {
-      const id = str(d.id);
-      const next = (values[id] ?? '').trim();
-      if (next !== '' && next !== str(d.value)) corrections[id] = next;
-    }
-    onResume({ drivers: corrections });
+function asKatalog(v: unknown): KatalogEintrag[] {
+  return asRecordArray(v).map((e) => ({
+    leistung_key: str(e.leistung_key),
+    name: str(e.name),
+    kandidaten: asStringArray(e.kandidaten),
+  }));
+}
+
+function MethodReview({ payload, onResume, disabled }: PanelProps) {
+  const katalog = asKatalog(payload.katalog);
+  const suggested = str(payload.leistung_key);
+  // Pre-select the classified Leistung only when it is valid (has candidate Bauverfahren);
+  // otherwise the Kalkulator must pick one from the catalog.
+  const initial = katalog.find((l) => l.leistung_key === suggested && l.kandidaten.length > 0) ?? null;
+
+  const [selected, setSelected] = useState<KatalogEintrag | null>(initial);
+  const [query, setQuery] = useState('');
+  const [bv, setBv] = useState<string>(initial?.kandidaten[0] ?? '');
+
+  const choose = (l: KatalogEintrag) => {
+    setSelected(l);
+    setBv(l.kandidaten[0] ?? '');
+    setQuery('');
   };
+
+  const matches =
+    query.trim() === ''
+      ? []
+      : katalog
+          .filter(
+            (l) =>
+              l.name.toLowerCase().includes(query.toLowerCase()) ||
+              l.leistung_key.toLowerCase().includes(query.toLowerCase()),
+          )
+          .slice(0, 8);
+
   return (
-    <Panel title="Confirm the drivers">
-      <Text className="text-xs">
-        Each value is what the agent resolved. Leave it to accept, or edit it to correct it, then
-        confirm.
-      </Text>
-      <div className="flex flex-col gap-3 pt-2">
-        {confirm.map((d) => {
-          const id = str(d.id);
-          const source = str(d.source);
-          return (
-            <div key={id} className="flex flex-col gap-1">
-              <Text>
-                <Strong>{id}</Strong>
-                {d.einheit ? ` (${str(d.einheit)})` : ''}
-              </Text>
-              {d.description ? <Text className="text-xs">{str(d.description)}</Text> : null}
-              <Input
-                value={values[id] ?? ''}
-                disabled={disabled}
-                onChange={(e) => setValues((v) => ({ ...v, [id]: e.target.value }))}
-              />
-              {source ? (
-                <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Source: {source}
-                  {d.confidence != null ? ` · confidence ${str(d.confidence)}` : ''}
-                </Text>
-              ) : null}
+    <Panel title="Leistung bestätigen, Bauverfahren wählen">
+      {selected ? (
+        <>
+          <Text>
+            Leistung: <Strong>{selected.name}</Strong>{' '}
+            <span className="text-zinc-500">({selected.leistung_key})</span>{' '}
+            <button
+              type="button"
+              className="text-xs text-zinc-600 underline dark:text-zinc-400"
+              onClick={() => setSelected(null)}
+            >
+              ändern
+            </button>
+          </Text>
+          {selected.kandidaten.length > 0 ? (
+            <>
+              <Text className="pt-2 text-xs">Bauverfahren wählen — die Auswahl ist hervorgehoben:</Text>
+              <div className="flex flex-wrap gap-2 pt-2">
+                {selected.kandidaten.map((k) => {
+                  const label = `${k}${k === selected.kandidaten[0] ? ' (Standard)' : ''}`;
+                  return k === bv ? (
+                    <Button key={k} disabled={disabled} onClick={() => setBv(k)}>
+                      {label}
+                    </Button>
+                  ) : (
+                    <Button key={k} outline disabled={disabled} onClick={() => setBv(k)}>
+                      {label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <Text className="pt-2 text-xs text-amber-700 dark:text-amber-400">
+              Für diese Leistung ist kein Bauverfahren hinterlegt.
+            </Text>
+          )}
+        </>
+      ) : (
+        <>
+          <Text className="text-xs">
+            {suggested
+              ? `Position nicht eindeutig zugeordnet (${suggested}). Leistung suchen und wählen:`
+              : 'Leistung suchen und wählen:'}
+          </Text>
+          <div className="pt-2">
+            <Input
+              value={query}
+              disabled={disabled}
+              placeholder="Leistung suchen…"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          {matches.length > 0 ? (
+            <div className="mt-2 flex flex-col gap-1">
+              {matches.map((l) => (
+                <button
+                  key={l.leistung_key}
+                  type="button"
+                  disabled={disabled}
+                  className="rounded px-2 py-1 text-left text-sm hover:bg-zinc-950/5 dark:hover:bg-white/5"
+                  onClick={() => choose(l)}
+                >
+                  <span className="text-zinc-900 dark:text-zinc-100">{l.name}</span>{' '}
+                  <span className="text-xs text-zinc-500">{l.leistung_key}</span>
+                </button>
+              ))}
             </div>
-          );
-        })}
-      </div>
-      <div className="pt-3">
-        <Button disabled={disabled} onClick={submit}>
-          {edited ? 'Apply corrections & continue' : 'Accept values & continue'}
+          ) : query.trim() !== '' ? (
+            <Text className="pt-1 text-xs text-zinc-500">Keine Treffer.</Text>
+          ) : null}
+        </>
+      )}
+
+      <div className="flex gap-2 pt-4">
+        <Button
+          disabled={disabled || !selected || !bv}
+          onClick={() => selected && onResume({ leistung_key: selected.leistung_key, bauverfahren_key: bv })}
+        >
+          Bestätigen & weiter
+        </Button>
+        <Button outline disabled={disabled} onClick={() => onResume({ cancel: true })}>
+          Abbrechen
         </Button>
       </div>
     </Panel>
   );
 }
 
-function EktReview({ payload, onResume, disabled }: PanelProps) {
-  const actions = asStringArray(payload.actions);
-  const ekt = asRecord(payload.ekt);
+// --- Gate B: review/override every worklist leaf, tiered --------------------
+const QUELLE_LABEL: Record<string, string> = {
+  langtext: 'Langtext',
+  rag: 'RAG',
+  hitl: 'Chat/HITL',
+  konstante: 'Standardwert',
+  stammdaten: 'Stammdaten',
+};
+
+function VariableRow({
+  v,
+  value,
+  onChange,
+  disabled,
+}: {
+  v: Record<string, unknown>;
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+}) {
+  const name = str(v.name);
+  const unresolved = v.wert == null;
   return (
-    <Panel title="Review the EKT">
-      {ekt ? (
-        <Text>
-          Total <Strong>{str(ekt.total_eur)} EUR</Strong> → {str(ekt.per_unit_eur)} EUR/
-          {str(ekt.einheit)}
-        </Text>
+    <div className="flex flex-col gap-1">
+      <Text>
+        <Strong>{str(v.bezeichnung) || name}</Strong>
+        {v.einheit ? <span className="text-zinc-500"> ({str(v.einheit)})</span> : null}
+        {v.hochrisiko ? (
+          <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-400/15 dark:text-amber-300">
+            hohes Risiko
+          </span>
+        ) : null}
+      </Text>
+      <Input
+        value={value}
+        disabled={disabled}
+        placeholder={unresolved ? 'Wert erforderlich' : undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+        {name}
+        {v.quelle ? ` · ${QUELLE_LABEL[str(v.quelle)] ?? str(v.quelle)}` : unresolved ? ' · ungelöst' : ''}
+        {v.konfidenz != null ? ` · Konfidenz ${str(v.konfidenz)}` : ''}
+        {v.beleg ? ` · ${str(v.beleg)}` : ''}
+      </Text>
+    </div>
+  );
+}
+
+function VariableReview({ payload, onResume, disabled }: PanelProps) {
+  const surfaced = asRecordArray(payload.surfaced);
+  const collapsed = asRecordArray(payload.collapsed);
+  const rows = [...surfaced, ...collapsed];
+
+  // Each input is pre-filled with the proposed value (empty when unresolved). Leaving it unchanged
+  // accepts the proposal; editing it sends an override. Only changed leaves are submitted.
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(rows.map((v) => [str(v.name), v.wert == null ? '' : str(v.wert)])),
+  );
+  const [showRates, setShowRates] = useState(false);
+
+  const original = (v: Record<string, unknown>) => (v.wert == null ? '' : str(v.wert));
+  const overrides = () => {
+    const out: Record<string, unknown> = {};
+    for (const v of rows) {
+      const name = str(v.name);
+      const next = (values[name] ?? '').trim();
+      if (next !== '' && next !== original(v)) out[name] = next;
+    }
+    return out;
+  };
+  const missing = surfaced.some(
+    (v) => v.wert == null && (values[str(v.name)] ?? '').trim() === '',
+  );
+  const set = (name: string) => (next: string) => setValues((s) => ({ ...s, [name]: next }));
+
+  return (
+    <Panel title="Variablen prüfen">
+      <Text className="text-xs">
+        Geprüft werden zuerst unsichere und besonders preiswirksame Eingaben. Sätze und Stammdaten
+        sind vorab akzeptiert, lassen sich aber einblenden und überschreiben.
+      </Text>
+
+      {surfaced.length > 0 ? (
+        <div className="flex flex-col gap-3 pt-3">
+          {surfaced.map((v) => (
+            <VariableRow
+              key={str(v.name)}
+              v={v}
+              value={values[str(v.name)] ?? ''}
+              onChange={set(str(v.name))}
+              disabled={disabled}
+            />
+          ))}
+        </div>
+      ) : (
+        <Text className="pt-3 text-xs">Keine unsicheren Eingaben — bitte bestätigen.</Text>
+      )}
+
+      {collapsed.length > 0 ? (
+        <div className="pt-3">
+          <button
+            type="button"
+            className="text-xs font-medium text-zinc-600 underline dark:text-zinc-400"
+            onClick={() => setShowRates((s) => !s)}
+          >
+            {showRates ? 'Sätze & Stammdaten ausblenden' : `Sätze & Stammdaten anzeigen (${collapsed.length})`}
+          </button>
+          {showRates ? (
+            <div className="flex flex-col gap-3 pt-3">
+              {collapsed.map((v) => (
+                <VariableRow
+                  key={str(v.name)}
+                  v={v}
+                  value={values[str(v.name)] ?? ''}
+                  onChange={set(str(v.name))}
+                  disabled={disabled}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
       ) : null}
-      <div className="flex flex-wrap gap-2 pt-2">
-        {actions.map((action) =>
-          action === 'approve' ? (
-            <Button key={action} disabled={disabled} onClick={() => onResume({ action })}>
-              {action}
-            </Button>
-          ) : (
-            <Button key={action} outline disabled={disabled} onClick={() => onResume({ action })}>
-              {action}
-            </Button>
-          ),
-        )}
+
+      <div className="pt-4">
+        <Button disabled={disabled || missing} onClick={() => onResume({ overrides: overrides() })}>
+          Werte bestätigen & berechnen
+        </Button>
+        {missing ? (
+          <Text className="pt-1 text-xs text-amber-700 dark:text-amber-400">
+            Bitte alle erforderlichen Werte eintragen.
+          </Text>
+        ) : null}
       </div>
     </Panel>
   );

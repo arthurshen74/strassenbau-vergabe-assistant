@@ -15,13 +15,14 @@ from shared.models.enums import PromptType
 from shared.models.prompt_version import PromptVersion
 from shared.repositories.prompt_versions import PromptVersionRepository
 
-# The prompt types the calculator resolves. CLASSIFY/RESOLVE_DRIVER/SELECT_METHOD drive the
-# graph nodes; SEED_DRIVERS runs once before the graph (lifting chat-set driver values).
+# The prompt types the kalkulation_v2 graph resolves: Leistung classification, the
+# pre-launch chat-value extractor (source 0), the generic Langtext/RAG value extractor,
+# and the result narration.
 EKT_PROMPT_TYPES = (
-    PromptType.EKT_CLASSIFY,
-    PromptType.EKT_RESOLVE_DRIVER,
-    PromptType.EKT_SELECT_METHOD,
-    PromptType.EKT_SEED_DRIVERS,
+    PromptType.EKT_LEISTUNG_CLASSIFY,
+    PromptType.EKT_CHAT_VALUES,
+    PromptType.EKT_LANGTEXT_EXTRACT,
+    PromptType.EKT_OUTPUT_NARRATE,
 )
 
 

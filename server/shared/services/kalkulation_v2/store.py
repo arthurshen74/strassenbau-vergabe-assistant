@@ -13,20 +13,20 @@ helpers. Each piece now lives in its own file (≈ one future table):
 
 from decimal import Decimal
 
-from model import (
+from shared.services.kalkulation_v2.model import (
     AufloesungsMethode as M, Kalkulationskontext, Kalkulator, VariablenWert as Wert,
 )
-from materialien import BAUSTOFFE
-from lieferanten import LIEFERANTEN
-from stammdaten import STAMMDATEN_VARIABLEN
-from kontext_variablen import KONTEXT_VARIABLEN
-from formel import FORMELN, FORMEL_VARIABLEN
-from ausfuehrungsarten import AUSFUEHRUNGSARTEN
-from vorgaenge import VORGAENGE
-from bauverfahren import BAUVERFAHREN
-from leistungen import LEISTUNGEN
-from leistung_bauverfahren import waehle_bauverfahren
-from positionen import POSITIONEN, Position
+from shared.services.kalkulation_v2.materialien import BAUSTOFFE
+from shared.services.kalkulation_v2.lieferanten import LIEFERANTEN
+from shared.services.kalkulation_v2.stammdaten import STAMMDATEN_VARIABLEN
+from shared.services.kalkulation_v2.kontext_variablen import KONTEXT_VARIABLEN
+from shared.services.kalkulation_v2.formel import FORMELN, FORMEL_VARIABLEN
+from shared.services.kalkulation_v2.ausfuehrungsarten import AUSFUEHRUNGSARTEN
+from shared.services.kalkulation_v2.vorgaenge import VORGAENGE
+from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
+from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
+from shared.services.kalkulation_v2.leistung_bauverfahren import waehle_bauverfahren
+from shared.services.kalkulation_v2.positionen import POSITIONEN, Position
 from datetime import date
 
 STICHTAG = date(2026, 6, 22)
@@ -34,29 +34,39 @@ STICHTAG = date(2026, 6, 22)
 # Merge the variable catalog from its three sources (no key overlaps by design).
 KATALOG = {**STAMMDATEN_VARIABLEN, **KONTEXT_VARIABLEN, **FORMEL_VARIABLEN}
 
-_GEOM = {"m2": "flaeche_m2", "m": "laenge_m", "m3": "volumen_m3", "t": "menge_t"}
+GEOM = {"m2": "flaeche_m2", "m": "laenge_m", "m3": "volumen_m3", "t": "menge_t"}
 
 
 def baue_kontext(pos: Position, einheit: str) -> Kalkulationskontext:
     stamm = {"baustoff": BAUSTOFFE[pos.baustoff_code]} if pos.baustoff_code else {}
     ctx = Kalkulationskontext(stichtag=STICHTAG, stammdaten=stamm) # type: ignore
-    ctx.werte[_GEOM[einheit]] = Wert(name=_GEOM[einheit], wert=pos.menge,
+    ctx.werte[GEOM[einheit]] = Wert(name=GEOM[einheit], wert=pos.menge,
                                      quelle=M.LANGTEXT, beleg=f"LV Menge {pos.menge} {einheit}")
     for name, wert in pos.kontext.items():
         ctx.werte[name] = Wert(name=name, wert=wert, quelle=M.RAG, konfidenz=Decimal("0.7"))
     return ctx
 
 
-def kalkuliere(pos: Position) -> dict:
+def kalkuliere_kontext(leistung_key: str, bauverfahren_key: str,
+                       ctx: Kalkulationskontext, menge: Decimal) -> dict:
+    """Run a chosen recipe against a pre-filled context — the StateGraph's resolved
+    `werte` (inputs + booked geometry). After it returns, `ctx.werte` holds the full
+    derivation tree (inputs, Stammdaten, Sätze, Formel-Zwischenwerte) for the Nachweis."""
     kalk = Kalkulator(KATALOG, FORMELN)
-    leistung = LEISTUNGEN[pos.leistung_key]            # the service (what)
-    bv_key = waehle_bauverfahren(pos.leistung_key, pos.bauverfahren_key)  # calculator picks
-    bauverfahren = BAUVERFAHREN[bv_key]                # selected recipe (how)
-    ctx = baue_kontext(pos, leistung.einheit) # type: ignore
+    leistung = LEISTUNGEN[leistung_key]                # the service (what)
+    bauverfahren = BAUVERFAHREN[bauverfahren_key]      # selected recipe (how)
     ergebnisse = [v.kalkuliere(kalk, ctx) for v in bauverfahren.vorgaenge]
     ekt = sum((e["ekt_eur"] for e in ergebnisse), Decimal("0"))
-    return {"leistung": leistung.name, "einheit": leistung.einheit, "bauverfahren": bv_key,
-            "ekt_eur": ekt, "ep_eur": (ekt / pos.menge).quantize(Decimal("0.01")), "detail": ergebnisse}
+    return {"leistung": leistung.name, "leistung_key": leistung_key,
+            "einheit": leistung.einheit, "bauverfahren": bauverfahren_key,
+            "ekt_eur": ekt, "ep_eur": (ekt / menge).quantize(Decimal("0.01")),
+            "detail": ergebnisse}
+
+
+def kalkuliere(pos: Position) -> dict:
+    bv_key = waehle_bauverfahren(pos.leistung_key, pos.bauverfahren_key)  # calculator picks
+    ctx = baue_kontext(pos, LEISTUNGEN[pos.leistung_key].einheit)  # type: ignore
+    return kalkuliere_kontext(pos.leistung_key, bv_key, ctx, pos.menge)
 
 
 def build_store() -> dict:
@@ -83,7 +93,7 @@ if __name__ == "__main__":
     print(f"{'EKT gesamt (Bauabschnitt 01)':<71}{gesamt.quantize(Decimal('0.01')):>23}")
 
     # --- Recipe selection in action: L_AUFBRECHEN has two candidate Bauverfahren ---
-    from leistung_bauverfahren import kandidaten
+    from shared.services.kalkulation_v2.leistung_bauverfahren import kandidaten
     from copy import deepcopy
     auf = next(p for p in POSITIONEN if p.leistung_key == "L_AUFBRECHEN")
     print(f"\nKalkulator-Auswahl für '{LEISTUNGEN['L_AUFBRECHEN'].name}' "

@@ -1,16 +1,16 @@
-"""Run the EKT calculator agent on a real LV position from the command line.
+"""Run the EKT position-calculation agent on a real LV position from the command line.
 
 A thin harness over shared/services/calculator: it loads one LV position from the
-project's LV document, wires the agent's retrieval seam to RetrievalService (so the
-LLM sites can search the tender documents), runs the LangGraph app, and walks the
-two HITL interrupts interactively (classification gate, batched EKT review). The
-whole run is traced to Phoenix (docker-compose `phoenix`, UI on :6006).
+project's LV document, wires the agent's retrieval seam to RetrievalService, runs the
+LangGraph app, and walks the two HITL interrupts interactively (Gate A method review,
+Gate B variable review). The whole run is traced to Phoenix (docker-compose `phoenix`).
 
-    python -m scripts.run_calculator --project <uuid> --oz 01.03.0004
+    python -m scripts.run_calculator --project <uuid> --oz 01.02.0006 \
+        --mock --leistung L_FRAESEN_3_45 --set tiefe_cm=4 --set fraesgut_klasse=1
 
---mock answers the three LLM sites with canned replies (wired to the FSS demo
-position) and skips retrieval; the rest of the pipeline runs unchanged. The model
-behind the live sites is settings.calculator_model (CALCULATOR_MODEL in .env).
+--mock skips the LLM/RAG seams: `--leistung` supplies the Leistung the mock classifier
+returns, and `--set name=value` pre-pins chat values (precedence source 0); the rest of
+the pipeline (both gates, the deterministic compute) runs unchanged.
 """
 
 from __future__ import annotations
@@ -37,33 +37,40 @@ from shared.models.lv_item import LVItem
 from shared.repositories.lv_items import LVItemRepository
 from shared.services.calculator.graph import (
     CALCULATOR_RETRIEVAL_CONFIG,
+    POSITION_LEISTUNG_HINT,
     REASONING_LLM,
     REASONING_NARRATION,
-    STAGE_CLASSIFICATION,
-    STAGE_DRIVER_CONFIRMATION,
     build_graph,
 )
 from shared.services.calculator.prompts import load_calculator_prompts
+from shared.services.calculator.state import STAGE_METHOD_REVIEW
 from shared.services.retrieval import RetrievalService
 
 PHOENIX_PROJECT = "ekt-calculator"
-
-# Provider reasoning summaries can run long; the full text stays in state/Phoenix.
 PROVIDER_REASONING_PREVIEW = 400
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run the EKT calculator agent on one LV position."
+        description="Run the EKT position-calculation agent on one LV position."
     )
     parser.add_argument("--project", type=UUID, required=True, help="project_uuid")
-    parser.add_argument("--oz", required=True, help="Ordnungszahl, e.g. 01.03.0004")
-    parser.add_argument(
-        "--mock", action="store_true",
-        help="canned LLM replies (FSS demo) and no retrieval; pipeline runs unchanged",
-    )
+    parser.add_argument("--oz", required=True, help="Ordnungszahl, e.g. 01.02.0006")
+    parser.add_argument("--mock", action="store_true",
+                        help="skip the LLM/RAG seams; use --leistung and --set")
+    parser.add_argument("--leistung", help="mock: the Leistung key the classifier returns")
+    parser.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",
+                        help="mock: pre-pin a chat value (source 0); repeatable")
     parser.add_argument("--no-trace", action="store_true", help="skip Phoenix tracing")
     return parser.parse_args()
+
+
+def _vorgaben(pairs: list[str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for pair in pairs:
+        name, _, value = pair.partition("=")
+        out[name.strip()] = value.strip()
+    return out
 
 
 async def main() -> None:
@@ -87,17 +94,15 @@ async def main() -> None:
 
     try:
         async with engine.connect() as conn:
-            item = await LVItemRepository(conn).get_by_project_and_oz(
-                args.project, args.oz
-            )
+            item = await LVItemRepository(conn).get_by_project_and_oz(args.project, args.oz)
         if item is None:
             print(f"no LV position {args.oz} in project {args.project}", file=sys.stderr)
             raise SystemExit(1)
 
-        config = CALCULATOR_RETRIEVAL_CONFIG
-
         async def retrieve(query: str) -> list[str]:
-            ctx = await retrieval.retrieve_context(query, args.project, config)
+            ctx = await retrieval.retrieve_context(
+                query, args.project, CALCULATOR_RETRIEVAL_CONFIG
+            )
             return [c.chunk_text for c in ctx.context]
 
         prompts: dict = {}
@@ -109,17 +114,18 @@ async def main() -> None:
         )
         cfg = {"configurable": {"thread_id": f"ekt-{args.project}-{args.oz}"}}
 
+        position = _position(item)
+        if args.leistung:
+            position[POSITION_LEISTUNG_HINT] = args.leistung
         print(f"position {item.oz}: {item.kurztext} — {item.menge} {item.einheit}")
         pending = await _stream(app, cfg,
-                                {"position": _position(item), "project_uuid": args.project})
+                                {"position": position, "project_uuid": args.project,
+                                 "vorgaben": _vorgaben(args.set)})
         while pending is not None:
-            command = await _prompt_for_resume(app, cfg, pending)
+            command = await _prompt_for_resume(pending)
             pending = await _stream(app, cfg, command)
 
-        state = (await app.aget_state(cfg)).values
-        _print_state(state)
-        if "form_223" in state:
-            _print_form_223(state["form_223"])
+        _print_state((await app.aget_state(cfg)).values)
     finally:
         await reranker.aclose()
         await embeddings.aclose()
@@ -133,14 +139,15 @@ def _position(item: LVItem) -> dict[str, Any]:
         "oz": item.oz,
         "kurztext": item.kurztext,
         "langtext": item.langtext_resolved or item.langtext,
-        "boq_menge": float(item.menge),
-        "boq_einheit": item.einheit,
+        "hinweis": item.hinweis,
+        "menge": str(item.menge),
+        "einheit": item.einheit,
+        "baustoff_code": None,
     }
 
 
 async def _stream(app: Any, cfg: dict, payload: Any) -> dict | None:
     """Run until the next interrupt or completion, printing reasoning live.
-
     Returns the interrupt payload to resume from, or None when the run ends."""
     pending = None
     async for update in app.astream(payload, cfg, stream_mode="updates"):
@@ -168,39 +175,27 @@ def _print_reasoning(entry: dict) -> None:
         print(f"    (model reasoning) {text}")
 
 
-async def _prompt_for_resume(app: Any, cfg: dict, payload: dict) -> Command:
-    if payload.get("stage") == STAGE_CLASSIFICATION:
-        print("\nGRAPH PAUSED: classification gate")
-        print(f"  suggestion : {payload['agent_suggestion']} "
-              f"@ {payload['confidence']:.2f}")
-        print(f"  notes      : {payload['notes']}")
-        print(f"  options    : {', '.join(payload['options'])}")
-        answer = await _prompt(f"work_type [{payload['agent_suggestion']}]> ")
-        choice = answer or payload["agent_suggestion"]
-        return Command(resume={"work_type": choice})
+async def _prompt_for_resume(payload: dict) -> Command:
+    if payload.get("stage") == STAGE_METHOD_REVIEW:
+        print("\nGRAPH PAUSED: Gate A — method review")
+        print(f"  Leistung    : {payload['leistung_key']} ({payload['leistung_name']})")
+        print(f"  Kandidaten  : {', '.join(payload['bauverfahren_kandidaten'])}")
+        default = payload["bauverfahren_default"]
+        answer = await _prompt(f"  Bauverfahren [{default}]> ")
+        return Command(resume={"bauverfahren_key": answer or default})
 
-    if payload.get("stage") == STAGE_DRIVER_CONFIRMATION:
-        print("\nGRAPH PAUSED: driver confirmation (assumed drivers)")
-        overrides: dict[str, str] = {}
-        for d in payload["confirm"]:
-            conf = f"{d['confidence']:.2f}" if d["confidence"] is not None else "n/a"
-            print(f"\n  {d['id']} = {d['value']} {d['einheit'] or ''}  "
-                  f"(confidence {conf})")
-            if d["description"]:
-                print(f"    rule   : {d['description']}")
-            if d["source"]:
-                print(f"    source : {d['source']}")
-            answer = await _prompt(
-                f"  {d['id']} [enter = accept {d['value']}]> ")
-            if answer:
-                overrides[d["id"]] = answer
-        return Command(resume={"drivers": overrides})
-
-    print("\nGRAPH PAUSED: hitl_review interrupt (Kalkulator's batched review)")
-    _print_state((await app.aget_state(cfg)).values)
-    print(f"\n  actions: {', '.join(payload['actions'])}")
-    action = await _prompt("action [approve]> ") or "approve"
-    return Command(resume={"action": action})
+    print("\nGRAPH PAUSED: Gate B — variable review")
+    overrides: dict[str, str] = {}
+    for v in payload["surfaced"]:
+        flag = " [HOCHRISIKO]" if v["hochrisiko"] else ""
+        print(f"\n  {v['name']} = {v['wert']} {v['einheit'] or ''}  "
+              f"({v['quelle'] or 'ungelöst'}){flag}")
+        print(f"    {v['bezeichnung']}")
+        answer = await _prompt(f"  {v['name']} [enter = accept]> ")
+        if answer:
+            overrides[v["name"]] = answer
+    print(f"\n  ({len(payload['collapsed'])} Sätze/Stammdaten vorab akzeptiert)")
+    return Command(resume={"overrides": overrides})
 
 
 async def _prompt(label: str) -> str:
@@ -208,41 +203,25 @@ async def _prompt(label: str) -> str:
 
 
 def _print_state(state: dict) -> None:
-    print(f"\nClassification: {state['work_type']} "
-          f"@ {state['classification_confidence']:.2f}")
-    print(f"  {state['classification_notes']}")
-    print("\nDrivers:")
-    for k, v in state["drivers"].items():
-        p = state["driver_provenance"].get(k, {})
-        print(f"  {k:18} = {v}   ({p.get('confidence', 1.0):.2f})")
-    print("\nOperations:")
-    for r in state["operation_results"]:
-        m = f" / {r['method']} @ {r['method_confidence']:.2f}" if r["method"] else ""
-        print(f"  {r['operation']}{m}  ->  {r['eur_total']:>9.2f} EUR")
-        for line in r["lines"]:
-            val = (f"{line['out_value']} {line['out_einheit']}" if line["out_id"]
-                   else f"{line['eur']:.2f} EUR")
-            note = f"   [{line['note']}]" if line.get("note") else ""
-            print(f"      - {line['goal'][:58]:58} {val}{note}")
-    e = state["ekt"]
-    print(f"\nEKT: {e['total_eur']} EUR total -> {e['per_unit_eur']} EUR/"
-          f"{e['einheit']}  (registry v{e['registry_version']})")
-    print("\nReview flags (batched for the Kalkulator):")
-    for f in state["review_flags"]:
-        print(f"  [{f['kind']:14}] {f['where']:22} {f['detail'][:90]}")
-
-
-def _print_form_223(row: dict) -> None:
-    me = row["mengeneinheit"]
-    print("\nVHB 223 — Aufgliederung der Einheitspreise (ohne Umsatzsteuer):")
-    print(f"  OZ des LV     : {row['oz']}")
-    print(f"  Teilleistung  : {row['kurzbezeichnung']}")
-    print(f"  Menge         : {row['menge']} {me}")
-    print(f"  Zeitansatz    : {row['zeitansatz_h']} h/{me}")
-    print(f"  Lohn          : {row['lohn_eur']} EUR/{me}")
-    print(f"  Stoffe        : {row['stoffe_eur']} EUR/{me}")
-    print(f"  Geräte        : {row['geraete_eur']} EUR/{me}")
-    print(f"  Sonstiges     : {row['sonstiges_eur']} EUR/{me}")
+    ekt = state.get("ekt_zeile")
+    if ekt is None:
+        print("\n(no EKT — see warnings)")
+    else:
+        print(f"\nEKT: {ekt['leistung']} über {ekt['bauverfahren']}")
+        print(f"  EP {ekt['ep_eur']} EUR/{ekt['einheit']}  ·  GP {ekt['gp_eur']} EUR "
+              f"({ekt['menge']} {ekt['einheit']})")
+        for k in ekt["kostenlinien"]:
+            print(f"    {k['kostenart']:12} {k['variable']:26} {k['betrag_eur']:>12} EUR "
+                  f"({k['quelle']})")
+    print("\nNachweistabelle:")
+    for n in state.get("nachweis_tabelle", []):
+        ausdruck = f"  = {n['ausdruck']}" if n.get("ausdruck") else ""
+        print(f"  {n['name']:30} {n['wert']:>14} {n['einheit'] or '':6} "
+              f"[{n['quelle']}]{ausdruck}")
+    for w in state.get("warnungen", []):
+        print(f"  WARNUNG: {w}")
+    if state.get("beschreibung"):
+        print(f"\n{state['beschreibung']}")
 
 
 if __name__ == "__main__":

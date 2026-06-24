@@ -61,15 +61,17 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
 class CalculationResume(BaseModel):
-    """The Kalkulator's structured decision for the current HITL gate of a paused calculation.
-    Exactly the fields the paused stage consumes: work_type (classification), drivers (driver
-    confirmation), action (EKT review). Empty `drivers` means accept the assumed values as-is."""
+    """The Kalkulator's structured decision for the current HITL gate of a paused calculation:
+    method_review (Gate A) confirms the Leistung and selects the Bauverfahren; variable_review
+    (Gate B) `overrides` maps a variable name -> its corrected value (changed leaves only; an
+    empty/absent map accepts every proposal as-is)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    work_type: str | None = None
-    drivers: dict[str, Any] | None = None
-    action: str | None = None
+    leistung_key: str | None = None
+    bauverfahren_key: str | None = None
+    overrides: dict[str, Any] | None = None
+    cancel: bool | None = None
 
 
 class TurnRequest(BaseModel):

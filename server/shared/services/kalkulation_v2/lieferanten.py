@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 
-from model import Baustofflieferant, BaustoffPreis, D
+from shared.services.kalkulation_v2.model import Baustofflieferant, BaustoffPreis, D
 
 # (code, Firmenname, Straße, PLZ, Ort, lat, lon)
 _DATA = [

@@ -40,9 +40,15 @@ class PromptType(StrEnum):
     LV_EXTRACTION = "lv_extraction"
     CONVERSATION_NAME = "conversation_name"
     # ekt_calculator is a conversation discriminator (a position chat that owns a calculator run),
-    # not a seeded prompt; the position chat itself runs on PROJECT_CHAT. The four ekt_* below are
-    # the EKT calculation graph's structured LLM prompts (shared/services/calculator/llm_calls.py).
+    # not a seeded prompt; the position chat itself runs on PROJECT_CHAT. The ekt_* below are the
+    # EKT calculation graph's structured LLM prompts (shared/services/calculator/llm_calls.py).
     EKT_CALCULATOR = "ekt_calculator"
+    # kalkulation_v2 prompts (the live graph).
+    EKT_LEISTUNG_CLASSIFY = "ekt_leistung_classify"
+    EKT_CHAT_VALUES = "ekt_chat_values"
+    EKT_LANGTEXT_EXTRACT = "ekt_langtext_extract"
+    EKT_OUTPUT_NARRATE = "ekt_output_narrate"
+    # Legacy registry-graph prompts; parked until the P5 cutover removes the YAML registry.
     EKT_CLASSIFY = "ekt_classify"
     EKT_RESOLVE_DRIVER = "ekt_resolve_driver"
     EKT_SELECT_METHOD = "ekt_select_method"

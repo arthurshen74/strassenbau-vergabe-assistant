@@ -24,8 +24,8 @@ from shared.services.calculator.formulas import (
     emulsion_cost,
     interlayer_material_cost,
 )
-from shared.services.calculator.graph import load_registries
 from shared.services.calculator.models import Registry
+from shared.services.calculator.registry import load_registries
 from shared.services.calculator.stores import (
     BGL_RATES,
     CREW_NORMS,

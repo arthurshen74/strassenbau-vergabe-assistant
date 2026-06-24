@@ -8,7 +8,7 @@ resolving baustoff codes to ids against the current material catalog.
 
 from datetime import date
 
-from model import BaustoffPreis, D
+from shared.services.kalkulation_v2.model import BaustoffPreis, D
 
 # (lieferant_code, baustoff_code, preis_eur_pro_t)
 PREISE: list[tuple[str, str, str]] = [

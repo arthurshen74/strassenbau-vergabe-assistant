@@ -5,8 +5,8 @@ Each Vorgang binds an Ausführungsart and maps each relevant Kostenart to the
 name of the formula-variable that yields that cost line. Exports VORGAENGE.
 """
 
-from model import Kostenart as KA, Vorgang
-from ausfuehrungsarten import AUSFUEHRUNGSARTEN as AA
+from shared.services.kalkulation_v2.model import Kostenart as KA, Vorgang
+from shared.services.kalkulation_v2.ausfuehrungsarten import AUSFUEHRUNGSARTEN as AA
 
 VORGAENGE: dict[str, Vorgang] = {
     "BODENABTRAG": Vorgang(code="V_BODENABTRAG", name="Boden/Bankett abtragen und schälen",
