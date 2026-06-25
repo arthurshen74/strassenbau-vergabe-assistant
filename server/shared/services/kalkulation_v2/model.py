@@ -368,13 +368,6 @@ class Maschine(BaseModel):
         return next((p for p in self.leistungsprofile if p.betriebsart_code == betriebsart_code), None)
 
 
-class MaschinenBindung(BaseModel):
-    """Operation-specific binding (on the Vorgang): which catalog cost variables a bound
-    machine's properties fill, and which productivity profile feeds the duration."""
-    model_config = ConfigDict(extra="forbid")
-    eigenschaften: dict[str, str] = Field(default_factory=dict)   # cost_variable_name -> machine property key
-    leistung_variable: str | None = None                          # cost_variable fed by leistung_fuer(betriebsart_code)
-    betriebsart_code: str | None = None                           # which profile to read
 
 
 # --------------------------------------------------------------------------- #
@@ -394,11 +387,12 @@ class Vorgang(BaseModel):
     code: str
     name: str
     ausfuehrungsart: Ausführungsart | None = None
-    # Machine-selection seam: the operation's productivity profile + the cost-variable
-    # mapping a bound machine fills (populated when wiring the fleet into the recipes).
+    # Machine-selection seam: the operation's productivity profile (betriebsart_code) +
+    # which cost variables a bound machine fills (leistung_variable for the productivity,
+    # kosten_bindung: cost_variable_name -> machine property-bag key).
     betriebsart_code: str | None = None
     leistung_variable: str | None = None
-    maschinen_bindung: MaschinenBindung | None = None
+    kosten_bindung: dict[str, str] = Field(default_factory=dict)
     # Kostenart -> name of the variable that yields that cost line
     kostenvariablen: dict[Kostenart, str] = Field(default_factory=dict)
 

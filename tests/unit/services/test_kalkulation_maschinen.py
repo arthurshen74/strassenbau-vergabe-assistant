@@ -15,10 +15,15 @@ from shared.services.kalkulation_v2.betriebsarten import (
     BETRIEBSKATEGORIEN,
 )
 from shared.services.kalkulation_v2.betriebsarten import validate as betriebsarten_validate
+from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
+from shared.services.kalkulation_v2.binden import maschinen_werte, rezept_maschinen_werte
 from shared.services.kalkulation_v2.maschinen import MASCHINEN, maschinen_fuer
 from shared.services.kalkulation_v2.maschinen import validate as maschinen_validate
+from shared.services.kalkulation_v2.model import AufloesungsMethode as M
+from shared.services.kalkulation_v2.model import Kalkulationskontext, VariablenWert
 from shared.services.kalkulation_v2.positionen import POSITIONEN
-from shared.services.kalkulation_v2.store import kalkuliere
+from shared.services.kalkulation_v2.store import STICHTAG, kalkuliere, kalkuliere_kontext
+from shared.services.kalkulation_v2.vorgaenge import VORGAENGE
 
 # The machine-led mill-and-fill slots the fleet must cover (the hand-device crews
 # AA_KOLONNE / AA_GRID_KOLONNE intentionally have no fleet entry -> org-rate/HITL).
@@ -74,3 +79,35 @@ def test_profile_lookup_and_per_profile_cost_override() -> None:
 def test_catalog_addition_left_golden_unchanged() -> None:
     gesamt = sum((kalkuliere(p)["ekt_eur"] for p in POSITIONEN), Decimal("0"))
     assert gesamt.quantize(Decimal("0.01")) == Decimal("557933.35")
+
+
+def test_maschinen_werte_fills_cost_and_productivity_vars() -> None:
+    werte = maschinen_werte(VORGAENGE["FRAESEN"], MASCHINEN["WIRTGEN_W100CFI"])
+    # cost vars from the property bag + productivity from the regelfraesen profile.
+    assert werte["kaltfraese_stundensatz_eur"].wert == Decimal("240")
+    assert werte["kaltfraese_l_pro_h"].wert == Decimal("55")
+    assert werte["fraese_leistung_m2_pro_h"].wert == Decimal("520")
+    assert werte["fraese_leistung_m2_pro_h"].quelle is M.STAMMDATEN
+    assert "Wirtgen W 100 CFi" in werte["kaltfraese_stundensatz_eur"].beleg
+
+
+def _fraesen_ekt(maschine_code: str | None = None) -> Decimal:
+    bv = BAUVERFAHREN["BV_FRAESEN"]
+    menge = Decimal("7800")
+    ctx = Kalkulationskontext(stichtag=STICHTAG, stammdaten={})
+    ctx.werte["flaeche_m2"] = VariablenWert(name="flaeche_m2", wert=menge, quelle=M.LANGTEXT)
+    for name, value in {"tiefe_cm": "4", "fraesgut_klasse": "1"}.items():
+        ctx.werte[name] = VariablenWert(name=name, wert=Decimal(value), quelle=M.HITL)
+    if maschine_code:
+        ctx.werte.update(rezept_maschinen_werte(bv, {"AA_KALTFRAESE": MASCHINEN[maschine_code]}))
+    return kalkuliere_kontext("L_FRAESEN_3_45", "BV_FRAESEN", ctx, menge)["ekt_eur"]
+
+
+def test_machine_selection_changes_the_ekt() -> None:
+    base = _fraesen_ekt()                         # org-default Kaltfräse rate/productivity
+    w100 = _fraesen_ekt("WIRTGEN_W100CFI")        # 240 €/h, 520 m²/h
+    w150 = _fraesen_ekt("WIRTGEN_W150CFI")        # 310 €/h, 850 m²/h (faster)
+    assert w100 != base
+    # Both machines are faster than the conservative org productivity -> cheaper,
+    # and the faster W150 is cheaper still despite its higher hourly rate.
+    assert w150 < w100 < base

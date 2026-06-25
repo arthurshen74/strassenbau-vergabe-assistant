@@ -125,30 +125,85 @@ VORGAENGE: dict[str, Vorgang] = {
     # --- Feinfräsen: Kaltfräse, eigene (langsamere) Leistung ---
     "FEINFRAESEN": Vorgang(code="V_FEINFRAESEN", name="Asphalt feinfräsen",
         ausfuehrungsart=AA["KALTFRAESE"],
-        betriebsart_code="feinfraesen", leistung_variable="feinfraese_leistung_m2_pro_h",
         kostenvariablen={KA.MASCHINE: "mk_feinfraese", KA.LOHN: "lohn_feinfraese",
                          KA.ENTSORGUNG: "ent_fraesgut", KA.ABTRANSPORT: "trans_fraesgut"}),
     # --- Asphalt-Handeinbau (Kleinflächen): Kolonne + kleine Walze ---
     "ASPHALT_HAND": Vorgang(code="V_ASPHALT_HAND", name="Asphaltschicht im Handeinbau einbauen",
         ausfuehrungsart=AA["ASPHALT_HAND"],
-        betriebsart_code="asphalt_handeinbau", leistung_variable="handeinbau_leistung_m2_pro_h",
         kostenvariablen={KA.MATERIAL: "materialkosten_asphalt", KA.MASCHINE: "mk_handeinbau",
                          KA.LOHN: "lohn_handeinbau", KA.ANTRANSPORT: "trans_asphalt"}),
     # --- Gussasphalt (MA): Fertiger/Kocher, keine Verdichtung ---
     "GUSSASPHALT": Vorgang(code="V_GUSSASPHALT", name="Gussasphaltschicht einbauen",
         ausfuehrungsart=AA["GUSSASPHALT"],
-        betriebsart_code="gussasphalt_einbau", leistung_variable="gussasphalt_leistung_m2_pro_h",
         kostenvariablen={KA.MATERIAL: "mk_gussasphalt_material", KA.MASCHINE: "mk_gussasphalt",
                          KA.LOHN: "lohn_gussasphalt", KA.ANTRANSPORT: "trans_asphalt"}),
     # --- DSK (Dünnschichtbelag im Kalteinbau / Slurry) ---
     "DSK": Vorgang(code="V_DSK", name="Dünnschichtbelag (DSK) einbauen",
         ausfuehrungsart=AA["DSK"],
-        betriebsart_code="dsk_einbau", leistung_variable="dsk_leistung_m2_pro_h",
         kostenvariablen={KA.MATERIAL: "mk_dsk_material", KA.MASCHINE: "mk_dsk", KA.LOHN: "lohn_dsk"}),
     # --- Randabdichtung/Nahtabdichtung (Dichtband/-masse), kl. Gerät + Kolonne ---
     "RANDABDICHTUNG": Vorgang(code="V_RANDABDICHTUNG", name="Randabdichtung/Nahtabdichtung herstellen",
         ausfuehrungsart=AA["FUGENGERAET"],
-        betriebsart_code="randabdichtung", leistung_variable="randabdichtung_leistung_m_pro_h",
         kostenvariablen={KA.MATERIAL: "mk_randabdichtung_material", KA.MASCHINE: "mk_randabdichtung",
                          KA.LOHN: "lohn_randabdichtung"}),
 }
+
+
+# --------------------------------------------------------------------------- #
+# Machine binding (applied to the Vorgänge above): which productivity profile each
+# operation reads (betriebsart_code -> leistung_variable) and which cost variables a
+# bound machine's property bag fills (kosten_bindung: cost_variable -> property key).
+# Centralised here so a re-wire is one table, not 36 constructors. Composite/manual
+# operations bind productivity only (their lumped/labour rates stay org-default).
+def _kb(satz: str, lh: str) -> dict[str, str]:
+    return {satz: "betriebskosten_eur_pro_h", lh: "kraftstoff_l_pro_h"}
+
+
+_BINDUNGEN: dict[str, tuple[str, str, dict[str, str]]] = {
+    "BODENABTRAG": ("boden_abtragen", "bagger_leistung_m3_pro_h", _kb("bagger_stundensatz_eur", "bagger_l_pro_h")),
+    "MARKIERUNG": ("demark_farbe", "markierung_leistung_m_pro_h", _kb("markfraese_stundensatz_eur", "markfraese_l_pro_h")),
+    "SCHNEIDEN": ("asphalt_schneiden", "schnitt_leistung_m_pro_h", _kb("schneider_stundensatz_eur", "schneider_l_pro_h")),
+    "FRAESEN": ("regelfraesen", "fraese_leistung_m2_pro_h", _kb("kaltfraese_stundensatz_eur", "kaltfraese_l_pro_h")),
+    "AUFBRECHEN": ("asphalt_aufbrechen", "aufbruch_leistung_m2_pro_h", _kb("aufbruch_stundensatz_eur", "aufbruch_l_pro_h")),
+    "VERDICHTEN": ("verdichten_flaeche", "walze_leistung_m2_pro_h", _kb("walze_stundensatz_eur", "walze_l_pro_h")),
+    "ASPHALT_EINBAU": ("asphalt_einbau", "asphalt_einbau_leistung_t_pro_h",
+                       {"asphalt_zug_geraet_eur_pro_h": "betriebskosten_eur_pro_h"}),
+    "FSS_LEGEN": ("schuettgut_einbau", "radlader_leistung_m3_pro_h", _kb("radlader_stundensatz_eur", "radlader_l_pro_h")),
+    "FSS_PROFIL": ("profilieren", "profil_leistung_m2_pro_h", _kb("grader_stundensatz_eur", "grader_l_pro_h")),
+    "FSS_VERDICHTEN": ("verdichten_uebergang", "walze_uebergang_leistung_m2_pro_h", _kb("walze_stundensatz_eur", "walze_l_pro_h")),
+    "FSS_FERTIGER": ("schuettgut_einbau", "fertiger_leistung_m2_pro_h", _kb("fertiger_stundensatz_eur", "fertiger_l_pro_h")),
+    "BANKETT_LEGEN": ("schuettgut_einbau", "bankett_legen_leistung_m3_pro_h", _kb("radlader_stundensatz_eur", "radlader_l_pro_h")),
+    "BANKETT_PROFIL": ("profilieren", "bankett_profil_leistung_m2_pro_h", _kb("grader_stundensatz_eur", "grader_l_pro_h")),
+    "BANKETT_VERDICHTEN": ("bankett_verdichten", "bankettwalze_uebergang_leistung_m2_pro_h",
+                           _kb("bankettwalze_stundensatz_eur", "bankettwalze_l_pro_h")),
+    "BANKETT_FERTIGER": ("bankett_einbau", "bankettfertiger_leistung_m2_pro_h",
+                         _kb("bankettfertiger_stundensatz_eur", "bankettfertiger_l_pro_h")),
+    "BODEN_GROBK_LEGEN": ("schuettgut_einbau", "boden_legen_leistung_m3_pro_h", _kb("radlader_stundensatz_eur", "radlader_l_pro_h")),
+    "BODEN_GROBK_PROFIL": ("profilieren", "boden_profil_leistung_m2_pro_h", _kb("grader_stundensatz_eur", "grader_l_pro_h")),
+    "BODEN_GROBK_VERDICHTEN": ("verdichten_uebergang", "boden_verdicht_leistung_m2_pro_h_uebergang",
+                               _kb("walze_stundensatz_eur", "walze_l_pro_h")),
+    "OBERBODEN_GRADER": ("oberboden_andecken", "oberboden_andeck_grader_m2_pro_h", _kb("grader_stundensatz_eur", "grader_l_pro_h")),
+    "REINIGEN_KEHREN": ("kehren", "kehr_leistung_m2_pro_h", _kb("kehrmaschine_stundensatz_eur", "kehrmaschine_l_pro_h")),
+    "REINIGEN_HD": ("hochdruckreinigen", "hd_reinigung_leistung_m2_pro_h", _kb("hd_waschsaug_stundensatz_eur", "hd_waschsaug_l_pro_h")),
+    "ANSPRITZEN": ("anspritzen", "anspritz_leistung_m2_pro_h", _kb("spritzgeraet_stundensatz_eur", "spritzgeraet_l_pro_h")),
+    "ABSTUMPFEN": ("abstreuen", "abstreuen_leistung_m2_pro_h", _kb("abstreuer_stundensatz_eur", "abstreuer_l_pro_h")),
+    "NAHT_AUFWEITEN": ("fuge_aufweiten", "naht_aufweiten_leistung_m_pro_h", _kb("schneider_stundensatz_eur", "schneider_l_pro_h")),
+    "FUGENFUELLUNG": ("fugenverguss", "fugenfuellung_leistung_m_pro_h", _kb("fugen_geraet_stundensatz_eur", "fugen_geraet_l_pro_h")),
+    "NAHT": ("naht_herstellen", "naht_leistung_m_pro_h", _kb("naht_geraet_stundensatz_eur", "naht_geraet_l_pro_h")),
+    # gap closers
+    "FEINFRAESEN": ("feinfraesen", "feinfraese_leistung_m2_pro_h", _kb("kaltfraese_stundensatz_eur", "kaltfraese_l_pro_h")),
+    "GUSSASPHALT": ("gussasphalt_einbau", "gussasphalt_leistung_m2_pro_h", _kb("gussasphalt_geraet_stundensatz_eur", "gussasphalt_l_pro_h")),
+    "DSK": ("dsk_einbau", "dsk_leistung_m2_pro_h", _kb("dsk_geraet_stundensatz_eur", "dsk_l_pro_h")),
+    "RANDABDICHTUNG": ("randabdichtung", "randabdichtung_leistung_m_pro_h",
+                       _kb("randabdichtung_geraet_stundensatz_eur", "randabdichtung_l_pro_h")),
+    # composite/manual: productivity only (lumped/labour rates stay org-default)
+    "EINBAU": ("schuettgut_einbau", "einbau_leistung_m3_pro_h", {}),
+    "PLANUM": ("planum_herstellen", "planum_leistung_m2_pro_h", {}),
+    "ASPHALT_HAND": ("asphalt_handeinbau", "handeinbau_leistung_m2_pro_h", {}),
+}
+
+for _code, (_ba, _lv, _kbind) in _BINDUNGEN.items():
+    _v = VORGAENGE[_code]
+    _v.betriebsart_code = _ba
+    _v.leistung_variable = _lv
+    _v.kosten_bindung = _kbind
