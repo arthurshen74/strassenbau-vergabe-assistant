@@ -10,6 +10,7 @@ client's responsibility.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -55,3 +56,19 @@ class DatabaseExecutionLogSink:
         new = NewPromptExecutionLog.model_validate(event.model_dump())
         async with self._engine.begin() as conn:
             await PromptExecutionLogRepository(conn).add(new)
+
+
+class CompositeExecutionLogSink:
+    """Tees one event to several sinks. Unlike the single sinks above, it isolates each sink's
+    failure (logs and continues) so one sink erroring -- e.g. the OTLP exporter being down -- never
+    starves the others of the event."""
+
+    def __init__(self, sinks: Sequence[ExecutionLogSink]) -> None:
+        self._sinks = tuple(sinks)
+
+    async def emit(self, event: ExecutionLogEvent) -> None:
+        for sink in self._sinks:
+            try:
+                await sink.emit(event)
+            except Exception:
+                logger.exception("execution-log sink %s failed", type(sink).__name__)

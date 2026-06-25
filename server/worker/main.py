@@ -31,6 +31,7 @@ from shared.clients.embeddings.client import EmbeddingsClient
 from shared.clients.factory import build_embeddings_client, build_telemetry_sinks
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient, build_storage_client
+from shared.clients.tracing import setup_phoenix_tracing
 from shared.config import settings
 from shared.db.engine import make_engine
 from shared.db.unit_of_work import unit_of_work
@@ -42,6 +43,9 @@ from shared.services.ingestion.langchain_pipeline import LangchainIngestor
 from shared.services.ingestion.progress import IngestPhase
 
 logger = logging.getLogger("worker.main")
+
+# Phoenix project the worker process reports its traces under.
+PHOENIX_PROJECT_NAME = "roadbuilders-worker"
 
 
 async def process_one(
@@ -143,6 +147,8 @@ async def run_maintenance(uow_factory: UnitOfWorkFactory) -> None:
 
 
 async def run_worker() -> None:
+    # Install OTLP tracing before any client is built so ingestion LangChain runs are captured.
+    setup_phoenix_tracing(PHOENIX_PROJECT_NAME)
     worker_id = f"{socket.gethostname()}:{os.getpid()}"
     engine = make_engine(settings.database_url, pool_size=5, application_name="worker")
     storage = build_storage_client()

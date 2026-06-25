@@ -77,6 +77,7 @@ services:
       POSTGRES_HOST: postgres
       ELASTICSEARCH_HOST: elasticsearch
       S3_HOST: minio
+      PHOENIX_COLLECTOR_ENDPOINT: http://phoenix:6006/v1/traces
     ports:
       - '8000:8000'
     volumes:
@@ -112,6 +113,7 @@ services:
       POSTGRES_HOST: postgres
       ELASTICSEARCH_HOST: elasticsearch
       S3_HOST: minio
+      PHOENIX_COLLECTOR_ENDPOINT: http://phoenix:6006/v1/traces
     volumes:
       - ./server:/app/server
     depends_on:

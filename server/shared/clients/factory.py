@@ -20,7 +20,11 @@ from shared.clients.embeddings import (
 )
 from shared.clients.embeddings.cache import EmbeddingCache
 from shared.clients.llm.client import LLMClient
-from shared.clients.llm.execution_log_sinks import DatabaseExecutionLogSink
+from shared.clients.llm.execution_log_sinks import (
+    CompositeExecutionLogSink,
+    DatabaseExecutionLogSink,
+)
+from shared.clients.llm.otel_sink import OTelExecutionLogSink
 from shared.clients.openrouter.usage import DatabaseUsageSink
 from shared.clients.rerank import RerankClient
 from shared.config import settings
@@ -42,7 +46,11 @@ def build_telemetry_sinks(engine: AsyncEngine) -> TelemetrySinks:
 
 
 def build_llm_client(sinks: TelemetrySinks) -> LLMClient:
-    return LLMClient(usage_sink=sinks.usage, execution_log_sink=sinks.execution_log)
+    # The LLMClient powers dispatch + the calculator's in-node model calls; tee its execution log to
+    # Postgres AND Phoenix (OpenInference LLM spans). Project chat's ChatOpenAI is traced by the
+    # LangChain auto-instrumentor instead, so its drained events stay on the DB sink (sinks.execution_log).
+    execution_log = CompositeExecutionLogSink([sinks.execution_log, OTelExecutionLogSink()])
+    return LLMClient(usage_sink=sinks.usage, execution_log_sink=execution_log)
 
 
 def build_embedding_cache(engine: AsyncEngine) -> EmbeddingCache:

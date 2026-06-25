@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from shared.clients.factory import TelemetrySinks
 from shared.clients.llm.client import LLMClient
 from shared.clients.storage.client import StorageClient
+from shared.clients.tracing import flow_span
 from shared.models.conversation import Conversation
 from shared.models.enums import CalculationStatus, MessageKind, PromptType
 from shared.models.message import Message, NewMessage
@@ -112,6 +113,27 @@ class ProjectChatService:
         self._sinks = sinks
 
     async def run_turn(
+        self,
+        conversation: Conversation,
+        user_content: str,
+        config: RetrievalConfig,
+        *,
+        position_context: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        # One root span per turn so the agent's LangChain spans, the native ES query spans, and the
+        # LLMClient sink spans collapse into a single trace, grouped into the conversation's session.
+        assert conversation.project_uuid is not None  # project_chat conversations are project-scoped
+        with flow_span(
+            "project_chat.turn",
+            session_id=str(conversation.conversation_uuid),
+            attributes={"project.uuid": str(conversation.project_uuid)},
+        ):
+            async for event in self._run_turn(
+                conversation, user_content, config, position_context=position_context
+            ):
+                yield event
+
+    async def _run_turn(
         self,
         conversation: Conversation,
         user_content: str,

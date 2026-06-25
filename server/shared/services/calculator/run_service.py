@@ -23,6 +23,7 @@ from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.llm.client import LLMClient
+from shared.clients.tracing import flow_span
 from shared.config import settings
 from shared.models.conversation import Conversation
 from shared.models.enums import CalculationStatus, MessageKind, PromptType
@@ -170,6 +171,24 @@ class CalculatorRunService:
         return retrieve
 
     async def _run_segment(
+        self,
+        conversation: Conversation,
+        payload: Any,
+        prompts: Mapping[PromptType, PromptVersion],
+    ) -> AsyncIterator[dict[str, Any]]:
+        # One root span per streamed segment (the start, and each resume after a HITL gate) so the
+        # LangGraph node spans, native ES query spans, and LLMClient sink spans collapse into one
+        # trace; session.id groups every segment of a run into one Phoenix session.
+        assert conversation.project_uuid is not None  # ekt_calculator runs are project-scoped
+        with flow_span(
+            "ekt.calculation",
+            session_id=str(conversation.conversation_uuid),
+            attributes={"project.uuid": str(conversation.project_uuid)},
+        ):
+            async for event in self._stream_segment(conversation, payload, prompts):
+                yield event
+
+    async def _stream_segment(
         self,
         conversation: Conversation,
         payload: Any,

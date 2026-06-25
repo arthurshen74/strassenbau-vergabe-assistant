@@ -15,11 +15,19 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+from opentelemetry import trace
+from opentelemetry.trace.status import Status, StatusCode
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.llm.client import LLMClient
 from shared.clients.llm.events import Done, TextDelta, ToolCall, ToolCallsReady
+from shared.clients.tracing import flow_span
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.enums import PromptType
 from shared.models.prompt_version import PromptVersion
@@ -55,6 +63,8 @@ from shared.tools import ToolContext, catalog_for, tool_by_name
 
 logger = logging.getLogger(__name__)
 
+_tracer = trace.get_tracer(__name__)
+
 # Cap the tool-call <-> model-response loop so a misbehaving model can't stream forever.
 _MAX_TOOL_TURNS = 8
 
@@ -70,6 +80,13 @@ class Dispatcher:
         self._engine = engine
 
     async def dispatch(self, content: str) -> AsyncIterator[dict[str, Any]]:
+        # Root span so the multi-turn tool loop's LLM (sink) spans collapse into one trace. No
+        # session: the dispatcher is stateless and has no conversation to group under.
+        with flow_span("dispatch"):
+            async for event in self._dispatch(content):
+                yield event
+
+    async def _dispatch(self, content: str) -> AsyncIterator[dict[str, Any]]:
         prompt = await self._load_prompt()
         chat_messages: list[dict[str, Any]] = [
             {ROLE: ROLE_SYSTEM, CONTENT: prompt.system_prompt},
@@ -107,7 +124,7 @@ class Dispatcher:
                     EVENT: EVENT_FUNCTION_CALL,
                     DATA: {DATA_CALL_ID: call.id, DATA_NAME: call.name, DATA_ARGUMENTS: args},
                 }
-                success, data, errors = await self._execute(call.name, args)
+                success, data, errors = await self._execute_traced(call.name, args)
                 yield {
                     EVENT: EVENT_FUNCTION_CALL_OUTPUT,
                     DATA: {
@@ -139,6 +156,30 @@ class Dispatcher:
             }
 
         yield {EVENT: EVENT_DONE, DATA: {}}
+
+    async def _execute_traced(
+        self, name: str, args: dict[str, Any]
+    ) -> tuple[bool, dict[str, Any] | None, list[str] | None]:
+        # Dispatch tools are hand-rolled (not LangChain), so emit the TOOL span ourselves; it nests
+        # under the dispatch root span so tool calls are visible alongside the model's LLM spans.
+        with _tracer.start_as_current_span(f"tool.{name}") as span:
+            span.set_attribute(
+                SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.TOOL.value
+            )
+            span.set_attribute(SpanAttributes.TOOL_NAME, name)
+            span.set_attribute(SpanAttributes.INPUT_VALUE, json.dumps(args, default=str))
+            span.set_attribute(
+                SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+            )
+            success, data, errors = await self._execute(name, args)
+            output = data if success else {"errors": errors}
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, json.dumps(output, default=str))
+            span.set_attribute(
+                SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+            )
+            if not success:
+                span.set_status(Status(StatusCode.ERROR, "; ".join(errors or [])))
+            return success, data, errors
 
     async def _execute(
         self, name: str, args: dict[str, Any]

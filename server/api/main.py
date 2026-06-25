@@ -28,15 +28,21 @@ from shared.clients.factory import (
 )
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import build_storage_client
+from shared.clients.tracing import setup_phoenix_tracing
 from shared.config import settings
 from shared.db.engine import make_engine
 
 # Connection pool for the calculator's LangGraph Postgres checkpointer (HITL state across requests).
 CALCULATOR_CHECKPOINTER_POOL_SIZE = 10
 
+# Phoenix project the API process reports its traces under.
+PHOENIX_PROJECT_NAME = "roadbuilders-api"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Install OTLP tracing before any client is built so every LangChain/LangGraph run is captured.
+    setup_phoenix_tracing(PHOENIX_PROJECT_NAME)
     engine = make_engine(
         settings.database_url,
         pool_size=10,

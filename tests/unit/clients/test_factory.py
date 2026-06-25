@@ -8,7 +8,11 @@ from shared.clients.factory import (
     build_rerank_client,
     build_telemetry_sinks,
 )
-from shared.clients.llm.execution_log_sinks import DatabaseExecutionLogSink
+from shared.clients.llm.execution_log_sinks import (
+    CompositeExecutionLogSink,
+    DatabaseExecutionLogSink,
+)
+from shared.clients.llm.otel_sink import OTelExecutionLogSink
 from shared.clients.openrouter.usage import DatabaseUsageSink
 
 # httpx reads proxy env vars when constructing a default client; a SOCKS proxy in the ambient
@@ -39,7 +43,7 @@ def test_build_telemetry_sinks_wraps_the_engine() -> None:
     assert sinks.execution_log._engine is engine
 
 
-def test_clients_share_one_usage_sink_and_execution_log_sink() -> None:
+def test_clients_share_usage_sink_and_llm_tees_execution_log() -> None:
     engine = _StubEngine()
     sinks = build_telemetry_sinks(engine)
 
@@ -50,4 +54,10 @@ def test_clients_share_one_usage_sink_and_execution_log_sink() -> None:
     assert llm._usage_sink is sinks.usage
     assert embeddings._usage_sink is sinks.usage
     assert rerank._usage_sink is sinks.usage
-    assert llm._execution_log_sink is sinks.execution_log
+    # The LLM client tees its execution log to the shared DB sink AND an OTel/Phoenix sink, so its
+    # sink is a composite that still contains the shared DatabaseExecutionLogSink.
+    assert isinstance(llm._execution_log_sink, CompositeExecutionLogSink)
+    assert sinks.execution_log in llm._execution_log_sink._sinks
+    assert any(
+        isinstance(sink, OTelExecutionLogSink) for sink in llm._execution_log_sink._sinks
+    )

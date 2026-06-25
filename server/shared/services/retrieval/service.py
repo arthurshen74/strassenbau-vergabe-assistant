@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.embeddings import EmbeddingsClient
@@ -48,6 +49,8 @@ PREVIEW_LENGTH = 160
 
 # Hex characters of a uuid shown in a context source header.
 UUID_ABBREV_LENGTH = 8
+
+_tracer = trace.get_tracer(__name__)
 
 
 class RetrievalError(Exception):
@@ -89,6 +92,31 @@ class RetrievalService:
         )
 
     async def retrieve_context(
+        self,
+        question: str,
+        project_uuid: UUID,
+        config: RetrievalConfig,
+        *,
+        scope_override: dict[str, Any] | None = None,
+        conversation_uuid: UUID | None = None,
+    ) -> RetrievalContext:
+        # Own span so the native elasticsearch-py query spans nest under a labeled retrieval span:
+        # they cannot nest under the LangChain tool span (see shared.clients.tracing.flow_span).
+        with _tracer.start_as_current_span("retrieval.retrieve_context") as span:
+            span.set_attribute("retrieval.modality", config.modality.value)
+            span.set_attribute("retrieval.project_uuid", str(project_uuid))
+            span.set_attribute("retrieval.scoped", scope_override is not None)
+            result = await self._retrieve_context(
+                question,
+                project_uuid,
+                config,
+                scope_override=scope_override,
+                conversation_uuid=conversation_uuid,
+            )
+            span.set_attribute("retrieval.result_chunks", len(result.context))
+            return result
+
+    async def _retrieve_context(
         self,
         question: str,
         project_uuid: UUID,
