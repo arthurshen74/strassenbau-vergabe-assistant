@@ -306,6 +306,78 @@ class Kalkulator:
 
 
 # --------------------------------------------------------------------------- #
+# Machine catalog (master data) — operation taxonomy + a property-bag fleet.
+# All domain data (editable without recompile); only the engine vocabularies
+# (AufloesungsMethode, Kostenart) stay compiled.
+# --------------------------------------------------------------------------- #
+class Betriebskategorie(BaseModel):
+    """A grouping of operation modes, e.g. 'fraesen', 'verdichtung'. Editable data."""
+    model_config = ConfigDict(extra="forbid")
+    code: str
+    bezeichnung: str
+    beschreibung: str | None = None
+
+
+class Betriebsart(BaseModel):
+    """One operation mode, e.g. 'feinfraesen' under 'fraesen'. Selects a machine's
+    productivity profile. Referenced by string code; editable data, no recompile."""
+    model_config = ConfigDict(extra="forbid")
+    code: str
+    bezeichnung: str
+    kategorie_code: str                        # FK -> Betriebskategorie.code (validated at load)
+    einheit: str | None = None                 # default productivity unit hint: "m2/h" | "m/h"
+    beschreibung: str | None = None
+
+
+class MaschinenWert(BaseModel):
+    """One machine property: value (number / text / bool) + unit. Numeric properties
+    bound to a cost variable bridge into the calc; text/bool are descriptive/selection."""
+    model_config = ConfigDict(extra="forbid")
+    wert: bool | Decimal | str
+    einheit: str | None = None
+    beleg: str | None = None                   # e.g. datasheet reference
+
+
+class Leistungsprofil(BaseModel):
+    """Productivity for one Betriebsart (+ optional profile-specific property overrides,
+    e.g. higher wear on a harder operation)."""
+    model_config = ConfigDict(extra="forbid")
+    betriebsart_code: str                      # FK -> Betriebsart.code
+    leistung: Decimal
+    einheit: str                               # may differ per profile (m2/h vs m/h)
+    eigenschaften: dict[str, MaschinenWert] = Field(default_factory=dict)
+
+
+class Maschine(BaseModel):
+    """A concrete machine that can fill an Ausführungsart slot. The `eigenschaften`
+    property bag holds operating cost, fuel, mob/demob and any added spec; the
+    `leistungsprofile` give per-Betriebsart productivity."""
+    model_config = ConfigDict(extra="forbid")
+    id: UUID = Field(default_factory=uuid4)
+    code: str
+    hersteller: str
+    modell: str
+    ausfuehrungsart_code: str                  # which slot it fills (FK -> Ausführungsart.code)
+    eigenschaften: dict[str, MaschinenWert] = Field(default_factory=dict)
+    leistungsprofile: list[Leistungsprofil] = Field(default_factory=list)
+
+    def eigenschaft(self, key: str) -> MaschinenWert | None:
+        return self.eigenschaften.get(key)
+
+    def leistung_fuer(self, betriebsart_code: str) -> Leistungsprofil | None:
+        return next((p for p in self.leistungsprofile if p.betriebsart_code == betriebsart_code), None)
+
+
+class MaschinenBindung(BaseModel):
+    """Operation-specific binding (on the Vorgang): which catalog cost variables a bound
+    machine's properties fill, and which productivity profile feeds the duration."""
+    model_config = ConfigDict(extra="forbid")
+    eigenschaften: dict[str, str] = Field(default_factory=dict)   # cost_variable_name -> machine property key
+    leistung_variable: str | None = None                          # cost_variable fed by leistung_fuer(betriebsart_code)
+    betriebsart_code: str | None = None                           # which profile to read
+
+
+# --------------------------------------------------------------------------- #
 # Catalog hierarchy (Vorgang now references cost variables, not embedded classes)
 # --------------------------------------------------------------------------- #
 class Ausführungsart(BaseModel):
@@ -322,6 +394,11 @@ class Vorgang(BaseModel):
     code: str
     name: str
     ausfuehrungsart: Ausführungsart | None = None
+    # Machine-selection seam: the operation's productivity profile + the cost-variable
+    # mapping a bound machine fills (populated when wiring the fleet into the recipes).
+    betriebsart_code: str | None = None
+    leistung_variable: str | None = None
+    maschinen_bindung: MaschinenBindung | None = None
     # Kostenart -> name of the variable that yields that cost line
     kostenvariablen: dict[Kostenart, str] = Field(default_factory=dict)
 

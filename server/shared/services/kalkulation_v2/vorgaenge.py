@@ -122,4 +122,33 @@ VORGAENGE: dict[str, Vorgang] = {
     "ANSPRITZEN": Vorgang(code="V_ANSPRITZEN", name="Bitumenemulsion aufsprühen (Schichtenverbund)",
         ausfuehrungsart=AA["SPRITZGERAET"],
         kostenvariablen={KA.MATERIAL: "mk_bindemittel", KA.MASCHINE: "mk_anspritzen", KA.LOHN: "lohn_anspritzen"}),
+    # --- Feinfräsen: Kaltfräse, eigene (langsamere) Leistung ---
+    "FEINFRAESEN": Vorgang(code="V_FEINFRAESEN", name="Asphalt feinfräsen",
+        ausfuehrungsart=AA["KALTFRAESE"],
+        betriebsart_code="feinfraesen", leistung_variable="feinfraese_leistung_m2_pro_h",
+        kostenvariablen={KA.MASCHINE: "mk_feinfraese", KA.LOHN: "lohn_feinfraese",
+                         KA.ENTSORGUNG: "ent_fraesgut", KA.ABTRANSPORT: "trans_fraesgut"}),
+    # --- Asphalt-Handeinbau (Kleinflächen): Kolonne + kleine Walze ---
+    "ASPHALT_HAND": Vorgang(code="V_ASPHALT_HAND", name="Asphaltschicht im Handeinbau einbauen",
+        ausfuehrungsart=AA["ASPHALT_HAND"],
+        betriebsart_code="asphalt_handeinbau", leistung_variable="handeinbau_leistung_m2_pro_h",
+        kostenvariablen={KA.MATERIAL: "materialkosten_asphalt", KA.MASCHINE: "mk_handeinbau",
+                         KA.LOHN: "lohn_handeinbau", KA.ANTRANSPORT: "trans_asphalt"}),
+    # --- Gussasphalt (MA): Fertiger/Kocher, keine Verdichtung ---
+    "GUSSASPHALT": Vorgang(code="V_GUSSASPHALT", name="Gussasphaltschicht einbauen",
+        ausfuehrungsart=AA["GUSSASPHALT"],
+        betriebsart_code="gussasphalt_einbau", leistung_variable="gussasphalt_leistung_m2_pro_h",
+        kostenvariablen={KA.MATERIAL: "mk_gussasphalt_material", KA.MASCHINE: "mk_gussasphalt",
+                         KA.LOHN: "lohn_gussasphalt", KA.ANTRANSPORT: "trans_asphalt"}),
+    # --- DSK (Dünnschichtbelag im Kalteinbau / Slurry) ---
+    "DSK": Vorgang(code="V_DSK", name="Dünnschichtbelag (DSK) einbauen",
+        ausfuehrungsart=AA["DSK"],
+        betriebsart_code="dsk_einbau", leistung_variable="dsk_leistung_m2_pro_h",
+        kostenvariablen={KA.MATERIAL: "mk_dsk_material", KA.MASCHINE: "mk_dsk", KA.LOHN: "lohn_dsk"}),
+    # --- Randabdichtung/Nahtabdichtung (Dichtband/-masse), kl. Gerät + Kolonne ---
+    "RANDABDICHTUNG": Vorgang(code="V_RANDABDICHTUNG", name="Randabdichtung/Nahtabdichtung herstellen",
+        ausfuehrungsart=AA["FUGENGERAET"],
+        betriebsart_code="randabdichtung", leistung_variable="randabdichtung_leistung_m_pro_h",
+        kostenvariablen={KA.MATERIAL: "mk_randabdichtung_material", KA.MASCHINE: "mk_randabdichtung",
+                         KA.LOHN: "lohn_randabdichtung"}),
 }

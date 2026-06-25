@@ -29,4 +29,6 @@ AUSFUEHRUNGSARTEN: dict[str, Ausführungsart] = {
     "FUGENGERAET": Ausführungsart(code="AA_FUGENGERAET", name="maschinell – Fugenvergussgerät", geraetebezug="Fugenkocher/-vergussgerät"),
     "WALZE":        Ausführungsart(code="AA_WALZE", name="maschinell – Walze", geraetebezug="Walze"),
     "ASPHALT_HAND": Ausführungsart(code="AA_ASPHALT_HAND", name="manuell – Handeinbau + Walze", geraetebezug="Kolonne; Walze"),
+    "GUSSASPHALT": Ausführungsart(code="AA_GUSSASPHALT", name="maschinell – Gussasphalt-Fertiger/Bohle + Kocher", geraetebezug="Gussasphaltfertiger; Kocher"),
+    "DSK": Ausführungsart(code="AA_DSK", name="maschinell – DSK-/Slurry-Einbaumaschine", geraetebezug="DSK-Fertiger"),
 }

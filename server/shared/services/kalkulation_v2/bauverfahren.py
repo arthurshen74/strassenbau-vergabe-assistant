@@ -56,4 +56,11 @@ BAUVERFAHREN: dict[str, Bauverfahren] = {
     "BV_ABSTUMPFEN":      _bv("BV_ABSTUMPFEN",      "Abstumpfung aufbringen und einwalzen", "ABSTUMPFEN"),
     "BV_NAHT_AUFWEITEN":  _bv("BV_NAHT_AUFWEITEN",  "Naht/Anschluss zur Fuge aufweiten", "NAHT_AUFWEITEN"),
     "BV_FUGENFUELLUNG":   _bv("BV_FUGENFUELLUNG",   "Fugenfüllung herstellen (Fugenmasse N2)", "FUGENFUELLUNG"),
+    # --- gap closers (LV coverage): Feinfräsen, Handeinbau, Gussasphalt ---
+    "BV_FEINFRAESEN":   _bv("BV_FEINFRAESEN",   "Asphalt feinfräsen, Kaltfräse (Präzision)", "FEINFRAESEN"),
+    "BV_ASPHALT_HAND":  _bv("BV_ASPHALT_HAND",  "Asphaltschicht im Handeinbau (Kleinflächen)", "ASPHALT_HAND"),
+    "BV_GUSSASPHALT":   _bv("BV_GUSSASPHALT",   "Gussasphaltschicht einbauen (Fertiger/Kocher)", "GUSSASPHALT"),
+    # --- secondary gap closers: DSK, Randabdichtung (STS reuses the FSS recipes) ---
+    "BV_DSK":           _bv("BV_DSK",           "Dünnschichtbelag im Kalteinbau (DSK)", "DSK"),
+    "BV_RANDABDICHTUNG": _bv("BV_RANDABDICHTUNG", "Randabdichtung/Nahtabdichtung herstellen", "RANDABDICHTUNG"),
 }

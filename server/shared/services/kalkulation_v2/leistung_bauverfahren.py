@@ -54,6 +54,14 @@ LEISTUNG_BAUVERFAHREN: dict[str, list[str]] = {
     "L_NAHT_QUER_PMB":           ["BV_NAHT"],
     "L_NAHT_AUFWEITEN":          ["BV_NAHT_AUFWEITEN"],
     "L_FUGENFUELLUNG_N2":        ["BV_FUGENFUELLUNG"],
+    # --- gap closers (LV coverage) ---
+    "L_FEINFRAESEN":             ["BV_FEINFRAESEN"],
+    "L_ASPHALT_HAND":            ["BV_ASPHALT_HAND"],
+    "L_GUSSASPHALT_DECK":        ["BV_GUSSASPHALT"],
+    # --- secondary gap closers (STS reuses the two FSS recipes) ---
+    "L_STS":                     ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
+    "L_DSK":                     ["BV_DSK"],
+    "L_RANDABDICHTUNG":          ["BV_RANDABDICHTUNG"],
 }
 
 

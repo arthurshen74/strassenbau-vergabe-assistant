@@ -13,7 +13,7 @@ from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
 from shared.services.kalkulation_v2.leistung_bauverfahren import waehle_bauverfahren
 from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
 from shared.services.kalkulation_v2.model import Kalkulator
-from shared.services.kalkulation_v2.positionen import POSITIONEN
+from shared.services.kalkulation_v2.positionen import POSITIONEN, P
 from shared.services.kalkulation_v2.store import FORMELN, KATALOG, GEOM, kalkuliere
 from shared.services.kalkulation_v2.worklist import BlattArt, benoetigte_variablen
 
@@ -87,3 +87,37 @@ def test_benoetigte_variablen_excludes_intermediates_and_booked_geometry() -> No
     assert "flaeche_m2" not in namen
     assert "volumen_m3" not in namen
     assert "schichtdicke_m" not in namen
+
+
+def test_gap_closer_leistungen_classify_and_compute() -> None:
+    """The LV-coverage additions (Feinfräsen, Handeinbau, Gussasphalt) are valid
+    Leistungen with a recipe and produce a positive EKT."""
+    cases = [
+        P("T1", "L_FEINFRAESEN", "1000", tiefe_cm="1", fraesgut_klasse="1"),
+        P("T2", "L_ASPHALT_HAND", "200", einbaudicke_cm="4"),
+        P("T3", "L_GUSSASPHALT_DECK", "300", einbaudicke_cm="3"),
+    ]
+    for pos in cases:
+        assert pos.leistung_key in LEISTUNGEN
+        assert waehle_bauverfahren(pos.leistung_key) in BAUVERFAHREN
+        assert kalkuliere(pos)["ekt_eur"] > 0
+
+
+def test_feinfraesen_is_slower_than_regelfraesen() -> None:
+    # Same shallow depth: the precision fine-mill is much slower -> a higher unit price.
+    fein = kalkuliere(P("Tf", "L_FEINFRAESEN", "1000", tiefe_cm="2", fraesgut_klasse="1"))["ep_eur"]
+    regel = kalkuliere(
+        P("Tr", "L_FRAESEN_1_25", "1000", tiefe_cm="2", erschwernisfaktor="1.0", fraesgut_klasse="1")
+    )["ep_eur"]
+    assert fein > regel
+
+
+def test_secondary_gap_leistungen_classify_and_compute() -> None:
+    """STS (reuses FSS recipes, multi-candidate), DSK, Randabdichtung."""
+    sts = P("S1", "L_STS", "100", baustoff="STS_0_32", materialpreis_eur_pro_t="18.50",
+            entfernung_km="14", schichtdicke_m="0.20", ev2_ziel="100", anzahl_arbeiter="3")
+    assert waehle_bauverfahren("L_STS") == "BV_FSS_GRADER"          # default
+    assert "BV_FSS_FERTIGER" in BAUVERFAHREN and waehle_bauverfahren("L_STS", "BV_FSS_FERTIGER")
+    for pos in (sts, P("D1", "L_DSK", "2000"), P("R1", "L_RANDABDICHTUNG", "500")):
+        assert pos.leistung_key in LEISTUNGEN
+        assert kalkuliere(pos)["ekt_eur"] > 0

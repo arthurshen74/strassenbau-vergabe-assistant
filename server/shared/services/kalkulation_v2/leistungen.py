@@ -60,4 +60,12 @@ LEISTUNGEN: dict[str, Leistung] = {l.code: l for l in [
     L("L_NAHT_QUER_PMB", "Naht in Asphaltschicht herstellen (Quernaht, PmB heiß)", "m", "223113907920199"),
     L("L_NAHT_AUFWEITEN", "Naht/Anschluss zur Fuge aufweiten und säubern (schneiden)", "m", "223113937213101"),
     L("L_FUGENFUELLUNG_N2", "Fugenfüllung Querfuge herstellen (Fugenmasse N2)", "m", "22311394221131001"),
+    # --- gap closers (LV coverage): Feinfräsen, Handeinbau, Gussasphalt ---
+    L("L_FEINFRAESEN", "Asphalt feinfräsen (Präzisionsfräsung, Oberfläche)", "m2", "22311300599909010"),
+    L("L_ASPHALT_HAND", "Asphaltschicht im Handeinbau herstellen (Kleinflächen)", "m2", "223113219999010"),
+    L("L_GUSSASPHALT_DECK", "Gussasphaltdeckschicht MA 8 S herstellen", "m2", "22311334899900502"),
+    # --- secondary gap closers: STS, DSK, Randabdichtung ---
+    L("L_STS", "Schottertragschicht 0/32 herstellen (Ev2 nach LV)", "m3", "223113029910"),
+    L("L_DSK", "Dünnschichtbelag im Kalteinbau DSK 5 herstellen", "m2", "2231133899901"),
+    L("L_RANDABDICHTUNG", "Randabdichtung/Nahtabdichtung herstellen (Fugenband/Randmasse)", "m", "223113942290"),
 ]}

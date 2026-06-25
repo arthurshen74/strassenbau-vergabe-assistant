@@ -234,3 +234,46 @@ formel("mk_fugenmasse", "fugen_menge_t * fugenmasse_preis_eur_pro_t", "€")
 formel("fugenfuellung_stunden", "laenge_m / fugenfuellung_leistung_m_pro_h", "h")
 formel("mk_fugenfuellung", "fugenfuellung_stunden * (fugen_geraet_stundensatz_eur + fugen_geraet_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
 formel("lohn_fugenfuellung", "fugenfuellung_stunden * stundenlohn_eur * 2", "€")
+
+
+# --------------------------------------------------------------------------- #
+# Feinfräsen: Kaltfräse, but a precision fine-mill is much slower than regelfräsen
+# at the same shallow depth -> a separate, capped productivity. Fräsgut disposal +
+# transport reuse the fräsen lines (scaled by the shallow tiefe_cm).
+formel("feinfraese_leistung_m2_pro_h", "min(250, 1000 / tiefe_cm) / erschwernisfaktor", "m²/h")
+formel("feinfraese_stunden", "flaeche_m2 / feinfraese_leistung_m2_pro_h", "h")
+formel("mk_feinfraese", "feinfraese_stunden * (kaltfraese_stundensatz_eur + kaltfraese_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("lohn_feinfraese", "feinfraese_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
+
+
+# --------------------------------------------------------------------------- #
+# Asphalt-Handeinbau (Kleinflächen): manual crew + small Walze; material/tonnage and
+# transport reuse the asphalt lines (menge_t from flaeche × einbaudicke × Dichte).
+formel("handeinbau_stunden", "flaeche_m2 / handeinbau_leistung_m2_pro_h", "h")
+formel("mk_handeinbau", "handeinbau_stunden * (walze_stundensatz_eur + walze_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("lohn_handeinbau", "handeinbau_stunden * stundenlohn_eur * handeinbau_kolonne", "€")
+
+
+# --------------------------------------------------------------------------- #
+# Gussasphalt (MA 8/11 S): fließfähig, KEINE Walzverdichtung; Bohle/Kübel + Kocher.
+# Abstreuen wird separat als eigene Position abgerechnet (L_ABSTUMPFUNG).
+formel("gussasphalt_stunden", "flaeche_m2 / gussasphalt_leistung_m2_pro_h", "h")
+formel("mk_gussasphalt_material", "menge_t * gussasphalt_preis_eur_pro_t", "€")
+formel("mk_gussasphalt", "gussasphalt_stunden * (gussasphalt_geraet_stundensatz_eur + gussasphalt_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("lohn_gussasphalt", "gussasphalt_stunden * stundenlohn_eur * gussasphalt_kolonne", "€")
+
+
+# --------------------------------------------------------------------------- #
+# DSK (Dünnschichtbelag im Kalteinbau / Slurry): material priced per m², fast paver.
+formel("dsk_stunden", "flaeche_m2 / dsk_leistung_m2_pro_h", "h")
+formel("mk_dsk_material", "flaeche_m2 * dsk_material_eur_pro_m2", "€")
+formel("mk_dsk", "dsk_stunden * (dsk_geraet_stundensatz_eur + dsk_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("lohn_dsk", "dsk_stunden * stundenlohn_eur * dsk_kolonne", "€")
+
+
+# --------------------------------------------------------------------------- #
+# Randabdichtung/Nahtabdichtung: sealing tape/mass per m + clean/apply crew.
+formel("randabdichtung_stunden", "laenge_m / randabdichtung_leistung_m_pro_h", "h")
+formel("mk_randabdichtung_material", "laenge_m * randabdichtung_material_eur_pro_m", "€")
+formel("mk_randabdichtung", "randabdichtung_stunden * (randabdichtung_geraet_stundensatz_eur + randabdichtung_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
+formel("lohn_randabdichtung", "randabdichtung_stunden * stundenlohn_eur * 2", "€")

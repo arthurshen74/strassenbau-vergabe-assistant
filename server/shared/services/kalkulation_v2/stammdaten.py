@@ -129,6 +129,30 @@ konst("fugenmasse_dichte_t_pro_m3", "1.10", "t/m³")
 konst("fugenfuellung_leistung_m_pro_h", "80", "m/h")
 konst("fugen_geraet_stundensatz_eur", "30", "€/h"); konst("fugen_geraet_l_pro_h", "3", "l/h")
 
+# --- Asphalt-Handeinbau (Kleinflächen): langsame Kolonne + kleine Walze (PLACEHOLDERS) ---
+konst("handeinbau_leistung_m2_pro_h", "40", "m²/h", "Einbauleistung Handkolonne (Kleinflächen)")
+konst("handeinbau_kolonne", "5", "Pers.", "Einbaukolonne Handeinbau")
+
+# --- Gussasphalt (MA, fließfähig, KEINE Verdichtung; Abstreuen separat) — PLACEHOLDERS ---
+konst("gussasphalt_preis_eur_pro_t", "120.00", "€/t", "Gussasphaltmischgut MA 8/11 S")
+konst("gussasphalt_leistung_m2_pro_h", "80", "m²/h", "Einbauleistung Gussasphalt (Bohle/Kübel)")
+konst("gussasphalt_geraet_stundensatz_eur", "150", "€/h", "Gussasphaltfertiger/Kocher inkl. Verschleiß")
+konst("gussasphalt_l_pro_h", "15", "l/h")
+konst("gussasphalt_kolonne", "5", "Pers.", "Einbaukolonne Gussasphalt")
+
+# --- DSK (Dünnschichtbelag im Kalteinbau / Slurry): Material je m², schnelle Maschine — PLACEHOLDERS ---
+konst("dsk_material_eur_pro_m2", "4.50", "€/m²", "DSK-Mischgut (Emulsion + Splitt) je m²")
+konst("dsk_leistung_m2_pro_h", "2000", "m²/h", "Einbauleistung DSK-/Slurry-Fertiger")
+konst("dsk_geraet_stundensatz_eur", "180", "€/h", "DSK-Fertiger inkl. Verschleiß")
+konst("dsk_l_pro_h", "20", "l/h")
+konst("dsk_kolonne", "4", "Pers.", "Einbaukolonne DSK")
+
+# --- Randabdichtung/Nahtabdichtung: Dichtband/-masse je m, kleine Kolonne + Gerät — PLACEHOLDERS ---
+konst("randabdichtung_material_eur_pro_m", "3.00", "€/m", "Fugenband/Randmasse je m")
+konst("randabdichtung_leistung_m_pro_h", "60", "m/h", "Abdichtleistung (Reinigen + Anbringen)")
+konst("randabdichtung_geraet_stundensatz_eur", "20", "€/h", "Applikator/Heizgerät")
+konst("randabdichtung_l_pro_h", "2", "l/h")
+
 # --- master-data bridges (pull from the chosen Baustoff) ---
 stammdaten("dichte_t_pro_m3", "baustoff.rohdichte_t_pro_m3", "t/m³", "Rohdichte Baustoff")
 stammdaten("verdichtungsfaktor", "baustoff.verdichtungsfaktor", "-", "Verdichtungsfaktor")
