@@ -70,6 +70,8 @@ class CalculationResume(BaseModel):
 
     leistung_key: str | None = None
     bauverfahren_key: str | None = None
+    maschinen: dict[str, str] | None = None        # Ausführungsart slot code -> Maschine code
+    baustoff_code: str | None = None
     overrides: dict[str, Any] | None = None
     cancel: bool | None = None
 

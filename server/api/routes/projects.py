@@ -131,6 +131,18 @@ async def get_project(
     return found
 
 
+@router.delete("/{project_uuid}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_uuid: UUID,
+    service: ProjectService = Depends(get_deletable_project_service),
+) -> None:
+    """Delete a project and everything under it: documents (with their thumbnails, source lines,
+    LV items, and ingest jobs), conversations, object-storage blobs, and Elasticsearch chunks."""
+    deleted = await service.delete_project(project_uuid)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+
+
 @router.get("/{project_uuid}/documents", response_model=list[DocumentRead])
 async def list_documents(
     project_uuid: UUID,

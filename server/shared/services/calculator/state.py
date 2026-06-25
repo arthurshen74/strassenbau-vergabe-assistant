@@ -131,6 +131,16 @@ class PositionKalkulationState(TypedDict, total=False):
     bauverfahren_key: str
     abgebrochen: bool                        # the Kalkulator cancelled at Gate A
 
+    # --- resources (machines + material), bound after the recipe is chosen ---
+    gewaehlte_maschinen: dict                # ausfuehrungsart_code -> Maschine code
+    maschinen_default: dict                  # ausfuehrungsart_code -> right-sized default code
+    maschinen_kandidaten: dict               # ausfuehrungsart_code -> [{code, hersteller, modell}]
+    maschinen_werte: dict                    # name -> wert_to_json (machine-sourced cost/productivity)
+    baustoff_code: str | None
+    # BM25 match from the LV text -> Baustoff catalog (pre-fills the Gate A picker).
+    # {code, name, konfidenz, auto, treffer:[{code,name,score}]}; None if the recipe needs none.
+    baustoff_vorschlag: dict | None
+
     # --- resolution (Gate B) ---
     chat_werte: dict                         # name -> wert_to_json: values pinned from chat
     benoetigte: list[dict]                   # VariablenBlatt.model_dump() worklist leaves

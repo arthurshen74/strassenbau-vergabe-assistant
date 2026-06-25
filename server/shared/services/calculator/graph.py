@@ -3,7 +3,8 @@
 
 Topology (ARCHITECTURE §7), per position:
   launch -> extract_chat_values -> classify_leistung
-  -> method_review (Gate A interrupt: confirm Leistung, select Bauverfahren)
+  -> method_review (Gate A interrupt: confirm Leistung, select Bauverfahren + resources)
+  -> bind_resources (auto-select a machine per slot + baustoff)
   -> derive_required_variables -> resolve_variables
   -> variable_review (Gate B interrupt: accept/override every leaf, tiered)
   -> compute (deterministic kalkuliere) -> render_output
@@ -57,8 +58,16 @@ from shared.services.calculator.state import (
     wert_from_json,
     wert_to_json,
 )
+from shared.services.kalkulation_v2.ausfuehrungsarten import AUSFUEHRUNGSARTEN
+from shared.services.kalkulation_v2.baustoff_suche import suche_baustoff
 from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
+from shared.services.kalkulation_v2.binden import rezept_maschinen_werte
 from shared.services.kalkulation_v2.kontext_variablen import KONTEXT_VARIABLEN
+from shared.services.kalkulation_v2.maschinen import (
+    MASCHINEN,
+    maschinen_fuer,
+    maschinen_sortiert,
+)
 from shared.services.kalkulation_v2.leistung_bauverfahren import kandidaten, waehle_bauverfahren
 from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
 from shared.services.kalkulation_v2.materialien import BAUSTOFFE
@@ -76,7 +85,11 @@ from shared.services.kalkulation_v2.store import (
     STICHTAG,
     kalkuliere_kontext,
 )
-from shared.services.kalkulation_v2.worklist import BlattArt, benoetigte_variablen
+from shared.services.kalkulation_v2.worklist import (
+    BlattArt,
+    benoetigte_variablen,
+    braucht_baustoff,
+)
 from shared.services.retrieval.config import RetrievalConfig
 
 # Async `query -> formatted evidence snippets` callable; None runs without retrieval.
@@ -113,6 +126,29 @@ CHAT_KATALOG = [{"name": n, "bezeichnung": d.bezeichnung, "einheit": d.einheit}
 # correct the classification and pick a recipe even when the position did not classify cleanly.
 LEISTUNG_KATALOG = [{"leistung_key": k, "name": v.name, "kandidaten": kandidaten(k)}
                     for k, v in LEISTUNGEN.items()]
+
+# Per-Bauverfahren machine slots + candidates, so Gate A can offer a machine picker per slot once a
+# recipe is chosen. Only slots with >=1 catalog machine are pickable. Baustoff catalog for the
+# material picker (offered optionally; most positions need none).
+_AA_BY_CODE = {a.code: a for a in AUSFUEHRUNGSARTEN.values()}
+
+
+def _bv_slots(bauverfahren) -> list[str]:
+    return list(dict.fromkeys(vg.ausfuehrungsart.code for vg in bauverfahren.vorgaenge
+                              if vg.ausfuehrungsart is not None and maschinen_fuer(vg.ausfuehrungsart.code)))
+
+
+BAUVERFAHREN_RESSOURCEN = {
+    bv_code: [
+        {"slot": slot, "geraet": _AA_BY_CODE[slot].name,
+         "kandidaten": [{"code": m.code, "hersteller": m.hersteller, "modell": m.modell}
+                        for m in maschinen_fuer(slot)]}
+        for slot in _bv_slots(bv)
+    ]
+    for bv_code, bv in BAUVERFAHREN.items()
+}
+BAUSTOFF_KATALOG = [{"code": b.code, "name": b.name, "kategorie": b.kategorie}
+                    for b in BAUSTOFFE.values()]
 
 # First numeric token in a verbatim read, e.g. "ca. 0,30" or "über 3 bis 4,5 cm".
 _NUMERIC_TOKEN = re.compile(r"-?\d+(?:[.,]\d+)?")
@@ -176,11 +212,6 @@ def _stammdaten_wert(defn: VariableDefinition, position: dict) -> Decimal | None
                 obj = getattr(obj, attr, None)
             return obj if isinstance(obj, Decimal) else None
     return None
-
-
-def _stammdaten_bag(position: dict) -> dict[str, object]:
-    code = position.get("baustoff_code")
-    return {"baustoff": BAUSTOFFE[code]} if code and code in BAUSTOFFE else {}
 
 
 def _coerce_decimal(value: object) -> Decimal | None:
@@ -247,8 +278,34 @@ def _catalog_vorschlag(name: str, art: str, hochrisiko: bool, chat_werte: dict,
     return None
 
 
+def _slot_betriebsart(bauverfahren, slot: str) -> str | None:
+    """The Betriebsart of the recipe's first Vorgang on a slot (its productivity profile)."""
+    return next((vg.betriebsart_code for vg in bauverfahren.vorgaenge
+                 if vg.ausfuehrungsart is not None and vg.ausfuehrungsart.code == slot
+                 and vg.betriebsart_code), None)
+
+
+def _maschinen_defaults(bv_key: str, menge: Decimal) -> dict[str, str]:
+    """Right-sized default machine per slot for this recipe + job size: the smallest machine
+    whose capacity clears the job within the target deployment window
+    (settings.calculator_maschine_zielstunden). Calibrated for the recipe's primary machine
+    (whose productivity matches the booked geometry); secondary slots are approximate but still
+    scale with job size. Falls back to fleet order when the target is unset."""
+    bv = BAUVERFAHREN[bv_key]
+    ziel = Decimal(str(settings.calculator_maschine_zielstunden))
+    bedarf = (menge / ziel) if ziel > 0 else None
+    out: dict[str, str] = {}
+    for slot in dict.fromkeys(vg.ausfuehrungsart.code for vg in bv.vorgaenge
+                              if vg.ausfuehrungsart is not None):
+        sortiert = maschinen_sortiert(slot, betriebsart_code=_slot_betriebsart(bv, slot),
+                                      bedarf_pro_stunde=bedarf)
+        if sortiert:
+            out[slot] = sortiert[0].code
+    return out
+
+
 def _route_after_method(state: PositionKalkulationState) -> str:
-    return END if state.get("abgebrochen") else "derive_required_variables"
+    return END if state.get("abgebrochen") else "bind_resources"
 
 
 def _nachweis(ctx: Kalkulationskontext) -> list[NachweisZeile]:
@@ -283,6 +340,24 @@ def build_graph(
     (defaults to an in-process MemorySaver; the conversation service injects Postgres)."""
     prompts = prompts or {}
     kalk = Kalkulator(KATALOG, FORMELN)
+
+    def _baustoff_match(kandidaten_bv: list[str], pos: dict) -> dict | None:
+        """BM25-match the LV text to a Baustoff, but only for recipes that consume one.
+        Returns the Gate A pre-fill (top hit + alternates + auto flag), or None if the
+        default recipe needs no Baustoff. `auto` gates the threshold; below it the picker
+        surfaces the hit for confirmation (HITL)."""
+        if not kandidaten_bv or not braucht_baustoff(BAUVERFAHREN[kandidaten_bv[0]], kalk):
+            return None
+        match = suche_baustoff(f"{pos.get('kurztext') or ''} {pos.get('langtext') or ''}")
+        top = match.top
+        auto = top is not None and match.konfidenz >= settings.calculator_baustoff_match_threshold
+        return {
+            "code": top.code if top else None,
+            "name": top.name if top else None,
+            "konfidenz": match.konfidenz,
+            "auto": auto,
+            "treffer": [t.model_dump() for t in match.treffer],
+        }
 
     async def retrieve(query: str) -> list[str]:
         return await retriever(query) if retriever is not None else []
@@ -404,6 +479,19 @@ def build_graph(
                      "bauverfahren_kandidaten": kand, "reasoning_log": log}
         if leistung_key not in LEISTUNGEN:
             out["warnungen"] = [f"Leistung '{leistung_key}' nicht im Katalog — in Gate A korrigieren."]
+        if kand:                                   # right-sized machine default per slot (Gate A pre-fill)
+            out["maschinen_default"] = _maschinen_defaults(kand[0], Decimal(str(pos["menge"])))
+        vorschlag = _baustoff_match(kand, pos)
+        if vorschlag is not None:
+            out["baustoff_vorschlag"] = vorschlag
+            if vorschlag["code"]:
+                log.append(reason("classify_leistung", REASONING_NARRATION,
+                                  f"Baustoff erkannt (BM25): {vorschlag['name']} — Konfidenz "
+                                  f"{vorschlag['konfidenz']:.2f}, "
+                                  f"{'automatisch' if vorschlag['auto'] else 'zur Prüfung in Gate A'}."))
+            else:
+                log.append(reason("classify_leistung", REASONING_NARRATION,
+                                  "Rezept benötigt Baustoff, kein eindeutiger Treffer — Auswahl in Gate A."))
         return out
 
     def method_review(state: PositionKalkulationState) -> dict:
@@ -419,6 +507,10 @@ def build_graph(
             "bauverfahren_kandidaten": kand,
             "bauverfahren_default": kand[0] if kand else None,
             "katalog": LEISTUNG_KATALOG,
+            "bauverfahren_ressourcen": BAUVERFAHREN_RESSOURCEN,
+            "baustoff_katalog": BAUSTOFF_KATALOG,
+            "baustoff_vorschlag": state.get("baustoff_vorschlag"),
+            "maschinen_default": state.get("maschinen_default") or {},
         }) or {}
         if antwort.get("cancel"):
             return {"abgebrochen": True,
@@ -428,9 +520,17 @@ def build_graph(
         if confirmed_lk not in LEISTUNGEN:
             raise ValueError(f"unbekannte Leistung in Gate A: {confirmed_lk!r}")
         bv = waehle_bauverfahren(confirmed_lk, antwort.get("bauverfahren_key"))
+        # Material: an explicit Gate A pick wins; else an above-threshold BM25 auto-match applies;
+        # else whatever the LV position already carried.
+        vorschlag = state.get("baustoff_vorschlag") or {}
+        auto_baustoff = vorschlag.get("code") if vorschlag.get("auto") else None
         out = {
             "leistung_key": confirmed_lk,
             "bauverfahren_key": bv,
+            # Resource picks (machines per slot, material) — bind_resources auto-fills the rest.
+            "gewaehlte_maschinen": antwort.get("maschinen") or {},
+            "baustoff_code": (antwort.get("baustoff_code") or auto_baustoff
+                              or state["position"].get("baustoff_code")),
             "reasoning_log": [reason("method_review", REASONING_NARRATION,
                                      f"Leistung {confirmed_lk} bestätigt; Bauverfahren {bv} gewählt.")],
         }
@@ -438,6 +538,45 @@ def build_graph(
             out["leistung_name"] = LEISTUNGEN[confirmed_lk].name
             out["bauverfahren_kandidaten"] = kandidaten(confirmed_lk)
         return out
+
+    def bind_resources(state: PositionKalkulationState) -> dict:
+        """After the recipe is chosen: attempt to select a machine per Ausführungsart slot
+        (honouring a Gate A pick, else the default candidate) and read its rates + productivity
+        into `maschinen_werte`. An unbound slot falls to the org-default / Gate B. Material is
+        carried as `baustoff_code` and attached at compute."""
+        bv = BAUVERFAHREN[state["bauverfahren_key"]]
+        picks = state.get("gewaehlte_maschinen") or {}
+        menge = Decimal(str(state["position"]["menge"]))
+        ziel = Decimal(str(settings.calculator_maschine_zielstunden))
+        bedarf = (menge / ziel) if ziel > 0 else None
+        slots = list(dict.fromkeys(vg.ausfuehrungsart.code for vg in bv.vorgaenge
+                                   if vg.ausfuehrungsart is not None))
+        auswahl: dict = {}
+        gewaehlt: dict = {}
+        kandidaten_je_slot: dict = {}
+        log = [reason("bind_resources", REASONING_NARRATION,
+                      f"Wähle Maschinen für {len(slots)} Geräteplatz/-plätze des Rezepts {bv.code}.")]
+        for slot in slots:
+            # Right-sized order; kand[0] is the smallest machine that clears the job in time.
+            kand = maschinen_sortiert(slot, betriebsart_code=_slot_betriebsart(bv, slot),
+                                      bedarf_pro_stunde=bedarf)
+            kandidaten_je_slot[slot] = [{"code": m.code, "hersteller": m.hersteller, "modell": m.modell}
+                                        for m in kand]
+            code = picks.get(slot) or (kand[0].code if kand else None)
+            if code and code in MASCHINEN:
+                auswahl[slot] = MASCHINEN[code]
+                gewaehlt[slot] = code
+                log.append(reason("bind_resources", REASONING_NARRATION,
+                                  f"{slot}: {MASCHINEN[code].hersteller} {MASCHINEN[code].modell}."))
+            else:
+                log.append(reason("bind_resources", REASONING_NARRATION,
+                                  f"{slot}: keine Maschine im Katalog → Sätze zur Prüfung (Gate B)."))
+        werte = {n: wert_to_json(w) for n, w in rezept_maschinen_werte(bv, auswahl).items()}
+        if state.get("baustoff_code"):
+            log.append(reason("bind_resources", REASONING_NARRATION,
+                              f"Baustoff: {state['baustoff_code']}."))
+        return {"gewaehlte_maschinen": gewaehlt, "maschinen_kandidaten": kandidaten_je_slot,
+                "maschinen_werte": werte, "reasoning_log": log}
 
     def derive_required_variables(state: PositionKalkulationState) -> dict:
         """Walk the chosen recipe's formula tree to all leaves -> the Gate B worklist.
@@ -459,6 +598,7 @@ def build_graph(
         Stammdaten are catalog lookups shown for transparency."""
         schwelle = state["konfidenz_schwelle_review"]
         chat_werte = state.get("chat_werte") or {}
+        maschinen_werte = state.get("maschinen_werte") or {}
         position = state["position"]
         vorschlaege: dict = {}
         log = [reason("resolve_variables", REASONING_NARRATION,
@@ -466,17 +606,24 @@ def build_graph(
 
         for b in state["benoetigte"]:
             name, art, hochrisiko = b["name"], b["art"], b["hochrisiko"]
-            v = _catalog_vorschlag(name, art, hochrisiko, chat_werte, position)
-            if v is None:                                 # unpinned EINGABE leaf
-                if settings.calculator_mock:
-                    default = _konstante_wert(KATALOG[name])
-                    v = (_eingabe_vorschlag(name, KATALOG[name], hochrisiko, schwelle, default,
-                                            M.KONSTANTE, None, PROVENANCE_DEFAULT)
-                         if default is not None
-                         else _unresolved_vorschlag(name, KATALOG[name], hochrisiko))
-                else:
-                    v, vlog = await _resolve_eingabe(name, hochrisiko, schwelle, position, state)
-                    log += vlog
+            if name not in chat_werte and name in maschinen_werte:
+                wj = maschinen_werte[name]                # rate/productivity from the bound machine
+                defn = KATALOG[name]
+                v = VariablenVorschlag(name=name, bezeichnung=defn.bezeichnung, einheit=defn.einheit,
+                                       art=art, hochrisiko=False, tier=TIER_COLLAPSED,
+                                       wert=wj["wert"], quelle=wj["quelle"], beleg=wj["beleg"])
+            else:
+                v = _catalog_vorschlag(name, art, hochrisiko, chat_werte, position)
+                if v is None:                             # unpinned EINGABE leaf
+                    if settings.calculator_mock:
+                        default = _konstante_wert(KATALOG[name])
+                        v = (_eingabe_vorschlag(name, KATALOG[name], hochrisiko, schwelle, default,
+                                                M.KONSTANTE, None, PROVENANCE_DEFAULT)
+                             if default is not None
+                             else _unresolved_vorschlag(name, KATALOG[name], hochrisiko))
+                    else:
+                        v, vlog = await _resolve_eingabe(name, hochrisiko, schwelle, position, state)
+                        log += vlog
             vorschlaege[name] = v.model_dump(mode="json")
 
         surfaced = sum(1 for v in vorschlaege.values() if v["tier"] == TIER_SURFACED)
@@ -540,10 +687,14 @@ def build_graph(
         menge = Decimal(str(pos["menge"]))
         geom = GEOM[einheit]
 
-        ctx = Kalkulationskontext(stichtag=STICHTAG, stammdaten=_stammdaten_bag(pos))
+        bc = state.get("baustoff_code")
+        stammdaten = {"baustoff": BAUSTOFFE[bc]} if bc and bc in BAUSTOFFE else {}
+        ctx = Kalkulationskontext(stichtag=STICHTAG, stammdaten=stammdaten)
         ctx.werte[geom] = VariablenWert(name=geom, wert=menge, quelle=M.LANGTEXT,
                                         beleg=f"LV Menge {menge} {einheit}")
-        for name, wj in (state.get("werte") or {}).items():
+        for name, wj in (state.get("maschinen_werte") or {}).items():   # machine rates + productivity
+            ctx.werte[name] = wert_from_json(wj)
+        for name, wj in (state.get("werte") or {}).items():             # Gate B confirmed (overrides win)
             ctx.werte[name] = wert_from_json(wj)
 
         try:
@@ -597,6 +748,7 @@ def build_graph(
     g.add_node("extract_chat_values", extract_chat_values)
     g.add_node("classify_leistung", classify_leistung)
     g.add_node("method_review", method_review)
+    g.add_node("bind_resources", bind_resources)
     g.add_node("derive_required_variables", derive_required_variables)
     g.add_node("resolve_variables", resolve_variables)
     g.add_node("variable_review", variable_review)
@@ -608,7 +760,8 @@ def build_graph(
     g.add_edge("extract_chat_values", "classify_leistung")
     g.add_edge("classify_leistung", "method_review")
     g.add_conditional_edges("method_review", _route_after_method,
-                            ["derive_required_variables", END])
+                            ["bind_resources", END])
+    g.add_edge("bind_resources", "derive_required_variables")
     g.add_edge("derive_required_variables", "resolve_variables")
     g.add_edge("resolve_variables", "variable_review")
     g.add_edge("variable_review", "compute")

@@ -48,11 +48,6 @@ class PromptType(StrEnum):
     EKT_CHAT_VALUES = "ekt_chat_values"
     EKT_LANGTEXT_EXTRACT = "ekt_langtext_extract"
     EKT_OUTPUT_NARRATE = "ekt_output_narrate"
-    # Legacy registry-graph prompts; parked until the P5 cutover removes the YAML registry.
-    EKT_CLASSIFY = "ekt_classify"
-    EKT_RESOLVE_DRIVER = "ekt_resolve_driver"
-    EKT_SELECT_METHOD = "ekt_select_method"
-    EKT_SEED_DRIVERS = "ekt_seed_drivers"
 
 
 class CalculationStatus(StrEnum):

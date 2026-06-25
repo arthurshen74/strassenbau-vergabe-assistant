@@ -143,6 +143,30 @@ class ProjectService:
         await self.documents.delete(document_uuid)
         return True
 
+    async def delete_project(self, project_uuid: UUID) -> bool:
+        """Remove a project and everything under it. Each document is taken down via
+        delete_document (its Elasticsearch chunks and object-storage blobs, plus its own DB
+        cascade); the project row delete then cascades to conversations and any remaining
+        project-scoped rows. Returns False if the project does not exist.
+
+        Per-document external cleanup is best-effort (see delete_document): a transient ES/storage
+        failure is logged and leaves an orphaned blob/chunk rather than blocking the delete. Rendered
+        project maps under maps/{project_uuid}/ are not tracked in Postgres and are left as
+        regenerable orphans."""
+        assert self.storage is not None
+        assert self.thumbnails is not None
+        assert self.lv_items is not None
+        assert self.search is not None
+
+        if await self.projects.get(project_uuid) is None:
+            return False
+
+        for doc in await self.documents.list_by_project(project_uuid):
+            await self.delete_document(project_uuid, doc.document_uuid)
+
+        await self.projects.delete(project_uuid)
+        return True
+
     async def enqueue_ingest(
         self, project_uuid: UUID, document_uuid: UUID
     ) -> IngestJob | None:

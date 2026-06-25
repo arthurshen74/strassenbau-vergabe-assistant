@@ -10,7 +10,7 @@ falls to Gate B (HITL). Numbers are realistic placeholders, not vendor data.
 Exports MASCHINEN, maschinen_fuer(), validate().
 """
 
-from decimal import InvalidOperation
+from decimal import Decimal, InvalidOperation
 
 from shared.services.kalkulation_v2.ausfuehrungsarten import AUSFUEHRUNGSARTEN
 from shared.services.kalkulation_v2.betriebsarten import BETRIEBSARTEN
@@ -212,6 +212,33 @@ MASCHINEN: dict[str, Maschine] = {m.code: m for m in _FLEET}
 def maschinen_fuer(ausfuehrungsart_code: str) -> list[Maschine]:
     """Candidate machines for an Ausführungsart slot (for the Gate A picker / auto-select)."""
     return [m for m in MASCHINEN.values() if m.ausfuehrungsart_code == ausfuehrungsart_code]
+
+
+def maschinen_sortiert(
+    ausfuehrungsart_code: str,
+    *,
+    betriebsart_code: str | None = None,
+    bedarf_pro_stunde: Decimal | None = None,
+) -> list[Maschine]:
+    """Candidates right-sized to the job: the smallest machine whose capacity (productivity
+    for `betriebsart_code`) still clears `bedarf_pro_stunde` comes first, then larger ones,
+    then any too small (largest of those first), then any without a profile for the Betriebsart.
+    So `[0]` is the principled default — smallest sufficient, or the biggest available if none
+    suffices. Without a Betriebsart/demand it falls back to fleet order (no right-sizing)."""
+    kandidaten = maschinen_fuer(ausfuehrungsart_code)
+    if betriebsart_code is None or bedarf_pro_stunde is None:
+        return kandidaten
+
+    def kapazitaet(m: Maschine) -> Decimal | None:
+        profil = m.leistung_fuer(betriebsart_code)
+        return profil.leistung if profil is not None else None
+
+    mit = [(m, k) for m in kandidaten if (k := kapazitaet(m)) is not None]
+    ohne = [m for m in kandidaten if kapazitaet(m) is None]
+    genug = sorted((m for m, k in mit if k >= bedarf_pro_stunde), key=lambda m: kapazitaet(m))
+    zu_klein = sorted((m for m, k in mit if k < bedarf_pro_stunde),
+                      key=lambda m: kapazitaet(m), reverse=True)
+    return [*genug, *zu_klein, *ohne]
 
 
 def validate() -> list[str]:

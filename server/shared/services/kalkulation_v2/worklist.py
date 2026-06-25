@@ -105,3 +105,18 @@ def benoetigte_variablen(
         for varname in vorgang.kostenvariablen.values():
             besuche(varname)
     return list(blaetter.values())
+
+
+def braucht_baustoff(bauverfahren: Bauverfahren, kalk: Kalkulator) -> bool:
+    """True if the recipe consumes a graded Baustoff — i.e. a leaf reads a `baustoff.*`
+    master-data field (density/compaction for tonnage). Recipes that price material directly
+    per m²/t (DSK, Gussasphalt) or use no material (Fräsen) return False, so no Baustoff is
+    offered for them."""
+    for blatt in benoetigte_variablen(bauverfahren, kalk):
+        if blatt.art != BlattArt.STAMMDATEN:
+            continue
+        for schritt in kalk.katalog[blatt.name].aufloesung:
+            if (schritt.methode == AufloesungsMethode.STAMMDATEN
+                    and (schritt.stammdaten_pfad or "").startswith("baustoff.")):
+                return True
+    return False

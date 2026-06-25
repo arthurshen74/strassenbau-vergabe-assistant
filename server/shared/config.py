@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     # OpenRouter reasoning effort for the calculator's LLM sites; None disables the
     # reasoning request (and the provider reasoning summaries in the output).
     calculator_reasoning_effort: str | None = "low"
+    # Min BM25 separation confidence to AUTO-apply a matched Baustoff at Gate A; below this
+    # the top hit is surfaced for the Kalkulator to confirm/choose (HITL). Range (0.5, 1].
+    calculator_baustoff_match_threshold: float = 0.6
+    # Target machine deployment window (hours) for right-sizing the default machine: the
+    # default is the smallest candidate whose capacity clears the job within this window.
+    calculator_maschine_zielstunden: float = 16.0
 
     # Phoenix HTTP OTLP collector (the docker-compose `phoenix` service).
     phoenix_collector_endpoint: str = "http://localhost:6006/v1/traces"

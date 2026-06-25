@@ -1,116 +1,112 @@
 # EKT Position Calculation Agent (LangGraph)
 
-A cost-calculation agent for German road-construction LV positions.
-The LLM classifies, reads documents, and selects methods (Bauweisen);
-**every number comes from deterministic formulas over versioned stores**,
-with per-parameter provenance.
+A cost-calculation (Einzelkosten der Teilleistung) agent for German road-construction LV
+positions. The LLM only **classifies and reads** — which Leistung the position is, which values
+the Kalkulator stated in chat, which value the Langtext implies. **Every number comes from the
+deterministic `kalkulation_v2` engine** — a Decimal formula cascade over a versioned catalog +
+master data — with per-variable provenance. Two human-in-the-loop gates bracket the run.
 
 ## Run
 
 Against a real LV position from a project (DB + Elasticsearch + OpenRouter):
 
 ```bash
-python -m scripts.run_calculator --project <project_uuid> --oz 01.03.0004
+python -m scripts.run_calculator --project <project_uuid> --oz 01.02.0006
 ```
 
-Offline-ish (canned LLM replies wired to the FSS demo position, no retrieval;
-the position still comes from the DB):
+Offline mock (canned LLM replies + pinned inputs, no retrieval):
 
 ```bash
-python -m scripts.run_calculator --project <project_uuid> --oz 01.03.0004 --mock
+python -m scripts.run_calculator --project <project_uuid> --oz 01.02.0006 \
+    --mock --leistung L_FRAESEN_3_45 --set tiefe_cm=4 --set fraesgut_klasse=1
 ```
 
-The LLM sites run `settings.calculator_model` (default `openai/gpt-5.4`) via
-OpenRouter (`OPENROUTER_API_KEY` in `.env`). The run pauses at the HITL
-interrupts (classification gate when confidence is low, driver confirmation
-for `confirm:` drivers, batched EKT review at the end) and reads your decision
-from stdin. Approving the review emits a VHB Formblatt 223-style row —
-Zeitansatz plus Lohn / Stoffe / Geräte / Sonstiges je Mengeneinheit (ohne USt),
-bucketed deterministically by each cost formula's Kostenart.
+The LLM sites run `settings.calculator_model` (default `openai/gpt-5.4`) via OpenRouter
+(`OPENROUTER_API_KEY` in `.env`). The run pauses at the two HITL interrupts — **Gate A** (confirm
+the Leistung, pick the Bauverfahren + machine/Baustoff) and **Gate B** (review the resolved
+variables) — and reads your decision. The result is an **EKT row** (Einheits- + Gesamtpreis with a
+cost line per Kostenart), a **Nachweistabelle** (every resolved variable: value, unit, provenance),
+and a short narration. In the UI the same run streams over SSE and resumes across the gates
+(`run_service.py`).
 
 ## Observability
 
-Every run is traced to Phoenix via OpenTelemetry: graph nodes, the three LLM
-calls and the retrieval calls appear as nested spans under the `ekt-calculator`
-project. Start it with `docker compose up phoenix` and open
-<http://localhost:6006>. `--no-trace` disables tracing for a run.
+Every run is traced to Phoenix via OpenTelemetry: graph nodes, the LLM calls and the retrieval
+calls appear as nested spans under the `ekt-calculator` project. Start it with
+`docker compose up phoenix` and open <http://localhost:6006>. `--no-trace` disables tracing.
 
 ## Architecture
 
+The calculator is a thin HITL + LLM orchestration around the deterministic **kalkulation_v2**
+engine (`../kalkulation_v2/`, see its `ARCHITECTURE.md`). The engine owns the catalog
+(Leistung → Bauverfahren → Vorgang → Ausführungsart), the variable-resolution cascade
+(LANGTEXT / RAG / HITL / STAMMDATEN / FORMEL / KONSTANTE), and the Decimal `Kalkulator`; the graph
+decides *what to ask a human or the LLM* and feeds the answers back in.
+
 ```
-classify ──(confidence gate)──> [hitl_classify?] ──> resolve_drivers
-   └─> hitl_confirm_drivers (interrupt iff the registry marks confirm: drivers)
-   └─> derive_drivers (cross-op dependencies, e.g. tonnage, computed ONCE)
-   └─> plan_operations ──Send × N (parallel)──> cost_operation  (registry interpreter)
-   └─> aggregate_etk ──> assess_risk ──> hitl_review (interrupt) ──> route_feedback
+launch → extract_chat_values → classify_leistung
+  → method_review        (Gate A interrupt: confirm Leistung, pick Bauverfahren + machine/Baustoff)
+  → bind_resources       (right-size a machine per slot; attach the matched Baustoff)
+  → derive_required_variables   (walk the recipe's formula tree → worklist leaves)
+  → resolve_variables    (propose value + provenance + review tier per leaf)
+  → variable_review      (Gate B interrupt: tiered accept/override)
+  → compute              (deterministic engine run → EKT row + Nachweistabelle)
+  → render_output        (narration)
 ```
 
 | File | Role |
 |---|---|
-| `registry/*.yaml` | The knowledge base: drivers, derived drivers, operations, methods + criteria, requirement rows (goal → formula → param sources). One file per work type. Layer building: `fss_herstellen`, `asphalttragschicht_herstellen`, `bankett_befestigen`, `dsk_herstellen`; surface prep: `planum_herstellen`, `boden_verdichten`, `unterlage_reinigen`, `asphalt_fraesen`, `laengsmarkierung_entfernen`; interlayer/bond: `asphalteinlage_einbauen`, `bitumenemulsion_aufspruehen` |
-| `models.py` | Pydantic: registry schema, LLM structured outputs, cost lines + provenance |
-| `stores.py` | Deterministic value stores (mocked): material props/prices, interlayer products, BGL rates, performance rates, crews, fleet |
-| `formulas.py` | Formula registry: Pydantic input schema + pure function per formula id. **Only origin of numbers.** |
-| `llm_calls.py` | The THREE LLM sites with full prompts: classify / resolve drivers / select method |
-| `graph.py` | LangGraph wiring: gate, fan-out (`Send`), interpreter, reducers, interrupts, retrieval seam |
+| `graph.py` | The StateGraph: nodes, the two HITL interrupts, machine/Baustoff resolution, reducers, the retrieval seam |
+| `state.py` | State envelope (plain-JSON for the Postgres checkpointer) + output artifacts (EKTZeile, Nachweistabelle) |
+| `llm_calls.py` | The LLM sites with structured Pydantic outputs: `classify_leistung`, `extract_chat_values`, `extract_value` (Langtext/RAG), `narrate_output` |
+| `prompts.py` | Loads the four DB-backed prompt versions; raises if a required prompt is not seeded |
+| `run_service.py` | Worker/SSE harness: runs the graph as a conversation, streams reasoning, resumes across the gates |
+| `../kalkulation_v2/` | The deterministic engine: catalog, master data, formulas, `Kalkulator`, machine fleet, Baustoff BM25 |
 | `../../../scripts/run_calculator.py` | CLI harness over real LV positions |
+
+## Resource selection (machine + material)
+
+`bind_resources` fills the slots the chosen recipe needs:
+
+- **Machine** — candidates come from the fleet by `Ausführungsart`; the default is **right-sized**
+  (`maschinen_sortiert`: the smallest machine whose capacity clears the job within
+  `settings.calculator_maschine_zielstunden`). The Kalkulator overrides per slot in Gate A. A bound
+  machine's rates + productivity flow into the calc and surface (overridable) in Gate B.
+- **Material** — only for recipes that consume a graded Baustoff. A hand-rolled **BM25** matcher
+  (`baustoff_suche`) grounds the LV Langtext (normed TL SoB-StB / TL Asphalt-StB designation) to a
+  catalog code; a separation confidence ≥ `settings.calculator_baustoff_match_threshold` auto-applies,
+  otherwise the top hit is surfaced for confirmation in Gate A. The matcher can only ever return a
+  cataloged code — no hallucinated material.
 
 ## RAG wiring
 
-`build_graph(retriever, llm)` takes an async `query -> evidence snippets` callable
-and the shared `LLMClient` the three judging sites call through (telemetry +
-provider-reasoning capture). The CLI binds the retriever to
-`RetrievalService.retrieve_context` scoped to the project, with
-`CALCULATOR_RETRIEVAL_CONFIG`: PLUS scope, hybrid dense + BM25 fused by RRF,
-multi-question expansion, cross-encoder rerank. The three LLM sites query it
-before judging:
+`build_graph(retriever, llm)` takes an async `query → snippets` callable and the shared `LLMClient`
+(telemetry + provider-reasoning capture). The CLI binds the retriever to the project-scoped
+`RetrievalService` (PLUS scope, hybrid dense + BM25 fused by RRF, multi-question expansion,
+cross-encoder rerank). `classify_leistung` and the Langtext/RAG variable extraction query it before
+judging. With `retriever=None` the graph runs document-blind; `settings.calculator_mock` swaps every
+LLM site for canned replies (and `extract_chat_values` reads the `--set` pins instead).
 
-- **classify** retrieves project context for the position's Kurztext.
-- **resolve_drivers** resolves drivers ONE at a time, each its own LLM call, so
-  the run reads as a followable chain and later drivers can lean on earlier ones.
-  Each driver is resolved from a single evidence block: `lv_text` drivers from the
-  position's own text; `plan`/`project`/`judgment` drivers from retrieved context
-  ONLY (query = the driver's German `hint:` + Kurztext, e.g. `strip_length_m` →
-  "Ausbaulaenge Baubeschreibung ..."); `tool:*` drivers are fetched
-  deterministically and never asked of the LLM. A driver's optional `description:`
-  carries its decision rule (e.g. when the Ausbaulaenge counts as the full strip
-  length) into the prompt and the review UI.
-- **select_method** retrieves context per operation (label + Kurztext); the
-  snippets land in the prompt's reasoning-notes slot.
+## Design decisions
 
-With `retriever=None` (mock) the graph runs document-blind; with `llm=None` the
-judging sites only work under `--mock`.
-
-## Design decisions (the writeup skeleton)
-
-1. **Determinism guardrail.** The LLM writes only judgment fields (work_type,
-   driver decisions, method). Numbers exist only as formula outputs over store
-   reads; each `CostLine` parameter carries provenance (`driver:` / `store:` /
-   `prior:` / `const`). Provenance is enforced by control flow, not trust.
-2. **Registry as program.** The YAML is walked by an interpreter; the agent
-   executes rows instead of browsing a tool catalog. Decision criteria are
-   data, so a Kalkulator can change selection logic in a reviewed PR.
-   The registry version is pinned into the EKT for reproducibility.
-3. **Cross-operation dependencies as derived drivers.** `prior:` refs are only
-   legal within an operation; shared quantities (tonnage) are computed once in
-   `derive_drivers`, keeping every `Send` branch independent and parallel.
-4. **Optimistic execution, batched review.** No interrupts inside the fan-out:
-   low-confidence judgments and blocked rows append `review_flags`
-   (reducer-merged) and surface at the single `hitl_review` interrupt.
-   Three HITL points per position: the classification gate, the driver
-   confirmation (only for drivers the registry marks `confirm: true` — values
-   resting on an assumption, e.g. Ausbaulaenge = strip length; the reviewer
-   accepts or corrects, corrections get HITL provenance), and the review.
-5. **Feedback routing (stubbed).** Numeric corrections → stores; judgment
-   corrections + prose rationale → ReasoningNotes retrieved at the judgment
-   sites.
+1. **Determinism guardrail.** The LLM writes only judgment (which Leistung, which values are
+   stated). Every euro is an engine formula output over the catalog + master data; each resolved
+   variable carries provenance (LANGTEXT / RAG / HITL / STAMMDATEN / KONSTANTE). The golden L101
+   fixture pins the engine total.
+2. **Two gates, not many.** Gate A fixes the method + resources before the worklist is derived;
+   Gate B reviews every leaf, tiered — high-stakes inputs surfaced, rates/master-data collapsed but
+   overridable. No interrupts inside the deterministic compute.
+3. **Selection is grounded, not hallucinated.** Machine and material are chosen from the catalog
+   (fleet candidacy + right-sizing; BM25 over the Baustoff catalog) and confirmed by HITL — never
+   free-generated by the LLM.
+4. **Engine-owned worklist.** `derive_required_variables` walks the chosen recipe to its leaves, so
+   the graph topology stays position-agnostic; adding a Leistung/recipe needs no graph change.
 
 ## What's mocked / production path
 
-- Stores are dicts → versioned DB tables fed by Nachkalkulation + BGL 2025.
-- `duration_by_performance` is a rate lookup → machine-family physics formulas
-  slot in as further formula ids without touching the agent.
-- ReasoningNote retrieval at the judgment sites currently reuses general
-  project retrieval → dedicated note store with feature filters.
-- Eval harness: a handful of hand-graded positions scoring classification,
-  driver extraction, method choice, and EKT tolerance.
+- The catalog (Leistungen, recipes, fleet, Baustoffe) and master-data rates are plausible prototype
+  values in `kalkulation_v2/`; the names use real norm designations, so classification + BM25
+  matching behave realistically. They become versioned DB tables fed by Nachkalkulation + BGL.
+- Machine mob/demob (`mobilisierung_eur` / `demobilisierung_eur`) is in the property bags but no
+  cost line consumes it yet — wiring it would let cost-optimal right-sizing emerge.
+- The four prompts are DB-backed (`prompt_versions`); seed with `python -m scripts.seed.prompts`.
