@@ -232,6 +232,19 @@ def _coerce_decimal(value: object) -> Decimal | None:
         return None
 
 
+def _parse_override(value: object) -> Decimal | None:
+    """Parse a HITL override value into a Decimal. Accepts German convention (',' decimal,
+    '.' thousands) as well as the dot-decimal form the proposal is pre-filled with; returns
+    None when the input is not a number so the caller can warn instead of crashing."""
+    token = str(value).strip()
+    if "," in token:                            # German: '.' groups thousands, ',' is the point
+        token = token.replace(".", "").replace(",", ".")
+    try:
+        return Decimal(token)
+    except InvalidOperation:
+        return None
+
+
 # --------------------------------------------------- proposal builders ------
 def _eingabe_vorschlag(name: str, defn: VariableDefinition, hochrisiko: bool, schwelle: float,
                        wert: Decimal, quelle: M, konfidenz: float | None,
@@ -648,15 +661,20 @@ def build_graph(
         werte: dict = {}
         updated = dict(vorschlaege)
         warnungen: list[str] = []
+        ueberschrieben = 0
         for name, v in vorschlaege.items():
             defn = KATALOG[name]
             if name in overrides:
-                val = Decimal(str(overrides[name]))
-                werte[name] = wert_to_json(VariablenWert(name=name, wert=val, quelle=M.HITL,
-                                                         beleg=PROVENANCE_OVERRIDE))
-                updated[name] = {**v, "wert": str(val), "quelle": M.HITL.value,
-                                 "status": STATUS_UEBERSCHRIEBEN}
-                continue
+                val = _parse_override(overrides[name])
+                if val is not None:
+                    ueberschrieben += 1
+                    werte[name] = wert_to_json(VariablenWert(name=name, wert=val, quelle=M.HITL,
+                                                             beleg=PROVENANCE_OVERRIDE))
+                    updated[name] = {**v, "wert": str(val), "quelle": M.HITL.value,
+                                     "status": STATUS_UEBERSCHRIEBEN}
+                    continue
+                warnungen.append(f"{name} ({defn.bezeichnung}): »{overrides[name]}« ist keine "
+                                 f"gültige Zahl — Überschreibung verworfen, Vorschlag übernommen.")
             updated[name] = {**v, "status": STATUS_AKZEPTIERT}
             # Engine resolves SATZ/STAMMDATEN itself; only EINGABE values must be pre-filled.
             if v["art"] == BlattArt.EINGABE.value:
@@ -674,7 +692,7 @@ def build_graph(
             "vorschlaege": updated,
             "warnungen": warnungen,
             "reasoning_log": [reason("variable_review", REASONING_NARRATION,
-                                     f"{len(overrides)} Wert(e) überschrieben, übrige akzeptiert.")],
+                                     f"{ueberschrieben} Wert(e) überschrieben, übrige akzeptiert.")],
         }
 
     def compute(state: PositionKalkulationState) -> dict:

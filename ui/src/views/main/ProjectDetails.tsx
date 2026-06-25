@@ -35,6 +35,7 @@ import { ErrorState } from "../../components/feedback/ErrorState";
 import { formatRelativeTime } from "../../lib/format";
 import { UploadDocumentDialog } from "./UploadDocumentDialog";
 import { DeleteDocumentDialog } from "./DeleteDocumentDialog";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { DocumentDetailDialog } from "./DocumentDetailDialog";
 import { LVItemsTable } from "./LVItemsTable";
 
@@ -65,6 +66,7 @@ export function ProjectDetails({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
   const [docDetail, setDocDetail] = useState<DocumentRead | null>(null);
+  const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
   const [tab, setTab] = useState<ProjectTab>("lv");
 
   if (project.isPending) return <LoadingState label="Loading project…" />;
@@ -97,6 +99,14 @@ export function ProjectDetails({
             <Button onClick={() => startProjectChat(projectUuid)}>
               <ChatBubbleLeftRightIcon />
               Chat about this project
+            </Button>
+            <Button
+              outline
+              onClick={() => setDeleteProjectOpen(true)}
+              aria-label="Delete project"
+            >
+              <TrashIcon />
+              Delete project
             </Button>
           </div>
         </div>
@@ -256,6 +266,14 @@ export function ProjectDetails({
         document={docDetail}
         open={docDetail !== null}
         onClose={() => setDocDetail(null)}
+      />
+
+      <DeleteProjectDialog
+        projectUuid={projectUuid}
+        projectName={p.project_name}
+        open={deleteProjectOpen}
+        onClose={() => setDeleteProjectOpen(false)}
+        onDeleted={onBack}
       />
     </div>
   );

@@ -37,6 +37,17 @@ POSITION = {
 }
 VORGABEN = {"tiefe_cm": "4", "fraesgut_klasse": "1"}
 
+# A graded-material position: the Langtext carries the normed designation the BM25 matcher keys on.
+STS_POSITION = {
+    "oz": "02.01.0001",
+    "kurztext": "Schottertragschicht herstellen 0/32",
+    "langtext": "Schottertragschicht 0/32 für Bk100 liefern, einbauen und verdichten.",
+    "menge": "1200",
+    "einheit": "m3",
+    "baustoff_code": None,
+    "leistung_hint": "L_STS",
+}
+
 GOLDEN_EP = "1.71"
 GOLDEN_GP = "13347.36"
 
@@ -85,7 +96,7 @@ async def test_variable_review_tiers_high_stakes_surfaced():
     assert len(surfaced) + len(collapsed) == 14
 
 
-async def test_compute_matches_engine_golden():
+async def test_compute_binds_default_machine_and_computes():
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "compute"}}
     await _to_gate_b(app, cfg)
@@ -94,11 +105,83 @@ async def test_compute_matches_engine_golden():
     state = (await app.aget_state(cfg)).values
     ekt = state["ekt_zeile"]
     assert ekt["bauverfahren"] == "BV_FRAESEN"
-    assert ekt["ep_eur"] == GOLDEN_EP
-    assert ekt["gp_eur"] == GOLDEN_GP
-    assert state["nachweis_tabelle"]                     # full derivation tree
+    # bind_resources auto-selected the default Kaltfräse; its faster productivity drives the
+    # cost below the conservative org-default (GOLDEN_EP 1.71) -> 0.92 €/m².
+    assert state["gewaehlte_maschinen"]["AA_KALTFRAESE"] == "WIRTGEN_W100CFI"
+    assert ekt["ep_eur"] == "0.92"
+    assert ekt["ep_eur"] != GOLDEN_EP
+    by_name = {n["name"]: n for n in state["nachweis_tabelle"]}
+    assert "Wirtgen W 100 CFi" in (by_name["kaltfraese_stundensatz_eur"]["beleg"] or "")
     assert state["beschreibung"]
     assert state.get("warnungen", []) == []
+
+
+async def test_gate_a_machine_pick_changes_the_ekt():
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "ga-machine"}}
+    await app.ainvoke(_payload(), cfg)                                      # Gate A interrupt
+    # Pick the larger/faster Kaltfräse explicitly in the Gate A resume.
+    await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FRAESEN",
+                                       "maschinen": {"AA_KALTFRAESE": "WIRTGEN_W150CFI"}}), cfg)
+    await app.ainvoke(Command(resume={"overrides": {}}), cfg)
+    state = (await app.aget_state(cfg)).values
+    assert state["gewaehlte_maschinen"]["AA_KALTFRAESE"] == "WIRTGEN_W150CFI"
+    assert state["ekt_zeile"]["ep_eur"] != "0.92"      # differs from the default W100 result
+
+
+async def test_machine_default_right_sizes_to_target_window(monkeypatch):
+    # 7800 m²: a 16h window fits the small W100; an 8h window needs the big W150.
+    monkeypatch.setattr(settings, "calculator_maschine_zielstunden", 16.0)
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "rs-16"}}
+    gate = (await app.ainvoke(_payload(), cfg))["__interrupt__"][0].value
+    assert gate["maschinen_default"]["AA_KALTFRAESE"] == "WIRTGEN_W100CFI"
+
+    monkeypatch.setattr(settings, "calculator_maschine_zielstunden", 8.0)
+    app2 = build_graph(retriever=None)
+    cfg2 = {"configurable": {"thread_id": "rs-8"}}
+    gate2 = (await app2.ainvoke(_payload(), cfg2))["__interrupt__"][0].value
+    assert gate2["maschinen_default"]["AA_KALTFRAESE"] == "WIRTGEN_W150CFI"
+    # The right-sized default flows through bind_resources to the bound machine.
+    await app2.ainvoke(
+        Command(resume={"bauverfahren_key": "BV_FRAESEN", "maschinen": gate2["maschinen_default"]}), cfg2
+    )
+    await app2.ainvoke(Command(resume={"overrides": {}}), cfg2)
+    state = (await app2.aget_state(cfg2)).values
+    assert state["gewaehlte_maschinen"]["AA_KALTFRAESE"] == "WIRTGEN_W150CFI"
+
+
+async def test_material_position_surfaces_baustoff_suggestion():
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "mat-suggest"}}
+    gate = (await app.ainvoke({"position": dict(STS_POSITION), "vorgaben": {}}, cfg))[
+        "__interrupt__"
+    ][0].value
+    v = gate["baustoff_vorschlag"]
+    assert v["code"] == "STS_0_32"                      # grounded to a real catalog code
+    assert v["auto"] is False                           # ~0.58 < default 0.6 -> surfaced for HITL
+    assert v["treffer"][1]["code"] == "FSS_0_32"        # the close runner-up the human can pick
+
+
+async def test_fraesen_position_has_no_baustoff_suggestion():
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "no-mat"}}
+    gate = (await app.ainvoke(_payload(), cfg))["__interrupt__"][0].value
+    assert gate["baustoff_vorschlag"] is None           # milling consumes no material
+
+
+async def test_baustoff_auto_applies_above_threshold(monkeypatch):
+    monkeypatch.setattr(settings, "calculator_baustoff_match_threshold", 0.55)
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "mat-auto"}}
+    gate = (await app.ainvoke({"position": dict(STS_POSITION), "vorgaben": {}}, cfg))[
+        "__interrupt__"
+    ][0].value
+    assert gate["baustoff_vorschlag"]["auto"] is True
+    # Resume Gate A WITHOUT an explicit Baustoff pick -> the above-threshold match auto-applies.
+    await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER"}), cfg)
+    state = (await app.aget_state(cfg)).values
+    assert state["baustoff_code"] == "STS_0_32"
 
 
 async def test_gate_b_override_changes_result():
@@ -115,6 +198,33 @@ async def test_gate_b_override_changes_result():
     entsorgung = next(k for k in state["ekt_zeile"]["kostenlinien"]
                       if k["kostenart"] == "Entsorgung")
     assert Decimal(entsorgung["betrag_eur"]) > 0
+
+
+async def test_gate_b_override_accepts_german_decimal():
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "override-de"}}
+    await _to_gate_b(app, cfg)
+    # A German-typed value ('5,5') must parse to 5.5, not crash the run.
+    await app.ainvoke(Command(resume={"overrides": {"tiefe_cm": "5,5"}}), cfg)
+
+    state = (await app.aget_state(cfg)).values
+    tiefe = state["vorschlaege"]["tiefe_cm"]
+    assert tiefe["status"] == STATUS_UEBERSCHRIEBEN
+    assert Decimal(tiefe["wert"]) == Decimal("5.5")
+    assert state.get("ekt_zeile") is not None              # ran through to compute
+
+
+async def test_gate_b_garbage_override_warns_not_crashes():
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "override-bad"}}
+    await _to_gate_b(app, cfg)
+    # A non-numeric override is rejected with a warning; the proposal stands and the run survives.
+    await app.ainvoke(Command(resume={"overrides": {"tiefe_cm": "tief"}}), cfg)
+
+    state = (await app.aget_state(cfg)).values
+    assert any("tiefe_cm" in w for w in state.get("warnungen", []))
+    assert state["vorschlaege"]["tiefe_cm"]["status"] != STATUS_UEBERSCHRIEBEN
+    assert state.get("ekt_zeile") is not None              # fell back to proposal, still computed
 
 
 async def test_missing_high_stakes_value_warns_and_skips_compute():
@@ -191,10 +301,10 @@ async def test_rerun_after_thread_reset_is_clean():
         return (await app.aget_state(cfg)).values
 
     state1 = await full_run()
-    assert state1["ekt_zeile"]["gp_eur"] == GOLDEN_GP
+    gp1 = state1["ekt_zeile"]["gp_eur"]
 
     await saver.adelete_thread("rerun")              # what calc.start does before a re-calc
     state2 = await full_run()
-    # Fresh thread: reasoning_log did not double across runs, result reproduces.
+    # Fresh thread: reasoning_log did not double across runs, result reproduces deterministically.
     assert len(state2["reasoning_log"]) == len(state1["reasoning_log"])
-    assert state2["ekt_zeile"]["gp_eur"] == GOLDEN_GP
+    assert state2["ekt_zeile"]["gp_eur"] == gp1

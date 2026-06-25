@@ -36,10 +36,6 @@ def test_enum_values() -> None:
         "ekt_chat_values",
         "ekt_langtext_extract",
         "ekt_output_narrate",
-        "ekt_classify",
-        "ekt_resolve_driver",
-        "ekt_select_method",
-        "ekt_seed_drivers",
     }
 
 

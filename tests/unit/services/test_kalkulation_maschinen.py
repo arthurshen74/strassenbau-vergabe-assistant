@@ -17,7 +17,7 @@ from shared.services.kalkulation_v2.betriebsarten import (
 from shared.services.kalkulation_v2.betriebsarten import validate as betriebsarten_validate
 from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
 from shared.services.kalkulation_v2.binden import maschinen_werte, rezept_maschinen_werte
-from shared.services.kalkulation_v2.maschinen import MASCHINEN, maschinen_fuer
+from shared.services.kalkulation_v2.maschinen import MASCHINEN, maschinen_fuer, maschinen_sortiert
 from shared.services.kalkulation_v2.maschinen import validate as maschinen_validate
 from shared.services.kalkulation_v2.model import AufloesungsMethode as M
 from shared.services.kalkulation_v2.model import Kalkulationskontext, VariablenWert
@@ -111,3 +111,21 @@ def test_machine_selection_changes_the_ekt() -> None:
     # Both machines are faster than the conservative org productivity -> cheaper,
     # and the faster W150 is cheaper still despite its higher hourly rate.
     assert w150 < w100 < base
+
+
+def test_maschinen_sortiert_right_sizes_to_job_and_betriebsart() -> None:
+    # Normal demand: the smallest sufficient Kaltfräse leads (W100 @520 clears 488 m²/h).
+    normal = maschinen_sortiert("AA_KALTFRAESE", betriebsart_code="regelfraesen",
+                                bedarf_pro_stunde=Decimal("488"))
+    assert normal[0].code == "WIRTGEN_W100CFI"
+    assert [m.code for m in normal] == ["WIRTGEN_W100CFI", "BOMAG_BM1200", "CAT_PM312", "WIRTGEN_W150CFI"]
+    # Tight window / huge job: none suffice -> the biggest leads.
+    tight = maschinen_sortiert("AA_KALTFRAESE", betriebsart_code="regelfraesen",
+                               bedarf_pro_stunde=Decimal("975"))
+    assert tight[0].code == "WIRTGEN_W150CFI"
+    # The Betriebsart matters: feinfräsen capacities differ from regelfräsen.
+    fein = maschinen_sortiert("AA_KALTFRAESE", betriebsart_code="feinfraesen",
+                              bedarf_pro_stunde=Decimal("300"))
+    assert fein[0].code == "WIRTGEN_W150CFI"          # only the W150 (380) clears 300 in feinfräsen
+    # No demand -> fleet order, no right-sizing.
+    assert maschinen_sortiert("AA_KALTFRAESE") == maschinen_fuer("AA_KALTFRAESE")

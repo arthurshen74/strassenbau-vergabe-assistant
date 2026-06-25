@@ -38,6 +38,16 @@ function str(v: unknown): string {
   return v == null ? '' : String(v);
 }
 
+// Mirrors the backend _parse_override: accepts German convention (',' decimal, '.' thousands)
+// and the dot-decimal form the proposals are pre-filled with. Empty is not numeric here —
+// the caller treats it as "accept proposal" / "missing", not as an invalid override.
+function isNumericInput(raw: string): boolean {
+  const token = raw.trim();
+  if (token === '') return false;
+  const normalised = token.includes(',') ? token.replace(/\./g, '').replace(',', '.') : token;
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(normalised);
+}
+
 export function InterruptPanel({
   interrupt,
   onResume,
@@ -81,20 +91,106 @@ function asKatalog(v: unknown): KatalogEintrag[] {
   }));
 }
 
+interface SlotInfo {
+  slot: string;
+  geraet: string;
+  kandidaten: { code: string; hersteller: string; modell: string }[];
+}
+
+function asRessourcen(v: unknown): Record<string, SlotInfo[]> {
+  const out: Record<string, SlotInfo[]> = {};
+  const rec = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  for (const [bvCode, slots] of Object.entries(rec)) {
+    out[bvCode] = asRecordArray(slots).map((s) => ({
+      slot: str(s.slot),
+      geraet: str(s.geraet),
+      kandidaten: asRecordArray(s.kandidaten).map((m) => ({
+        code: str(m.code),
+        hersteller: str(m.hersteller),
+        modell: str(m.modell),
+      })),
+    }));
+  }
+  return out;
+}
+
+interface BaustoffInfo {
+  code: string;
+  name: string;
+}
+
+function asBaustoffe(v: unknown): BaustoffInfo[] {
+  return asRecordArray(v).map((b) => ({ code: str(b.code), name: str(b.name) }));
+}
+
+interface BaustoffVorschlag {
+  code: string | null;
+  name: string | null;
+  konfidenz: number;
+  auto: boolean;
+}
+
+// BM25 material match from the LV text; null when the recipe needs no Baustoff.
+function asVorschlag(v: unknown): BaustoffVorschlag | null {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Record<string, unknown>;
+  return {
+    code: r.code ? str(r.code) : null,
+    name: r.name ? str(r.name) : null,
+    konfidenz: typeof r.konfidenz === 'number' ? r.konfidenz : 0,
+    auto: r.auto === true,
+  };
+}
+
+// Right-sized default machine per Ausführungsart slot, e.g. { AA_KALTFRAESE: 'WIRTGEN_W100CFI' }.
+function asStringMap(v: unknown): Record<string, string> {
+  if (!v || typeof v !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(v as Record<string, unknown>).map(([k, val]) => [k, str(val)]),
+  );
+}
+
+const PICKER =
+  'block w-full rounded-lg border border-zinc-950/10 bg-transparent px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/5';
+
 function MethodReview({ payload, onResume, disabled }: PanelProps) {
   const katalog = asKatalog(payload.katalog);
+  const ressourcen = asRessourcen(payload.bauverfahren_ressourcen);
+  const baustoffe = asBaustoffe(payload.baustoff_katalog);
+  const vorschlag = asVorschlag(payload.baustoff_vorschlag);
   const suggested = str(payload.leistung_key);
   // Pre-select the classified Leistung only when it is valid (has candidate Bauverfahren);
   // otherwise the Kalkulator must pick one from the catalog.
   const initial = katalog.find((l) => l.leistung_key === suggested && l.kandidaten.length > 0) ?? null;
 
+  const maschinenDefault = asStringMap(payload.maschinen_default);
+  // Right-sized default per slot for the classified recipe; other recipes fall back to the
+  // first candidate (a recipe switch in Gate A re-derives slots client-side).
+  const slotDefaults = (bvCode: string): Record<string, string> =>
+    Object.fromEntries(
+      (ressourcen[bvCode] ?? []).map((s) => [
+        s.slot,
+        maschinenDefault[s.slot] ?? s.kandidaten[0]?.code ?? '',
+      ]),
+    );
+
   const [selected, setSelected] = useState<KatalogEintrag | null>(initial);
   const [query, setQuery] = useState('');
   const [bv, setBv] = useState<string>(initial?.kandidaten[0] ?? '');
+  const [maschinen, setMaschinen] = useState<Record<string, string>>(() =>
+    slotDefaults(initial?.kandidaten[0] ?? ''),
+  );
+  const [baustoff, setBaustoff] = useState(vorschlag?.code ?? '');
 
+  const chooseBv = (k: string) => {
+    setBv(k);
+    setMaschinen(slotDefaults(k));
+  };
   const choose = (l: KatalogEintrag) => {
     setSelected(l);
-    setBv(l.kandidaten[0] ?? '');
+    const firstBv = l.kandidaten[0] ?? '';
+    setBv(firstBv);
+    setMaschinen(slotDefaults(firstBv));
     setQuery('');
   };
 
@@ -131,16 +227,71 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
                 {selected.kandidaten.map((k) => {
                   const label = `${k}${k === selected.kandidaten[0] ? ' (Standard)' : ''}`;
                   return k === bv ? (
-                    <Button key={k} disabled={disabled} onClick={() => setBv(k)}>
+                    <Button key={k} disabled={disabled} onClick={() => chooseBv(k)}>
                       {label}
                     </Button>
                   ) : (
-                    <Button key={k} outline disabled={disabled} onClick={() => setBv(k)}>
+                    <Button key={k} outline disabled={disabled} onClick={() => chooseBv(k)}>
                       {label}
                     </Button>
                   );
                 })}
               </div>
+              {(ressourcen[bv] ?? []).length > 0 ? (
+                <div className="flex flex-col gap-2 pt-3">
+                  <Text className="text-xs">Maschine je Geräteplatz (Standard vorausgewählt):</Text>
+                  {(ressourcen[bv] ?? []).map((s) => (
+                    <div key={s.slot} className="flex flex-col gap-1">
+                      <Text className="text-xs text-zinc-500">{s.geraet}</Text>
+                      <select
+                        className={PICKER}
+                        value={maschinen[s.slot] ?? ''}
+                        disabled={disabled}
+                        onChange={(e) => setMaschinen((w) => ({ ...w, [s.slot]: e.target.value }))}
+                      >
+                        {s.kandidaten.map((m) => (
+                          <option key={m.code} value={m.code}>
+                            {m.hersteller} {m.modell}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {vorschlag ? (
+                <div className="flex flex-col gap-1 pt-3">
+                  <Text className="text-xs text-zinc-500">Baustoff</Text>
+                  {vorschlag.code ? (
+                    <Text
+                      className={`text-xs ${
+                        vorschlag.auto ? 'text-zinc-500' : 'text-amber-700 dark:text-amber-400'
+                      }`}
+                    >
+                      BM25-Vorschlag: <Strong>{vorschlag.name}</Strong> (Konfidenz{' '}
+                      {(vorschlag.konfidenz * 100).toFixed(0)} %)
+                      {vorschlag.auto ? ' — automatisch übernommen' : ' — bitte prüfen'}
+                    </Text>
+                  ) : (
+                    <Text className="text-xs text-amber-700 dark:text-amber-400">
+                      Rezept benötigt einen Baustoff — bitte wählen.
+                    </Text>
+                  )}
+                  <select
+                    className={PICKER}
+                    value={baustoff}
+                    disabled={disabled}
+                    onChange={(e) => setBaustoff(e.target.value)}
+                  >
+                    <option value="">— kein Baustoff —</option>
+                    {baustoffe.map((b) => (
+                      <option key={b.code} value={b.code}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
             </>
           ) : (
             <Text className="pt-2 text-xs text-amber-700 dark:text-amber-400">
@@ -187,7 +338,15 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
       <div className="flex gap-2 pt-4">
         <Button
           disabled={disabled || !selected || !bv}
-          onClick={() => selected && onResume({ leistung_key: selected.leistung_key, bauverfahren_key: bv })}
+          onClick={() =>
+            selected &&
+            onResume({
+              leistung_key: selected.leistung_key,
+              bauverfahren_key: bv,
+              maschinen,
+              baustoff_code: baustoff || undefined,
+            })
+          }
         >
           Bestätigen & weiter
         </Button>
@@ -211,11 +370,13 @@ const QUELLE_LABEL: Record<string, string> = {
 function VariableRow({
   v,
   value,
+  invalid,
   onChange,
   disabled,
 }: {
   v: Record<string, unknown>;
   value: string;
+  invalid?: boolean;
   onChange: (next: string) => void;
   disabled?: boolean;
 }) {
@@ -235,9 +396,16 @@ function VariableRow({
       <Input
         value={value}
         disabled={disabled}
+        invalid={invalid}
+        inputMode="decimal"
         placeholder={unresolved ? 'Wert erforderlich' : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
+      {invalid ? (
+        <Text className="text-xs text-red-600 dark:text-red-400">
+          Bitte eine Zahl eingeben (z. B. 12,5).
+        </Text>
+      ) : null}
       <Text className="text-xs text-zinc-500 dark:text-zinc-400">
         {name}
         {v.quelle ? ` · ${QUELLE_LABEL[str(v.quelle)] ?? str(v.quelle)}` : unresolved ? ' · ungelöst' : ''}
@@ -270,6 +438,12 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
     }
     return out;
   };
+  // A non-empty value that isn't a number — block submission so the backend never sees garbage.
+  const invalid = (name: string) => {
+    const raw = (values[name] ?? '').trim();
+    return raw !== '' && !isNumericInput(raw);
+  };
+  const hasInvalid = rows.some((v) => invalid(str(v.name)));
   const missing = surfaced.some(
     (v) => v.wert == null && (values[str(v.name)] ?? '').trim() === '',
   );
@@ -283,12 +457,13 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
       </Text>
 
       {surfaced.length > 0 ? (
-        <div className="flex flex-col gap-3 pt-3">
+        <div className="grid grid-cols-1 gap-3 pt-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
           {surfaced.map((v) => (
             <VariableRow
               key={str(v.name)}
               v={v}
               value={values[str(v.name)] ?? ''}
+              invalid={invalid(str(v.name))}
               onChange={set(str(v.name))}
               disabled={disabled}
             />
@@ -308,12 +483,13 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
             {showRates ? 'Sätze & Stammdaten ausblenden' : `Sätze & Stammdaten anzeigen (${collapsed.length})`}
           </button>
           {showRates ? (
-            <div className="flex flex-col gap-3 pt-3">
+            <div className="grid grid-cols-1 gap-3 pt-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
               {collapsed.map((v) => (
                 <VariableRow
                   key={str(v.name)}
                   v={v}
                   value={values[str(v.name)] ?? ''}
+                  invalid={invalid(str(v.name))}
                   onChange={set(str(v.name))}
                   disabled={disabled}
                 />
@@ -324,10 +500,20 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
       ) : null}
 
       <div className="pt-4">
-        <Button disabled={disabled || missing} onClick={() => onResume({ overrides: overrides() })}>
+        <Button
+          disabled={disabled || missing || hasInvalid}
+          onClick={() => onResume({ overrides: overrides() })}
+        >
           Werte bestätigen & berechnen
         </Button>
-        {missing ? (
+        {hasInvalid ? (
+          <Text className="pt-1 text-xs text-red-600 dark:text-red-400">
+            Bitte ungültige Werte korrigieren.
+            {!showRates && collapsed.some((v) => invalid(str(v.name)))
+              ? ' Ein Wert unter „Sätze & Stammdaten“ ist ungültig — bitte einblenden.'
+              : ''}
+          </Text>
+        ) : missing ? (
           <Text className="pt-1 text-xs text-amber-700 dark:text-amber-400">
             Bitte alle erforderlichen Werte eintragen.
           </Text>

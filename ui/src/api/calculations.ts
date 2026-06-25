@@ -13,6 +13,8 @@ import type { ConversationRead } from '../types/generated';
 export interface CalculationResume {
   leistung_key?: string;
   bauverfahren_key?: string;
+  maschinen?: Record<string, string>;      // Ausführungsart slot code -> Maschine code (Gate A)
+  baustoff_code?: string;
   overrides?: Record<string, unknown>;
   cancel?: boolean;
 }

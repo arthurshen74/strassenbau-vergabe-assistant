@@ -123,8 +123,9 @@ async def test_live_full_flow_matches_golden():
     # Override the unresolved high-stakes class to match the fixture (1 = verwertbar).
     await app.ainvoke(Command(resume={"overrides": {"fraesgut_klasse": "1"}}), cfg)
     state = (await app.aget_state(cfg)).values
-    assert state["ekt_zeile"]["ep_eur"] == "1.71"
-    assert state["ekt_zeile"]["gp_eur"] == "13347.36"
+    # The default Kaltfräse is auto-bound -> machine-driven cost (0.92, below the org 1.71).
+    assert state["gewaehlte_maschinen"]["AA_KALTFRAESE"] == "WIRTGEN_W100CFI"
+    assert state["ekt_zeile"]["ep_eur"] == "0.92"
     assert state["beschreibung"] == "Erläuterung."
     assert "LeistungKlassifikation" in llm.calls
     assert "WertExtraktion" in llm.calls

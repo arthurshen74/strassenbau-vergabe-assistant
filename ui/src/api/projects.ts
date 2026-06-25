@@ -74,6 +74,14 @@ export function useCreateProject() {
   });
 }
 
+export function useDeleteProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (projectUuid: string) => api.delete<void>(`/projects/${projectUuid}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: projectKeys.all }),
+  });
+}
+
 async function postDocuments(projectUuid: string, files: File[]): Promise<DocumentRead[]> {
   const form = new FormData();
   for (const f of files) form.append('files', f);
