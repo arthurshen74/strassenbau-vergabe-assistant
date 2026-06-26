@@ -39,3 +39,27 @@ A correction tagged `kalkulator_ermessen` (expert judgement) or `kontext_fehlt` 
 documents) is **not** a model error. The endorsed value still becomes gold, but those overrides are
 expert/data signal, not extraction failures — keep that in mind when reading `value_accuracy`, and
 filter `variable_corrections.reason` accordingly when analysing where the model actually went wrong.
+
+## Chat-value extraction
+
+Separately, `EKT_CHAT_VALUES` harvests the values the Kalkulator already stated in the pre-launch
+chat (source 0). It is scored against **authored fixtures**, not the DB gold — each fixture is a
+transcript plus the assignments it should yield. No retrieval or graph is needed, only the prompt.
+
+```bash
+cd server
+uv run python -m scripts.eval_calculator.run_chat --dataset eval/calculator/chat_values/example.jsonl
+```
+
+Fixture format (JSONL, `//` lines ignored), names are `KONTEXT_VARIABLEN` keys, values verbatim in
+the variable's own unit (the extractor does **no** conversion):
+
+```json
+{"id": "...", "transcript": [{"role": "user", "content": "..."}], "gold": {"tiefe_cm": "4"}}
+```
+
+Metrics are set-shaped over (name, value) assignments: `precision`/`recall`/`f1` (a hit needs the
+right name *and* value), plus `name_recall` (did it find the name at all), `value_accuracy` (of names
+found, value right), and `spurious` (names emitted that aren't in gold — e.g. a hallucinated or
+off-catalog name). `example.jsonl` includes a no-values control fixture to check the model doesn't
+invent assignments.

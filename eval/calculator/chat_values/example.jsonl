@@ -1,0 +1,5 @@
+// EKT chat-value eval fixtures: each line is {id, transcript:[{role,content}], gold:{name:wert}}.
+// Names are KONTEXT_VARIABLEN keys; values are verbatim in the variable's own unit (no conversion).
+{"id": "fraesen-tiefe-klasse", "transcript": [{"role": "user", "content": "Ich kalkuliere die Fräsposition 01.02.0030, Deckschicht abfräsen."}, {"role": "assistant", "content": "Gerne. Welche Frästiefe ist vorgesehen?"}, {"role": "user", "content": "Die Frästiefe beträgt 4 cm. Laut PAK-Gutachten ist das Fräsgut pechhaltig, also Klasse 3."}], "gold": {"tiefe_cm": "4", "fraesgut_klasse": "3"}}
+{"id": "asphalt-einbau", "transcript": [{"role": "user", "content": "Asphaltdeckschicht einbauen. Wir fahren mit einer Kolonne von 5 Mann. Das Mischgut kommt aus ca. 22 km Entfernung. Einbaudicke 4 cm."}], "gold": {"einbaudicke_cm": "4", "anzahl_arbeiter": "5", "entfernung_km": "22"}}
+{"id": "keine-werte", "transcript": [{"role": "user", "content": "Was muss ich bei dieser Position grundsätzlich beachten?"}, {"role": "assistant", "content": "Achten Sie auf die Verkehrsführung und die Witterung; konkrete Werte nennen Sie mir dann."}], "gold": {}}
