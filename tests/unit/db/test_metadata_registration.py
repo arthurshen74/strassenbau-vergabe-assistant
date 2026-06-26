@@ -19,6 +19,8 @@ EXPECTED_TABLES = {
     "conversations",
     "messages",
     "embedding_cache",
+    "calculation_ground_truth",
+    "variable_corrections",
 }
 
 

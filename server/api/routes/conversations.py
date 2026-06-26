@@ -28,7 +28,7 @@ from shared.models.conversation_schema import (
     ConversationCreate,
     ConversationRead,
 )
-from shared.models.enums import CalculationStatus, PromptType
+from shared.models.enums import CalculationStatus, PromptType, VariableCorrectionReason
 from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
@@ -64,7 +64,9 @@ class CalculationResume(BaseModel):
     """The Kalkulator's structured decision for the current HITL gate of a paused calculation:
     method_review (Gate A) confirms the Leistung and selects the Bauverfahren; variable_review
     (Gate B) `overrides` maps a variable name -> its corrected value (changed leaves only; an
-    empty/absent map accepts every proposal as-is)."""
+    empty/absent map accepts every proposal as-is). At Gate B, `reasons` optionally tags each
+    override with why it changed, and `mark_as_ground_truth` saves the reviewed state as eval
+    ground truth (see shared.services.ground_truth)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -73,6 +75,8 @@ class CalculationResume(BaseModel):
     maschinen: dict[str, str] | None = None        # Ausführungsart slot code -> Maschine code
     baustoff_code: str | None = None
     overrides: dict[str, Any] | None = None
+    reasons: dict[str, VariableCorrectionReason] | None = None  # Gate B: variable name -> why it changed
+    mark_as_ground_truth: bool | None = None       # Gate B: persist the reviewed state as ground truth
     cancel: bool | None = None
 
 
@@ -218,7 +222,7 @@ def _resume_events(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="calculation is not awaiting input"
         )
-    return calc.resume(conversation, resume.model_dump(exclude_none=True))
+    return calc.resume(conversation, resume.model_dump(mode="json", exclude_none=True))
 
 
 async def _content_events(

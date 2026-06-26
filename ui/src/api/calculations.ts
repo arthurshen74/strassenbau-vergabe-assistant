@@ -9,13 +9,16 @@ import type { ConversationRead } from '../types/generated';
 
 // The Kalkulator's structured decision for the current HITL gate; the fields the paused stage reads.
 //   - method_review (Gate A): confirm the Leistung and select the Bauverfahren.
-//   - variable_review (Gate B): overrides maps a variable name -> its corrected value (changed leaves only).
+//   - variable_review (Gate B): overrides maps a variable name -> its corrected value (changed leaves only);
+//     reasons optionally tags each override, and mark_as_ground_truth saves the review as eval ground truth.
 export interface CalculationResume {
   leistung_key?: string;
   bauverfahren_key?: string;
   maschinen?: Record<string, string>;      // Ausführungsart slot code -> Maschine code (Gate A)
   baustoff_code?: string;
   overrides?: Record<string, unknown>;
+  reasons?: Record<string, string>;        // Gate B: variable name -> why it was overridden
+  mark_as_ground_truth?: boolean;          // Gate B: save the reviewed state as ground truth
   cancel?: boolean;
 }
 

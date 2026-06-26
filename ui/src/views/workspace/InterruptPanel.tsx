@@ -367,17 +367,36 @@ const QUELLE_LABEL: Record<string, string> = {
   stammdaten: 'Stammdaten',
 };
 
+// Why a proposed value was overridden; the value matches the backend VariableCorrectionReason enum.
+const REASON_OPTIONS: { value: string; label: string }[] = [
+  { value: 'falscher_wert', label: 'Falscher Wert' },
+  { value: 'falsche_quelle', label: 'Falsche Quelle / nicht gefunden' },
+  { value: 'einheit', label: 'Einheit / Umrechnung' },
+  { value: 'kontext_fehlt', label: 'Nicht in den Unterlagen' },
+  { value: 'kalkulator_ermessen', label: 'Kalkulator-Ermessen' },
+  { value: 'sonstiges', label: 'Sonstiges' },
+];
+
+const REASON_PICKER =
+  'mt-1 block w-full rounded-lg border border-zinc-950/10 bg-transparent px-2 py-1 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400';
+
 function VariableRow({
   v,
   value,
   invalid,
+  changed,
+  reason,
   onChange,
+  onReason,
   disabled,
 }: {
   v: Record<string, unknown>;
   value: string;
   invalid?: boolean;
+  changed?: boolean;
+  reason?: string;
   onChange: (next: string) => void;
+  onReason?: (reason: string) => void;
   disabled?: boolean;
 }) {
   const name = str(v.name);
@@ -412,6 +431,22 @@ function VariableRow({
         {v.konfidenz != null ? ` · Konfidenz ${str(v.konfidenz)}` : ''}
         {v.beleg ? ` · ${str(v.beleg)}` : ''}
       </Text>
+      {/* A changed value is an override; offer an optional reason so corrections can be analysed. */}
+      {changed && onReason ? (
+        <select
+          className={REASON_PICKER}
+          value={reason ?? ''}
+          disabled={disabled}
+          onChange={(e) => onReason(e.target.value)}
+        >
+          <option value="">Grund der Änderung (optional)…</option>
+          {REASON_OPTIONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      ) : null}
     </div>
   );
 }
@@ -426,15 +461,29 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(rows.map((v) => [str(v.name), v.wert == null ? '' : str(v.wert)])),
   );
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [markGroundTruth, setMarkGroundTruth] = useState(false);
   const [showRates, setShowRates] = useState(false);
 
   const original = (v: Record<string, unknown>) => (v.wert == null ? '' : str(v.wert));
+  // A leaf whose value was edited away from its proposal — i.e. an override.
+  const isChanged = (v: Record<string, unknown>) => {
+    const next = (values[str(v.name)] ?? '').trim();
+    return next !== '' && next !== original(v);
+  };
   const overrides = () => {
     const out: Record<string, unknown> = {};
     for (const v of rows) {
+      if (isChanged(v)) out[str(v.name)] = (values[str(v.name)] ?? '').trim();
+    }
+    return out;
+  };
+  // Reasons only for changed leaves that have one picked; optional, so absent is fine.
+  const pickedReasons = () => {
+    const out: Record<string, string> = {};
+    for (const v of rows) {
       const name = str(v.name);
-      const next = (values[name] ?? '').trim();
-      if (next !== '' && next !== original(v)) out[name] = next;
+      if (isChanged(v) && reasons[name]) out[name] = reasons[name];
     }
     return out;
   };
@@ -448,6 +497,17 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
     (v) => v.wert == null && (values[str(v.name)] ?? '').trim() === '',
   );
   const set = (name: string) => (next: string) => setValues((s) => ({ ...s, [name]: next }));
+  const setReason = (name: string) => (next: string) =>
+    setReasons((s) => ({ ...s, [name]: next }));
+
+  const submit = () => {
+    const reasonMap = pickedReasons();
+    onResume({
+      overrides: overrides(),
+      ...(Object.keys(reasonMap).length > 0 ? { reasons: reasonMap } : {}),
+      ...(markGroundTruth ? { mark_as_ground_truth: true } : {}),
+    });
+  };
 
   return (
     <Panel title="Variablen prüfen">
@@ -464,7 +524,10 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
               v={v}
               value={values[str(v.name)] ?? ''}
               invalid={invalid(str(v.name))}
+              changed={isChanged(v)}
+              reason={reasons[str(v.name)]}
               onChange={set(str(v.name))}
+              onReason={setReason(str(v.name))}
               disabled={disabled}
             />
           ))}
@@ -500,10 +563,17 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
       ) : null}
 
       <div className="pt-4">
-        <Button
-          disabled={disabled || missing || hasInvalid}
-          onClick={() => onResume({ overrides: overrides() })}
-        >
+        <label className="flex items-center gap-2 pb-3 text-xs text-zinc-700 dark:text-zinc-300">
+          <input
+            type="checkbox"
+            checked={markGroundTruth}
+            disabled={disabled}
+            onChange={(e) => setMarkGroundTruth(e.target.checked)}
+            className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
+          />
+          Als Ground Truth speichern (geprüfte Werte als Referenz sichern)
+        </label>
+        <Button disabled={disabled || missing || hasInvalid} onClick={submit}>
           Werte bestätigen & berechnen
         </Button>
         {hasInvalid ? (

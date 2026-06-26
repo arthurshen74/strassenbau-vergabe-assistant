@@ -6,6 +6,7 @@ process that builds the schema (tests, bootstrap) must import this package first
 
 from __future__ import annotations
 
+from shared.db.tables.calculation_ground_truth import calculation_ground_truth
 from shared.db.tables.conversations import conversations
 from shared.db.tables.documents import documents
 from shared.db.tables.embedding_cache import embedding_cache
@@ -21,8 +22,10 @@ from shared.db.tables.prompt_execution_log import prompt_execution_log
 from shared.db.tables.prompt_versions import prompt_versions
 from shared.db.tables.source_lines import source_lines
 from shared.db.tables.thumbnails import thumbnails
+from shared.db.tables.variable_corrections import variable_corrections
 
 __all__ = [
+    "calculation_ground_truth",
     "conversations",
     "documents",
     "embedding_cache",
@@ -38,4 +41,5 @@ __all__ = [
     "prompt_versions",
     "source_lines",
     "thumbnails",
+    "variable_corrections",
 ]

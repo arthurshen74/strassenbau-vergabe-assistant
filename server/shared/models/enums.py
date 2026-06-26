@@ -62,6 +62,22 @@ class CalculationStatus(StrEnum):
     FAILED = "failed"
 
 
+class VariableCorrectionReason(StrEnum):
+    """Why a Kalkulator overrode a proposed variable value at Gate B.
+
+    The tag governs eval validity: only model-error reasons count against extraction accuracy;
+    KALKULATOR_ERMESSEN is expert preference (the model was not wrong), and KONTEXT_FEHLT is a
+    data gap, so both are excluded from the model's score and tracked separately.
+    """
+
+    FALSCHER_WERT = "falscher_wert"            # model misread the value (model error)
+    FALSCHE_QUELLE = "falsche_quelle"          # value was findable but missed / wrong provenance (model error)
+    EINHEIT = "einheit"                        # unit / conversion mistake (model error)
+    KONTEXT_FEHLT = "kontext_fehlt"            # value not in the documents (data gap, not a model error)
+    KALKULATOR_ERMESSEN = "kalkulator_ermessen"  # expert judgement / risk buffer (not a model error)
+    SONSTIGES = "sonstiges"                    # other (see note)
+
+
 class UsageOperation(StrEnum):
     CHAT = "CHAT"
     EMBEDDING = "EMBEDDING"

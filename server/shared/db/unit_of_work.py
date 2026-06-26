@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.documents import DocumentRepository
+from shared.repositories.ground_truth import GroundTruthRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.ingestion_activity import IngestionActivityLogRepository
@@ -31,6 +32,7 @@ from shared.repositories.prompt_execution_log import PromptExecutionLogRepositor
 from shared.repositories.prompt_versions import PromptVersionRepository
 from shared.repositories.source_lines import SourceLineRepository
 from shared.repositories.thumbnails import ThumbnailRepository
+from shared.repositories.variable_corrections import VariableCorrectionRepository
 
 
 class UnitOfWork:
@@ -49,6 +51,8 @@ class UnitOfWork:
         self.prompt_versions = PromptVersionRepository(conn)
         self.conversations = ConversationRepository(conn)
         self.messages = MessageRepository(conn)
+        self.ground_truth = GroundTruthRepository(conn)
+        self.variable_corrections = VariableCorrectionRepository(conn)
         # Registered for read/report composition; the Database*Sinks write independently.
         self.openrouter_usage = OpenRouterUsageRepository(conn)
         self.prompt_execution_log = PromptExecutionLogRepository(conn)

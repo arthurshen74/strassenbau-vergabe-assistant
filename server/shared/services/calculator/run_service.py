@@ -63,6 +63,7 @@ from shared.services.calculator.graph import (
     build_graph,
 )
 from shared.services.calculator.prompts import load_calculator_prompts
+from shared.services.ground_truth import GroundTruthService
 from shared.services.messages import (
     CONTENT,
     ROLE,
@@ -140,10 +141,45 @@ class CalculatorRunService:
     ) -> AsyncIterator[dict[str, Any]]:
         """Continue a paused run from its checkpoint with the Kalkulator's decision."""
         prompts = await self._load_prompts()
+        # A Gate B submit may override values and/or flag the review as ground truth; capture both
+        # from the paused proposals before the resume overwrites them.
+        await self._capture_gate_b(conversation, decision, prompts)
         async for event in self._run_segment(
             conversation, Command(resume=decision), prompts
         ):
             yield event
+
+    async def _capture_gate_b(
+        self,
+        conversation: Conversation,
+        decision: dict[str, Any],
+        prompts: Mapping[PromptType, PromptVersion],
+    ) -> None:
+        """Persist Gate B corrections (every overridden leaf) and, when flagged, the ground-truth
+        record. A no-op unless the decision changes or flags something and the paused state holds
+        variable proposals — i.e. it is Gate B (variable_review), not Gate A (method_review)."""
+        if not (decision.get("mark_as_ground_truth") or decision.get("overrides")):
+            return
+        if conversation.project_uuid is None or conversation.lv_item_uuid is None:
+            return
+        app = self._app(conversation.project_uuid, conversation.conversation_uuid, prompts)
+        config = {"configurable": {"thread_id": str(conversation.conversation_uuid)}}
+        state = (await app.aget_state(config)).values
+        proposals = state.get("vorschlaege") or {}
+        if not proposals:                          # Gate A (no worklist yet): nothing to capture
+            return
+        position = state.get("position") or {}
+        async with self._engine.begin() as conn:
+            await GroundTruthService(conn).capture_gate_b(
+                conversation=conversation,
+                oz=position.get("oz"),
+                leistung_key=state.get("leistung_key"),
+                bauverfahren_key=state.get("bauverfahren_key"),
+                proposals=proposals,
+                overrides=decision.get("overrides") or {},
+                reasons=decision.get("reasons") or {},
+                mark_as_ground_truth=bool(decision.get("mark_as_ground_truth")),
+            )
 
     def _app(
         self,
