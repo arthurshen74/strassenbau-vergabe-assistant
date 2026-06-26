@@ -160,7 +160,8 @@ class Baustoff(BaseModel):
     kategorie: str | None = None
     koernung: str | None = None
     einheit: str = "t"
-    basispreis_eur_pro_t: Decimal | None = None
+    basispreis_eur_pro_t: Decimal | None = None      # €/t — bulk/tonnage costing + supplier comparison
+    basispreis_eur: Decimal | None = None            # price per `einheit` — the universal material-cost rate
 
 
 class Baustofflieferant(BaseModel):

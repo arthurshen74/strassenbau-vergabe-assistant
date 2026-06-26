@@ -100,7 +100,7 @@ def _fraesen_ekt(maschine_code: str | None = None) -> Decimal:
         ctx.werte[name] = VariablenWert(name=name, wert=Decimal(value), quelle=M.HITL)
     if maschine_code:
         ctx.werte.update(rezept_maschinen_werte(bv, {"AA_KALTFRAESE": MASCHINEN[maschine_code]}))
-    return kalkuliere_kontext("L_FRAESEN_3_45", "BV_FRAESEN", ctx, menge)["ekt_eur"]
+    return kalkuliere_kontext("L_FRAESEN", "BV_FRAESEN", ctx, menge)["ekt_eur"]
 
 
 def test_machine_selection_changes_the_ekt() -> None:

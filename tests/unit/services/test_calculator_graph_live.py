@@ -94,7 +94,7 @@ def _app(llm):
 
 
 CLASSIFY_OK = LeistungKlassifikation(
-    reasoning=["Langtext nennt 'abfraesen'."], leistung_key="L_FRAESEN_3_45",
+    reasoning=["Langtext nennt 'abfraesen'."], leistung_key="L_FRAESEN",
     konfidenz=0.95, notizen="Fräsen 3-4,5 cm.")
 # tiefe_cm read from the Langtext; fraesgut_klasse not in the docs (no Schadstoffgutachten).
 EXTRAKT = {
@@ -110,7 +110,7 @@ async def test_live_full_flow_matches_golden():
 
     gate_a = (await app.ainvoke({"position": dict(POSITION), "chat_verlauf": []}, cfg))["__interrupt__"][0].value
     assert gate_a["stage"] == STAGE_METHOD_REVIEW
-    assert gate_a["leistung_key"] == "L_FRAESEN_3_45"
+    assert gate_a["leistung_key"] == "L_FRAESEN"
 
     gate_b = (await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FRAESEN"}), cfg))["__interrupt__"][0].value
     assert gate_b["stage"] == STAGE_VARIABLE_REVIEW

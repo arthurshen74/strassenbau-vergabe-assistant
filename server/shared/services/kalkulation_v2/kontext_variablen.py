@@ -44,9 +44,6 @@ eingabe("tiefe_cm", "Tiefe (Fräs-/Schnitt-/Abtragstiefe)", "cm",
         "Suche im Langtext die Fräs-/Schnitt-/Einbau-/Abtragstiefe; oft als Bereich 'über X bis Y cm'.")
 eingabe("markierung_leistung_m_pro_h", "Abtragsleistung Markierung", "m/h",
         "Schätze die Abtragsleistung nach Markierungsstoff (Farbe schnell, Plastik/Thermoplast langsam).")
-# NOTE: true source is STAMMDATEN (supplier price list) once a Lieferant is chosen.
-eingabe("materialpreis_eur_pro_t", "Materialpreis", "€/t",
-        "Materialpreis des gewählten Baustoffs beim Lieferanten zum Stichtag.")
 eingabe("bindemittelmenge_kg_pro_m2", "Bindemittelmenge (Spritzmenge)", "kg/m²",
         "Aus LV-Langtext: Spritzmenge der Bitumenemulsion (kg/m²). Achtung Einheit: g/m² in kg/m² umrechnen.")
 eingabe("einbaudicke_cm", "Einbaudicke (Asphaltschicht)", "cm",
@@ -55,8 +52,6 @@ eingabe("abstreumenge_kg_pro_m2", "Abstreumenge", "kg/m²",
         "Aus LV-Langtext: Menge der Abstreukörnung (kg/m²).")
 eingabe("naht_dicke_cm", "Schichtdicke an der Naht", "cm",
         "Aus LV-Langtext: Dicke der Schicht an der Naht (cm); steuert die PmB-Menge (g/m je cm).")
-eingabe("grid_preis_eur_pro_m2", "Preis Asphalteinlage", "€/m²",
-        "Produktpreis der Asphalteinlage (Bieterprodukt) je m² überbauter Fläche.")
 eingabe("fugenspalttiefe_mm", "Fugenspalttiefe", "mm", "Aus LV-Langtext: Fugenspalttiefe (mm).")
 eingabe("fugenspaltbreite_mm", "Fugenspaltbreite", "mm", "Aus LV-Langtext: Fugenspaltbreite (mm).")
 

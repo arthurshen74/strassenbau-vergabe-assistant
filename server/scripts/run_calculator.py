@@ -6,7 +6,7 @@ LangGraph app, and walks the two HITL interrupts interactively (Gate A method re
 Gate B variable review). The whole run is traced to Phoenix (docker-compose `phoenix`).
 
     python -m scripts.run_calculator --project <uuid> --oz 01.02.0006 \
-        --mock --leistung L_FRAESEN_3_45 --set tiefe_cm=4 --set fraesgut_klasse=1
+        --mock --leistung L_FRAESEN --set tiefe_cm=4 --set fraesgut_klasse=1
 
 --mock skips the LLM/RAG seams: `--leistung` supplies the Leistung the mock classifier
 returns, and `--set name=value` pre-pins chat values (precedence source 0); the rest of

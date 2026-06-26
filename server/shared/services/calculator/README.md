@@ -18,7 +18,7 @@ Offline mock (canned LLM replies + pinned inputs, no retrieval):
 
 ```bash
 python -m scripts.run_calculator --project <project_uuid> --oz 01.02.0006 \
-    --mock --leistung L_FRAESEN_3_45 --set tiefe_cm=4 --set fraesgut_klasse=1
+    --mock --leistung L_FRAESEN --set tiefe_cm=4 --set fraesgut_klasse=1
 ```
 
 The LLM sites run `settings.calculator_model` (default `openai/gpt-5.4`) via OpenRouter

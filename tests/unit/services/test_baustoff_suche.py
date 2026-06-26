@@ -21,9 +21,19 @@ def test_normed_designations_match_correct_code() -> None:
         "Schottertragschicht 0/32 herstellen Bk100": "STS_0_32",
         "Frostschutzschicht aus Mineralgemisch 0/45 einbauen": "FSS_0_45",
         "Asphaltdeckschicht AC 11 D S herstellen": "ASPHALT_AC11DS",
+        "Asphaltdeckschicht AC 8 D S einbauen": "ASPHALT_AC8DS",
         "Splittmastixasphalt SMA 8 S Deckschicht": "SMA_8_S",
+        "Gussasphaltdeckschicht MA 8 S herstellen": "GUSSASPHALT_MA8S",
         "Asphalttragschicht AC 32 T S einbauen": "ASPHALT_AC32TS",
+        "Asphalttragschicht AC 22 T S herstellen": "ASPHALT_AC22TS",
         "RC-Schotter 0/45 als Tragschicht": "RC_SCHOTTER_0_45",
+        # specialty materials priced per Einheit (m²/m/t)
+        "DSK aus DSK 5 herstellen Einbaubreite": "DSK_5",
+        "Asphalteinlage Gitter mit Vliesstoff verlegen": "ASPHALTEINLAGE_GITTER",
+        "Fugenfüllung Querfuge Fugenmasse N2 herstellen": "FUGENMASSE_N2",
+        "Randabdichtung Abd 25/55 herstellen": "RANDABDICHTUNG_ABD2555",
+        "Abstumpfung LFK 1/3 maschinell": "ABSTREUSPLITT_1_3",
+        "Bitumenemulsion C60 aufsprühen Verbund": "EMULSION_VERBUND",
     }
     for text, code in cases.items():
         assert suche_baustoff(text).top.code == code, text
@@ -52,11 +62,14 @@ def test_no_material_text_yields_no_hit() -> None:
     assert m.konfidenz == 0.0
 
 
-def test_braucht_baustoff_only_for_graded_material_recipes() -> None:
-    # FSS/STS lay a graded material by tonnage (density from the Baustoff) -> need one.
-    assert braucht_baustoff(BAUVERFAHREN["BV_FSS_GRADER"], KALK)
-    assert braucht_baustoff(BAUVERFAHREN["BV_FSS_FERTIGER"], KALK)
-    # Fräsen uses no material; DSK/Gussasphalt price material directly (no Baustoff density).
-    assert not braucht_baustoff(BAUVERFAHREN["BV_FRAESEN"], KALK)
-    assert not braucht_baustoff(BAUVERFAHREN["BV_DSK"], KALK)
-    assert not braucht_baustoff(BAUVERFAHREN["BV_GUSSASPHALT"], KALK)
+def test_braucht_baustoff_for_material_recipes() -> None:
+    # Every material-consuming recipe selects a Baustoff: unbound (density bridge),
+    # asphalt/gussasphalt (mix price), and DSK/anspritzen/naht/fugen/abstumpfen/grid
+    # (product price per Einheit). A per-position kontext value still overrides.
+    for bv in ("BV_FSS_GRADER", "BV_ASPHALT_EINBAU", "BV_GUSSASPHALT", "BV_DSK",
+               "BV_ANSPRITZEN", "BV_NAHT", "BV_FUGENFUELLUNG", "BV_ABSTUMPFEN", "BV_GRID",
+               "BV_RANDABDICHTUNG"):
+        assert braucht_baustoff(BAUVERFAHREN[bv], KALK), bv
+    # Pure operations consume no material -> no Baustoff.
+    for bv in ("BV_FRAESEN", "BV_SCHNEIDEN", "BV_MARKIERUNG", "BV_REINIGEN_KEHREN", "BV_VERDICHTEN"):
+        assert not braucht_baustoff(BAUVERFAHREN[bv], KALK), bv

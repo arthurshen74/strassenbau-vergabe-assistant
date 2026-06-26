@@ -30,7 +30,7 @@ def test_kalkuliere_reproduces_l101_fixture() -> None:
 
 
 def test_kalkuliere_fraesen_slice_is_deterministic() -> None:
-    pos = next(p for p in POSITIONEN if p.leistung_key == "L_FRAESEN_3_45")
+    pos = next(p for p in POSITIONEN if p.oz == "01.02.0006")   # the 7800 m² fräsen slice
     r1 = kalkuliere(pos)
     r2 = kalkuliere(pos)
     assert r1["bauverfahren"] == "BV_FRAESEN"
@@ -40,8 +40,8 @@ def test_kalkuliere_fraesen_slice_is_deterministic() -> None:
 
 def _fraesen_worklist() -> list:
     kalk = Kalkulator(KATALOG, FORMELN)
-    bv = BAUVERFAHREN[waehle_bauverfahren("L_FRAESEN_3_45")]
-    geom = GEOM[LEISTUNGEN["L_FRAESEN_3_45"].einheit]
+    bv = BAUVERFAHREN[waehle_bauverfahren("L_FRAESEN")]
+    geom = GEOM[LEISTUNGEN["L_FRAESEN"].einheit]
     return benoetigte_variablen(bv, kalk, gebucht=frozenset({geom}))
 
 
@@ -107,7 +107,7 @@ def test_feinfraesen_is_slower_than_regelfraesen() -> None:
     # Same shallow depth: the precision fine-mill is much slower -> a higher unit price.
     fein = kalkuliere(P("Tf", "L_FEINFRAESEN", "1000", tiefe_cm="2", fraesgut_klasse="1"))["ep_eur"]
     regel = kalkuliere(
-        P("Tr", "L_FRAESEN_1_25", "1000", tiefe_cm="2", erschwernisfaktor="1.0", fraesgut_klasse="1")
+        P("Tr", "L_FRAESEN", "1000", tiefe_cm="2", erschwernisfaktor="1.0", fraesgut_klasse="1")
     )["ep_eur"]
     assert fein > regel
 

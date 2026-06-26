@@ -33,7 +33,7 @@ POSITION = {
     "menge": "7800",
     "einheit": "m2",
     "baustoff_code": None,
-    "leistung_hint": "L_FRAESEN_3_45",
+    "leistung_hint": "L_FRAESEN",
 }
 VORGABEN = {"tiefe_cm": "4", "fraesgut_klasse": "1"}
 
@@ -75,7 +75,7 @@ async def test_method_review_is_gate_a():
     result = await app.ainvoke(_payload(), cfg)
     gate = result["__interrupt__"][0].value
     assert gate["stage"] == STAGE_METHOD_REVIEW
-    assert gate["leistung_key"] == "L_FRAESEN_3_45"
+    assert gate["leistung_key"] == "L_FRAESEN"
     assert gate["bauverfahren_kandidaten"] == ["BV_FRAESEN"]
     assert gate["bauverfahren_default"] == "BV_FRAESEN"
 
@@ -256,7 +256,7 @@ async def test_method_review_offers_full_katalog():
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "ga-katalog"}}
     gate = (await app.ainvoke(_payload(), cfg))["__interrupt__"][0].value
-    eintrag = next(e for e in gate["katalog"] if e["leistung_key"] == "L_FRAESEN_3_45")
+    eintrag = next(e for e in gate["katalog"] if e["leistung_key"] == "L_FRAESEN")
     assert eintrag["kandidaten"] == ["BV_FRAESEN"]
     # The whole Leistung catalog is offered, so an unclassified position can still be assigned.
     assert any(e["leistung_key"] == "L_AUFBRECHEN" for e in gate["katalog"])
@@ -276,7 +276,7 @@ async def test_method_review_cancel_aborts():
 async def test_method_review_corrects_leistung_and_rederives():
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "ga-correct"}}
-    await app.ainvoke(_payload(), cfg)                        # classified L_FRAESEN_3_45
+    await app.ainvoke(_payload(), cfg)                        # classified L_FRAESEN
     # Correct to a different Leistung + pick a candidate recipe; the worklist re-derives.
     gate_b = (await app.ainvoke(
         Command(resume={"leistung_key": "L_AUFBRECHEN", "bauverfahren_key": "BV_FRAESEN"}), cfg

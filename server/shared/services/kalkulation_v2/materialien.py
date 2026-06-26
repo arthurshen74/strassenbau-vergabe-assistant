@@ -50,9 +50,12 @@ _DEF = [
     ("RC_SCHOTTER_0_45", "RC-Schotter 0/45",         RECYCLING, "0/45", "1.90", "1.08", "9.00"),
     ("RC_0_32",   "RC-Mineralgemisch 0/32",          RECYCLING, "0/32", "1.90", "1.08", "8.00"),
     ("ASPHALT_AC32TS", "Asphalttragschicht AC 32 T S", ASPHALT, None, "2.40", "1.00", "72.00"),
+    ("ASPHALT_AC22TS", "Asphalttragschicht AC 22 T S", ASPHALT, None, "2.45", "1.00", "75.00"),
     ("ASPHALT_AC16BS", "Asphaltbinder AC 16 B S",    ASPHALT, None, "2.45", "1.00", "82.00"),
     ("ASPHALT_AC11DS", "Asphaltdeckschicht AC 11 D S", ASPHALT, None, "2.45", "1.00", "92.00"),
+    ("ASPHALT_AC8DS",  "Asphaltdeckschicht AC 8 D S",  ASPHALT, None, "2.45", "1.00", "95.00"),
     ("SMA_8_S",   "Splittmastixasphalt SMA 8 S",     ASPHALT, None, "2.45", "1.00", "108.00"),
+    ("GUSSASPHALT_MA8S", "Gussasphalt MA 8 S",        ASPHALT, None, "2.45", "1.00", "120.00"),
     ("BITUMEN_50_70", "Straßenbaubitumen 50/70",     BINDEMITTEL, None, "1.03", "1.00", "580.00"),
     ("PMB_45_80", "Polymermod. Bitumen 45/80-50",    BINDEMITTEL, None, "1.02", "1.00", "850.00"),
     ("OBERBODEN", "Oberboden",                       BODEN, None, "1.50", "1.00", "7.00"),
@@ -63,9 +66,29 @@ _DEF = [
 BAUSTOFFE: dict[str, Baustoff] = {
     code: Baustoff(code=code, name=name, kategorie=kat, koernung=koern,
                    rohdichte_t_pro_m3=D(dichte), verdichtungsfaktor=D(verd),
-                   basispreis_eur_pro_t=D(preis) if preis else None)
+                   basispreis_eur_pro_t=D(preis) if preis else None,
+                   basispreis_eur=D(preis) if preis else None)   # bulk: per-t == per-einheit
     for (code, name, kat, koern, dichte, verd, preis) in _DEF
 }
+
+# Specialty materials priced in their OWN Einheit (m², m), not by the tonne: DSK slurry, the
+# geogrid inlay, edge-sealing band/mass, fugenmasse, abstreusplitt, bitumen emulsions. Their
+# `basispreis_eur` is the per-Einheit cost rate the recipe formulas multiply by area/length/t.
+# (code, name, kategorie, einheit, basispreis_eur)
+_SPEZIAL = [
+    ("DSK_5",             "Dünnschichtbelag DSK 5 (Mischgut)",          ASPHALT,     "m2", "4.50"),
+    ("ASPHALTEINLAGE_GITTER", "Asphalteinlage Gitter mit Vliesstoff (FGSV AP 770)", None, "m2", "6.50"),
+    ("RANDABDICHTUNG_ABD2555", "Randabdichtung Abd 25/55 (Fugenband/Randmasse)", BINDEMITTEL, "m", "3.00"),
+    ("FUGENMASSE_N2",     "Fugenmasse N2 (heiß verarbeitbar)",          BINDEMITTEL, "t", "1800.00"),
+    ("ABSTREUSPLITT_1_3", "Abstreukörnung LFK 1/3",                     SPLITT,      "t", "30.00"),
+    ("EMULSION_BETT",     "Bitumenemulsion C60 (Bettung Asphalteinlage)", BINDEMITTEL, "t", "700.00"),
+    ("EMULSION_VERBUND",  "Bitumenemulsion C60 (Verbund)",              BINDEMITTEL, "t", "600.00"),
+]
+for _code, _name, _kat, _einheit, _preis in _SPEZIAL:
+    BAUSTOFFE[_code] = Baustoff(
+        code=_code, name=_name, kategorie=_kat, einheit=_einheit,
+        rohdichte_t_pro_m3=D("1.0"), basispreis_eur=D(_preis),
+        basispreis_eur_pro_t=D(_preis) if _einheit == "t" else None)
 
 
 # --------------------------------------------------------------------------- #

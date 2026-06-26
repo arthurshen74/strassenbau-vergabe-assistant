@@ -13,55 +13,43 @@ Exports LEISTUNG_BAUVERFAHREN, kandidaten(), waehle_bauverfahren().
 from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
 from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
 
-# leistung_code -> ordered list of candidate Bauverfahren keys (first = default)
+# leistung_code -> ordered list of candidate Bauverfahren keys (first = default).
+# Where a generic Leistung has several recipes, the choice is the calculator's
+# (e.g. L_REINIGEN: Kehrmaschine vs Hochdruck; L_FSS: Grader vs Fertiger).
 LEISTUNG_BAUVERFAHREN: dict[str, list[str]] = {
     "L_BANKETT_ABTRAGEN":   ["BV_BODENABTRAG"],
     "L_BODEN_EINBAU_GROBK": ["BV_BODEN_GROBK"],
-    "L_BANKETTBEF_B2":      ["BV_BANKETT_GRADER", "BV_BANKETT_FERTIGER"],
+    "L_BANKETTBEF":         ["BV_BANKETT_GRADER", "BV_BANKETT_FERTIGER"],
     "L_OBERBODEN":          ["BV_OBERBODEN_GRADER", "BV_OBERBODEN_HAND"],
     "L_ERSCHWERNIS_FRAESEN": ["BV_ERSCHWERNIS"],
     "L_ERSCHWERNIS_ASPHALT": ["BV_ERSCHWERNIS"],
-    "L_MARK_FARBE":         ["BV_MARKIERUNG"],
-    "L_MARK_PLASTIK":       ["BV_MARKIERUNG"],
-    "L_TRENNEN_QUER_DECK":  ["BV_SCHNEIDEN"],
-    "L_TRENNEN_QUER_BINDER": ["BV_SCHNEIDEN"],
-    "L_FRAESEN_1_25":       ["BV_FRAESEN"],
-    "L_FRAESEN_3_45":       ["BV_FRAESEN"],
-    "L_FRAESEN_5_9":        ["BV_FRAESEN"],
-    "L_NACHFRAESEN":        ["BV_FRAESEN"],
-    "L_TRENNEN_LAENGS":     ["BV_SCHNEIDEN"],
+    "L_MARKIERUNG":         ["BV_MARKIERUNG"],
+    "L_TRENNEN":            ["BV_SCHNEIDEN"],
+    "L_FRAESEN":            ["BV_FRAESEN"],
     # two ways to take up the asphalt: break it out (default) or mill it out
     "L_AUFBRECHEN":         ["BV_AUFBRECHEN", "BV_FRAESEN"],
     "L_BODEN_LOESEN":       ["BV_BODENABTRAG"],
-    "L_PLANUM":             ["BV_PLANUM"],
-    "L_PLANUM_VERDICHTET":  ["BV_PLANUM_VERDICHTEN"],
+    "L_PLANUM":             ["BV_PLANUM", "BV_PLANUM_VERDICHTEN"],
     "L_BODEN_VERDICHTEN":   ["BV_VERDICHTEN"],
-    "L_FSS_EV45":           ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
+    "L_FSS":                ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
     "L_ASPHALTTRAGSCHICHT": ["BV_ASPHALT_EINBAU"],
     "L_NAHT":               ["BV_NAHT"],
-    "L_FSS_EV100":          ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
-    "L_REINIGEN_KEHREN":    ["BV_REINIGEN_KEHREN"],
-    "L_REINIGEN_HD":        ["BV_REINIGEN_HD"],
-    "L_ANSPRITZEN_GRID":          ["BV_ANSPRITZEN"],
-    "L_ANSPRITZEN_VERBUND_FRAES": ["BV_ANSPRITZEN"],
-    "L_ANSPRITZEN_VERBUND_FRISCH": ["BV_ANSPRITZEN"],
-    "L_ASPHALTEINLAGE":          ["BV_GRID"],
-    "L_ASPHALT_TRAGSCHICHT_AC22": ["BV_ASPHALT_EINBAU"],
-    "L_ASPHALT_BINDER_AC16":     ["BV_ASPHALT_EINBAU"],
-    "L_ASPHALT_DECK_AC8":        ["BV_ASPHALT_EINBAU"],
-    "L_ABSTUMPFUNG":             ["BV_ABSTUMPFEN"],
-    "L_KEHREN_VSM":              ["BV_REINIGEN_KEHREN"],
-    "L_NAHT_QUER_PMB":           ["BV_NAHT"],
-    "L_NAHT_AUFWEITEN":          ["BV_NAHT_AUFWEITEN"],
-    "L_FUGENFUELLUNG_N2":        ["BV_FUGENFUELLUNG"],
-    # --- gap closers (LV coverage) ---
-    "L_FEINFRAESEN":             ["BV_FEINFRAESEN"],
-    "L_ASPHALT_HAND":            ["BV_ASPHALT_HAND"],
-    "L_GUSSASPHALT_DECK":        ["BV_GUSSASPHALT"],
-    # --- secondary gap closers (STS reuses the two FSS recipes) ---
-    "L_STS":                     ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
-    "L_DSK":                     ["BV_DSK"],
-    "L_RANDABDICHTUNG":          ["BV_RANDABDICHTUNG"],
+    "L_REINIGEN":           ["BV_REINIGEN_KEHREN", "BV_REINIGEN_HD"],
+    "L_ANSPRITZEN":         ["BV_ANSPRITZEN"],
+    "L_ASPHALTEINLAGE":     ["BV_GRID"],
+    "L_ASPHALTBINDER":      ["BV_ASPHALT_EINBAU"],
+    "L_ASPHALTDECK":        ["BV_ASPHALT_EINBAU"],
+    "L_ABSTUMPFUNG":        ["BV_ABSTUMPFEN"],
+    "L_KEHREN_VSM":         ["BV_REINIGEN_KEHREN"],
+    "L_NAHT_AUFWEITEN":     ["BV_NAHT_AUFWEITEN"],
+    "L_FUGENFUELLUNG_N2":   ["BV_FUGENFUELLUNG"],
+    # --- distinct ops (own recipe / function) ---
+    "L_FEINFRAESEN":        ["BV_FEINFRAESEN"],
+    "L_ASPHALT_HAND":       ["BV_ASPHALT_HAND"],
+    "L_GUSSASPHALT_DECK":   ["BV_GUSSASPHALT"],
+    "L_STS":                ["BV_FSS_GRADER", "BV_FSS_FERTIGER"],
+    "L_DSK":                ["BV_DSK"],
+    "L_RANDABDICHTUNG":     ["BV_RANDABDICHTUNG"],
 }
 
 

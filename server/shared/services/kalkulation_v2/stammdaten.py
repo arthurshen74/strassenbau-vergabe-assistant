@@ -24,6 +24,16 @@ def stammdaten(name, pfad, einheit, bez=None):
                                         aufloesung=[Schritt(methode=M.STAMMDATEN, stammdaten_pfad=pfad)])
 
 
+def stammdaten_mit_default(name, pfad, default, einheit, bez=None):
+    """A master-data bridge with a KONSTANTE fallback: read `pfad` off the chosen Baustoff
+    (e.g. its basispreis), else fall back to `default` when no Baustoff is bound. A per-
+    position kontext value still overrides both (resolve() checks ctx.werte first)."""
+    STAMMDATEN_VARIABLEN[name] = VarDef(
+        name=name, bezeichnung=bez or name, einheit=einheit,
+        aufloesung=[Schritt(methode=M.STAMMDATEN, stammdaten_pfad=pfad),
+                    Schritt(methode=M.KONSTANTE, konstante=D(default))])
+
+
 # --- global rates ---
 konst("kraftstoffpreis_eur_pro_l", "1.75", "€/l", "Kraftstoffpreis")
 konst("stundenlohn_eur", "42.00", "€/h", "Stundenlohn")
@@ -50,8 +60,12 @@ konst("ent_fraesgut_pechhaltig", "110.00", "€/t", "3 pechhaltig/teerhaltig (PA
 konst("entsorgung_boden_z2_eur_pro_t", "16.00", "€/t")
 konst("erschwernis_zulage_eur_pro_m", "8.50", "€/m")
 konst("entsorgung_demark_eur_pro_m", "0.15", "€/m", "Abfall Demarkierung aufnehmen+verwerten (Platzhalter)")
-konst("asphalt_preis_eur_pro_t", "72.00", "€/t", "Asphaltmischgut AC 32 T S")
-konst("pmb_preis_eur_pro_t", "850.00", "€/t", "Polymermod. Bitumen")
+# Asphalt mix price comes from the selected Baustoff (AC/SMA basispreis); Default AC 32 T S
+# when no mix is bound. So the asphalt recipe now needs a Baustoff (braucht_baustoff=True).
+stammdaten_mit_default("asphalt_preis_eur_pro_t", "baustoff.basispreis_eur", "72.00",
+                       "€/t", "Asphaltmischgut (Baustoff-Basispreis, Default AC 32 T S)")
+stammdaten_mit_default("pmb_preis_eur_pro_t", "baustoff.basispreis_eur", "850.00",
+                       "€/t", "Naht-Bindemittel PmB (Baustoff-Basispreis)")
 konst("naht_material_g_pro_m_cm", "50", "g/(m·cm)")
 # naht_dicke_cm is now per-position (LANGTEXT) — see kontext_variablen.py
 
@@ -119,12 +133,14 @@ konst("asphalt_zug_geraet_eur_pro_h", "520", "€/h", "Fertiger+Beschicker+2 Wal
 konst("asphalt_kolonne", "6", "Pers.", "Einbaukolonne")
 konst("grid_verlege_leistung_m2_pro_h", "400", "m²/h", "Asphalteinlage verlegen (Fachpersonal)")
 konst("grid_geraet_stundensatz_eur", "40", "€/h"); konst("grid_kolonne", "4", "Pers.")
-konst("abstreukoernung_preis_eur_pro_t", "30", "€/t", "Abstreukörnung LFK 1/3")
+stammdaten_mit_default("abstreukoernung_preis_eur_pro_t", "baustoff.basispreis_eur", "30",
+                       "€/t", "Abstreukörnung LFK 1/3 (Baustoff-Basispreis)")
 konst("abstreuen_leistung_m2_pro_h", "3000", "m²/h", "maschinell abstreuen + einwalzen")
 konst("abstreuer_stundensatz_eur", "75", "€/h"); konst("abstreuer_l_pro_h", "9", "l/h")
 konst("ent_abstreu_eur_pro_m2", "0.05", "€/m²", "loses Abstreugut aufnehmen+verwerten")
 konst("naht_aufweiten_leistung_m_pro_h", "60", "m/h", "Fuge schneiden/aufweiten 25×10 mm")
-konst("fugenmasse_preis_eur_pro_t", "1800", "€/t", "heiß verarbeitbare Fugenmasse N2 + Voranstrich")
+stammdaten_mit_default("fugenmasse_preis_eur_pro_t", "baustoff.basispreis_eur", "1800",
+                       "€/t", "Fugenmasse N2 heiß + Voranstrich (Baustoff-Basispreis)")
 konst("fugenmasse_dichte_t_pro_m3", "1.10", "t/m³")
 konst("fugenfuellung_leistung_m_pro_h", "80", "m/h")
 konst("fugen_geraet_stundensatz_eur", "30", "€/h"); konst("fugen_geraet_l_pro_h", "3", "l/h")
@@ -134,21 +150,26 @@ konst("handeinbau_leistung_m2_pro_h", "40", "m²/h", "Einbauleistung Handkolonne
 konst("handeinbau_kolonne", "5", "Pers.", "Einbaukolonne Handeinbau")
 
 # --- Gussasphalt (MA, fließfähig, KEINE Verdichtung; Abstreuen separat) — PLACEHOLDERS ---
-konst("gussasphalt_preis_eur_pro_t", "120.00", "€/t", "Gussasphaltmischgut MA 8/11 S")
+# Gussasphalt mix price from the selected Baustoff; Default MA 8 S when none bound
+# (so braucht_baustoff=True -> the Gate A Baustoff picker fires for Gussasphalt too).
+stammdaten_mit_default("gussasphalt_preis_eur_pro_t", "baustoff.basispreis_eur", "120.00",
+                       "€/t", "Gussasphaltmischgut (Baustoff-Basispreis, Default MA 8 S)")
 konst("gussasphalt_leistung_m2_pro_h", "80", "m²/h", "Einbauleistung Gussasphalt (Bohle/Kübel)")
 konst("gussasphalt_geraet_stundensatz_eur", "150", "€/h", "Gussasphaltfertiger/Kocher inkl. Verschleiß")
 konst("gussasphalt_l_pro_h", "15", "l/h")
 konst("gussasphalt_kolonne", "5", "Pers.", "Einbaukolonne Gussasphalt")
 
 # --- DSK (Dünnschichtbelag im Kalteinbau / Slurry): Material je m², schnelle Maschine — PLACEHOLDERS ---
-konst("dsk_material_eur_pro_m2", "4.50", "€/m²", "DSK-Mischgut (Emulsion + Splitt) je m²")
+stammdaten_mit_default("dsk_material_eur_pro_m2", "baustoff.basispreis_eur", "4.50",
+                       "€/m²", "DSK-Mischgut je m² (Baustoff-Basispreis)")
 konst("dsk_leistung_m2_pro_h", "2000", "m²/h", "Einbauleistung DSK-/Slurry-Fertiger")
 konst("dsk_geraet_stundensatz_eur", "180", "€/h", "DSK-Fertiger inkl. Verschleiß")
 konst("dsk_l_pro_h", "20", "l/h")
 konst("dsk_kolonne", "4", "Pers.", "Einbaukolonne DSK")
 
 # --- Randabdichtung/Nahtabdichtung: Dichtband/-masse je m, kleine Kolonne + Gerät — PLACEHOLDERS ---
-konst("randabdichtung_material_eur_pro_m", "3.00", "€/m", "Fugenband/Randmasse je m")
+stammdaten_mit_default("randabdichtung_material_eur_pro_m", "baustoff.basispreis_eur", "3.00",
+                       "€/m", "Fugenband/Randmasse je m (Baustoff-Basispreis)")
 konst("randabdichtung_leistung_m_pro_h", "60", "m/h", "Abdichtleistung (Reinigen + Anbringen)")
 konst("randabdichtung_geraet_stundensatz_eur", "20", "€/h", "Applikator/Heizgerät")
 konst("randabdichtung_l_pro_h", "2", "l/h")
@@ -156,3 +177,8 @@ konst("randabdichtung_l_pro_h", "2", "l/h")
 # --- master-data bridges (pull from the chosen Baustoff) ---
 stammdaten("dichte_t_pro_m3", "baustoff.rohdichte_t_pro_m3", "t/m³", "Rohdichte Baustoff")
 stammdaten("verdichtungsfaktor", "baustoff.verdichtungsfaktor", "-", "Verdichtungsfaktor")
+# Generic per-t material price (unbound aggregates, bitumen emulsion) + the Asphalteinlage
+# product price: both now come from the selected Baustoff's per-Einheit basispreis (a per-
+# position kontext value still overrides; unresolved -> HITL).
+stammdaten("materialpreis_eur_pro_t", "baustoff.basispreis_eur", "€/t", "Materialpreis (Baustoff-Basispreis)")
+stammdaten("grid_preis_eur_pro_m2", "baustoff.basispreis_eur", "€/m²", "Preis Asphalteinlage (Baustoff)")
