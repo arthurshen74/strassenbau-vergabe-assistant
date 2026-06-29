@@ -11,11 +11,13 @@ and compares the system's fresh Gate B proposals to the endorsed values.
 
 ## Run
 
-Needs the live stack (Postgres with gold rows, Elasticsearch with the project ingested, OpenRouter):
+Needs the live stack (Postgres with gold rows, Elasticsearch with the project ingested, OpenRouter).
+The scripts are a deps-only project (`package = false`), so put `server/` on the path:
 
 ```bash
-cd server
-uv run python -m scripts.eval_calculator.run --project <project_uuid> [--abs-tol 0] [--limit N]
+# from the repo root
+PYTHONPATH=server uv run python -m scripts.eval_calculator.run \
+  --project <project_uuid> [--abs-tol 0] [--limit N]
 ```
 
 Results land in `eval/calculator/results/<project>-<timestamp>.{jsonl,summary.json}` (git-ignored).
@@ -47,8 +49,9 @@ chat (source 0). It is scored against **authored fixtures**, not the DB gold —
 transcript plus the assignments it should yield. No retrieval or graph is needed, only the prompt.
 
 ```bash
-cd server
-uv run python -m scripts.eval_calculator.run_chat --dataset eval/calculator/chat_values/example.jsonl
+# from the repo root
+PYTHONPATH=server uv run python -m scripts.eval_calculator.run_chat \
+  --dataset eval/calculator/chat_values/example.jsonl
 ```
 
 Fixture format (JSONL, `//` lines ignored), names are `KONTEXT_VARIABLEN` keys, values verbatim in
