@@ -141,6 +141,18 @@ class PositionKalkulationState(TypedDict, total=False):
     # {code, name, konfidenz, auto, treffer:[{code,name,score}]}; None if the recipe needs none.
     baustoff_vorschlag: dict | None
 
+    # --- Baustelle location + supplier selection ---
+    baustelle_breitengrad: str               # geocoded site latitude (Decimal as string)
+    baustelle_laengengrad: str               # geocoded site longitude (Decimal as string)
+    # baustoff_code -> {default: lieferant_code|None, angebote: [LieferantAngebot.model_dump(json)]}.
+    # Ranked cheapest-delivered for the Gate A per-material supplier picker.
+    lieferanten_vorschlag: dict
+    gewaehlter_lieferant: dict               # baustoff_code -> lieferant_code (Gate A pick)
+    lieferant_code: str | None               # finalized supplier for the bound Baustoff
+    lieferant_werkspreis: str | None         # finalized ex-works €/t override (string); None = catalog price
+    lieferant_beleg: str | None              # Nachweis beleg for the supplier-driven material price
+    lieferant_werte: dict                    # name -> wert_to_json (supplier-sourced, e.g. entfernung_lieferant_km)
+
     # --- resolution (Gate B) ---
     chat_werte: dict                         # name -> wert_to_json: values pinned from chat
     benoetigte: list[dict]                   # VariablenBlatt.model_dump() worklist leaves

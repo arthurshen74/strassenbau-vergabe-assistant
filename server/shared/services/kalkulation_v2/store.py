@@ -18,6 +18,7 @@ from shared.services.kalkulation_v2.model import (
 )
 from shared.services.kalkulation_v2.materialien import BAUSTOFFE
 from shared.services.kalkulation_v2.lieferanten import LIEFERANTEN
+from shared.services.kalkulation_v2.lieferanten_preise import lade_preise
 from shared.services.kalkulation_v2.stammdaten import STAMMDATEN_VARIABLEN
 from shared.services.kalkulation_v2.kontext_variablen import KONTEXT_VARIABLEN
 from shared.services.kalkulation_v2.formel import FORMELN, FORMEL_VARIABLEN
@@ -30,6 +31,10 @@ from shared.services.kalkulation_v2.positionen import POSITIONEN, Position
 from datetime import date
 
 STICHTAG = date(2026, 6, 22)
+
+# Attach the static supplier price list to LIEFERANTEN[*].preise at catalog assembly, so the
+# running agent's supplier ranking sees prices (lade_preise is otherwise only called in __main__).
+lade_preise(BAUSTOFFE, LIEFERANTEN)
 
 # Merge the variable catalog from its three sources (no key overlaps by design).
 KATALOG = {**STAMMDATEN_VARIABLEN, **KONTEXT_VARIABLEN, **FORMEL_VARIABLEN}

@@ -1,9 +1,10 @@
 """Tests for the kalkulation_v2 position-calculation graph (mock mode).
 
-Drive the full 9-node flow offline (`settings.calculator_mock`): both HITL gates
-(method review, variable review) and the deterministic compute, on the L 101
-fraesen slice. The compute path is checked against the proven engine golden, and
-the Gate B tiering / override / fail-soft behaviour is asserted.
+Drive the full flow offline (`settings.calculator_mock`): geocoding/supplier
+selection, both HITL gates (method review, variable review) and the deterministic
+compute, on the L 101 fraesen slice (no material) plus a graded-material position.
+The compute path is checked against the proven engine golden, and the Gate B
+tiering / override / fail-soft behaviour is asserted.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from shared.services.calculator.graph import (
     REASONING_NARRATION,
     build_graph,
 )
+from shared.services.calculator.lieferant_ranking import rang_lieferanten
 from shared.services.calculator.state import (
     STAGE_METHOD_REVIEW,
     STAGE_VARIABLE_REVIEW,
@@ -168,6 +170,56 @@ async def test_fraesen_position_has_no_baustoff_suggestion():
     cfg = {"configurable": {"thread_id": "no-mat"}}
     gate = (await app.ainvoke(_payload(), cfg))["__interrupt__"][0].value
     assert gate["baustoff_vorschlag"] is None           # milling consumes no material
+    assert gate["lieferanten_vorschlag"] == {}          # ... so no supplier picker either
+
+
+async def test_supplier_drives_material_price_and_antransport(monkeypatch):
+    """A graded-material position: the chosen supplier feeds BOTH the ex-works material price and
+    the inbound Antransport distance, and both reach the audit (plan §3, §6.11)."""
+    monkeypatch.setattr(settings, "calculator_baustoff_match_threshold", 0.55)  # auto-apply STS_0_32
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "supplier"}}
+
+    gate_a = (await app.ainvoke({"position": dict(STS_POSITION), "vorgaben": {}}, cfg))[
+        "__interrupt__"][0].value
+    vorschlag = gate_a["lieferanten_vorschlag"]["STS_0_32"]
+    assert vorschlag["angebote"]                                   # ranked, cheapest first
+    assert vorschlag["default"] == vorschlag["angebote"][0]["code"]
+
+    # The cheapest-delivered supplier the graph's default mirrors (mock route = haversine).
+    cheapest = (await rang_lieferanten("STS_0_32", Decimal("51.42"), Decimal("10.81")))[0]
+
+    gate_b = (await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER"}), cfg))[
+        "__interrupt__"][0].value
+    dist = {v["name"]: v for v in gate_b["collapsed"]}["entfernung_lieferant_km"]
+    assert dist["wert"] == str(cheapest.strasse_km)               # supplier road km, not the 10 km default
+    assert "Google Routes" in (dist["beleg"] or "")
+
+    await app.ainvoke(Command(resume={"overrides": {}}), cfg)
+    state = (await app.aget_state(cfg)).values
+    assert state["lieferant_code"] == cheapest.code
+    by_name = {n["name"]: n for n in state["nachweis_tabelle"]}
+    assert by_name["materialpreis_eur_pro_t"]["wert"] == str(cheapest.werk_eur_pro_t)  # supplier price override
+    assert "Lieferant" in (by_name["materialpreis_eur_pro_t"]["beleg"] or "")
+    kostenarten = {k["kostenart"]: Decimal(k["betrag_eur"]) for k in state["ekt_zeile"]["kostenlinien"]}
+    assert kostenarten["Material"] > 0 and kostenarten["Antransport"] > 0
+
+
+async def test_gate_a_supplier_pick_is_honoured(monkeypatch):
+    """An explicit Gate A supplier pick wins over the cheapest-delivered default."""
+    monkeypatch.setattr(settings, "calculator_baustoff_match_threshold", 0.55)
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "supplier-pick"}}
+    gate_a = (await app.ainvoke({"position": dict(STS_POSITION), "vorgaben": {}}, cfg))[
+        "__interrupt__"][0].value
+    angebote = gate_a["lieferanten_vorschlag"]["STS_0_32"]["angebote"]
+    pick = angebote[1]["code"]                                     # the 2nd-cheapest, not the default
+    await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER",
+                                       "lieferanten": {"STS_0_32": pick}}), cfg)
+    await app.ainvoke(Command(resume={"overrides": {}}), cfg)
+    state = (await app.aget_state(cfg)).values
+    assert state["lieferant_code"] == pick
+    assert state["lieferant_werkspreis"] == angebote[1]["werk_eur_pro_t"]
 
 
 async def test_baustoff_auto_applies_above_threshold(monkeypatch):

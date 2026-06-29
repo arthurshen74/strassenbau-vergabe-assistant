@@ -16,6 +16,7 @@ export interface CalculationResume {
   bauverfahren_key?: string;
   maschinen?: Record<string, string>;      // Ausführungsart slot code -> Maschine code (Gate A)
   baustoff_code?: string;
+  lieferanten?: Record<string, string>;    // baustoff_code -> Lieferant code (Gate A, per material)
   overrides?: Record<string, unknown>;
   reasons?: Record<string, string>;        // Gate B: variable name -> why it was overridden
   mark_as_ground_truth?: boolean;          // Gate B: save the reviewed state as ground truth

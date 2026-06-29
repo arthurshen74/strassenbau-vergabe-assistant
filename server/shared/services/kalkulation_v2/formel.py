@@ -91,11 +91,13 @@ formel("entsorgung_fraesasphalt_eur_pro_t",
 formel("ent_aufbruch", "tonnage_aufbruch * entsorgung_fraesasphalt_eur_pro_t", "€")
 
 # --- transport cost lines ---
-formel("trans_material", "tonnage_material * transport_eur_pro_t_km * entfernung_km", "€")
-formel("trans_boden", "tonnage_abtrag * transport_eur_pro_t_km * entfernung_km", "€")
-formel("trans_fraesgut", "tonnage_fraesgut * transport_eur_pro_t_km * entfernung_km", "€")
-formel("trans_aufbruch", "tonnage_aufbruch * transport_eur_pro_t_km * entfernung_km", "€")
-formel("trans_asphalt", "menge_t * transport_eur_pro_t_km * entfernung_km", "€")
+# Antransport (inbound supply) uses the supplier distance; Abtransport (outbound disposal) uses
+# the Deponie distance. The two were one shared `entfernung_km` until supplier selection split them.
+formel("trans_material", "tonnage_material * transport_eur_pro_t_km * entfernung_lieferant_km", "€")
+formel("trans_boden", "tonnage_abtrag * transport_eur_pro_t_km * entfernung_deponie_km", "€")
+formel("trans_fraesgut", "tonnage_fraesgut * transport_eur_pro_t_km * entfernung_deponie_km", "€")
+formel("trans_aufbruch", "tonnage_aufbruch * transport_eur_pro_t_km * entfernung_deponie_km", "€")
+formel("trans_asphalt", "menge_t * transport_eur_pro_t_km * entfernung_lieferant_km", "€")
 
 
 # --------------------------------------------------------------------------- #

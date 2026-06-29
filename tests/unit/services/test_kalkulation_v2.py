@@ -53,7 +53,7 @@ def test_benoetigte_variablen_fraesen_leaf_set() -> None:
         "tiefe_cm",
         "anzahl_arbeiter",
         "fraesgut_klasse",
-        "entfernung_km",
+        "entfernung_deponie_km",
         "kaltfraese_l_pro_h",
         "kaltfraese_stundensatz_eur",
         "kraftstoffpreis_eur_pro_l",
@@ -115,7 +115,7 @@ def test_feinfraesen_is_slower_than_regelfraesen() -> None:
 def test_secondary_gap_leistungen_classify_and_compute() -> None:
     """STS (reuses FSS recipes, multi-candidate), DSK, Randabdichtung."""
     sts = P("S1", "L_STS", "100", baustoff="STS_0_32", materialpreis_eur_pro_t="18.50",
-            entfernung_km="14", schichtdicke_m="0.20", ev2_ziel="100", anzahl_arbeiter="3")
+            entfernung_lieferant_km="14", schichtdicke_m="0.20", ev2_ziel="100", anzahl_arbeiter="3")
     assert waehle_bauverfahren("L_STS") == "BV_FSS_GRADER"          # default
     assert "BV_FSS_FERTIGER" in BAUVERFAHREN and waehle_bauverfahren("L_STS", "BV_FSS_FERTIGER")
     for pos in (sts, P("D1", "L_DSK", "2000"), P("R1", "L_RANDABDICHTUNG", "500")):

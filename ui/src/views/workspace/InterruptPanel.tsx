@@ -142,6 +142,42 @@ function asVorschlag(v: unknown): BaustoffVorschlag | null {
   };
 }
 
+interface LieferantAngebot {
+  code: string;
+  name: string;
+  ort: string;
+  werk_eur_pro_t: string;
+  strasse_km: string;
+  frei_bau_eur_pro_t: string;
+}
+
+interface LieferantenVorschlag {
+  default: string | null;
+  angebote: LieferantAngebot[];
+}
+
+// Ranked suppliers per material (baustoff_code -> ranked offers, cheapest delivered first); empty
+// when no supplier carries the material or the location was not resolved.
+function asLieferanten(v: unknown): Record<string, LieferantenVorschlag> {
+  const out: Record<string, LieferantenVorschlag> = {};
+  const rec = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  for (const [code, val] of Object.entries(rec)) {
+    const r = val && typeof val === 'object' ? (val as Record<string, unknown>) : {};
+    out[code] = {
+      default: r.default ? str(r.default) : null,
+      angebote: asRecordArray(r.angebote).map((a) => ({
+        code: str(a.code),
+        name: str(a.name),
+        ort: str(a.ort),
+        werk_eur_pro_t: str(a.werk_eur_pro_t),
+        strasse_km: str(a.strasse_km),
+        frei_bau_eur_pro_t: str(a.frei_bau_eur_pro_t),
+      })),
+    };
+  }
+  return out;
+}
+
 // Right-sized default machine per Ausführungsart slot, e.g. { AA_KALTFRAESE: 'WIRTGEN_W100CFI' }.
 function asStringMap(v: unknown): Record<string, string> {
   if (!v || typeof v !== 'object') return {};
@@ -158,6 +194,7 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
   const ressourcen = asRessourcen(payload.bauverfahren_ressourcen);
   const baustoffe = asBaustoffe(payload.baustoff_katalog);
   const vorschlag = asVorschlag(payload.baustoff_vorschlag);
+  const lieferantenVorschlag = asLieferanten(payload.lieferanten_vorschlag);
   const suggested = str(payload.leistung_key);
   // Pre-select the classified Leistung only when it is valid (has candidate Bauverfahren);
   // otherwise the Kalkulator must pick one from the catalog.
@@ -181,6 +218,16 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
     slotDefaults(initial?.kandidaten[0] ?? ''),
   );
   const [baustoff, setBaustoff] = useState(vorschlag?.code ?? '');
+  const [lieferant, setLieferant] = useState<string>(
+    () => lieferantenVorschlag[vorschlag?.code ?? '']?.default ?? '',
+  );
+
+  // Switching the material switches its supplier list; default to that material's cheapest.
+  const chooseBaustoff = (code: string) => {
+    setBaustoff(code);
+    setLieferant(lieferantenVorschlag[code]?.default ?? '');
+  };
+  const supplierAngebote = lieferantenVorschlag[baustoff]?.angebote ?? [];
 
   const chooseBv = (k: string) => {
     setBv(k);
@@ -281,7 +328,7 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
                     className={PICKER}
                     value={baustoff}
                     disabled={disabled}
-                    onChange={(e) => setBaustoff(e.target.value)}
+                    onChange={(e) => chooseBaustoff(e.target.value)}
                   >
                     <option value="">— kein Baustoff —</option>
                     {baustoffe.map((b) => (
@@ -290,6 +337,26 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
                       </option>
                     ))}
                   </select>
+                  {supplierAngebote.length > 0 ? (
+                    <div className="flex flex-col gap-1 pt-2">
+                      <Text className="text-xs text-zinc-500">
+                        Lieferant (günstigster frei Baustelle vorausgewählt)
+                      </Text>
+                      <select
+                        className={PICKER}
+                        value={lieferant}
+                        disabled={disabled}
+                        onChange={(e) => setLieferant(e.target.value)}
+                      >
+                        {supplierAngebote.map((a) => (
+                          <option key={a.code} value={a.code}>
+                            {a.name} ({a.ort}) — {a.frei_bau_eur_pro_t} €/t frei Baustelle · Werk{' '}
+                            {a.werk_eur_pro_t} · {a.strasse_km} km
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </>
@@ -345,6 +412,7 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
               bauverfahren_key: bv,
               maschinen,
               baustoff_code: baustoff || undefined,
+              lieferanten: baustoff && lieferant ? { [baustoff]: lieferant } : undefined,
             })
           }
         >

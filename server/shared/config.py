@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     # latitudes on the 800px image; higher zooms in. The model may override per call.
     static_map_zoom: int = 12
 
+    # Google Maps Platform endpoints behind the calculator's Baustelle geocoding and supplier
+    # road distances. They reuse the same key as the static map tool (google_static_maps_api_key):
+    # the Geocoding API resolves the Baubeschreibung to lat/lon, the Routes API computeRouteMatrix
+    # ranks N candidate suppliers by road distance in one call.
+    google_maps_geocoding_url: str = "https://maps.googleapis.com/maps/api/geocode/json"
+    google_maps_route_matrix_url: str = (
+        "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
+    )
+    maps_request_timeout_seconds: float = 20.0
+
     openrouter_api_url_chat: str = "https://openrouter.ai/api/v1/chat/completions"
     openrouter_api_url_rerank: str = "https://openrouter.ai/api/v1/rerank"
     openrouter_api_url_embedding: str = "https://openrouter.ai/api/v1/embeddings"

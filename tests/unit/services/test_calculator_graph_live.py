@@ -143,7 +143,7 @@ async def test_live_mit_default_falls_through_hitl_to_default():
     # anzahl_arbeiter cascade is [HITL, KONSTANTE]: HITL is skipped, the default is used.
     assert collapsed["anzahl_arbeiter"]["wert"] == "2"
     assert collapsed["anzahl_arbeiter"]["quelle"] == "konstante"
-    assert collapsed["entfernung_km"]["wert"] == "10"
+    assert collapsed["entfernung_deponie_km"]["wert"] == "10"
 
 
 async def test_live_chat_value_pins_source_zero():

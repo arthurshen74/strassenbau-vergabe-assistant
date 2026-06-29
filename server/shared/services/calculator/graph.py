@@ -3,8 +3,10 @@
 
 Topology (ARCHITECTURE §7), per position:
   launch -> extract_chat_values -> classify_leistung
-  -> method_review (Gate A interrupt: confirm Leistung, select Bauverfahren + resources)
+  -> locate_baustelle (geocode the site + rank suppliers for the proposed material)
+  -> method_review (Gate A interrupt: confirm Leistung, select Bauverfahren + resources + supplier)
   -> bind_resources (auto-select a machine per slot + baustoff)
+  -> bind_lieferant (finalize the supplier -> ex-works price override + Antransport distance)
   -> derive_required_variables -> resolve_variables
   -> variable_review (Gate B interrupt: accept/override every leaf, tiered)
   -> compute (deterministic kalkuliere) -> render_output
@@ -38,10 +40,12 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from shared.clients.llm.client import LLMClient
+from shared.clients.maps.geo import MapsError, geocode
 from shared.config import settings
 from shared.models.enums import PromptType, RetrievalModality
 from shared.models.prompt_version import PromptVersion
 from shared.services.calculator import llm_calls
+from shared.services.calculator.lieferant_ranking import rang_lieferanten
 from shared.services.calculator.state import (
     DEFAULT_REVIEW_SCHWELLE,
     STAGE_METHOD_REVIEW,
@@ -73,6 +77,7 @@ from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
 from shared.services.kalkulation_v2.materialien import BAUSTOFFE
 from shared.services.kalkulation_v2.model import (
     AufloesungsMethode as M,
+    Baustoff,
     Kalkulationskontext,
     Kalkulator,
     VariableDefinition,
@@ -116,6 +121,13 @@ REASONING_PROVIDER = "provider"
 PROVENANCE_CHAT = "aus Chat (Kalkulator)"
 PROVENANCE_DEFAULT = "Standardwert (Katalog)"
 PROVENANCE_OVERRIDE = "Gate B (Kalkulator)"
+
+# The supplier-filled inbound haul-distance variable (Antransport); bind_lieferant resolves it.
+LIEFERANT_DISTANCE_VAR = "entfernung_lieferant_km"
+# A geocoded Baustelle below this confidence is flagged for HITL confirmation at Gate A (§9).
+GEOCODE_HITL_THRESHOLD = 0.6
+# STAMMDATEN beleg prefix every material price bridge shares (all read baustoff.basispreis*).
+STAMMDATEN_PREIS_PRAEFIX = "baustoff.basispreis"
 
 # Leistung label space + chat-extraction catalog, built once from the engine.
 LEISTUNG_INDEX = [{"leistung_key": k, "name": v.name, "standard_kennung": v.standard_kennung}
@@ -198,12 +210,10 @@ def _konstante_wert(defn: VariableDefinition) -> Decimal | None:
     return None
 
 
-def _stammdaten_wert(defn: VariableDefinition, position: dict) -> Decimal | None:
-    """Resolve a STAMMDATEN leaf's value from the position's Baustoff, for display."""
-    code = position.get("baustoff_code")
-    if not code:
+def _stammdaten_wert(defn: VariableDefinition, baustoff: Baustoff | None) -> Decimal | None:
+    """Resolve a STAMMDATEN leaf's value off the (effective) Baustoff, for display."""
+    if baustoff is None:
         return None
-    baustoff = BAUSTOFFE.get(code)
     for schritt in defn.aufloesung:
         if schritt.methode == M.STAMMDATEN and schritt.stammdaten_pfad:
             _, *rest = schritt.stammdaten_pfad.split(".")
@@ -212,6 +222,21 @@ def _stammdaten_wert(defn: VariableDefinition, position: dict) -> Decimal | None
                 obj = getattr(obj, attr, None)
             return obj if isinstance(obj, Decimal) else None
     return None
+
+
+def _effektiver_baustoff(baustoff_code: str | None, werkspreis: str | None) -> Baustoff | None:
+    """The chosen Baustoff with the supplier ex-works price applied when a supplier is bound. The
+    single basispreis override flows through every STAMMDATEN price bridge (all read basispreis_eur),
+    so both the Gate B proposals and compute see the supplier price with no per-variable wiring."""
+    if not baustoff_code:
+        return None
+    baustoff = BAUSTOFFE.get(baustoff_code)
+    if baustoff is None:
+        return None
+    if werkspreis:
+        preis = Decimal(werkspreis)
+        return baustoff.model_copy(update={"basispreis_eur": preis, "basispreis_eur_pro_t": preis})
+    return baustoff
 
 
 def _coerce_decimal(value: object) -> Decimal | None:
@@ -266,7 +291,7 @@ def _unresolved_vorschlag(name: str, defn: VariableDefinition, hochrisiko: bool)
 
 
 def _catalog_vorschlag(name: str, art: str, hochrisiko: bool, chat_werte: dict,
-                       position: dict) -> VariablenVorschlag | None:
+                       baustoff: Baustoff | None) -> VariablenVorschlag | None:
     """Proposal for a chat-pinned / SATZ / STAMMDATEN leaf (shared mock + live). Returns
     None for an unpinned EINGABE leaf, which the caller resolves (cascade or mock default)."""
     defn = KATALOG[name]
@@ -283,7 +308,7 @@ def _catalog_vorschlag(name: str, art: str, hochrisiko: bool, chat_werte: dict,
             hochrisiko=False, tier=TIER_COLLAPSED,
             wert=None if konst is None else str(konst), quelle=M.KONSTANTE.value, beleg=None)
     if art == BlattArt.STAMMDATEN.value:
-        val = _stammdaten_wert(defn, position)
+        val = _stammdaten_wert(defn, baustoff)
         return VariablenVorschlag(
             name=name, bezeichnung=defn.bezeichnung, einheit=defn.einheit, art=art,
             hochrisiko=False, tier=TIER_COLLAPSED,
@@ -321,19 +346,24 @@ def _route_after_method(state: PositionKalkulationState) -> str:
     return END if state.get("abgebrochen") else "bind_resources"
 
 
-def _nachweis(ctx: Kalkulationskontext) -> list[NachweisZeile]:
-    """Render `ctx.werte` (every variable the calc touched) as the derivation tree."""
+def _nachweis(ctx: Kalkulationskontext, preis_beleg: str | None = None) -> list[NachweisZeile]:
+    """Render `ctx.werte` (every variable the calc touched) as the derivation tree. When a supplier
+    is bound, `preis_beleg` re-labels whichever STAMMDATEN price bridge the recipe used (they all
+    read baustoff.basispreis*) so the audit shows the supplier, not the generic catalog path."""
     zeilen: list[NachweisZeile] = []
     for name, w in ctx.werte.items():
         defn = KATALOG.get(name)
         formel = FORMELN.get(name) if w.quelle == M.FORMEL else None
+        beleg = w.beleg
+        if preis_beleg and w.quelle == M.STAMMDATEN and (w.beleg or "").startswith(STAMMDATEN_PREIS_PRAEFIX):
+            beleg = preis_beleg
         zeilen.append(NachweisZeile(
             name=name,
             bezeichnung=defn.bezeichnung if defn else None,
             wert=w.wert,
             einheit=defn.einheit if defn else None,
             quelle=w.quelle.value,
-            beleg=w.beleg,
+            beleg=beleg,
             ausdruck=formel.ausdruck if formel else None,
             eingaben=sorted(formel.eingaben()) if formel else None,
         ))
@@ -507,6 +537,55 @@ def build_graph(
                                   "Rezept benötigt Baustoff, kein eindeutiger Treffer — Auswahl in Gate A."))
         return out
 
+    async def locate_baustelle(state: PositionKalkulationState) -> dict:
+        """Geocode the Baustelle from the Baubeschreibung (mock: a fixture coordinate), then rank
+        suppliers for the proposed Baustoff so Gate A can offer a per-material picker. Runs before
+        Gate A because supplier ranking needs the site coordinates. A position with no material
+        needs no supplier, so geocoding is skipped (the location is per-position for now, §9)."""
+        pos = state["position"]
+        vorschlag = state.get("baustoff_vorschlag") or {}
+        bc = vorschlag.get("code") or pos.get("baustoff_code")
+        if not bc:
+            return {"reasoning_log": [reason("locate_baustelle", REASONING_NARRATION,
+                    "Kein Material in der Position — Standortbestimmung und Lieferantenwahl entfallen.")]}
+        log = [reason("locate_baustelle", REASONING_NARRATION,
+                      "Bestimme den Standort der Baustelle (Geokodierung der Baubeschreibung).")]
+        if settings.calculator_mock:
+            res = await geocode(pos.get("langtext") or pos.get("kurztext") or "Baustelle")
+        else:
+            snippets = await retrieve(
+                f"Standort, Ort und Adresse der Baustelle / des Bauvorhabens: {pos.get('kurztext', '')}")
+            adresse = (snippets[0][:200].strip() if snippets else "") or \
+                pos.get("langtext") or pos.get("kurztext") or ""
+            try:
+                res = await geocode(adresse)
+            except MapsError as exc:
+                log.append(reason("locate_baustelle", REASONING_NARRATION,
+                                  f"Geokodierung fehlgeschlagen ({exc}); Standort in Gate A bestätigen."))
+                return {"warnungen": ["Baustellenstandort nicht geokodiert — in Gate A bestätigen."],
+                        "reasoning_log": log}
+        log.append(reason("locate_baustelle", REASONING_NARRATION,
+                          f"Baustelle: {res.formatiert} → {res.breitengrad}, {res.laengengrad} "
+                          f"(Konfidenz {res.konfidenz:.2f})."))
+        out: dict = {"baustelle_breitengrad": str(res.breitengrad),
+                     "baustelle_laengengrad": str(res.laengengrad)}
+        warnungen: list[str] = []
+        if not settings.calculator_mock and res.konfidenz < GEOCODE_HITL_THRESHOLD:
+            warnungen.append(f"Standort '{res.formatiert}' nur grob geokodiert "
+                             f"(Konfidenz {res.konfidenz:.2f}) — in Gate A prüfen.")
+        angebote = await rang_lieferanten(bc, res.breitengrad, res.laengengrad)
+        if angebote:
+            out["lieferanten_vorschlag"] = {bc: {
+                "default": angebote[0].code,
+                "angebote": [a.model_dump(mode="json") for a in angebote]}}
+            log.append(reason("locate_baustelle", REASONING_NARRATION,
+                              f"{len(angebote)} Lieferant(en) für {bc} gerankt; günstigster: "
+                              f"{angebote[0].name} ({angebote[0].frei_bau_eur_pro_t} €/t frei Baustelle)."))
+        if warnungen:
+            out["warnungen"] = warnungen
+        out["reasoning_log"] = log
+        return out
+
     def method_review(state: PositionKalkulationState) -> dict:
         """Gate A: confirm (or correct) the Leistung and select the Bauverfahren before the
         worklist is derived (the worklist depends on the chosen recipe). The full Leistung
@@ -524,6 +603,7 @@ def build_graph(
             "baustoff_katalog": BAUSTOFF_KATALOG,
             "baustoff_vorschlag": state.get("baustoff_vorschlag"),
             "maschinen_default": state.get("maschinen_default") or {},
+            "lieferanten_vorschlag": state.get("lieferanten_vorschlag") or {},
         }) or {}
         if antwort.get("cancel"):
             return {"abgebrochen": True,
@@ -540,8 +620,10 @@ def build_graph(
         out = {
             "leistung_key": confirmed_lk,
             "bauverfahren_key": bv,
-            # Resource picks (machines per slot, material) — bind_resources auto-fills the rest.
+            # Resource picks (machines per slot, material, supplier) — bind_resources / bind_lieferant
+            # auto-fill the rest. Supplier picks are keyed per material (baustoff_code).
             "gewaehlte_maschinen": antwort.get("maschinen") or {},
+            "gewaehlter_lieferant": antwort.get("lieferanten") or {},
             "baustoff_code": (antwort.get("baustoff_code") or auto_baustoff
                               or state["position"].get("baustoff_code")),
             "reasoning_log": [reason("method_review", REASONING_NARRATION,
@@ -591,6 +673,44 @@ def build_graph(
         return {"gewaehlte_maschinen": gewaehlt, "maschinen_kandidaten": kandidaten_je_slot,
                 "maschinen_werte": werte, "reasoning_log": log}
 
+    async def bind_lieferant(state: PositionKalkulationState) -> dict:
+        """Finalize the supplier for the bound Baustoff: honour the Gate A pick iff that supplier
+        carries the final material, else auto-pick cheapest-delivered (mirror of the machine-pick
+        fallback). Stash the ex-works price override + the supplier road distance for compute/Gate B."""
+        bc = state.get("baustoff_code")
+        lat = state.get("baustelle_breitengrad")
+        lon = state.get("baustelle_laengengrad")
+        log = [reason("bind_lieferant", REASONING_NARRATION, "Lieferant für das Material festlegen.")]
+        if not bc or lat is None or lon is None:
+            log.append(reason("bind_lieferant", REASONING_NARRATION,
+                              "Kein Material oder kein Standort — Materialpreis aus Katalog, "
+                              "Antransport per Default."))
+            return {"reasoning_log": log}
+        angebote = await rang_lieferanten(bc, Decimal(lat), Decimal(lon))
+        if not angebote:
+            log.append(reason("bind_lieferant", REASONING_NARRATION,
+                              f"Kein Lieferant führt {bc} — Katalogpreis (frei Werk), Default-Antransport."))
+            return {"reasoning_log": log}
+        by_code = {a.code: a for a in angebote}
+        pick = (state.get("gewaehlter_lieferant") or {}).get(bc)
+        chosen = by_code.get(pick) or angebote[0]
+        preis_beleg = (f"Lieferant {chosen.name} ({chosen.ort}), Werkspreis "
+                       f"{chosen.werk_eur_pro_t} €/t frei Werk, Stichtag {STICHTAG}")
+        dist_beleg = f"{chosen.name} ({chosen.ort}) → Baustelle, {chosen.strasse_km} km (Google Routes)"
+        dist = VariablenWert(name=LIEFERANT_DISTANCE_VAR, wert=chosen.strasse_km,
+                             quelle=M.STAMMDATEN, beleg=dist_beleg)
+        log.append(reason("bind_lieferant", REASONING_NARRATION,
+                          f"Lieferant {chosen.name}: Werk {chosen.werk_eur_pro_t} €/t + "
+                          f"{chosen.strasse_km} km → {chosen.frei_bau_eur_pro_t} €/t frei Baustelle; "
+                          f"günstigster von {len(angebote)}."))
+        return {
+            "lieferant_code": chosen.code,
+            "lieferant_werkspreis": str(chosen.werk_eur_pro_t),
+            "lieferant_beleg": preis_beleg,
+            "lieferant_werte": {LIEFERANT_DISTANCE_VAR: wert_to_json(dist)},
+            "reasoning_log": log,
+        }
+
     def derive_required_variables(state: PositionKalkulationState) -> dict:
         """Walk the chosen recipe's formula tree to all leaves -> the Gate B worklist.
         The geometry variable booked from the LV Menge is pruned (already resolved)."""
@@ -611,22 +731,27 @@ def build_graph(
         Stammdaten are catalog lookups shown for transparency."""
         schwelle = state["konfidenz_schwelle_review"]
         chat_werte = state.get("chat_werte") or {}
-        maschinen_werte = state.get("maschinen_werte") or {}
+        # Values bound before Gate B from a resource pick: machine rates/productivity + the supplier
+        # haul distance. They become the Gate B proposal (collapsed, overridable) for their leaf.
+        gebundene_werte = {**(state.get("maschinen_werte") or {}), **(state.get("lieferant_werte") or {})}
         position = state["position"]
+        # The chosen Baustoff with the supplier ex-works price applied, so STAMMDATEN price bridges
+        # show the supplier price at Gate B (not the catalog base).
+        baustoff = _effektiver_baustoff(state.get("baustoff_code"), state.get("lieferant_werkspreis"))
         vorschlaege: dict = {}
         log = [reason("resolve_variables", REASONING_NARRATION,
                       f"Löse {len(state['benoetigte'])} Variablen auf (Schwelle {schwelle}).")]
 
         for b in state["benoetigte"]:
             name, art, hochrisiko = b["name"], b["art"], b["hochrisiko"]
-            if name not in chat_werte and name in maschinen_werte:
-                wj = maschinen_werte[name]                # rate/productivity from the bound machine
+            if name not in chat_werte and name in gebundene_werte:
+                wj = gebundene_werte[name]                # machine rate/productivity or supplier distance
                 defn = KATALOG[name]
                 v = VariablenVorschlag(name=name, bezeichnung=defn.bezeichnung, einheit=defn.einheit,
                                        art=art, hochrisiko=False, tier=TIER_COLLAPSED,
                                        wert=wj["wert"], quelle=wj["quelle"], beleg=wj["beleg"])
             else:
-                v = _catalog_vorschlag(name, art, hochrisiko, chat_werte, position)
+                v = _catalog_vorschlag(name, art, hochrisiko, chat_werte, baustoff)
                 if v is None:                             # unpinned EINGABE leaf
                     if settings.calculator_mock:
                         default = _konstante_wert(KATALOG[name])
@@ -706,11 +831,14 @@ def build_graph(
         geom = GEOM[einheit]
 
         bc = state.get("baustoff_code")
-        stammdaten = {"baustoff": BAUSTOFFE[bc]} if bc and bc in BAUSTOFFE else {}
+        baustoff = _effektiver_baustoff(bc, state.get("lieferant_werkspreis"))  # supplier price override
+        stammdaten = {"baustoff": baustoff} if baustoff is not None else {}
         ctx = Kalkulationskontext(stichtag=STICHTAG, stammdaten=stammdaten)
         ctx.werte[geom] = VariablenWert(name=geom, wert=menge, quelle=M.LANGTEXT,
                                         beleg=f"LV Menge {menge} {einheit}")
         for name, wj in (state.get("maschinen_werte") or {}).items():   # machine rates + productivity
+            ctx.werte[name] = wert_from_json(wj)
+        for name, wj in (state.get("lieferant_werte") or {}).items():   # supplier distance (Gate B may override)
             ctx.werte[name] = wert_from_json(wj)
         for name, wj in (state.get("werte") or {}).items():             # Gate B confirmed (overrides win)
             ctx.werte[name] = wert_from_json(wj)
@@ -733,7 +861,8 @@ def build_graph(
         )
         return {
             "ekt_zeile": ekt_zeile.model_dump(mode="json"),
-            "nachweis_tabelle": [n.model_dump(mode="json") for n in _nachweis(ctx)],
+            "nachweis_tabelle": [n.model_dump(mode="json")
+                                 for n in _nachweis(ctx, state.get("lieferant_beleg"))],
             "reasoning_log": [reason("compute", REASONING_NARRATION,
                                      f"EKT berechnet: EP {ergebnis['ep_eur']} €/{ergebnis['einheit']}, "
                                      f"GP {ergebnis['ekt_eur']} €.")],
@@ -765,8 +894,10 @@ def build_graph(
     g.add_node("launch", launch)
     g.add_node("extract_chat_values", extract_chat_values)
     g.add_node("classify_leistung", classify_leistung)
+    g.add_node("locate_baustelle", locate_baustelle)
     g.add_node("method_review", method_review)
     g.add_node("bind_resources", bind_resources)
+    g.add_node("bind_lieferant", bind_lieferant)
     g.add_node("derive_required_variables", derive_required_variables)
     g.add_node("resolve_variables", resolve_variables)
     g.add_node("variable_review", variable_review)
@@ -776,10 +907,12 @@ def build_graph(
     g.add_edge(START, "launch")
     g.add_edge("launch", "extract_chat_values")
     g.add_edge("extract_chat_values", "classify_leistung")
-    g.add_edge("classify_leistung", "method_review")
+    g.add_edge("classify_leistung", "locate_baustelle")
+    g.add_edge("locate_baustelle", "method_review")
     g.add_conditional_edges("method_review", _route_after_method,
                             ["bind_resources", END])
-    g.add_edge("bind_resources", "derive_required_variables")
+    g.add_edge("bind_resources", "bind_lieferant")
+    g.add_edge("bind_lieferant", "derive_required_variables")
     g.add_edge("derive_required_variables", "resolve_variables")
     g.add_edge("resolve_variables", "variable_review")
     g.add_edge("variable_review", "compute")
