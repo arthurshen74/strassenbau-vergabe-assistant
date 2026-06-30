@@ -184,12 +184,38 @@ cd ui && npm install && npm run build      # tsc -b + vite
 
 ---
 
+## Update (2026-06-29, post-test): geocoding root cause + manual fallback
+
+Live testing surfaced that geocoding returned **`REQUEST_DENIED`** — the **Geocoding API was not
+activated** on the Google Cloud project (the key worked for Static Maps only). With no coords,
+`bind_lieferant` skipped, so there was no supplier picker and no Routes call. The user enabled the
+Geocoding + Routes APIs on the key.
+
+Added the **manual Baustelle fallback** (so the feature never hard-depends on auto-geocoding):
+- `state.py`: `baustelle_adresse`, `baustelle_status` (`BAUSTELLE_OK|UNSICHER|FEHLT`), `baustelle_override`.
+- `locate_baustelle`: records the geocoded address + status (or the failed attempt + `FEHLT`),
+  with an improved location-retrieval query; never aborts the run.
+- Gate A payload carries `baustelle`; the answer carries a `baustelle` override.
+- `bind_lieferant`: resolves the final location — **manual coords → manual address (re-geocode) →
+  auto coords** — then ranks; persists manual edits.
+- UI: editable **address + lat/lon** fields in Gate A with a status badge; resume sends `baustelle`
+  (edited coords win, else an edited address to re-geocode, else nothing). `CalculationResume`
+  gained `baustelle?`.
+- New mock test `test_gate_a_exposes_baustelle_and_accepts_manual_override`.
+
 ## Caveats, deferred items, and open questions
 
-- **Live address extraction is pragmatic.** `locate_baustelle` reuses the RAG retriever + the
-  Geocoding API (the plan's allowed shortcut) instead of a dedicated extraction LLM site; a road
-  segment ("L 101 bei Nordhausen") geocodes with variable confidence. Low confidence is flagged
-  for HITL at Gate A. A dedicated extraction `PromptType` is a clean future refinement.
+- **Auto address extraction is still weak; the dedicated LLM step is the recommended next fix.**
+  `locate_baustelle` geocodes a raw retrieved chunk / Langtext, not an LLM-extracted location. The
+  project's RAG+LLM chat *does* find the location cleanly ("L 151 between Blankenheim and Wimmelburg,
+  Landkreis Mansfeld-Südharz"), so the right improvement is a dedicated extraction `PromptType`
+  (`EKT_BAUSTELLE_LOCATE`) that turns RAG context into a geocodable string. Deferred because it adds
+  a required seeded prompt; the **manual Gate A field covers the gap** in the meantime.
+- **Manual address + supplier list don't refresh in one Gate A pass.** If you correct the address at
+  Gate A, the supplier list shown was ranked from the auto location; on submit `bind_lieferant`
+  re-geocodes and auto-picks cheapest for the corrected site (your explicit supplier pick is still
+  honoured iff that supplier carries the material). A re-interrupt to re-present the ranked list for
+  a manually entered address is deferred.
 - **Geocoding is per-position**, gated to positions with a material. Project-level location
   caching is deferred (no project-level shared context yet — plan §9).
 - **Routes API cost/quota.** Mitigated by a haversine pre-filter + Route Matrix on the top-N and

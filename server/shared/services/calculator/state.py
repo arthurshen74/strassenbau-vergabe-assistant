@@ -33,6 +33,11 @@ STATUS_VORGESCHLAGEN = "vorgeschlagen"
 STATUS_AKZEPTIERT = "akzeptiert"
 STATUS_UEBERSCHRIEBEN = "ueberschrieben"
 
+# Baustelle geocoding outcome (Gate A shows the editable location with this status).
+BAUSTELLE_OK = "aufgeloest"            # geocoded with confidence
+BAUSTELLE_UNSICHER = "unsicher"        # geocoded but low confidence -> confirm
+BAUSTELLE_FEHLT = "fehlgeschlagen"     # not geocoded -> enter manually
+
 
 def wert_to_json(w: VariablenWert) -> dict:
     return {
@@ -144,6 +149,9 @@ class PositionKalkulationState(TypedDict, total=False):
     # --- Baustelle location + supplier selection ---
     baustelle_breitengrad: str               # geocoded site latitude (Decimal as string)
     baustelle_laengengrad: str               # geocoded site longitude (Decimal as string)
+    baustelle_adresse: str | None            # geocoded formatted address (or the attempted text)
+    baustelle_status: str | None             # BAUSTELLE_* — drives the Gate A location field
+    baustelle_override: dict                 # Gate A manual location: {adresse?, breitengrad?, laengengrad?}
     # baustoff_code -> {default: lieferant_code|None, angebote: [LieferantAngebot.model_dump(json)]}.
     # Ranked cheapest-delivered for the Gate A per-material supplier picker.
     lieferanten_vorschlag: dict

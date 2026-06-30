@@ -47,6 +47,9 @@ from shared.models.prompt_version import PromptVersion
 from shared.services.calculator import llm_calls
 from shared.services.calculator.lieferant_ranking import rang_lieferanten
 from shared.services.calculator.state import (
+    BAUSTELLE_FEHLT,
+    BAUSTELLE_OK,
+    BAUSTELLE_UNSICHER,
     DEFAULT_REVIEW_SCHWELLE,
     STAGE_METHOD_REVIEW,
     STAGE_VARIABLE_REVIEW,
@@ -554,25 +557,32 @@ def build_graph(
             res = await geocode(pos.get("langtext") or pos.get("kurztext") or "Baustelle")
         else:
             snippets = await retrieve(
-                f"Standort, Ort und Adresse der Baustelle / des Bauvorhabens: {pos.get('kurztext', '')}")
-            adresse = (snippets[0][:200].strip() if snippets else "") or \
+                "Wo liegt die Baustelle? Ort, Gemeinde, Landkreis und Straße bzw. Straßennummer "
+                f"des zu sanierenden Abschnitts. {pos.get('kurztext', '')}")
+            adresse = (snippets[0][:300].strip() if snippets else "") or \
                 pos.get("langtext") or pos.get("kurztext") or ""
             try:
                 res = await geocode(adresse)
             except MapsError as exc:
+                # Auto-geocode failed — surface the attempt in Gate A so the estimator can enter the
+                # location manually (bind_lieferant re-geocodes it). The supplier feature still works.
                 log.append(reason("locate_baustelle", REASONING_NARRATION,
-                                  f"Geokodierung fehlgeschlagen ({exc}); Standort in Gate A bestätigen."))
-                return {"warnungen": ["Baustellenstandort nicht geokodiert — in Gate A bestätigen."],
+                                  f"Geokodierung fehlgeschlagen ({exc}); Standort in Gate A eingeben."))
+                return {"baustelle_adresse": adresse[:200] or None,
+                        "baustelle_status": BAUSTELLE_FEHLT,
+                        "warnungen": ["Baustellenstandort nicht automatisch bestimmt — in Gate A eingeben."],
                         "reasoning_log": log}
+        unsicher = not settings.calculator_mock and res.konfidenz < GEOCODE_HITL_THRESHOLD
         log.append(reason("locate_baustelle", REASONING_NARRATION,
                           f"Baustelle: {res.formatiert} → {res.breitengrad}, {res.laengengrad} "
                           f"(Konfidenz {res.konfidenz:.2f})."))
         out: dict = {"baustelle_breitengrad": str(res.breitengrad),
-                     "baustelle_laengengrad": str(res.laengengrad)}
-        warnungen: list[str] = []
-        if not settings.calculator_mock and res.konfidenz < GEOCODE_HITL_THRESHOLD:
-            warnungen.append(f"Standort '{res.formatiert}' nur grob geokodiert "
-                             f"(Konfidenz {res.konfidenz:.2f}) — in Gate A prüfen.")
+                     "baustelle_laengengrad": str(res.laengengrad),
+                     "baustelle_adresse": res.formatiert,
+                     "baustelle_status": BAUSTELLE_UNSICHER if unsicher else BAUSTELLE_OK}
+        if unsicher:
+            out["warnungen"] = [f"Standort '{res.formatiert}' nur grob geokodiert "
+                                f"(Konfidenz {res.konfidenz:.2f}) — in Gate A prüfen."]
         angebote = await rang_lieferanten(bc, res.breitengrad, res.laengengrad)
         if angebote:
             out["lieferanten_vorschlag"] = {bc: {
@@ -581,8 +591,6 @@ def build_graph(
             log.append(reason("locate_baustelle", REASONING_NARRATION,
                               f"{len(angebote)} Lieferant(en) für {bc} gerankt; günstigster: "
                               f"{angebote[0].name} ({angebote[0].frei_bau_eur_pro_t} €/t frei Baustelle)."))
-        if warnungen:
-            out["warnungen"] = warnungen
         out["reasoning_log"] = log
         return out
 
@@ -604,6 +612,12 @@ def build_graph(
             "baustoff_vorschlag": state.get("baustoff_vorschlag"),
             "maschinen_default": state.get("maschinen_default") or {},
             "lieferanten_vorschlag": state.get("lieferanten_vorschlag") or {},
+            "baustelle": {
+                "adresse": state.get("baustelle_adresse"),
+                "breitengrad": state.get("baustelle_breitengrad"),
+                "laengengrad": state.get("baustelle_laengengrad"),
+                "status": state.get("baustelle_status"),
+            },
         }) or {}
         if antwort.get("cancel"):
             return {"abgebrochen": True,
@@ -624,6 +638,8 @@ def build_graph(
             # auto-fill the rest. Supplier picks are keyed per material (baustoff_code).
             "gewaehlte_maschinen": antwort.get("maschinen") or {},
             "gewaehlter_lieferant": antwort.get("lieferanten") or {},
+            # Manual Baustelle location override (address and/or coords); bind_lieferant resolves it.
+            "baustelle_override": antwort.get("baustelle") or {},
             "baustoff_code": (antwort.get("baustoff_code") or auto_baustoff
                               or state["position"].get("baustoff_code")),
             "reasoning_log": [reason("method_review", REASONING_NARRATION,
@@ -678,19 +694,53 @@ def build_graph(
         carries the final material, else auto-pick cheapest-delivered (mirror of the machine-pick
         fallback). Stash the ex-works price override + the supplier road distance for compute/Gate B."""
         bc = state.get("baustoff_code")
-        lat = state.get("baustelle_breitengrad")
-        lon = state.get("baustelle_laengengrad")
         log = [reason("bind_lieferant", REASONING_NARRATION, "Lieferant für das Material festlegen.")]
-        if not bc or lat is None or lon is None:
+        if not bc:
             log.append(reason("bind_lieferant", REASONING_NARRATION,
-                              "Kein Material oder kein Standort — Materialpreis aus Katalog, "
-                              "Antransport per Default."))
+                              "Kein Material — Materialpreis aus Katalog."))
             return {"reasoning_log": log}
-        angebote = await rang_lieferanten(bc, Decimal(lat), Decimal(lon))
+
+        # Resolve the site location: a Gate A manual override (coords, else address) wins; else the
+        # auto-geocoded coords from locate_baustelle. Manual edits update the persisted location.
+        override = state.get("baustelle_override") or {}
+        out: dict = {}
+        lat = lon = None
+        o_lat, o_lon, o_adr = override.get("breitengrad"), override.get("laengengrad"), override.get("adresse")
+        if o_lat and o_lon:
+            try:
+                lat, lon = Decimal(str(o_lat)), Decimal(str(o_lon))
+                out.update({"baustelle_breitengrad": str(lat), "baustelle_laengengrad": str(lon),
+                            "baustelle_status": BAUSTELLE_OK})
+                log.append(reason("bind_lieferant", REASONING_NARRATION,
+                                  f"Standort manuell gesetzt: {lat}, {lon}."))
+            except InvalidOperation:
+                log.append(reason("bind_lieferant", REASONING_NARRATION, "Manuelle Koordinaten ungültig."))
+        elif o_adr and o_adr != state.get("baustelle_adresse"):
+            try:
+                res = await geocode(o_adr)
+                lat, lon = res.breitengrad, res.laengengrad
+                out.update({"baustelle_breitengrad": str(lat), "baustelle_laengengrad": str(lon),
+                            "baustelle_adresse": res.formatiert, "baustelle_status": BAUSTELLE_OK})
+                log.append(reason("bind_lieferant", REASONING_NARRATION,
+                                  f"Adresse '{o_adr}' geokodiert: {res.formatiert} → {lat}, {lon}."))
+            except MapsError as exc:
+                log.append(reason("bind_lieferant", REASONING_NARRATION,
+                                  f"Manuelle Adresse nicht geokodiert ({exc})."))
+        if (lat is None or lon is None) and state.get("baustelle_breitengrad") and state.get("baustelle_laengengrad"):
+            lat = Decimal(state["baustelle_breitengrad"])
+            lon = Decimal(state["baustelle_laengengrad"])
+        if lat is None or lon is None:
+            log.append(reason("bind_lieferant", REASONING_NARRATION,
+                              "Kein Standort — Materialpreis aus Katalog, Antransport per Default."))
+            out["reasoning_log"] = log
+            return out
+
+        angebote = await rang_lieferanten(bc, lat, lon)
         if not angebote:
             log.append(reason("bind_lieferant", REASONING_NARRATION,
                               f"Kein Lieferant führt {bc} — Katalogpreis (frei Werk), Default-Antransport."))
-            return {"reasoning_log": log}
+            out["reasoning_log"] = log
+            return out
         by_code = {a.code: a for a in angebote}
         pick = (state.get("gewaehlter_lieferant") or {}).get(bc)
         chosen = by_code.get(pick) or angebote[0]
@@ -703,13 +753,14 @@ def build_graph(
                           f"Lieferant {chosen.name}: Werk {chosen.werk_eur_pro_t} €/t + "
                           f"{chosen.strasse_km} km → {chosen.frei_bau_eur_pro_t} €/t frei Baustelle; "
                           f"günstigster von {len(angebote)}."))
-        return {
+        out.update({
             "lieferant_code": chosen.code,
             "lieferant_werkspreis": str(chosen.werk_eur_pro_t),
             "lieferant_beleg": preis_beleg,
             "lieferant_werte": {LIEFERANT_DISTANCE_VAR: wert_to_json(dist)},
             "reasoning_log": log,
-        }
+        })
+        return out
 
     def derive_required_variables(state: PositionKalkulationState) -> dict:
         """Walk the chosen recipe's formula tree to all leaves -> the Gate B worklist.

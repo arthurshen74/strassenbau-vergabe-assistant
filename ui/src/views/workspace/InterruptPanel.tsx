@@ -18,6 +18,11 @@ import type { PendingInterrupt } from './hooks/useWorkspaceConversation';
 const STAGE_METHOD_REVIEW = 'method_review';
 const STAGE_VARIABLE_REVIEW = 'variable_review';
 
+// Baustelle geocoding status, matching the backend BAUSTELLE_* constants in state.py.
+const BAUSTELLE_OK = 'aufgeloest';
+const BAUSTELLE_UNSICHER = 'unsicher';
+const BAUSTELLE_FEHLT = 'fehlgeschlagen';
+
 interface PanelProps {
   payload: Record<string, unknown>;
   onResume: (decision: CalculationResume) => void;
@@ -178,6 +183,25 @@ function asLieferanten(v: unknown): Record<string, LieferantenVorschlag> {
   return out;
 }
 
+interface BaustelleInfo {
+  adresse: string | null;
+  breitengrad: string | null;
+  laengengrad: string | null;
+  status: string | null;
+}
+
+// The auto-geocoded Baustelle (or the attempt, when geocoding failed) that Gate A lets the
+// estimator confirm or correct.
+function asBaustelle(v: unknown): BaustelleInfo {
+  const r = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  return {
+    adresse: r.adresse ? str(r.adresse) : null,
+    breitengrad: r.breitengrad ? str(r.breitengrad) : null,
+    laengengrad: r.laengengrad ? str(r.laengengrad) : null,
+    status: r.status ? str(r.status) : null,
+  };
+}
+
 // Right-sized default machine per Ausführungsart slot, e.g. { AA_KALTFRAESE: 'WIRTGEN_W100CFI' }.
 function asStringMap(v: unknown): Record<string, string> {
   if (!v || typeof v !== 'object') return {};
@@ -195,6 +219,7 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
   const baustoffe = asBaustoffe(payload.baustoff_katalog);
   const vorschlag = asVorschlag(payload.baustoff_vorschlag);
   const lieferantenVorschlag = asLieferanten(payload.lieferanten_vorschlag);
+  const baustelle = asBaustelle(payload.baustelle);
   const suggested = str(payload.leistung_key);
   // Pre-select the classified Leistung only when it is valid (has candidate Bauverfahren);
   // otherwise the Kalkulator must pick one from the catalog.
@@ -221,6 +246,21 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
   const [lieferant, setLieferant] = useState<string>(
     () => lieferantenVorschlag[vorschlag?.code ?? '']?.default ?? '',
   );
+  const [adresse, setAdresse] = useState(baustelle.adresse ?? '');
+  const [lat, setLat] = useState(baustelle.breitengrad ?? '');
+  const [lon, setLon] = useState(baustelle.laengengrad ?? '');
+
+  // Build the Baustelle override: edited coords win (precise), else an edited address to re-geocode,
+  // else nothing (the auto-geocoded location stands).
+  const baustelleOverride = (): { adresse?: string; breitengrad?: string; laengengrad?: string } | undefined => {
+    const latChanged = lat.trim() !== '' && lat.trim() !== (baustelle.breitengrad ?? '');
+    const lonChanged = lon.trim() !== '' && lon.trim() !== (baustelle.laengengrad ?? '');
+    if ((latChanged || lonChanged) && lat.trim() !== '' && lon.trim() !== '') {
+      return { breitengrad: lat.trim(), laengengrad: lon.trim() };
+    }
+    const adresseChanged = adresse.trim() !== '' && adresse.trim() !== (baustelle.adresse ?? '');
+    return adresseChanged ? { adresse: adresse.trim() } : undefined;
+  };
 
   // Switching the material switches its supplier list; default to that material's cheapest.
   const chooseBaustoff = (code: string) => {
@@ -304,6 +344,50 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
                       </select>
                     </div>
                   ))}
+                </div>
+              ) : null}
+              {vorschlag ? (
+                <div className="flex flex-col gap-1 pt-3">
+                  <Text className="text-xs text-zinc-500">
+                    Baustelle (Standort)
+                    {baustelle.status === BAUSTELLE_OK ? (
+                      <span className="ml-2 text-zinc-500">automatisch erkannt</span>
+                    ) : baustelle.status === BAUSTELLE_UNSICHER ? (
+                      <span className="ml-2 text-amber-700 dark:text-amber-400">
+                        unsicher — bitte prüfen
+                      </span>
+                    ) : baustelle.status === BAUSTELLE_FEHLT ? (
+                      <span className="ml-2 text-amber-700 dark:text-amber-400">
+                        nicht erkannt — bitte eingeben
+                      </span>
+                    ) : null}
+                  </Text>
+                  <Input
+                    value={adresse}
+                    disabled={disabled}
+                    placeholder="Adresse, Ort oder Straßenabschnitt der Baustelle"
+                    onChange={(e) => setAdresse(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={lat}
+                      disabled={disabled}
+                      inputMode="decimal"
+                      placeholder="Breitengrad"
+                      onChange={(e) => setLat(e.target.value)}
+                    />
+                    <Input
+                      value={lon}
+                      disabled={disabled}
+                      inputMode="decimal"
+                      placeholder="Längengrad"
+                      onChange={(e) => setLon(e.target.value)}
+                    />
+                  </div>
+                  <Text className="text-xs text-zinc-500">
+                    Adresse korrigieren (wird neu geokodiert) oder Koordinaten direkt setzen; danach
+                    werden die Lieferanten neu gerankt.
+                  </Text>
                 </div>
               ) : null}
               {vorschlag ? (
@@ -413,6 +497,7 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
               maschinen,
               baustoff_code: baustoff || undefined,
               lieferanten: baustoff && lieferant ? { [baustoff]: lieferant } : undefined,
+              baustelle: baustelleOverride(),
             })
           }
         >

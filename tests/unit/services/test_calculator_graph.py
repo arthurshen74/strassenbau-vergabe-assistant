@@ -22,6 +22,7 @@ from shared.services.calculator.graph import (
 )
 from shared.services.calculator.lieferant_ranking import rang_lieferanten
 from shared.services.calculator.state import (
+    BAUSTELLE_OK,
     STAGE_METHOD_REVIEW,
     STAGE_VARIABLE_REVIEW,
     STATUS_UEBERSCHRIEBEN,
@@ -220,6 +221,26 @@ async def test_gate_a_supplier_pick_is_honoured(monkeypatch):
     state = (await app.aget_state(cfg)).values
     assert state["lieferant_code"] == pick
     assert state["lieferant_werkspreis"] == angebote[1]["werk_eur_pro_t"]
+
+
+async def test_gate_a_exposes_baustelle_and_accepts_manual_override(monkeypatch):
+    """Gate A surfaces the geocoded Baustelle; a manual coordinate override drives the ranking."""
+    monkeypatch.setattr(settings, "calculator_baustoff_match_threshold", 0.55)
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "baustelle"}}
+    gate_a = (await app.ainvoke({"position": dict(STS_POSITION), "vorgaben": {}}, cfg))[
+        "__interrupt__"][0].value
+    assert gate_a["baustelle"]["status"] == BAUSTELLE_OK          # mock geocode resolves the fixture site
+    assert gate_a["baustelle"]["breitengrad"]
+
+    # Override the location with explicit coordinates; binding uses them, not the auto site.
+    await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER",
+                                       "baustelle": {"breitengrad": "51.5", "laengengrad": "11.0"}}), cfg)
+    await app.ainvoke(Command(resume={"overrides": {}}), cfg)
+    state = (await app.aget_state(cfg)).values
+    assert state["baustelle_breitengrad"] == "51.5"
+    assert state["baustelle_laengengrad"] == "11.0"
+    assert state["lieferant_code"]                                # a supplier bound from the override
 
 
 async def test_baustoff_auto_applies_above_threshold(monkeypatch):
