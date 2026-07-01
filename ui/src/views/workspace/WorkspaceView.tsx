@@ -80,8 +80,15 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
   const project = useProject(projectUuid);
   const retrievalConfig = useRetrievalConfig(conversationId);
   const messagesQuery = useConversationMessages(conversationId);
-  const { streamMessages, streamingMessageId, isStreaming, pendingInterrupt, sendMessage, sendResume } =
-    useWorkspaceConversation(conversationId, retrievalConfig);
+  const {
+    streamMessages,
+    streamingMessageId,
+    isStreaming,
+    isCalculating,
+    pendingInterrupt,
+    sendMessage,
+    sendResume,
+  } = useWorkspaceConversation(conversationId, retrievalConfig);
   const isPositionChat = conversation.data?.prompt_type === 'ekt_calculator';
 
   const onSlashCommand = (cmd: string) => {
@@ -142,6 +149,7 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
         streamingMessageId={streamingMessageId}
         isThinking={isThinking}
         projectUuid={projectUuid}
+        collapseStreamingReasoning={isCalculating}
       />
 
       {interrupt ? (

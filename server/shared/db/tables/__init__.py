@@ -17,6 +17,7 @@ from shared.db.tables.ingestion_activity_log_archive import ingestion_activity_l
 from shared.db.tables.lv_items import lv_items
 from shared.db.tables.messages import messages
 from shared.db.tables.openrouter_usage import openrouter_usage
+from shared.db.tables.project_context_values import project_context_values
 from shared.db.tables.projects import projects
 from shared.db.tables.prompt_execution_log import prompt_execution_log
 from shared.db.tables.prompt_versions import prompt_versions
@@ -36,6 +37,7 @@ __all__ = [
     "lv_items",
     "messages",
     "openrouter_usage",
+    "project_context_values",
     "projects",
     "prompt_execution_log",
     "prompt_versions",

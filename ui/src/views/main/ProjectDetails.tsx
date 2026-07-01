@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/16/solid";
 import {
   DocumentDuplicateIcon,
+  GlobeAltIcon,
   ListBulletIcon,
 } from "@heroicons/react/20/solid";
 import { useProject, useProjectDocuments } from "../../api/projects";
@@ -38,8 +39,9 @@ import { DeleteDocumentDialog } from "./DeleteDocumentDialog";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { DocumentDetailDialog } from "./DocumentDetailDialog";
 import { LVItemsTable } from "./LVItemsTable";
+import { ProjectContextPanel } from "./ProjectContextPanel";
 
-type ProjectTab = "lv" | "documents";
+type ProjectTab = "lv" | "documents" | "context";
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
@@ -129,6 +131,7 @@ export function ProjectDetails({
                   name: "Documents",
                   icon: DocumentDuplicateIcon,
                 },
+                { id: "context", name: "Context", icon: GlobeAltIcon },
               ] as const
             ).map((t) => {
               const active = tab === t.id;
@@ -164,6 +167,8 @@ export function ProjectDetails({
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         {tab === "lv" && <LVItemsTable projectUuid={projectUuid} />}
+
+        {tab === "context" && <ProjectContextPanel projectUuid={projectUuid} />}
 
         {tab === "documents" &&
           (docs.length === 0 ? (

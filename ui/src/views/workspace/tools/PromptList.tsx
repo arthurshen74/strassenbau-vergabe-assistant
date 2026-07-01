@@ -27,10 +27,11 @@ const TYPE_COLOR: Record<PromptVersionRead['prompt_type'], BadgeColor> = {
   lv_extraction: 'sky',
   conversation_name: 'rose',
   ekt_calculator: 'zinc',
-  ekt_classify: 'purple',
-  ekt_resolve_driver: 'blue',
-  ekt_select_method: 'green',
-  ekt_seed_drivers: 'amber',
+  ekt_leistung_classify: 'purple',
+  ekt_chat_values: 'blue',
+  ekt_langtext_extract: 'green',
+  ekt_output_narrate: 'amber',
+  project_context_resolve: 'sky',
 };
 
 // The route returns a bare array; the dispatcher tool returns `{prompts: [...]}`.

@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "embedding_cache",
     "calculation_ground_truth",
     "variable_corrections",
+    "project_context_values",
 }
 
 

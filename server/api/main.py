@@ -15,6 +15,7 @@ from api.routes import (
     dispatch,
     health,
     ingest_jobs,
+    project_contexts,
     projects,
     prompt_execution_logs,
     prompts,
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(conversations.router)
     app.include_router(dispatch.router)
     app.include_router(projects.router)
+    app.include_router(project_contexts.router)
     app.include_router(prompt_execution_logs.router)
     app.include_router(usage.router)
     app.include_router(ingest_jobs.router)

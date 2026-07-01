@@ -9,7 +9,7 @@ from scripts.seed.prompts import (
     load_prompt_versions,
     parse_prompt_file,
 )
-from shared.models.enums import PromptType
+from shared.models.enums import CONVERSATION_DISCRIMINATORS, PromptType
 
 
 def _write(tmp_path: Path, name: str, content: str) -> Path:
@@ -20,10 +20,9 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
 
 def test_shipped_prompt_files_cover_every_prompt_type() -> None:
     versions = load_prompt_versions()
-    # ekt_calculator is a conversation discriminator, not a seeded prompt (the position chat runs on
-    # project_chat), so it ships no .prompt file. The EKT graph's own prompts (ekt_leistung_classify
-    # etc.) do.
-    expected = set(PromptType) - {PromptType.EKT_CALCULATOR}
+    # Every prompt type ships a .prompt file EXCEPT the conversation/StateGraph discriminators
+    # (ekt_calculator), which tag a conversation's owning agent rather than naming a seeded prompt.
+    expected = set(PromptType) - CONVERSATION_DISCRIMINATORS
     assert {v.prompt_type for v in versions} == expected
 
 

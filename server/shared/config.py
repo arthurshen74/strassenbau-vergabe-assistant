@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     # Target machine deployment window (hours) for right-sizing the default machine: the
     # default is the smallest candidate whose capacity clears the job within this window.
     calculator_maschine_zielstunden: float = 16.0
+    # Supplier ranking: carriers beyond this great-circle radius (km) are dropped before road
+    # routing; if none remain, the ranking falls back to the single nearest carrier and warns.
+    calculator_lieferant_radius_km: float = 100.0
+    # Coarse HGV approximation: Google can only DRIVE-route, so the supplier haul road distance
+    # is scaled by this detour factor (1.0 = no adjustment).
+    calculator_hgv_detour_factor: float = 1.0
 
     # Phoenix HTTP OTLP collector (the docker-compose `phoenix` service).
     phoenix_collector_endpoint: str = "http://localhost:6006/v1/traces"

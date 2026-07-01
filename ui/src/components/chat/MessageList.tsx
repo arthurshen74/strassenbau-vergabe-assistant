@@ -35,6 +35,8 @@ interface MessageListProps {
   isThinking?: boolean;
   /** Project scope, for project-chat tool results that fetch page thumbnails. */
   projectUuid?: string;
+  /** Collapse the currently-streaming assistant message as calculator reasoning (latest line). */
+  collapseStreamingReasoning?: boolean;
   className?: string;
 }
 
@@ -45,6 +47,7 @@ export function MessageList({
   streamingMessageId,
   isThinking,
   projectUuid,
+  collapseStreamingReasoning,
   className,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -107,6 +110,9 @@ export function MessageList({
             streaming={m.message_uuid === streamingMessageId}
             citationData={citationByAssistant.get(m.message_uuid)}
             projectUuid={projectUuid}
+            collapsibleReasoning={
+              collapseStreamingReasoning && m.message_uuid === streamingMessageId
+            }
           />
         ))}
         {isThinking && <ThinkingIndicator size="lg" label="Thinking" />}

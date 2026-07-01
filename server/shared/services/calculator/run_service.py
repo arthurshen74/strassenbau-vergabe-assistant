@@ -62,8 +62,12 @@ from shared.services.calculator.graph import (
     ContextRetriever,
     build_graph,
 )
+from shared.models.project_context_schema import ProjectContextUpdate
 from shared.services.calculator.prompts import load_calculator_prompts
 from shared.services.ground_truth import GroundTruthService
+from shared.services.project_context import ProjectContextService
+from shared.services.project_context.prompts import load_resolve_prompt
+from shared.services.project_context.service import DEFAULT_USER
 from shared.services.messages import (
     CONTENT,
     ROLE,
@@ -192,7 +196,38 @@ class CalculatorRunService:
             llm=self._llm,
             prompts=prompts,
             checkpointer=self._checkpointer,
+            project_context_loader=self._project_context_loader(),
+            project_context_saver=self._project_context_saver(),
         )
+
+    def _project_context_loader(self):
+        """Resolve + persist the project globals (current versions, then RAG for any missing),
+        returning the flat current view. The graph node reconciles it against the chat candidates.
+        Runs in its own short transaction (never held across the stream)."""
+
+        async def loader(project_uuid: UUID, _chat_candidates: dict[str, Any]) -> dict[str, Any]:
+            async with self._engine.begin() as conn:
+                prompt = None if settings.calculator_mock else await load_resolve_prompt(conn)
+                read = await ProjectContextService(conn).resolve(
+                    project_uuid, retrieval=self._retrieval, llm=self._llm, prompt=prompt
+                )
+            return {"projekt_kontext": read.model_dump(mode="json")}
+
+        return loader
+
+    def _project_context_saver(self):
+        """Persist a project-context review override as new HITL versions, returning the updated
+        flat view. `benutzer` is the interim DEFAULT_USER placeholder until fastapi-users lands."""
+
+        async def saver(project_uuid: UUID, updates: dict[str, Any]) -> dict[str, Any]:
+            fields = {k: v for k, v in updates.items() if k in ProjectContextUpdate.model_fields}
+            async with self._engine.begin() as conn:
+                read = await ProjectContextService(conn).save(
+                    project_uuid, ProjectContextUpdate(**fields), benutzer=DEFAULT_USER
+                )
+            return read.model_dump(mode="json")
+
+        return saver
 
     def _retriever(self, project_uuid: UUID, conversation_uuid: UUID) -> ContextRetriever:
         async def retrieve(query: str) -> list[str]:

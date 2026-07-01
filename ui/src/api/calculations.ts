@@ -8,17 +8,18 @@ import { api } from './client';
 import type { ConversationRead } from '../types/generated';
 
 // The Kalkulator's structured decision for the current HITL gate; the fields the paused stage reads.
+//   - project_context_review (pre-Gate-A): projekt_kontext maps a changed global -> its new value
+//     (locations as address strings, strip dims/Fräsgut as numbers); only changed fields are sent.
 //   - method_review (Gate A): confirm the Leistung and select the Bauverfahren.
 //   - variable_review (Gate B): overrides maps a variable name -> its corrected value (changed leaves only);
 //     reasons optionally tags each override, and mark_as_ground_truth saves the review as eval ground truth.
 export interface CalculationResume {
+  projekt_kontext?: Record<string, string>; // pre-Gate-A: changed project globals -> new value
   leistung_key?: string;
   bauverfahren_key?: string;
   maschinen?: Record<string, string>;      // Ausführungsart slot code -> Maschine code (Gate A)
   baustoff_code?: string;
   lieferanten?: Record<string, string>;    // baustoff_code -> Lieferant code (Gate A, per material)
-  // Gate A manual Baustelle location: coords take precedence, else an address to (re-)geocode.
-  baustelle?: { adresse?: string; breitengrad?: string; laengengrad?: string };
   overrides?: Record<string, unknown>;
   reasons?: Record<string, string>;        // Gate B: variable name -> why it was overridden
   mark_as_ground_truth?: boolean;          // Gate B: save the reviewed state as ground truth

@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "gen:types": "docker compose exec -T api python -m scripts.export_schema",
+    "gen:types": "cd .. && PYTHONPATH=server uv run python -m scripts.export_schema",
     "check:types": "npm run gen:types && git diff --exit-code -- src/types/generated.ts"
   },
   "dependencies": {

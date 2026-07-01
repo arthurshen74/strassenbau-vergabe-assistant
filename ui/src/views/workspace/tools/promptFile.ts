@@ -25,6 +25,8 @@ const ALLOWED_KEYS = [
 
 type PromptType = PromptVersionCreate['prompt_type'];
 
+// The seedable prompt types (one .prompt file each). ekt_calculator is a conversation
+// discriminator, not a seeded prompt, so it is intentionally excluded.
 export const PROMPT_TYPES: readonly PromptType[] = [
   'dispatcher',
   'project_chat',
@@ -32,10 +34,11 @@ export const PROMPT_TYPES: readonly PromptType[] = [
   'multi_question_generator',
   'lv_extraction',
   'conversation_name',
-  'ekt_classify',
-  'ekt_resolve_driver',
-  'ekt_select_method',
-  'ekt_seed_drivers',
+  'ekt_leistung_classify',
+  'ekt_chat_values',
+  'ekt_langtext_extract',
+  'ekt_output_narrate',
+  'project_context_resolve',
 ];
 
 type Scalar = string | number | null;

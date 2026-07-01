@@ -15,13 +15,17 @@ import type { CalculationResume } from '../../api/calculations';
 import type { PendingInterrupt } from './hooks/useWorkspaceConversation';
 
 // Interrupt stages, matching the backend STAGE_* constants in shared/services/calculator/state.py.
+const STAGE_PROJECT_CONTEXT_REVIEW = 'project_context_review';
 const STAGE_METHOD_REVIEW = 'method_review';
 const STAGE_VARIABLE_REVIEW = 'variable_review';
 
-// Baustelle geocoding status, matching the backend BAUSTELLE_* constants in state.py.
+// Location geocoding status, matching the backend ContextStatus / BAUSTELLE_* values.
 const BAUSTELLE_OK = 'aufgeloest';
 const BAUSTELLE_UNSICHER = 'unsicher';
 const BAUSTELLE_FEHLT = 'fehlgeschlagen';
+
+// Project-context reconcile flags, matching the backend RECONCILE_* constants.
+const RECONCILE_KONFLIKT = 'konflikt';
 
 interface PanelProps {
   payload: Record<string, unknown>;
@@ -63,6 +67,10 @@ export function InterruptPanel({
   disabled?: boolean;
 }) {
   switch (interrupt.stage) {
+    case STAGE_PROJECT_CONTEXT_REVIEW:
+      return (
+        <ProjectContextReview payload={interrupt.payload} onResume={onResume} disabled={disabled} />
+      );
     case STAGE_METHOD_REVIEW:
       return <MethodReview payload={interrupt.payload} onResume={onResume} disabled={disabled} />;
     case STAGE_VARIABLE_REVIEW:
@@ -183,25 +191,6 @@ function asLieferanten(v: unknown): Record<string, LieferantenVorschlag> {
   return out;
 }
 
-interface BaustelleInfo {
-  adresse: string | null;
-  breitengrad: string | null;
-  laengengrad: string | null;
-  status: string | null;
-}
-
-// The auto-geocoded Baustelle (or the attempt, when geocoding failed) that Gate A lets the
-// estimator confirm or correct.
-function asBaustelle(v: unknown): BaustelleInfo {
-  const r = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-  return {
-    adresse: r.adresse ? str(r.adresse) : null,
-    breitengrad: r.breitengrad ? str(r.breitengrad) : null,
-    laengengrad: r.laengengrad ? str(r.laengengrad) : null,
-    status: r.status ? str(r.status) : null,
-  };
-}
-
 // Right-sized default machine per Ausführungsart slot, e.g. { AA_KALTFRAESE: 'WIRTGEN_W100CFI' }.
 function asStringMap(v: unknown): Record<string, string> {
   if (!v || typeof v !== 'object') return {};
@@ -219,7 +208,6 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
   const baustoffe = asBaustoffe(payload.baustoff_katalog);
   const vorschlag = asVorschlag(payload.baustoff_vorschlag);
   const lieferantenVorschlag = asLieferanten(payload.lieferanten_vorschlag);
-  const baustelle = asBaustelle(payload.baustelle);
   const suggested = str(payload.leistung_key);
   // Pre-select the classified Leistung only when it is valid (has candidate Bauverfahren);
   // otherwise the Kalkulator must pick one from the catalog.
@@ -246,21 +234,6 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
   const [lieferant, setLieferant] = useState<string>(
     () => lieferantenVorschlag[vorschlag?.code ?? '']?.default ?? '',
   );
-  const [adresse, setAdresse] = useState(baustelle.adresse ?? '');
-  const [lat, setLat] = useState(baustelle.breitengrad ?? '');
-  const [lon, setLon] = useState(baustelle.laengengrad ?? '');
-
-  // Build the Baustelle override: edited coords win (precise), else an edited address to re-geocode,
-  // else nothing (the auto-geocoded location stands).
-  const baustelleOverride = (): { adresse?: string; breitengrad?: string; laengengrad?: string } | undefined => {
-    const latChanged = lat.trim() !== '' && lat.trim() !== (baustelle.breitengrad ?? '');
-    const lonChanged = lon.trim() !== '' && lon.trim() !== (baustelle.laengengrad ?? '');
-    if ((latChanged || lonChanged) && lat.trim() !== '' && lon.trim() !== '') {
-      return { breitengrad: lat.trim(), laengengrad: lon.trim() };
-    }
-    const adresseChanged = adresse.trim() !== '' && adresse.trim() !== (baustelle.adresse ?? '');
-    return adresseChanged ? { adresse: adresse.trim() } : undefined;
-  };
 
   // Switching the material switches its supplier list; default to that material's cheapest.
   const chooseBaustoff = (code: string) => {
@@ -344,50 +317,6 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
                       </select>
                     </div>
                   ))}
-                </div>
-              ) : null}
-              {vorschlag ? (
-                <div className="flex flex-col gap-1 pt-3">
-                  <Text className="text-xs text-zinc-500">
-                    Baustelle (Standort)
-                    {baustelle.status === BAUSTELLE_OK ? (
-                      <span className="ml-2 text-zinc-500">automatisch erkannt</span>
-                    ) : baustelle.status === BAUSTELLE_UNSICHER ? (
-                      <span className="ml-2 text-amber-700 dark:text-amber-400">
-                        unsicher — bitte prüfen
-                      </span>
-                    ) : baustelle.status === BAUSTELLE_FEHLT ? (
-                      <span className="ml-2 text-amber-700 dark:text-amber-400">
-                        nicht erkannt — bitte eingeben
-                      </span>
-                    ) : null}
-                  </Text>
-                  <Input
-                    value={adresse}
-                    disabled={disabled}
-                    placeholder="Adresse, Ort oder Straßenabschnitt der Baustelle"
-                    onChange={(e) => setAdresse(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Input
-                      value={lat}
-                      disabled={disabled}
-                      inputMode="decimal"
-                      placeholder="Breitengrad"
-                      onChange={(e) => setLat(e.target.value)}
-                    />
-                    <Input
-                      value={lon}
-                      disabled={disabled}
-                      inputMode="decimal"
-                      placeholder="Längengrad"
-                      onChange={(e) => setLon(e.target.value)}
-                    />
-                  </div>
-                  <Text className="text-xs text-zinc-500">
-                    Adresse korrigieren (wird neu geokodiert) oder Koordinaten direkt setzen; danach
-                    werden die Lieferanten neu gerankt.
-                  </Text>
                 </div>
               ) : null}
               {vorschlag ? (
@@ -497,7 +426,6 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
               maschinen,
               baustoff_code: baustoff || undefined,
               lieferanten: baustoff && lieferant ? { [baustoff]: lieferant } : undefined,
-              baustelle: baustelleOverride(),
             })
           }
         >
@@ -505,6 +433,161 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
         </Button>
         <Button outline disabled={disabled} onClick={() => onResume({ cancel: true })}>
           Abbrechen
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
+// --- Pre-Gate-A: confirm/override the project globals ----------------------
+interface ReconcileEntry {
+  flag?: string;
+  chat_wert?: string;
+  aktuell_wert?: string;
+}
+
+function StatusHint({ status }: { status: string }) {
+  if (status === BAUSTELLE_OK) return <span className="ml-2 text-zinc-500">geokodiert</span>;
+  if (status === BAUSTELLE_UNSICHER)
+    return <span className="ml-2 text-amber-700 dark:text-amber-400">unsicher — bitte prüfen</span>;
+  if (status === BAUSTELLE_FEHLT)
+    return (
+      <span className="ml-2 text-amber-700 dark:text-amber-400">nicht geokodiert — bitte prüfen</span>
+    );
+  return null;
+}
+
+function ContextField({
+  label,
+  value,
+  onChange,
+  status,
+  conflict,
+  disabled,
+  numeric,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  status?: string;
+  conflict?: ReconcileEntry;
+  disabled?: boolean;
+  numeric?: boolean;
+}) {
+  const isConflict = conflict?.flag === RECONCILE_KONFLIKT;
+  return (
+    <div className="flex flex-col gap-1">
+      <Text className="text-xs text-zinc-500">
+        {label}
+        {status ? <StatusHint status={status} /> : null}
+      </Text>
+      {isConflict ? (
+        <div className="flex flex-col gap-1 rounded border border-amber-500/40 p-2">
+          <Text className="text-xs text-amber-700 dark:text-amber-400">
+            Konflikt: Chat „{str(conflict?.chat_wert)}“ vs. gespeichert „{str(conflict?.aktuell_wert)}“
+          </Text>
+          <div className="flex gap-2">
+            <Button outline disabled={disabled} onClick={() => onChange(str(conflict?.chat_wert))}>
+              Chat übernehmen
+            </Button>
+            <Button outline disabled={disabled} onClick={() => onChange(str(conflict?.aktuell_wert))}>
+              Gespeichert behalten
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <Input
+        value={value}
+        disabled={disabled}
+        inputMode={numeric ? 'decimal' : undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
+  const kontext =
+    payload.projekt_kontext && typeof payload.projekt_kontext === 'object'
+      ? (payload.projekt_kontext as Record<string, unknown>)
+      : {};
+  const reconcile =
+    payload.reconcile && typeof payload.reconcile === 'object'
+      ? (payload.reconcile as Record<string, ReconcileEntry>)
+      : {};
+
+  const [baustelle, setBaustelle] = useState(str(kontext.baustelle_location));
+  const [deponie, setDeponie] = useState(str(kontext.deponie_location));
+  const [length, setLength] = useState(str(kontext.strip_length_m));
+  const [width, setWidth] = useState(str(kontext.strip_width_m));
+  const [fraesgut, setFraesgut] = useState(str(kontext.fraesgut_klasse));
+
+  // Only the changed fields are sent; each becomes a new version on the backend.
+  const changed = (): Record<string, string> => {
+    const u: Record<string, string> = {};
+    if (baustelle !== str(kontext.baustelle_location)) u.baustelle_location = baustelle;
+    if (deponie !== str(kontext.deponie_location)) u.deponie_location = deponie;
+    if (length !== str(kontext.strip_length_m)) u.strip_length_m = length;
+    if (width !== str(kontext.strip_width_m)) u.strip_width_m = width;
+    if (fraesgut !== str(kontext.fraesgut_klasse)) u.fraesgut_klasse = fraesgut;
+    return u;
+  };
+
+  return (
+    <Panel title="Projektkontext bestätigen">
+      <Text className="text-xs text-zinc-500">
+        Diese Werte gelten für das ganze Projekt (Streckenabschnitt). Bestätigen oder überschreiben —
+        Änderungen werden als neue Version gespeichert.
+      </Text>
+      <div className="flex flex-col gap-3 pt-2">
+        <ContextField
+          label="Baustelle (Standort)"
+          value={baustelle}
+          onChange={setBaustelle}
+          status={str(kontext.baustelle_status)}
+          conflict={reconcile.baustelle_location}
+          disabled={disabled}
+        />
+        <ContextField
+          label="Deponie / Entsorgung"
+          value={deponie}
+          onChange={setDeponie}
+          status={str(kontext.deponie_status)}
+          conflict={reconcile.deponie_location}
+          disabled={disabled}
+        />
+        <ContextField
+          label="Streckenlänge (m)"
+          value={length}
+          onChange={setLength}
+          conflict={reconcile.strip_length_m}
+          disabled={disabled}
+          numeric
+        />
+        <ContextField
+          label="Streckenbreite (m)"
+          value={width}
+          onChange={setWidth}
+          conflict={reconcile.strip_width_m}
+          disabled={disabled}
+          numeric
+        />
+        <ContextField
+          label="Fräsgutklasse"
+          value={fraesgut}
+          onChange={setFraesgut}
+          conflict={reconcile.fraesgut_klasse}
+          disabled={disabled}
+          numeric
+        />
+        <div className="flex flex-col gap-1">
+          <Text className="text-xs text-zinc-500">Entfernung zur Deponie (km, berechnet)</Text>
+          <Input value={str(kontext.entfernung_deponie_km) || '—'} disabled readOnly />
+        </div>
+      </div>
+      <div className="flex gap-2 pt-4">
+        <Button disabled={disabled} onClick={() => onResume({ projekt_kontext: changed() })}>
+          Bestätigen & weiter
         </Button>
       </div>
     </Panel>

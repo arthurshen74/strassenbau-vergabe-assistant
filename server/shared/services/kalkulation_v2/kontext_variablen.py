@@ -39,18 +39,6 @@ def mit_default(name, bez, einheit, default, erststufe):
                     Schritt(methode=M.KONSTANTE, konstante=D(default))])
 
 
-def koordinate(name, bez):
-    """Baustelle coordinate — REQUIRED, no KONSTANTE fallback: the site location drives
-    supplier ranking and must not silently default. Filled by the locate_baustelle node
-    (geocoding the Baubeschreibung) before calc; RAG provenance, then a human (HITL)."""
-    KONTEXT_VARIABLEN[name] = VarDef(name=name, bezeichnung=bez, einheit="°",
-        aufloesung=[Schritt(methode=M.RAG,
-                            prompt="Standort der Baustelle aus der Baubeschreibung (Adresse, Ort "
-                                   "oder Straßenabschnitt) bestimmen; wird geokodiert.",
-                            konfidenz_schwelle=D("0.60")),
-                    Schritt(methode=M.HITL)])
-
-
 # --- extracted from the LV / RAG ---
 eingabe("tiefe_cm", "Tiefe (Fräs-/Schnitt-/Abtragstiefe)", "cm",
         "Suche im Langtext die Fräs-/Schnitt-/Einbau-/Abtragstiefe; oft als Bereich 'über X bis Y cm'.")
@@ -97,10 +85,8 @@ for _g, _e in [("laenge_m", "m"), ("volumen_m3", "m³")]:
     geometrie(_g, _e)
 # menge_t is NOT a booked placeholder: t-billed positions fill it from `menge`
 # (resolver short-circuits); m²-billed asphalt derives it (see formel.py).
-
-# --- Baustelle location (required; geocoded before calc, drives supplier ranking) ---
-koordinate("baustelle_breitengrad", "Breitengrad der Baustelle")
-koordinate("baustelle_laengengrad", "Längengrad der Baustelle")
+# Baustelle coordinates are NOT engine variables: the site location is a project-level global
+# (project_context) and drives supplier ranking / deponie routing in the graph, not a formula.
 
 # --- situational inputs with a default fallback ---
 mit_default("anzahl_arbeiter", "Kolonnenstärke", "Pers", "2", M.HITL)

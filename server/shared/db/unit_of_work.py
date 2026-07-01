@@ -27,6 +27,7 @@ from shared.repositories.ingestion_activity import IngestionActivityLogRepositor
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.messages import MessageRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
+from shared.repositories.project_context_values import ProjectContextValueRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.prompt_execution_log import PromptExecutionLogRepository
 from shared.repositories.prompt_versions import PromptVersionRepository
@@ -53,6 +54,7 @@ class UnitOfWork:
         self.messages = MessageRepository(conn)
         self.ground_truth = GroundTruthRepository(conn)
         self.variable_corrections = VariableCorrectionRepository(conn)
+        self.project_context_values = ProjectContextValueRepository(conn)
         # Registered for read/report composition; the Database*Sinks write independently.
         self.openrouter_usage = OpenRouterUsageRepository(conn)
         self.prompt_execution_log = PromptExecutionLogRepository(conn)

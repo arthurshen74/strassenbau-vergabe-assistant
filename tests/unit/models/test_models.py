@@ -36,6 +36,7 @@ def test_enum_values() -> None:
         "ekt_chat_values",
         "ekt_langtext_extract",
         "ekt_output_narrate",
+        "project_context_resolve",
     }
 
 

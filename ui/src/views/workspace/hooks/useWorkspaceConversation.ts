@@ -80,6 +80,9 @@ export function useWorkspaceConversation(
   const [streamMessages, setStreamMessages] = useState<DisplayMessage[]>([]);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  // True while a HITL-resume turn streams: that segment is always calculator reasoning, so the
+  // renderer can collapse it (and show the activity indicator) without mislabeling a chat answer.
+  const [isCalculating, setIsCalculating] = useState(false);
   const [pendingInterrupt, setPendingInterrupt] = useState<PendingInterrupt | null>(null);
   const streamStateRef = useRef<StreamState>({
     openAssistantId: null,
@@ -126,6 +129,7 @@ export function useWorkspaceConversation(
 
       streamStateRef.current = { openAssistantId: null, toolNameByCallId: {} };
       setIsStreaming(true);
+      setIsCalculating('resume' in body);
       setStreamActive(conversationId, true);
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -277,6 +281,7 @@ export function useWorkspaceConversation(
         endTurnGroup();
 
         setIsStreaming(false);
+        setIsCalculating(false);
         setStreamingMessageId(null);
         setStreamActive(conversationId, false);
         abortRef.current = null;
@@ -324,6 +329,7 @@ export function useWorkspaceConversation(
     streamMessages,
     streamingMessageId,
     isStreaming,
+    isCalculating,
     pendingInterrupt,
     sendMessage,
     sendResume,

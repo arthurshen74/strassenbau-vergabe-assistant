@@ -28,6 +28,11 @@ interface AssistantMessageProps {
   /** Merged retrieval sources for this answer's turn; renders the citations panel. */
   citationData?: CitationData | null;
   projectUuid?: string;
+  /**
+   * Collapse verbose line-by-line reasoning to its most recent line with an expand toggle
+   * (the calculator's streaming reasoning). All lines are kept; only the display collapses.
+   */
+  collapsible?: boolean;
 }
 
 export function AssistantMessage({
@@ -35,9 +40,11 @@ export function AssistantMessage({
   streaming = false,
   citationData,
   projectUuid,
+  collapsible = false,
 }: AssistantMessageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [citationsOpen, setCitationsOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   // A new object per citation click (the tick bumps identity) so the effect re-runs even
   // when the panel was already open. Never cleared — the effect only fires on a new click.
   const [scrollRequest, setScrollRequest] = useState<{ n: number; tick: number } | null>(
@@ -60,6 +67,46 @@ export function AssistantMessage({
     setCitationsOpen(true);
     setScrollRequest((r) => ({ n, tick: (r?.tick ?? 0) + 1 }));
   };
+
+  // Calculator reasoning: collapse the running line-by-line log to its latest line, with a toggle
+  // to reveal the full history. A prominent activity row signals the calculation is in progress.
+  if (collapsible) {
+    const lines = content.split('\n').filter((l) => l.trim() !== '');
+    const latest = lines.length > 0 ? lines[lines.length - 1] : '';
+    return (
+      <div className="flex justify-start">
+        <div className="max-w-2xl text-sm text-zinc-900 dark:text-zinc-100">
+          <div className="flex items-center gap-2">
+            {streaming && (
+              <span
+                aria-hidden
+                className="size-3 shrink-0 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-500 dark:border-zinc-600 dark:border-t-indigo-400"
+              />
+            )}
+            <span className="font-medium text-indigo-600 dark:text-indigo-400">
+              {streaming ? 'Berechnung läuft…' : 'Berechnung'}
+            </span>
+            {lines.length > 1 && (
+              <button
+                type="button"
+                className="text-xs text-zinc-500 underline hover:text-zinc-700 dark:hover:text-zinc-300"
+                onClick={() => setExpanded((v) => !v)}
+              >
+                {expanded ? 'Verlauf ausblenden' : `Verlauf anzeigen (${lines.length})`}
+              </button>
+            )}
+          </div>
+          {expanded ? (
+            <pre className="mt-1 whitespace-pre-wrap font-sans text-xs text-zinc-600 dark:text-zinc-400">
+              {lines.join('\n')}
+            </pre>
+          ) : (
+            <div className="mt-1 truncate text-xs text-zinc-600 dark:text-zinc-400">{latest}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex justify-start">

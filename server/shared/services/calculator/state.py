@@ -23,6 +23,7 @@ from shared.services.kalkulation_v2.model import AufloesungsMethode, VariablenWe
 DEFAULT_REVIEW_SCHWELLE = 0.75
 
 # Interrupt payload stages (the UI dispatches its gate components on these).
+STAGE_PROJECT_CONTEXT_REVIEW = "project_context_review"
 STAGE_METHOD_REVIEW = "method_review"
 STAGE_VARIABLE_REVIEW = "variable_review"
 
@@ -33,10 +34,17 @@ STATUS_VORGESCHLAGEN = "vorgeschlagen"
 STATUS_AKZEPTIERT = "akzeptiert"
 STATUS_UEBERSCHRIEBEN = "ueberschrieben"
 
-# Baustelle geocoding outcome (Gate A shows the editable location with this status).
+# Location geocoding outcome (the project-context review shows the editable location with this
+# status). Mirrors the backend ContextStatus values.
 BAUSTELLE_OK = "aufgeloest"            # geocoded with confidence
 BAUSTELLE_UNSICHER = "unsicher"        # geocoded but low confidence -> confirm
 BAUSTELLE_FEHLT = "fehlgeschlagen"     # not geocoded -> enter manually
+
+# Project-context reconcile flags: how a chat-stated global relates to the saved/resolved value
+# (the review offers Confirm / Override / resolve-Conflict per variable, §8.3).
+RECONCILE_BESTAETIGEN = "bestaetigen"      # chat agrees with the current value (or none stated)
+RECONCILE_UEBERSCHREIBEN = "ueberschreiben"  # chat proposes a value where none was saved
+RECONCILE_KONFLIKT = "konflikt"            # chat value differs from the saved value
 
 
 def wert_to_json(w: VariablenWert) -> dict:
@@ -146,12 +154,15 @@ class PositionKalkulationState(TypedDict, total=False):
     # {code, name, konfidenz, auto, treffer:[{code,name,score}]}; None if the recipe needs none.
     baustoff_vorschlag: dict | None
 
-    # --- Baustelle location + supplier selection ---
-    baustelle_breitengrad: str               # geocoded site latitude (Decimal as string)
-    baustelle_laengengrad: str               # geocoded site longitude (Decimal as string)
-    baustelle_adresse: str | None            # geocoded formatted address (or the attempted text)
-    baustelle_status: str | None             # BAUSTELLE_* — drives the Gate A location field
-    baustelle_override: dict                 # Gate A manual location: {adresse?, breitengrad?, laengengrad?}
+    # --- project context (global variables, resolved once per project; §1) ---
+    # Flat current view (ProjectContextRead.model_dump): baustelle/deponie location + coords +
+    # status, entfernung_deponie_km, strip dims, fraesgut_klasse. Supplier ranking + deponie
+    # distance read the confirmed Baustelle/Deponie coords from here (no per-position geocode).
+    projekt_kontext: dict
+    projekt_kontext_reconcile: dict          # variable_name -> {flag (RECONCILE_*), chat_wert, aktuell_wert}
+    chat_global_kandidaten: dict             # variable_name -> {wert, beleg, quelle}: globals stated in chat
+
+    # --- supplier selection ---
     # baustoff_code -> {default: lieferant_code|None, angebote: [LieferantAngebot.model_dump(json)]}.
     # Ranked cheapest-delivered for the Gate A per-material supplier picker.
     lieferanten_vorschlag: dict

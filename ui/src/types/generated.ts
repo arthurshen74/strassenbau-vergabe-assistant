@@ -31,6 +31,61 @@ export interface ProjectUpdate {
   location?: string | null;
 }
 
+export interface ProjectContextValue {
+  project_context_value_uuid: string;
+  project_uuid: string;
+  variable_name: string;
+  version: number;
+  wert: string;
+  breitengrad?: string | null;
+  laengengrad?: string | null;
+  /**
+   * Provenance of a project context value version (the `quelle` column).
+   */
+  quelle: "rag" | "hitl" | "routing";
+  beleg?: string | null;
+  quelle_referenz?: {
+    [k: string]: unknown;
+  } | null;
+  konfidenz?: number | string | null;
+  benutzer?: string | null;
+  status?: string | null;
+  ist_aktuell: boolean;
+  gueltig_ab: string;
+  gueltig_bis?: string | null;
+  erstellt_am: string;
+}
+
+export interface ProjectContextRead {
+  project_uuid: string;
+  vorhanden: boolean;
+  baustelle_location?: string | null;
+  baustelle_breitengrad?: string | null;
+  baustelle_laengengrad?: string | null;
+  baustelle_status?: string | null;
+  deponie_location?: string | null;
+  deponie_breitengrad?: string | null;
+  deponie_laengengrad?: string | null;
+  deponie_status?: string | null;
+  entfernung_deponie_km?: string | null;
+  strip_length_m?: string | null;
+  strip_width_m?: string | null;
+  fraesgut_klasse?: string | null;
+}
+
+export interface ProjectContextUpdate {
+  baustelle_location?: string | null;
+  deponie_location?: string | null;
+  strip_length_m?: string | null;
+  strip_width_m?: string | null;
+  fraesgut_klasse?: string | null;
+}
+
+export interface ProjectContextHistory {
+  variable_name: string;
+  versionen: ProjectContextValue[];
+}
+
 export interface DocumentRead {
   document_uuid: string;
   project_uuid: string;
@@ -158,10 +213,11 @@ export interface PromptVersionRead {
     | "lv_extraction"
     | "conversation_name"
     | "ekt_calculator"
-    | "ekt_classify"
-    | "ekt_resolve_driver"
-    | "ekt_select_method"
-    | "ekt_seed_drivers";
+    | "ekt_leistung_classify"
+    | "ekt_chat_values"
+    | "ekt_langtext_extract"
+    | "ekt_output_narrate"
+    | "project_context_resolve";
   version: number;
   model_name: string;
   system_prompt: string;
@@ -180,10 +236,11 @@ export interface PromptVersionCreate {
     | "lv_extraction"
     | "conversation_name"
     | "ekt_calculator"
-    | "ekt_classify"
-    | "ekt_resolve_driver"
-    | "ekt_select_method"
-    | "ekt_seed_drivers";
+    | "ekt_leistung_classify"
+    | "ekt_chat_values"
+    | "ekt_langtext_extract"
+    | "ekt_output_narrate"
+    | "project_context_resolve";
   model_name: string;
   system_prompt: string;
   temperature?: number | null;
@@ -203,10 +260,11 @@ export interface ConversationRead {
     | "lv_extraction"
     | "conversation_name"
     | "ekt_calculator"
-    | "ekt_classify"
-    | "ekt_resolve_driver"
-    | "ekt_select_method"
-    | "ekt_seed_drivers";
+    | "ekt_leistung_classify"
+    | "ekt_chat_values"
+    | "ekt_langtext_extract"
+    | "ekt_output_narrate"
+    | "project_context_resolve";
   calculation_status?: ("awaiting_start" | "running" | "awaiting_input" | "complete" | "failed") | null;
   lv_item_uuid?: string | null;
   title?: string | null;
@@ -223,10 +281,11 @@ export interface ConversationCreate {
     | "lv_extraction"
     | "conversation_name"
     | "ekt_calculator"
-    | "ekt_classify"
-    | "ekt_resolve_driver"
-    | "ekt_select_method"
-    | "ekt_seed_drivers";
+    | "ekt_leistung_classify"
+    | "ekt_chat_values"
+    | "ekt_langtext_extract"
+    | "ekt_output_narrate"
+    | "project_context_resolve";
   project_uuid?: string | null;
   title?: string | null;
 }

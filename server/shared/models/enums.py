@@ -40,14 +40,25 @@ class PromptType(StrEnum):
     LV_EXTRACTION = "lv_extraction"
     CONVERSATION_NAME = "conversation_name"
     # ekt_calculator is a conversation discriminator (a position chat that owns a calculator run),
-    # not a seeded prompt; the position chat itself runs on PROJECT_CHAT. The ekt_* below are the
-    # EKT calculation graph's structured LLM prompts (shared/services/calculator/llm_calls.py).
+    # not a seeded prompt; the position chat itself runs on PROJECT_CHAT. It is grouped in
+    # CONVERSATION_DISCRIMINATORS below. The ekt_* below are the EKT calculation graph's structured
+    # LLM prompts (shared/services/calculator/llm_calls.py).
     EKT_CALCULATOR = "ekt_calculator"
     # kalkulation_v2 prompts (the live graph).
     EKT_LEISTUNG_CLASSIFY = "ekt_leistung_classify"
     EKT_CHAT_VALUES = "ekt_chat_values"
     EKT_LANGTEXT_EXTRACT = "ekt_langtext_extract"
     EKT_OUTPUT_NARRATE = "ekt_output_narrate"
+    # Dedicated synthesis over hybrid-RAG chunks for one project context global at a time.
+    PROJECT_CONTEXT_RESOLVE = "project_context_resolve"
+
+
+# PromptType members that only DISCRIMINATE which conversation / StateGraph agent owns a
+# conversation (they land in conversations.prompt_type) rather than naming a *seeded* prompt. They
+# ship no .prompt file and are never seeded or loaded as prompts. When you stand up a new StateGraph
+# and tag its conversations with a new member, add it here so the seed-coverage test does not require
+# a .prompt file for it. See ADDING_A_PROMPT_TYPE.md ("StateGraph / conversation discriminators").
+CONVERSATION_DISCRIMINATORS: frozenset[PromptType] = frozenset({PromptType.EKT_CALCULATOR})
 
 
 class CalculationStatus(StrEnum):
@@ -89,3 +100,19 @@ class MessageKind(StrEnum):
     ASSISTANT = "assistant"
     FUNCTION_CALL = "function_call"
     FUNCTION_CALL_OUTPUT = "function_call_output"
+
+
+class ContextQuelle(StrEnum):
+    """Provenance of a project context value version (the `quelle` column)."""
+
+    RAG = "rag"        # resolved from retrieved documents + synthesis
+    HITL = "hitl"      # user override / confirmation
+    ROUTING = "routing"  # derived by routing (e.g. entfernung_deponie_km)
+
+
+class ContextStatus(StrEnum):
+    """Geocoding outcome for a location context value (the `status` column)."""
+
+    AUFGELOEST = "aufgeloest"        # geocoded to coordinates
+    UNSICHER = "unsicher"            # geocoded with low confidence
+    FEHLGESCHLAGEN = "fehlgeschlagen"  # could not be geocoded

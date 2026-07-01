@@ -19,9 +19,17 @@ interface MessageProps {
   /** Merged retrieval sources for this turn, attached to the assistant answer's citations. */
   citationData?: CitationData | null;
   projectUuid?: string;
+  /** Render this assistant message as collapsible calculator reasoning (latest line + toggle). */
+  collapsibleReasoning?: boolean;
 }
 
-export function Message({ m, streaming, citationData, projectUuid }: MessageProps) {
+export function Message({
+  m,
+  streaming,
+  citationData,
+  projectUuid,
+  collapsibleReasoning,
+}: MessageProps) {
   switch (m.kind) {
     case 'user':
       return <UserMessage content={m.content ?? ''} />;
@@ -32,6 +40,7 @@ export function Message({ m, streaming, citationData, projectUuid }: MessageProp
           streaming={streaming}
           citationData={citationData}
           projectUuid={projectUuid}
+          collapsible={collapsibleReasoning}
         />
       );
     case 'ui_notice':

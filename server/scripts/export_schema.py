@@ -38,6 +38,12 @@ from shared.models.ingestion_activity import IngestionActivity
 from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
 from shared.models.openrouter_usage_schema import OpenRouterUsageRead
+from shared.models.project_context import ProjectContextValue
+from shared.models.project_context_schema import (
+    ProjectContextHistory,
+    ProjectContextRead,
+    ProjectContextUpdate,
+)
 from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
 from shared.models.prompt_execution_log_schema import (
@@ -88,6 +94,12 @@ BODY_MODELS: list[type[BaseModel]] = [
     ProjectRead,
     ProjectCreate,
     ProjectUpdate,
+    # Project context (global variables): the flat current view, the editable subset, and the
+    # governance history (ProjectContextValue is nested in the history, so it must be emitted too).
+    ProjectContextValue,
+    ProjectContextRead,
+    ProjectContextUpdate,
+    ProjectContextHistory,
     DocumentRead,
     DocumentCreate,
     DocumentDetailRead,

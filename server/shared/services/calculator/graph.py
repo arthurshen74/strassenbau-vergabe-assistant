@@ -1,15 +1,19 @@
 # pyright: reportTypedDictNotRequiredAccess=false
 """LangGraph wiring for the EKT position-calculation agent (kalkulation_v2 engine).
 
-Topology (ARCHITECTURE §7), per position:
-  launch -> extract_chat_values -> classify_leistung
-  -> locate_baustelle (geocode the site + rank suppliers for the proposed material)
+Topology (ARCHITECTURE §7; PROJECT_CONTEXT_PLAN §8), per position:
+  launch -> extract_chat_values (also harvests project-global candidates)
+  -> load_project_context (resolve/reconcile the project globals)
+  -> project_context_review (pre-Gate-A interrupt: confirm/override the project globals)
+  -> classify_leistung
+  -> rank_lieferanten (rank suppliers for the proposed material at the confirmed project Baustelle)
   -> method_review (Gate A interrupt: confirm Leistung, select Bauverfahren + resources + supplier)
   -> bind_resources (auto-select a machine per slot + baustoff)
   -> bind_lieferant (finalize the supplier -> ex-works price override + Antransport distance)
-  -> derive_required_variables -> resolve_variables
+  -> derive_required_variables -> resolve_variables (merge the project globals as proposals)
   -> variable_review (Gate B interrupt: accept/override every leaf, tiered)
-  -> compute (deterministic kalkuliere) -> render_output
+  -> compute (deterministic kalkuliere; injects the deponie distance + strip geometry fallback)
+  -> render_output
 
 Determinism contract:
   - LANGTEXT/RAG/HITL fill `ctx.werte` (the agent's job, BEFORE calc); the engine
@@ -32,6 +36,7 @@ import logging
 import re
 from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal, InvalidOperation
+from uuid import UUID
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -40,18 +45,21 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from shared.clients.llm.client import LLMClient
-from shared.clients.maps.geo import MapsError, geocode
 from shared.config import settings
 from shared.models.enums import PromptType, RetrievalModality
 from shared.models.prompt_version import PromptVersion
 from shared.services.calculator import llm_calls
-from shared.services.calculator.lieferant_ranking import rang_lieferanten
+from shared.services.calculator.lieferant_ranking import (
+    LieferantAngebot,
+    rang_lieferanten,
+)
 from shared.services.calculator.state import (
-    BAUSTELLE_FEHLT,
-    BAUSTELLE_OK,
-    BAUSTELLE_UNSICHER,
     DEFAULT_REVIEW_SCHWELLE,
+    RECONCILE_BESTAETIGEN,
+    RECONCILE_KONFLIKT,
+    RECONCILE_UEBERSCHREIBEN,
     STAGE_METHOD_REVIEW,
+    STAGE_PROJECT_CONTEXT_REVIEW,
     STAGE_VARIABLE_REVIEW,
     STATUS_AKZEPTIERT,
     STATUS_UEBERSCHRIEBEN,
@@ -64,6 +72,18 @@ from shared.services.calculator.state import (
     VariablenVorschlag,
     wert_from_json,
     wert_to_json,
+)
+from shared.services.kalkulation_v2.globale_variablen import (
+    GLOBAL_VAR_NAMES,
+    GLOBALE_VARIABLEN,
+    VAR_DEPONIE_LOCATION,
+    VAR_ENTFERNUNG_DEPONIE_KM,
+    VAR_FRAESGUT_KLASSE,
+    VAR_STRIP_LENGTH_M,
+    VAR_STRIP_WIDTH_M,
+    ZIEL_FLAECHE_M2,
+    ZIEL_FRAESGUT_KLASSE,
+    ZIEL_LAENGE_M,
 )
 from shared.services.kalkulation_v2.ausfuehrungsarten import AUSFUEHRUNGSARTEN
 from shared.services.kalkulation_v2.baustoff_suche import suche_baustoff
@@ -103,6 +123,14 @@ from shared.services.retrieval.config import RetrievalConfig
 # Async `query -> formatted evidence snippets` callable; None runs without retrieval.
 ContextRetriever = Callable[[str], Awaitable[list[str]]]
 
+# Project-context seams (run_service injects DB + retrieval + persistence; None in standalone
+# tests). The loader resolves/persists the missing globals and reconciles the chat candidates;
+# the saver persists a review override. Both keep DB/retrieval out of the pure graph.
+#   loader(project_uuid, chat_global_kandidaten) -> {"projekt_kontext": flat, "reconcile": flags}
+#   saver(project_uuid, update_fields)           -> updated flat projekt_kontext
+ProjectContextLoader = Callable[[UUID, dict], Awaitable[dict]]
+ProjectContextSaver = Callable[[UUID, dict], Awaitable[dict]]
+
 # The calculator's retrieval policy: hybrid dense + BM25 fused by RRF, multi-question
 # expansion, cross-encoder rerank, PLUS scope (project documents + the LV).
 CALCULATOR_RETRIEVAL_CONFIG = RetrievalConfig(
@@ -127,8 +155,6 @@ PROVENANCE_OVERRIDE = "Gate B (Kalkulator)"
 
 # The supplier-filled inbound haul-distance variable (Antransport); bind_lieferant resolves it.
 LIEFERANT_DISTANCE_VAR = "entfernung_lieferant_km"
-# A geocoded Baustelle below this confidence is flagged for HITL confirmation at Gate A (§9).
-GEOCODE_HITL_THRESHOLD = 0.6
 # STAMMDATEN beleg prefix every material price bridge shares (all read baustoff.basispreis*).
 STAMMDATEN_PREIS_PRAEFIX = "baustoff.basispreis"
 
@@ -137,6 +163,17 @@ LEISTUNG_INDEX = [{"leistung_key": k, "name": v.name, "standard_kennung": v.stan
                   for k, v in LEISTUNGEN.items()]
 CHAT_KATALOG = [{"name": n, "bezeichnung": d.bezeichnung, "einheit": d.einheit}
                 for n, d in KONTEXT_VARIABLEN.items()]
+# Chat extraction also targets the project globals, so values the Kalkulator already stated in
+# chat ("die Deponie ist in Sangerhausen", "der Abschnitt ist 5,1 km") are captured as global
+# candidates (the load_project_context node reconciles them against the saved/resolved values).
+GLOBAL_CHAT_KATALOG = [{"name": g.name, "bezeichnung": g.bezeichnung, "einheit": g.einheit}
+                       for g in GLOBALE_VARIABLEN.values()]
+CHAT_KATALOG_MIT_GLOBAL = CHAT_KATALOG + GLOBAL_CHAT_KATALOG
+# Globals captured from chat as project candidates are only those that are NOT also per-position
+# engine variables. fraesgut_klasse is both a global and a KATALOG variable; a chat statement about
+# it is a per-position input (precedence §3: per-position input > project global), so it stays in
+# chat_werte and is not reconciled as a project candidate.
+CHAT_GLOBAL_NAMES = frozenset(n for n in GLOBAL_VAR_NAMES if n not in KATALOG)
 # Full Leistung -> candidate Bauverfahren map for the Gate A method-review UI, so the Kalkulator can
 # correct the classification and pick a recipe even when the position did not classify cleanly.
 LEISTUNG_KATALOG = [{"leistung_key": k, "name": v.name, "kandidaten": kandidaten(k)}
@@ -373,17 +410,69 @@ def _nachweis(ctx: Kalkulationskontext, preis_beleg: str | None = None) -> list[
     return zeilen
 
 
+def _projekt_werte(kontext: Mapping[str, object]) -> dict[str, dict]:
+    """Engine-variable values sourced from the confirmed project globals, as Gate-B-overridable
+    proposals (precedence §3: per-position input > project global > catalog default). The strip
+    dims source `laenge_m`/`flaeche_m2` only as a fallback: they apply solely to a leaf still on
+    the worklist (a booked geometry is pruned before this merge, and compute books it last, §9)."""
+    out: dict[str, dict] = {}
+    ent = kontext.get(VAR_ENTFERNUNG_DEPONIE_KM)
+    if ent:
+        deponie = kontext.get(VAR_DEPONIE_LOCATION) or "Deponie"
+        out[VAR_ENTFERNUNG_DEPONIE_KM] = wert_to_json(VariablenWert(
+            name=VAR_ENTFERNUNG_DEPONIE_KM, wert=Decimal(str(ent)), quelle=M.STAMMDATEN,
+            beleg=f"Baustelle → Deponie {deponie}, {ent} km (Google Routes)"))
+    fk = kontext.get(VAR_FRAESGUT_KLASSE)
+    if fk:
+        out[ZIEL_FRAESGUT_KLASSE] = wert_to_json(VariablenWert(
+            name=ZIEL_FRAESGUT_KLASSE, wert=Decimal(str(fk)), quelle=M.STAMMDATEN,
+            beleg="Projektkontext (Fräsgutklasse)"))
+    sl = kontext.get(VAR_STRIP_LENGTH_M)
+    sw = kontext.get(VAR_STRIP_WIDTH_M)
+    if sl:
+        out[ZIEL_LAENGE_M] = wert_to_json(VariablenWert(
+            name=ZIEL_LAENGE_M, wert=Decimal(str(sl)), quelle=M.STAMMDATEN,
+            beleg=f"Projektkontext: Streckenlänge {sl} m"))
+        if sw:
+            out[ZIEL_FLAECHE_M2] = wert_to_json(VariablenWert(
+                name=ZIEL_FLAECHE_M2, wert=(Decimal(str(sl)) * Decimal(str(sw))),
+                quelle=M.STAMMDATEN, beleg=f"Projektkontext: {sl} m × {sw} m"))
+    return out
+
+
+def _reconcile_global(kontext: Mapping[str, object], kandidaten: Mapping[str, dict]) -> dict:
+    """Per chat-stated global, classify it against the saved/resolved value: bestaetigen (agrees
+    or none stated), ueberschreiben (chat proposes where none saved), or konflikt (differs)."""
+    out: dict = {}
+    for name, cand in kandidaten.items():
+        chat_wert = cand.get("wert")
+        aktuell = kontext.get(name)
+        if not aktuell:
+            flag = RECONCILE_UEBERSCHREIBEN
+        elif str(aktuell).strip() == str(chat_wert).strip():
+            flag = RECONCILE_BESTAETIGEN
+        else:
+            flag = RECONCILE_KONFLIKT
+        out[name] = {"flag": flag, "chat_wert": chat_wert, "aktuell_wert": aktuell}
+    return out
+
+
 # ------------------------------------------------------------------- build --
 def build_graph(
     retriever: ContextRetriever | None,
     llm: LLMClient | None = None,
     prompts: Mapping[PromptType, PromptVersion] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
+    project_context_loader: ProjectContextLoader | None = None,
+    project_context_saver: ProjectContextSaver | None = None,
 ):
     """Compile the position-calculation graph. The LLM/RAG nodes close over `retriever`,
     `llm` and `prompts`; all three are unused in mock mode (`settings.calculator_mock`),
-    so they may be None there. `checkpointer` persists state across the HITL interrupts
-    (defaults to an in-process MemorySaver; the conversation service injects Postgres)."""
+    so they may be None there. `project_context_loader`/`project_context_saver` carry the project
+    globals (resolve/reconcile + the review override); when both are None the graph skips the
+    pre-Gate-A project-context gate and uses any pre-seeded `projekt_kontext` (standalone tests).
+    `checkpointer` persists state across the HITL interrupts (defaults to an in-process MemorySaver;
+    the conversation service injects Postgres)."""
     prompts = prompts or {}
     kalk = Kalkulator(KATALOG, FORMELN)
 
@@ -462,9 +551,12 @@ def build_graph(
         }
 
     async def extract_chat_values(state: PositionKalkulationState) -> dict:
-        """Source 0: harvest values the Kalkulator already stated pre-launch and lock them.
-        Mock reads `vorgaben`; live runs the chat-extraction prompt over `chat_verlauf`."""
+        """Source 0: harvest values the Kalkulator already stated pre-launch and lock them. Splits
+        into per-position values (`chat_werte`) and project-global candidates (`chat_global_kandidaten`,
+        reconciled later). Mock reads `vorgaben`/`globale_vorgaben`; live runs the chat-extraction
+        prompt over `chat_verlauf` against the combined catalog."""
         chat_werte: dict = {}
+        chat_global: dict = {}
         log = [reason("extract_chat_values", REASONING_NARRATION,
                       "Prüfe den Chatverlauf auf bereits genannte Werte (Quelle 0).")]
         if settings.calculator_mock:
@@ -474,16 +566,26 @@ def build_graph(
                 chat_werte[name] = wert_to_json(w)
                 log.append(reason("extract_chat_values", REASONING_NARRATION,
                                   f"Aus dem Chat übernommen: {name} = {value}."))
+            for name, value in (state.get("globale_vorgaben") or {}).items():
+                if name in CHAT_GLOBAL_NAMES:
+                    chat_global[name] = {"wert": str(value), "beleg": PROVENANCE_CHAT, "quelle": "chat"}
         else:
             transcript = state.get("chat_verlauf") or []
             if transcript:
                 ergebnis, prov = await llm_calls.extract_chat_values(
-                    llm, transcript, CHAT_KATALOG, prompt=prompts[PromptType.EKT_CHAT_VALUES],
+                    llm, transcript, CHAT_KATALOG_MIT_GLOBAL,
+                    prompt=prompts[PromptType.EKT_CHAT_VALUES],
                     project_uuid=state.get("project_uuid"),
                     conversation_uuid=state.get("conversation_uuid"))
                 if prov:
                     log.append(reason("extract_chat_values", REASONING_PROVIDER, prov))
                 for z in ergebnis.zuweisungen:
+                    if z.name in CHAT_GLOBAL_NAMES:
+                        # True globals (locations are strings) are kept verbatim, not coerced.
+                        chat_global[z.name] = {"wert": z.wert, "beleg": z.beleg, "quelle": "chat"}
+                        log.append(reason("extract_chat_values", REASONING_NARRATION,
+                                          f"Globaler Kandidat aus dem Chat: {z.name} = {z.wert}."))
+                        continue
                     val = _coerce_decimal(z.wert)
                     if z.name not in KATALOG or val is None:
                         continue
@@ -491,10 +593,58 @@ def build_graph(
                         name=z.name, wert=val, quelle=M.HITL, beleg=z.beleg))
                     log.append(reason("extract_chat_values", REASONING_NARRATION,
                                       f"Aus dem Chat übernommen: {z.name} = {z.wert}."))
-        if not chat_werte:
+        if not chat_werte and not chat_global:
             log.append(reason("extract_chat_values", REASONING_NARRATION,
                               "Keine vorab genannten Werte gefunden."))
-        return {"chat_werte": chat_werte, "reasoning_log": log}
+        return {"chat_werte": chat_werte, "chat_global_kandidaten": chat_global,
+                "reasoning_log": log}
+
+    async def load_project_context(state: PositionKalkulationState) -> dict:
+        """Load the project globals (current versions + resolve any missing via RAG) and reconcile
+        them against the chat candidates. Delegates the DB/retrieval work to the injected loader;
+        with no loader (standalone tests) it uses any pre-seeded `projekt_kontext` and skips RAG."""
+        kandidaten = state.get("chat_global_kandidaten") or {}
+        if project_context_loader is None:
+            kontext = dict(state.get("projekt_kontext") or {})
+            return {
+                "projekt_kontext": kontext,
+                "projekt_kontext_reconcile": _reconcile_global(kontext, kandidaten),
+                "reasoning_log": [reason("load_project_context", REASONING_NARRATION,
+                                         "Kein Projektkontext-Dienst — verwende vorhandene Werte.")],
+            }
+        result = await project_context_loader(state["project_uuid"], kandidaten)
+        kontext = result.get("projekt_kontext") or {}
+        reconcile = result.get("reconcile") or _reconcile_global(kontext, kandidaten)
+        gesetzt = [k for k in GLOBAL_VAR_NAMES if kontext.get(k)]
+        return {
+            "projekt_kontext": kontext,
+            "projekt_kontext_reconcile": reconcile,
+            "reasoning_log": [reason("load_project_context", REASONING_NARRATION,
+                                     f"Projektkontext geladen: {len(gesetzt)} globale Variable(n) gesetzt.")],
+        }
+
+    async def project_context_review(state: PositionKalkulationState) -> dict:
+        """Pre-Gate-A: let the Kalkulator confirm/override the project globals (Confirm / Override /
+        resolve-Conflict per variable). The submit persists changed fields as new versions via the
+        injected saver. Skipped entirely when no project-context service is wired (standalone tests)."""
+        if project_context_loader is None and project_context_saver is None:
+            return {"reasoning_log": [reason("project_context_review", REASONING_NARRATION,
+                                             "Projektkontext-Prüfung übersprungen.")]}
+        kontext = state.get("projekt_kontext") or {}
+        reconcile = state.get("projekt_kontext_reconcile") or {}
+        antwort = interrupt({
+            "stage": STAGE_PROJECT_CONTEXT_REVIEW,
+            "projekt_kontext": kontext,
+            "reconcile": reconcile,
+        }) or {}
+        updates = {k: v for k, v in (antwort.get("projekt_kontext") or {}).items() if v not in (None, "")}
+        if updates and project_context_saver is not None:
+            neu = await project_context_saver(state["project_uuid"], updates)
+            return {"projekt_kontext": neu,
+                    "reasoning_log": [reason("project_context_review", REASONING_NARRATION,
+                                             f"{len(updates)} globale Variable(n) überschrieben und gespeichert.")]}
+        return {"reasoning_log": [reason("project_context_review", REASONING_NARRATION,
+                                         "Projektkontext bestätigt.")]}
 
     async def classify_leistung(state: PositionKalkulationState) -> dict:
         """Map the position to a Leistung. Mock honours `position.leistung_hint`; live runs
@@ -540,57 +690,37 @@ def build_graph(
                                   "Rezept benötigt Baustoff, kein eindeutiger Treffer — Auswahl in Gate A."))
         return out
 
-    async def locate_baustelle(state: PositionKalkulationState) -> dict:
-        """Geocode the Baustelle from the Baubeschreibung (mock: a fixture coordinate), then rank
-        suppliers for the proposed Baustoff so Gate A can offer a per-material picker. Runs before
-        Gate A because supplier ranking needs the site coordinates. A position with no material
-        needs no supplier, so geocoding is skipped (the location is per-position for now, §9)."""
+    async def rank_lieferanten(state: PositionKalkulationState) -> dict:
+        """Rank suppliers for the proposed Baustoff using the CONFIRMED project Baustelle coords,
+        so Gate A can offer a per-material picker. A position with no material needs no supplier;
+        without a confirmed Baustelle location the ranking is deferred (catalog price applies)."""
         pos = state["position"]
         vorschlag = state.get("baustoff_vorschlag") or {}
         bc = vorschlag.get("code") or pos.get("baustoff_code")
         if not bc:
-            return {"reasoning_log": [reason("locate_baustelle", REASONING_NARRATION,
-                    "Kein Material in der Position — Standortbestimmung und Lieferantenwahl entfallen.")]}
-        log = [reason("locate_baustelle", REASONING_NARRATION,
-                      "Bestimme den Standort der Baustelle (Geokodierung der Baubeschreibung).")]
-        if settings.calculator_mock:
-            res = await geocode(pos.get("langtext") or pos.get("kurztext") or "Baustelle")
-        else:
-            snippets = await retrieve(
-                "Wo liegt die Baustelle? Ort, Gemeinde, Landkreis und Straße bzw. Straßennummer "
-                f"des zu sanierenden Abschnitts. {pos.get('kurztext', '')}")
-            adresse = (snippets[0][:300].strip() if snippets else "") or \
-                pos.get("langtext") or pos.get("kurztext") or ""
-            try:
-                res = await geocode(adresse)
-            except MapsError as exc:
-                # Auto-geocode failed — surface the attempt in Gate A so the estimator can enter the
-                # location manually (bind_lieferant re-geocodes it). The supplier feature still works.
-                log.append(reason("locate_baustelle", REASONING_NARRATION,
-                                  f"Geokodierung fehlgeschlagen ({exc}); Standort in Gate A eingeben."))
-                return {"baustelle_adresse": adresse[:200] or None,
-                        "baustelle_status": BAUSTELLE_FEHLT,
-                        "warnungen": ["Baustellenstandort nicht automatisch bestimmt — in Gate A eingeben."],
-                        "reasoning_log": log}
-        unsicher = not settings.calculator_mock and res.konfidenz < GEOCODE_HITL_THRESHOLD
-        log.append(reason("locate_baustelle", REASONING_NARRATION,
-                          f"Baustelle: {res.formatiert} → {res.breitengrad}, {res.laengengrad} "
-                          f"(Konfidenz {res.konfidenz:.2f})."))
-        out: dict = {"baustelle_breitengrad": str(res.breitengrad),
-                     "baustelle_laengengrad": str(res.laengengrad),
-                     "baustelle_adresse": res.formatiert,
-                     "baustelle_status": BAUSTELLE_UNSICHER if unsicher else BAUSTELLE_OK}
-        if unsicher:
-            out["warnungen"] = [f"Standort '{res.formatiert}' nur grob geokodiert "
-                                f"(Konfidenz {res.konfidenz:.2f}) — in Gate A prüfen."]
-        angebote = await rang_lieferanten(bc, res.breitengrad, res.laengengrad)
-        if angebote:
+            return {"reasoning_log": [reason("rank_lieferanten", REASONING_NARRATION,
+                    "Kein Material in der Position — Lieferantenwahl entfällt.")]}
+        kontext = state.get("projekt_kontext") or {}
+        lat_s, lon_s = kontext.get("baustelle_breitengrad"), kontext.get("baustelle_laengengrad")
+        if not lat_s or not lon_s:
+            return {"reasoning_log": [reason("rank_lieferanten", REASONING_NARRATION,
+                    "Kein bestätigter Baustellenstandort — Lieferantenwahl per Katalogpreis/Default.")]}
+        lat, lon = Decimal(str(lat_s)), Decimal(str(lon_s))
+        log = [reason("rank_lieferanten", REASONING_NARRATION,
+                      f"Ranke Lieferanten für {bc} ab Baustelle ({lat}, {lon}).")]
+        rangliste = await rang_lieferanten(bc, lat, lon)
+        out: dict = {}
+        if rangliste.warnung:
+            log.append(reason("rank_lieferanten", REASONING_NARRATION, rangliste.warnung))
+            out["warnungen"] = [rangliste.warnung]
+        if rangliste.angebote:
             out["lieferanten_vorschlag"] = {bc: {
-                "default": angebote[0].code,
-                "angebote": [a.model_dump(mode="json") for a in angebote]}}
-            log.append(reason("locate_baustelle", REASONING_NARRATION,
-                              f"{len(angebote)} Lieferant(en) für {bc} gerankt; günstigster: "
-                              f"{angebote[0].name} ({angebote[0].frei_bau_eur_pro_t} €/t frei Baustelle)."))
+                "default": rangliste.angebote[0].code,
+                "angebote": [a.model_dump(mode="json") for a in rangliste.angebote]}}
+            log.append(reason("rank_lieferanten", REASONING_NARRATION,
+                              f"{len(rangliste.angebote)} Lieferant(en) für {bc} gerankt; günstigster: "
+                              f"{rangliste.angebote[0].name} "
+                              f"({rangliste.angebote[0].frei_bau_eur_pro_t} €/t frei Baustelle)."))
         out["reasoning_log"] = log
         return out
 
@@ -612,12 +742,6 @@ def build_graph(
             "baustoff_vorschlag": state.get("baustoff_vorschlag"),
             "maschinen_default": state.get("maschinen_default") or {},
             "lieferanten_vorschlag": state.get("lieferanten_vorschlag") or {},
-            "baustelle": {
-                "adresse": state.get("baustelle_adresse"),
-                "breitengrad": state.get("baustelle_breitengrad"),
-                "laengengrad": state.get("baustelle_laengengrad"),
-                "status": state.get("baustelle_status"),
-            },
         }) or {}
         if antwort.get("cancel"):
             return {"abgebrochen": True,
@@ -638,8 +762,6 @@ def build_graph(
             # auto-fill the rest. Supplier picks are keyed per material (baustoff_code).
             "gewaehlte_maschinen": antwort.get("maschinen") or {},
             "gewaehlter_lieferant": antwort.get("lieferanten") or {},
-            # Manual Baustelle location override (address and/or coords); bind_lieferant resolves it.
-            "baustelle_override": antwort.get("baustelle") or {},
             "baustoff_code": (antwort.get("baustoff_code") or auto_baustoff
                               or state["position"].get("baustoff_code")),
             "reasoning_log": [reason("method_review", REASONING_NARRATION,
@@ -689,10 +811,12 @@ def build_graph(
         return {"gewaehlte_maschinen": gewaehlt, "maschinen_kandidaten": kandidaten_je_slot,
                 "maschinen_werte": werte, "reasoning_log": log}
 
-    async def bind_lieferant(state: PositionKalkulationState) -> dict:
+    def bind_lieferant(state: PositionKalkulationState) -> dict:
         """Finalize the supplier for the bound Baustoff: honour the Gate A pick iff that supplier
         carries the final material, else auto-pick cheapest-delivered (mirror of the machine-pick
-        fallback). Stash the ex-works price override + the supplier road distance for compute/Gate B."""
+        fallback). Reuses the ranking already computed at rank_lieferanten from the confirmed
+        project Baustelle coords (no re-geocode). Stashes the ex-works price override + the supplier
+        road distance for compute/Gate B."""
         bc = state.get("baustoff_code")
         log = [reason("bind_lieferant", REASONING_NARRATION, "Lieferant für das Material festlegen.")]
         if not bc:
@@ -700,45 +824,13 @@ def build_graph(
                               "Kein Material — Materialpreis aus Katalog."))
             return {"reasoning_log": log}
 
-        # Resolve the site location: a Gate A manual override (coords, else address) wins; else the
-        # auto-geocoded coords from locate_baustelle. Manual edits update the persisted location.
-        override = state.get("baustelle_override") or {}
         out: dict = {}
-        lat = lon = None
-        o_lat, o_lon, o_adr = override.get("breitengrad"), override.get("laengengrad"), override.get("adresse")
-        if o_lat and o_lon:
-            try:
-                lat, lon = Decimal(str(o_lat)), Decimal(str(o_lon))
-                out.update({"baustelle_breitengrad": str(lat), "baustelle_laengengrad": str(lon),
-                            "baustelle_status": BAUSTELLE_OK})
-                log.append(reason("bind_lieferant", REASONING_NARRATION,
-                                  f"Standort manuell gesetzt: {lat}, {lon}."))
-            except InvalidOperation:
-                log.append(reason("bind_lieferant", REASONING_NARRATION, "Manuelle Koordinaten ungültig."))
-        elif o_adr and o_adr != state.get("baustelle_adresse"):
-            try:
-                res = await geocode(o_adr)
-                lat, lon = res.breitengrad, res.laengengrad
-                out.update({"baustelle_breitengrad": str(lat), "baustelle_laengengrad": str(lon),
-                            "baustelle_adresse": res.formatiert, "baustelle_status": BAUSTELLE_OK})
-                log.append(reason("bind_lieferant", REASONING_NARRATION,
-                                  f"Adresse '{o_adr}' geokodiert: {res.formatiert} → {lat}, {lon}."))
-            except MapsError as exc:
-                log.append(reason("bind_lieferant", REASONING_NARRATION,
-                                  f"Manuelle Adresse nicht geokodiert ({exc})."))
-        if (lat is None or lon is None) and state.get("baustelle_breitengrad") and state.get("baustelle_laengengrad"):
-            lat = Decimal(state["baustelle_breitengrad"])
-            lon = Decimal(state["baustelle_laengengrad"])
-        if lat is None or lon is None:
-            log.append(reason("bind_lieferant", REASONING_NARRATION,
-                              "Kein Standort — Materialpreis aus Katalog, Antransport per Default."))
-            out["reasoning_log"] = log
-            return out
-
-        angebote = await rang_lieferanten(bc, lat, lon)
+        vorschlag = (state.get("lieferanten_vorschlag") or {}).get(bc) or {}
+        angebote = [LieferantAngebot.model_validate(a) for a in vorschlag.get("angebote", [])]
         if not angebote:
             log.append(reason("bind_lieferant", REASONING_NARRATION,
-                              f"Kein Lieferant führt {bc} — Katalogpreis (frei Werk), Default-Antransport."))
+                              f"Kein Lieferant für {bc} (kein Standort/Treffer) — Katalogpreis, "
+                              "Default-Antransport."))
             out["reasoning_log"] = log
             return out
         by_code = {a.code: a for a in angebote}
@@ -782,9 +874,13 @@ def build_graph(
         Stammdaten are catalog lookups shown for transparency."""
         schwelle = state["konfidenz_schwelle_review"]
         chat_werte = state.get("chat_werte") or {}
-        # Values bound before Gate B from a resource pick: machine rates/productivity + the supplier
-        # haul distance. They become the Gate B proposal (collapsed, overridable) for their leaf.
-        gebundene_werte = {**(state.get("maschinen_werte") or {}), **(state.get("lieferant_werte") or {})}
+        # Values bound before Gate B: project globals (deponie distance, fräsgut default, strip
+        # geometry fallback), machine rates/productivity, and the supplier haul distance. They each
+        # become a Gate B proposal (collapsed, overridable) for their leaf. Precedence §3: a
+        # per-position resource pick outranks a project global, so the project values merge first.
+        projekt_werte = _projekt_werte(state.get("projekt_kontext") or {})
+        gebundene_werte = {**projekt_werte, **(state.get("maschinen_werte") or {}),
+                           **(state.get("lieferant_werte") or {})}
         position = state["position"]
         # The chosen Baustoff with the supplier ex-works price applied, so STAMMDATEN price bridges
         # show the supplier price at Gate B (not the catalog base).
@@ -796,10 +892,13 @@ def build_graph(
         for b in state["benoetigte"]:
             name, art, hochrisiko = b["name"], b["art"], b["hochrisiko"]
             if name not in chat_werte and name in gebundene_werte:
-                wj = gebundene_werte[name]                # machine rate/productivity or supplier distance
+                wj = gebundene_werte[name]   # project global, machine rate/productivity, or supplier distance
                 defn = KATALOG[name]
+                # A high-stakes leaf (e.g. fraesgut_klasse) stays surfaced even when the project
+                # default pre-fills it; rates/distances (not hochrisiko) stay collapsed.
                 v = VariablenVorschlag(name=name, bezeichnung=defn.bezeichnung, einheit=defn.einheit,
-                                       art=art, hochrisiko=False, tier=TIER_COLLAPSED,
+                                       art=art, hochrisiko=hochrisiko,
+                                       tier=TIER_SURFACED if hochrisiko else TIER_COLLAPSED,
                                        wert=wj["wert"], quelle=wj["quelle"], beleg=wj["beleg"])
             else:
                 v = _catalog_vorschlag(name, art, hochrisiko, chat_werte, baustoff)
@@ -944,8 +1043,10 @@ def build_graph(
     g = StateGraph(PositionKalkulationState)
     g.add_node("launch", launch)
     g.add_node("extract_chat_values", extract_chat_values)
+    g.add_node("load_project_context", load_project_context)
+    g.add_node("project_context_review", project_context_review)
     g.add_node("classify_leistung", classify_leistung)
-    g.add_node("locate_baustelle", locate_baustelle)
+    g.add_node("rank_lieferanten", rank_lieferanten)
     g.add_node("method_review", method_review)
     g.add_node("bind_resources", bind_resources)
     g.add_node("bind_lieferant", bind_lieferant)
@@ -957,9 +1058,11 @@ def build_graph(
 
     g.add_edge(START, "launch")
     g.add_edge("launch", "extract_chat_values")
-    g.add_edge("extract_chat_values", "classify_leistung")
-    g.add_edge("classify_leistung", "locate_baustelle")
-    g.add_edge("locate_baustelle", "method_review")
+    g.add_edge("extract_chat_values", "load_project_context")
+    g.add_edge("load_project_context", "project_context_review")
+    g.add_edge("project_context_review", "classify_leistung")
+    g.add_edge("classify_leistung", "rank_lieferanten")
+    g.add_edge("rank_lieferanten", "method_review")
     g.add_conditional_edges("method_review", _route_after_method,
                             ["bind_resources", END])
     g.add_edge("bind_resources", "bind_lieferant")
