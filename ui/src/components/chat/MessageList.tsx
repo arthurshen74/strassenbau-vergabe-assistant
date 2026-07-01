@@ -19,6 +19,18 @@ import type { CitationData } from './messages/CitationsPanel';
 const CONTEXT_TOOLS: string[] = [TOOL_GET_PROJECT_CONTEXT, TOOL_GET_LV_CONTEXT];
 import { ThinkingIndicator } from '../feedback/ThinkingIndicator';
 
+// Marker on a persisted assistant message's `data` flagging it as the calculator's reasoning trail
+// (run_service.CALC_REASONING_MARKER); such a message renders collapsed to its latest line.
+const CALC_REASONING_MARKER = 'calc_reasoning';
+
+function isReasoningMessage(m: DisplayMessage): boolean {
+  return (
+    m.kind === 'assistant' &&
+    !!m.data &&
+    (m.data as Record<string, unknown>)[CALC_REASONING_MARKER] === true
+  );
+}
+
 function asArray<T>(value: unknown): T[] | null {
   return Array.isArray(value) ? (value as T[]) : null;
 }
@@ -111,7 +123,8 @@ export function MessageList({
             citationData={citationByAssistant.get(m.message_uuid)}
             projectUuid={projectUuid}
             collapsibleReasoning={
-              collapseStreamingReasoning && m.message_uuid === streamingMessageId
+              (collapseStreamingReasoning && m.message_uuid === streamingMessageId) ||
+              isReasoningMessage(m)
             }
           />
         ))}

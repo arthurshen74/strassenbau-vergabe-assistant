@@ -26,6 +26,7 @@ EVENT_FUNCTION_CALL = "function_call"
 EVENT_FUNCTION_CALL_OUTPUT = "function_call_output"
 EVENT_UI_NOTICE = "ui_notice"
 EVENT_INTERRUPT = "interrupt"
+EVENT_CALC_START = "calc_start"
 EVENT_DONE = "done"
 
 # Event-data payload keys.
@@ -102,6 +103,16 @@ class SSEInterrupt(BaseModel):
     payload: dict[str, Any]
 
 
+class SSECalcStart(BaseModel):
+    """A calculation segment has begun streaming reasoning. Lets the UI switch the open turn into
+    calculator mode (collapse the reasoning to its latest line, show the activity indicator) even
+    when the segment was chained from a position-chat message rather than a HITL resume."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["calc_start"]
+
+
 class SSEDone(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -114,6 +125,7 @@ SSEEvent = Annotated[
     | SSEFunctionCallOutput
     | SSEUiNotice
     | SSEInterrupt
+    | SSECalcStart
     | SSEDone,
     Field(discriminator="event"),
 ]

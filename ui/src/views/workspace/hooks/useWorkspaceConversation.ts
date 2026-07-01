@@ -148,6 +148,16 @@ export function useWorkspaceConversation(
           body,
           signal: ctrl.signal,
           onEvent: (e) => {
+            // calc_start is a payload-less control signal: the (position-chat) turn just became a
+            // calculation. Close any open chat message so reasoning opens as a fresh, collapsible
+            // message, and flip into calculator mode (collapse + activity indicator). Handled before
+            // the typed switch; `calc_start` joins the SSEEvent union after the next gen:types.
+            if ((e as { event: string }).event === 'calc_start') {
+              streamStateRef.current.openAssistantId = null;
+              setStreamingMessageId(null);
+              setIsCalculating(true);
+              return;
+            }
             switch (e.event) {
               case 'text_delta': {
                 textDeltaCount += 1;

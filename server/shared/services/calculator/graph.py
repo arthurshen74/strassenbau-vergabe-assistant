@@ -416,26 +416,28 @@ def _projekt_werte(kontext: Mapping[str, object]) -> dict[str, dict]:
     dims source `laenge_m`/`flaeche_m2` only as a fallback: they apply solely to a leaf still on
     the worklist (a booked geometry is pruned before this merge, and compute books it last, §9)."""
     out: dict[str, dict] = {}
-    ent = kontext.get(VAR_ENTFERNUNG_DEPONIE_KM)
-    if ent:
+    # The globals are user-confirmed strings that may still carry a unit ("7.5 meters"); parse the
+    # numeric token defensively so a stray unit never crashes compute.
+    ent = _coerce_decimal(kontext.get(VAR_ENTFERNUNG_DEPONIE_KM))
+    if ent is not None:
         deponie = kontext.get(VAR_DEPONIE_LOCATION) or "Deponie"
         out[VAR_ENTFERNUNG_DEPONIE_KM] = wert_to_json(VariablenWert(
-            name=VAR_ENTFERNUNG_DEPONIE_KM, wert=Decimal(str(ent)), quelle=M.STAMMDATEN,
+            name=VAR_ENTFERNUNG_DEPONIE_KM, wert=ent, quelle=M.STAMMDATEN,
             beleg=f"Baustelle → Deponie {deponie}, {ent} km (Google Routes)"))
-    fk = kontext.get(VAR_FRAESGUT_KLASSE)
-    if fk:
+    fk = _coerce_decimal(kontext.get(VAR_FRAESGUT_KLASSE))
+    if fk is not None:
         out[ZIEL_FRAESGUT_KLASSE] = wert_to_json(VariablenWert(
-            name=ZIEL_FRAESGUT_KLASSE, wert=Decimal(str(fk)), quelle=M.STAMMDATEN,
+            name=ZIEL_FRAESGUT_KLASSE, wert=fk, quelle=M.STAMMDATEN,
             beleg="Projektkontext (Fräsgutklasse)"))
-    sl = kontext.get(VAR_STRIP_LENGTH_M)
-    sw = kontext.get(VAR_STRIP_WIDTH_M)
-    if sl:
+    sl = _coerce_decimal(kontext.get(VAR_STRIP_LENGTH_M))
+    sw = _coerce_decimal(kontext.get(VAR_STRIP_WIDTH_M))
+    if sl is not None:
         out[ZIEL_LAENGE_M] = wert_to_json(VariablenWert(
-            name=ZIEL_LAENGE_M, wert=Decimal(str(sl)), quelle=M.STAMMDATEN,
+            name=ZIEL_LAENGE_M, wert=sl, quelle=M.STAMMDATEN,
             beleg=f"Projektkontext: Streckenlänge {sl} m"))
-        if sw:
+        if sw is not None:
             out[ZIEL_FLAECHE_M2] = wert_to_json(VariablenWert(
-                name=ZIEL_FLAECHE_M2, wert=(Decimal(str(sl)) * Decimal(str(sw))),
+                name=ZIEL_FLAECHE_M2, wert=(sl * sw),
                 quelle=M.STAMMDATEN, beleg=f"Projektkontext: {sl} m × {sw} m"))
     return out
 

@@ -44,6 +44,7 @@ from shared.models.sse_schema import (
     DATA_SUCCESS,
     DATA_TOOL_NAME,
     EVENT,
+    EVENT_CALC_START,
     EVENT_DONE,
     EVENT_FUNCTION_CALL,
     EVENT_FUNCTION_CALL_OUTPUT,
@@ -83,6 +84,11 @@ INTERRUPT_KEY = "__interrupt__"
 # tool_name discriminators for the calculator's synthetic transcript rows.
 TOOL_INTERRUPT = "interrupt"
 TOOL_EKT_RESULT = "ekt_result"
+
+# Marker key on an assistant message's `data` flagging it as the calculator's reasoning trail (one
+# per streamed segment), so the UI renders it collapsed to its latest line instead of as a wall of
+# per-node bubbles. Mirrored client-side in MessageList (CALC_REASONING_MARKER).
+CALC_REASONING_MARKER = "calc_reasoning"
 
 
 class CalculatorRunService:
@@ -272,12 +278,18 @@ class CalculatorRunService:
 
         await self._set_status(conversation_id, CalculationStatus.RUNNING)
         _trace(conversation_id, "--- streaming calculation segment ---")
+        # Tell the UI this turn is now a calculation, so it collapses the reasoning and shows the
+        # activity indicator even when the segment was chained from a position-chat message.
+        yield {EVENT: EVENT_CALC_START, DATA: {}}
         interrupted = False
         # Diagnostic counters: distinguish "graph never streamed reasoning" (custom writer broken)
         # from "graph streamed fine but the client/transport dropped it". Traced at segment end.
         started_at = time.monotonic()
         custom_count = 0
         update_count = 0
+        # Accumulated across the whole segment and persisted as ONE assistant message at the end, so
+        # the transcript shows a single collapsible reasoning block per segment (not one per node).
+        reasoning_parts: list[str] = []
         try:
             # "custom" carries each reasoning entry live as a node produces it (so the long
             # per-driver node streams incrementally); "updates" carries completed-node output for
@@ -308,10 +320,11 @@ class CalculatorRunService:
                     outputs = node_output if isinstance(node_output, list) else [node_output]
                     for output in outputs:
                         if isinstance(output, dict):
-                            await self._persist_reasoning(conversation_id, output)
+                            reasoning_parts.append(_reasoning_content(output))
         except Exception:
             logger.exception("calculator run failed conversation=%s", conversation_id)
             _trace(conversation_id, "run FAILED (see server logs)")
+            await self._persist_reasoning_block(conversation_id, reasoning_parts)
             await self._set_status(conversation_id, CalculationStatus.FAILED)
             yield _ui_notice(NOTICE_PROCESSING_ERROR, NoticeLevel.ERROR)
             yield {EVENT: EVENT_DONE, DATA: {}}
@@ -328,6 +341,9 @@ class CalculatorRunService:
                 "writer is inactive (see graph._write_live); the UI will look stuck until the result.",
             )
 
+        # One reasoning message for the whole segment; persisted before the result so it sorts first.
+        await self._persist_reasoning_block(conversation_id, reasoning_parts)
+
         if interrupted:
             await self._set_status(conversation_id, CalculationStatus.AWAITING_INPUT)
         else:
@@ -338,18 +354,21 @@ class CalculatorRunService:
         await self._touch(conversation_id)
         yield {EVENT: EVENT_DONE, DATA: {}}
 
-    async def _persist_reasoning(self, conversation_id: UUID, output: dict[str, Any]) -> None:
-        """Persist a completed node's reasoning_log as one assistant message. The lines already
-        streamed live via the custom events; this is the authoritative copy for the transcript."""
-        entries = output.get("reasoning_log") or []
-        if not entries:
+    async def _persist_reasoning_block(
+        self, conversation_id: UUID, parts: list[str]
+    ) -> None:
+        """Persist the segment's accumulated reasoning as ONE assistant message, marked so the UI
+        collapses it to its latest line. The lines already streamed live via the custom events; this
+        is the authoritative copy for the transcript."""
+        content = "".join(p for p in parts if p)
+        if not content:
             return
-        content = "".join(_format_reasoning(entry) for entry in entries)
         await self._persist(
             NewMessage(
                 conversation_uuid=conversation_id,
                 kind=MessageKind.ASSISTANT,
                 content=content,
+                data={CALC_REASONING_MARKER: True},
             )
         )
 
@@ -423,6 +442,12 @@ def _position(item: LVItem) -> dict[str, Any]:
         "einheit": item.einheit,
         "baustoff_code": None,
     }
+
+
+def _reasoning_content(output: dict[str, Any]) -> str:
+    """A completed node's reasoning_log rendered to transcript text (empty when the node logged none)."""
+    entries = output.get("reasoning_log") or []
+    return "".join(_format_reasoning(entry) for entry in entries)
 
 
 def _format_reasoning(entry: dict[str, Any]) -> str:

@@ -61,19 +61,24 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
 class CalculationResume(BaseModel):
-    """The Kalkulator's structured decision for the current HITL gate of a paused calculation:
-    method_review (Gate A) confirms the Leistung and selects the Bauverfahren; variable_review
-    (Gate B) `overrides` maps a variable name -> its corrected value (changed leaves only; an
-    empty/absent map accepts every proposal as-is). At Gate B, `reasons` optionally tags each
-    override with why it changed, and `mark_as_ground_truth` saves the reviewed state as eval
-    ground truth (see shared.services.ground_truth)."""
+    """The Kalkulator's structured decision for the current HITL gate of a paused calculation.
+    project_context_review (pre-Gate-A) `projekt_kontext` maps a changed project global -> its new
+    value (locations as address strings, strip dims/Fräsgut as numbers; only changed fields sent);
+    method_review (Gate A) confirms the Leistung, selects the Bauverfahren + resources, and
+    `lieferanten` maps a baustoff_code -> the chosen Lieferant; variable_review (Gate B) `overrides`
+    maps a variable name -> its corrected value (changed leaves only; an empty/absent map accepts
+    every proposal as-is). At Gate B, `reasons` optionally tags each override with why it changed,
+    and `mark_as_ground_truth` saves the reviewed state as eval ground truth (see
+    shared.services.ground_truth)."""
 
     model_config = ConfigDict(extra="forbid")
 
+    projekt_kontext: dict[str, str] | None = None  # pre-Gate-A: changed project globals -> new value
     leistung_key: str | None = None
     bauverfahren_key: str | None = None
     maschinen: dict[str, str] | None = None        # Ausführungsart slot code -> Maschine code
     baustoff_code: str | None = None
+    lieferanten: dict[str, str] | None = None      # Gate A: baustoff_code -> chosen Lieferant code
     overrides: dict[str, Any] | None = None
     reasons: dict[str, VariableCorrectionReason] | None = None  # Gate B: variable name -> why it changed
     mark_as_ground_truth: bool | None = None       # Gate B: persist the reviewed state as ground truth

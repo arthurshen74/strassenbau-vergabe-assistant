@@ -26,6 +26,8 @@ const BAUSTELLE_FEHLT = 'fehlgeschlagen';
 
 // Project-context reconcile flags, matching the backend RECONCILE_* constants.
 const RECONCILE_KONFLIKT = 'konflikt';
+// The Kalkulator stated a value in chat where none is saved/resolved yet — pre-fill it for confirmation.
+const RECONCILE_UEBERSCHREIBEN = 'ueberschreiben';
 
 interface PanelProps {
   payload: Record<string, unknown>;
@@ -463,6 +465,7 @@ function ContextField({
   onChange,
   status,
   conflict,
+  note,
   disabled,
   numeric,
 }: {
@@ -471,6 +474,7 @@ function ContextField({
   onChange: (v: string) => void;
   status?: string;
   conflict?: ReconcileEntry;
+  note?: string;
   disabled?: boolean;
   numeric?: boolean;
 }) {
@@ -480,6 +484,7 @@ function ContextField({
       <Text className="text-xs text-zinc-500">
         {label}
         {status ? <StatusHint status={status} /> : null}
+        {note ? <span className="ml-2 text-indigo-600 dark:text-indigo-400">{note}</span> : null}
       </Text>
       {isConflict ? (
         <div className="flex flex-col gap-1 rounded border border-amber-500/40 p-2">
@@ -506,6 +511,16 @@ function ContextField({
   );
 }
 
+// The value a field opens with: the saved/resolved value, else the chat-stated candidate when the
+// reconcile flag is `ueberschreiben` (nothing saved yet) — so a value the Kalkulator gave in chat
+// is pre-filled for confirmation instead of being stranded in the reconcile map (an empty field).
+function initialValue(kontextVal: unknown, entry: ReconcileEntry | undefined): string {
+  const saved = str(kontextVal);
+  if (saved) return saved;
+  if (entry?.flag === RECONCILE_UEBERSCHREIBEN && entry.chat_wert) return str(entry.chat_wert);
+  return '';
+}
+
 function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
   const kontext =
     payload.projekt_kontext && typeof payload.projekt_kontext === 'object'
@@ -516,11 +531,25 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
       ? (payload.reconcile as Record<string, ReconcileEntry>)
       : {};
 
-  const [baustelle, setBaustelle] = useState(str(kontext.baustelle_location));
-  const [deponie, setDeponie] = useState(str(kontext.deponie_location));
-  const [length, setLength] = useState(str(kontext.strip_length_m));
-  const [width, setWidth] = useState(str(kontext.strip_width_m));
-  const [fraesgut, setFraesgut] = useState(str(kontext.fraesgut_klasse));
+  const [baustelle, setBaustelle] = useState(
+    initialValue(kontext.baustelle_location, reconcile.baustelle_location),
+  );
+  const [deponie, setDeponie] = useState(
+    initialValue(kontext.deponie_location, reconcile.deponie_location),
+  );
+  const [length, setLength] = useState(
+    initialValue(kontext.strip_length_m, reconcile.strip_length_m),
+  );
+  const [width, setWidth] = useState(initialValue(kontext.strip_width_m, reconcile.strip_width_m));
+  const [fraesgut, setFraesgut] = useState(
+    initialValue(kontext.fraesgut_klasse, reconcile.fraesgut_klasse),
+  );
+
+  // Label a field that opened with a chat-stated value (nothing saved yet) so the source is clear.
+  const chatNote = (kontextVal: unknown, entry: ReconcileEntry | undefined): string | undefined =>
+    !str(kontextVal) && entry?.flag === RECONCILE_UEBERSCHREIBEN && entry.chat_wert
+      ? 'aus Chat übernommen'
+      : undefined;
 
   // Only the changed fields are sent; each becomes a new version on the backend.
   const changed = (): Record<string, string> => {
@@ -546,6 +575,7 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
           onChange={setBaustelle}
           status={str(kontext.baustelle_status)}
           conflict={reconcile.baustelle_location}
+          note={chatNote(kontext.baustelle_location, reconcile.baustelle_location)}
           disabled={disabled}
         />
         <ContextField
@@ -554,6 +584,7 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
           onChange={setDeponie}
           status={str(kontext.deponie_status)}
           conflict={reconcile.deponie_location}
+          note={chatNote(kontext.deponie_location, reconcile.deponie_location)}
           disabled={disabled}
         />
         <ContextField
@@ -561,6 +592,7 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
           value={length}
           onChange={setLength}
           conflict={reconcile.strip_length_m}
+          note={chatNote(kontext.strip_length_m, reconcile.strip_length_m)}
           disabled={disabled}
           numeric
         />
@@ -569,6 +601,7 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
           value={width}
           onChange={setWidth}
           conflict={reconcile.strip_width_m}
+          note={chatNote(kontext.strip_width_m, reconcile.strip_width_m)}
           disabled={disabled}
           numeric
         />
@@ -577,6 +610,7 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
           value={fraesgut}
           onChange={setFraesgut}
           conflict={reconcile.fraesgut_klasse}
+          note={chatNote(kontext.fraesgut_klasse, reconcile.fraesgut_klasse)}
           disabled={disabled}
           numeric
         />

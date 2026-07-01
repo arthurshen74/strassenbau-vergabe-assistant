@@ -52,6 +52,7 @@ from shared.models.prompt_execution_log_schema import (
 )
 from shared.models.prompt_version_schema import PromptVersionCreate, PromptVersionRead
 from shared.models.sse_schema import (
+    SSECalcStart,
     SSEDone,
     SSEFunctionCall,
     SSEFunctionCallOutput,
@@ -159,6 +160,7 @@ SSE_EVENT_MODELS: list[type[BaseModel]] = [
     SSEFunctionCallOutput,
     SSEUiNotice,
     SSEInterrupt,
+    SSECalcStart,
     SSEDone,
 ]
 
