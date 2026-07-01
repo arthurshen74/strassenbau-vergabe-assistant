@@ -1,9 +1,11 @@
 // Renders the control for a paused EKT calculation and posts the Kalkulator's decision back as a
-// structured resume on the turn endpoint. One control per interrupt stage:
-//   - method_review (Gate A): confirm the Leistung and select the Bauverfahren.
-//   - variable_review (Gate B): accept/override every worklist leaf, tiered by confidence — the
-//     surfaced tier (low-confidence + high-stakes) shown for decision, the collapsed tier (rates,
-//     Stammdaten) pre-accepted but expandable and overridable.
+// structured resume on the turn endpoint. One control per interrupt stage (four HITL gates):
+//   - project_context_review (Gate 1): confirm/override the project globals.
+//   - leistung_bv_review (Gate 2): confirm the Leistung and select the Bauverfahren.
+//   - material_review (Gate 3): confirm the acquisition Baustoff (skipped for material-free recipes).
+//   - variable_review (Gate 4): pick the machines + supplier, then accept/override every worklist
+//     leaf, tiered by confidence — the surfaced tier (low-confidence + high-stakes) shown for
+//     decision, the collapsed tier (rates, Stammdaten) pre-accepted but expandable and overridable.
 
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -11,12 +13,14 @@ import type { ReactNode } from 'react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Strong, Text } from '../../components/ui/text';
+import { api, apiBase } from '../../api/client';
 import type { CalculationResume } from '../../api/calculations';
 import type { PendingInterrupt } from './hooks/useWorkspaceConversation';
 
 // Interrupt stages, matching the backend STAGE_* constants in shared/services/calculator/state.py.
 const STAGE_PROJECT_CONTEXT_REVIEW = 'project_context_review';
-const STAGE_METHOD_REVIEW = 'method_review';
+const STAGE_LEISTUNG_BV_REVIEW = 'leistung_bv_review';
+const STAGE_MATERIAL_REVIEW = 'material_review';
 const STAGE_VARIABLE_REVIEW = 'variable_review';
 
 // Location geocoding status, matching the backend ContextStatus / BAUSTELLE_* values.
@@ -36,12 +40,16 @@ interface PanelProps {
 }
 
 function asStringArray(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  return Array.isArray(v) ?
+      v.filter((x): x is string => typeof x === 'string')
+    : [];
 }
 
 function asRecordArray(v: unknown): Record<string, unknown>[] {
-  return Array.isArray(v)
-    ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+  return Array.isArray(v) ?
+      v.filter(
+        (x): x is Record<string, unknown> => !!x && typeof x === 'object',
+      )
     : [];
 }
 
@@ -55,7 +63,8 @@ function str(v: unknown): string {
 function isNumericInput(raw: string): boolean {
   const token = raw.trim();
   if (token === '') return false;
-  const normalised = token.includes(',') ? token.replace(/\./g, '').replace(',', '.') : token;
+  const normalised =
+    token.includes(',') ? token.replace(/\./g, '').replace(',', '.') : token;
   return /^-?(\d+\.?\d*|\.\d+)$/.test(normalised);
 }
 
@@ -71,12 +80,36 @@ export function InterruptPanel({
   switch (interrupt.stage) {
     case STAGE_PROJECT_CONTEXT_REVIEW:
       return (
-        <ProjectContextReview payload={interrupt.payload} onResume={onResume} disabled={disabled} />
+        <ProjectContextReview
+          payload={interrupt.payload}
+          onResume={onResume}
+          disabled={disabled}
+        />
       );
-    case STAGE_METHOD_REVIEW:
-      return <MethodReview payload={interrupt.payload} onResume={onResume} disabled={disabled} />;
+    case STAGE_LEISTUNG_BV_REVIEW:
+      return (
+        <LeistungBvReview
+          payload={interrupt.payload}
+          onResume={onResume}
+          disabled={disabled}
+        />
+      );
+    case STAGE_MATERIAL_REVIEW:
+      return (
+        <MaterialReview
+          payload={interrupt.payload}
+          onResume={onResume}
+          disabled={disabled}
+        />
+      );
     case STAGE_VARIABLE_REVIEW:
-      return <VariableReview payload={interrupt.payload} onResume={onResume} disabled={disabled} />;
+      return (
+        <VariableReview
+          payload={interrupt.payload}
+          onResume={onResume}
+          disabled={disabled}
+        />
+      );
     default:
       return null;
   }
@@ -85,13 +118,15 @@ export function InterruptPanel({
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="border-t border-zinc-950/5 px-6 py-4 dark:border-white/5">
-      <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</div>
+      <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        {title}
+      </div>
       <div className="pt-2">{children}</div>
     </div>
   );
 }
 
-// --- Gate A: confirm/correct the Leistung, select the Bauverfahren ----------
+// --- Gate 2: confirm/correct the Leistung, select the Bauverfahren ----------
 interface KatalogEintrag {
   leistung_key: string;
   name: string;
@@ -106,24 +141,22 @@ function asKatalog(v: unknown): KatalogEintrag[] {
   }));
 }
 
-interface SlotInfo {
-  slot: string;
-  geraet: string;
-  kandidaten: { code: string; hersteller: string; modell: string }[];
+interface MaschineKandidat {
+  code: string;
+  hersteller: string;
+  modell: string;
 }
 
-function asRessourcen(v: unknown): Record<string, SlotInfo[]> {
-  const out: Record<string, SlotInfo[]> = {};
+// Machine candidates per Ausführungsart slot (bound in bind_resources), for the Gate 4 picker:
+// { AA_KALTFRAESE: [{code, hersteller, modell}, ...] }.
+function asMaschinenKandidaten(v: unknown): Record<string, MaschineKandidat[]> {
+  const out: Record<string, MaschineKandidat[]> = {};
   const rec = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-  for (const [bvCode, slots] of Object.entries(rec)) {
-    out[bvCode] = asRecordArray(slots).map((s) => ({
-      slot: str(s.slot),
-      geraet: str(s.geraet),
-      kandidaten: asRecordArray(s.kandidaten).map((m) => ({
-        code: str(m.code),
-        hersteller: str(m.hersteller),
-        modell: str(m.modell),
-      })),
+  for (const [slot, list] of Object.entries(rec)) {
+    out[slot] = asRecordArray(list).map((m) => ({
+      code: str(m.code),
+      hersteller: str(m.hersteller),
+      modell: str(m.modell),
     }));
   }
   return out;
@@ -135,7 +168,10 @@ interface BaustoffInfo {
 }
 
 function asBaustoffe(v: unknown): BaustoffInfo[] {
-  return asRecordArray(v).map((b) => ({ code: str(b.code), name: str(b.name) }));
+  return asRecordArray(v).map((b) => ({
+    code: str(b.code),
+    name: str(b.name),
+  }));
 }
 
 interface BaustoffVorschlag {
@@ -177,7 +213,8 @@ function asLieferanten(v: unknown): Record<string, LieferantenVorschlag> {
   const out: Record<string, LieferantenVorschlag> = {};
   const rec = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
   for (const [code, val] of Object.entries(rec)) {
-    const r = val && typeof val === 'object' ? (val as Record<string, unknown>) : {};
+    const r =
+      val && typeof val === 'object' ? (val as Record<string, unknown>) : {};
     out[code] = {
       default: r.default ? str(r.default) : null,
       angebote: asRecordArray(r.angebote).map((a) => ({
@@ -197,79 +234,50 @@ function asLieferanten(v: unknown): Record<string, LieferantenVorschlag> {
 function asStringMap(v: unknown): Record<string, string> {
   if (!v || typeof v !== 'object') return {};
   return Object.fromEntries(
-    Object.entries(v as Record<string, unknown>).map(([k, val]) => [k, str(val)]),
+    Object.entries(v as Record<string, unknown>).map(([k, val]) => [
+      k,
+      str(val),
+    ]),
   );
 }
 
 const PICKER =
   'block w-full rounded-lg border border-zinc-950/10 bg-transparent px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/5';
 
-function MethodReview({ payload, onResume, disabled }: PanelProps) {
+function LeistungBvReview({ payload, onResume, disabled }: PanelProps) {
   const katalog = asKatalog(payload.katalog);
-  const ressourcen = asRessourcen(payload.bauverfahren_ressourcen);
-  const baustoffe = asBaustoffe(payload.baustoff_katalog);
-  const vorschlag = asVorschlag(payload.baustoff_vorschlag);
-  const lieferantenVorschlag = asLieferanten(payload.lieferanten_vorschlag);
   const suggested = str(payload.leistung_key);
   // Pre-select the classified Leistung only when it is valid (has candidate Bauverfahren);
   // otherwise the Kalkulator must pick one from the catalog.
-  const initial = katalog.find((l) => l.leistung_key === suggested && l.kandidaten.length > 0) ?? null;
-
-  const maschinenDefault = asStringMap(payload.maschinen_default);
-  // Right-sized default per slot for the classified recipe; other recipes fall back to the
-  // first candidate (a recipe switch in Gate A re-derives slots client-side).
-  const slotDefaults = (bvCode: string): Record<string, string> =>
-    Object.fromEntries(
-      (ressourcen[bvCode] ?? []).map((s) => [
-        s.slot,
-        maschinenDefault[s.slot] ?? s.kandidaten[0]?.code ?? '',
-      ]),
-    );
+  const initial =
+    katalog.find(
+      (l) => l.leistung_key === suggested && l.kandidaten.length > 0,
+    ) ?? null;
 
   const [selected, setSelected] = useState<KatalogEintrag | null>(initial);
   const [query, setQuery] = useState('');
   const [bv, setBv] = useState<string>(initial?.kandidaten[0] ?? '');
-  const [maschinen, setMaschinen] = useState<Record<string, string>>(() =>
-    slotDefaults(initial?.kandidaten[0] ?? ''),
-  );
-  const [baustoff, setBaustoff] = useState(vorschlag?.code ?? '');
-  const [lieferant, setLieferant] = useState<string>(
-    () => lieferantenVorschlag[vorschlag?.code ?? '']?.default ?? '',
-  );
 
-  // Switching the material switches its supplier list; default to that material's cheapest.
-  const chooseBaustoff = (code: string) => {
-    setBaustoff(code);
-    setLieferant(lieferantenVorschlag[code]?.default ?? '');
-  };
-  const supplierAngebote = lieferantenVorschlag[baustoff]?.angebote ?? [];
-
-  const chooseBv = (k: string) => {
-    setBv(k);
-    setMaschinen(slotDefaults(k));
-  };
   const choose = (l: KatalogEintrag) => {
     setSelected(l);
-    const firstBv = l.kandidaten[0] ?? '';
-    setBv(firstBv);
-    setMaschinen(slotDefaults(firstBv));
+    setBv(l.kandidaten[0] ?? '');
     setQuery('');
   };
 
   const matches =
-    query.trim() === ''
-      ? []
-      : katalog
-          .filter(
-            (l) =>
-              l.name.toLowerCase().includes(query.toLowerCase()) ||
-              l.leistung_key.toLowerCase().includes(query.toLowerCase()),
-          )
-          .slice(0, 8);
+    query.trim() === '' ?
+      []
+    : katalog
+        .filter(
+          (l) =>
+            l.name.toLowerCase().includes(query.toLowerCase()) ||
+            l.leistung_key.toLowerCase().includes(query.toLowerCase()),
+        )
+        .slice(0, 8);
 
   return (
     <Panel title="Leistung bestätigen, Bauverfahren wählen">
-      {selected ? (
+      {selected ?
         <>
           <Text>
             Leistung: <Strong>{selected.name}</Strong>{' '}
@@ -282,111 +290,43 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
               ändern
             </button>
           </Text>
-          {selected.kandidaten.length > 0 ? (
+          {selected.kandidaten.length > 0 ?
             <>
-              <Text className="pt-2 text-xs">Bauverfahren wählen — die Auswahl ist hervorgehoben:</Text>
+              <Text className="pt-2 text-xs">
+                Bauverfahren wählen — die Auswahl ist hervorgehoben:
+              </Text>
               <div className="flex flex-wrap gap-2 pt-2">
                 {selected.kandidaten.map((k) => {
                   const label = `${k}${k === selected.kandidaten[0] ? ' (Standard)' : ''}`;
-                  return k === bv ? (
-                    <Button key={k} disabled={disabled} onClick={() => chooseBv(k)}>
-                      {label}
-                    </Button>
-                  ) : (
-                    <Button key={k} outline disabled={disabled} onClick={() => chooseBv(k)}>
-                      {label}
-                    </Button>
-                  );
+                  return k === bv ?
+                      <Button
+                        key={k}
+                        disabled={disabled}
+                        onClick={() => setBv(k)}
+                      >
+                        {label}
+                      </Button>
+                    : <Button
+                        key={k}
+                        outline
+                        disabled={disabled}
+                        onClick={() => setBv(k)}
+                      >
+                        {label}
+                      </Button>;
                 })}
               </div>
-              {(ressourcen[bv] ?? []).length > 0 ? (
-                <div className="flex flex-col gap-2 pt-3">
-                  <Text className="text-xs">Maschine je Geräteplatz (Standard vorausgewählt):</Text>
-                  {(ressourcen[bv] ?? []).map((s) => (
-                    <div key={s.slot} className="flex flex-col gap-1">
-                      <Text className="text-xs text-zinc-500">{s.geraet}</Text>
-                      <select
-                        className={PICKER}
-                        value={maschinen[s.slot] ?? ''}
-                        disabled={disabled}
-                        onChange={(e) => setMaschinen((w) => ({ ...w, [s.slot]: e.target.value }))}
-                      >
-                        {s.kandidaten.map((m) => (
-                          <option key={m.code} value={m.code}>
-                            {m.hersteller} {m.modell}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {vorschlag ? (
-                <div className="flex flex-col gap-1 pt-3">
-                  <Text className="text-xs text-zinc-500">Baustoff</Text>
-                  {vorschlag.code ? (
-                    <Text
-                      className={`text-xs ${
-                        vorschlag.auto ? 'text-zinc-500' : 'text-amber-700 dark:text-amber-400'
-                      }`}
-                    >
-                      BM25-Vorschlag: <Strong>{vorschlag.name}</Strong> (Konfidenz{' '}
-                      {(vorschlag.konfidenz * 100).toFixed(0)} %)
-                      {vorschlag.auto ? ' — automatisch übernommen' : ' — bitte prüfen'}
-                    </Text>
-                  ) : (
-                    <Text className="text-xs text-amber-700 dark:text-amber-400">
-                      Rezept benötigt einen Baustoff — bitte wählen.
-                    </Text>
-                  )}
-                  <select
-                    className={PICKER}
-                    value={baustoff}
-                    disabled={disabled}
-                    onChange={(e) => chooseBaustoff(e.target.value)}
-                  >
-                    <option value="">— kein Baustoff —</option>
-                    {baustoffe.map((b) => (
-                      <option key={b.code} value={b.code}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                  {supplierAngebote.length > 0 ? (
-                    <div className="flex flex-col gap-1 pt-2">
-                      <Text className="text-xs text-zinc-500">
-                        Lieferant (günstigster frei Baustelle vorausgewählt)
-                      </Text>
-                      <select
-                        className={PICKER}
-                        value={lieferant}
-                        disabled={disabled}
-                        onChange={(e) => setLieferant(e.target.value)}
-                      >
-                        {supplierAngebote.map((a) => (
-                          <option key={a.code} value={a.code}>
-                            {a.name} ({a.ort}) — {a.frei_bau_eur_pro_t} €/t frei Baustelle · Werk{' '}
-                            {a.werk_eur_pro_t} · {a.strasse_km} km
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
             </>
-          ) : (
-            <Text className="pt-2 text-xs text-amber-700 dark:text-amber-400">
+          : <Text className="pt-2 text-xs text-amber-700 dark:text-amber-400">
               Für diese Leistung ist kein Bauverfahren hinterlegt.
             </Text>
-          )}
+          }
         </>
-      ) : (
-        <>
+      : <>
           <Text className="text-xs">
-            {suggested
-              ? `Position nicht eindeutig zugeordnet (${suggested}). Leistung suchen und wählen:`
-              : 'Leistung suchen und wählen:'}
+            {suggested ?
+              `Position nicht eindeutig zugeordnet (${suggested}). Leistung suchen und wählen:`
+            : 'Leistung suchen und wählen:'}
           </Text>
           <div className="pt-2">
             <Input
@@ -396,7 +336,7 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          {matches.length > 0 ? (
+          {matches.length > 0 ?
             <div className="mt-2 flex flex-col gap-1">
               {matches.map((l) => (
                 <button
@@ -406,16 +346,20 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
                   className="rounded px-2 py-1 text-left text-sm hover:bg-zinc-950/5 dark:hover:bg-white/5"
                   onClick={() => choose(l)}
                 >
-                  <span className="text-zinc-900 dark:text-zinc-100">{l.name}</span>{' '}
-                  <span className="text-xs text-zinc-500">{l.leistung_key}</span>
+                  <span className="text-zinc-900 dark:text-zinc-100">
+                    {l.name}
+                  </span>{' '}
+                  <span className="text-xs text-zinc-500">
+                    {l.leistung_key}
+                  </span>
                 </button>
               ))}
             </div>
-          ) : query.trim() !== '' ? (
+          : query.trim() !== '' ?
             <Text className="pt-1 text-xs text-zinc-500">Keine Treffer.</Text>
-          ) : null}
+          : null}
         </>
-      )}
+      }
 
       <div className="flex gap-2 pt-4">
         <Button
@@ -425,15 +369,16 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
             onResume({
               leistung_key: selected.leistung_key,
               bauverfahren_key: bv,
-              maschinen,
-              baustoff_code: baustoff || undefined,
-              lieferanten: baustoff && lieferant ? { [baustoff]: lieferant } : undefined,
             })
           }
         >
           Bestätigen & weiter
         </Button>
-        <Button outline disabled={disabled} onClick={() => onResume({ cancel: true })}>
+        <Button
+          outline
+          disabled={disabled}
+          onClick={() => onResume({ cancel: true })}
+        >
           Abbrechen
         </Button>
       </div>
@@ -441,7 +386,70 @@ function MethodReview({ payload, onResume, disabled }: PanelProps) {
   );
 }
 
-// --- Pre-Gate-A: confirm/override the project globals ----------------------
+// --- Gate 3: confirm/correct the acquisition Baustoff ----------------------
+function MaterialReview({ payload, onResume, disabled }: PanelProps) {
+  const baustoffe = asBaustoffe(payload.baustoff_katalog);
+  const vorschlag = asVorschlag(payload.baustoff_vorschlag);
+  const [baustoff, setBaustoff] = useState(vorschlag?.code ?? '');
+
+  return (
+    <Panel title="Material bestätigen">
+      {vorschlag?.code ?
+        <Text
+          className={`text-xs ${
+            vorschlag.auto ? 'text-zinc-500' : (
+              'text-amber-700 dark:text-amber-400'
+            )
+          }`}
+        >
+          BM25-Vorschlag: <Strong>{vorschlag.name}</Strong> (Konfidenz{' '}
+          {(vorschlag.konfidenz * 100).toFixed(0)} %)
+          {vorschlag.auto ? ' — automatisch übernommen' : ' — bitte prüfen'}
+        </Text>
+      : <Text className="text-xs text-amber-700 dark:text-amber-400">
+          Rezept benötigt einen Baustoff — bitte wählen.
+        </Text>
+      }
+      <div className="pt-2">
+        <select
+          className={PICKER}
+          value={baustoff}
+          disabled={disabled}
+          onChange={(e) => setBaustoff(e.target.value)}
+        >
+          <option value="">— kein Baustoff —</option>
+          {baustoffe.map((b) => (
+            <option
+              key={b.code}
+              value={b.code}
+            >
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex gap-2 pt-4">
+        {/* Always send baustoff_code (empty string included) so the interrupt payload is non-empty
+            and LangGraph resumes; an empty value falls back to the auto/BM25 default backend-side. */}
+        <Button
+          disabled={disabled}
+          onClick={() => onResume({ baustoff_code: baustoff })}
+        >
+          Bestätigen & weiter
+        </Button>
+        <Button
+          outline
+          disabled={disabled}
+          onClick={() => onResume({ cancel: true })}
+        >
+          Abbrechen
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
+// --- Gate 1: confirm/override the project globals -------------------------
 interface ReconcileEntry {
   flag?: string;
   chat_wert?: string;
@@ -449,12 +457,19 @@ interface ReconcileEntry {
 }
 
 function StatusHint({ status }: { status: string }) {
-  if (status === BAUSTELLE_OK) return <span className="ml-2 text-zinc-500">geokodiert</span>;
+  if (status === BAUSTELLE_OK)
+    return <span className="ml-2 text-zinc-500">geokodiert</span>;
   if (status === BAUSTELLE_UNSICHER)
-    return <span className="ml-2 text-amber-700 dark:text-amber-400">unsicher — bitte prüfen</span>;
+    return (
+      <span className="ml-2 text-amber-700 dark:text-amber-400">
+        unsicher — bitte prüfen
+      </span>
+    );
   if (status === BAUSTELLE_FEHLT)
     return (
-      <span className="ml-2 text-amber-700 dark:text-amber-400">nicht geokodiert — bitte prüfen</span>
+      <span className="ml-2 text-amber-700 dark:text-amber-400">
+        nicht geokodiert — bitte prüfen
+      </span>
     );
   return null;
 }
@@ -483,24 +498,39 @@ function ContextField({
     <div className="flex flex-col gap-1">
       <Text className="text-xs text-zinc-500">
         {label}
-        {status ? <StatusHint status={status} /> : null}
-        {note ? <span className="ml-2 text-indigo-600 dark:text-indigo-400">{note}</span> : null}
+        {status ?
+          <StatusHint status={status} />
+        : null}
+        {note ?
+          <span className="ml-2 text-indigo-600 dark:text-indigo-400">
+            {note}
+          </span>
+        : null}
       </Text>
-      {isConflict ? (
+      {isConflict ?
         <div className="flex flex-col gap-1 rounded border border-amber-500/40 p-2">
           <Text className="text-xs text-amber-700 dark:text-amber-400">
-            Konflikt: Chat „{str(conflict?.chat_wert)}“ vs. gespeichert „{str(conflict?.aktuell_wert)}“
+            Konflikt: Chat „{str(conflict?.chat_wert)}“ vs. gespeichert „
+            {str(conflict?.aktuell_wert)}“
           </Text>
           <div className="flex gap-2">
-            <Button outline disabled={disabled} onClick={() => onChange(str(conflict?.chat_wert))}>
+            <Button
+              outline
+              disabled={disabled}
+              onClick={() => onChange(str(conflict?.chat_wert))}
+            >
               Chat übernehmen
             </Button>
-            <Button outline disabled={disabled} onClick={() => onChange(str(conflict?.aktuell_wert))}>
+            <Button
+              outline
+              disabled={disabled}
+              onClick={() => onChange(str(conflict?.aktuell_wert))}
+            >
               Gespeichert behalten
             </Button>
           </div>
         </div>
-      ) : null}
+      : null}
       <Input
         value={value}
         disabled={disabled}
@@ -514,47 +544,313 @@ function ContextField({
 // The value a field opens with: the saved/resolved value, else the chat-stated candidate when the
 // reconcile flag is `ueberschreiben` (nothing saved yet) — so a value the Kalkulator gave in chat
 // is pre-filled for confirmation instead of being stranded in the reconcile map (an empty field).
-function initialValue(kontextVal: unknown, entry: ReconcileEntry | undefined): string {
+function initialValue(
+  kontextVal: unknown,
+  entry: ReconcileEntry | undefined,
+): string {
   const saved = str(kontextVal);
   if (saved) return saved;
-  if (entry?.flag === RECONCILE_UEBERSCHREIBEN && entry.chat_wert) return str(entry.chat_wert);
+  if (entry?.flag === RECONCILE_UEBERSCHREIBEN && entry.chat_wert)
+    return str(entry.chat_wert);
   return '';
+}
+
+// Geocode result from GET /context/geocode (the "Ändern" modal), and the map URL builders.
+interface GeoResult {
+  breitengrad: string;
+  laengengrad: string;
+  formatiert: string;
+  konfidenz: number;
+}
+
+const MAP_IMG =
+  'rounded-md border border-zinc-200 object-cover dark:border-white/10';
+
+function pointMapSrc(
+  projectUuid: string,
+  lat: string,
+  lon: string,
+): string | null {
+  return projectUuid && lat && lon ?
+      `${apiBase}/projects/${projectUuid}/context/map?lat=${encodeURIComponent(
+        lat,
+      )}&lon=${encodeURIComponent(lon)}`
+    : null;
+}
+
+// Edit + geocode one location on the fly: enter an address, "Suchen" hits the geocode endpoint,
+// preview its 4:3 map, then "Übernehmen" hands the address + coords back to the gate.
+function LocationModal({
+  label,
+  projectUuid,
+  initialAddress,
+  onClose,
+  onConfirm,
+}: {
+  label: string;
+  projectUuid: string;
+  initialAddress: string;
+  onClose: () => void;
+  onConfirm: (address: string, lat: string, lon: string) => void;
+}) {
+  const [address, setAddress] = useState(initialAddress);
+  const [result, setResult] = useState<GeoResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const search = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      setResult(
+        await api.get<GeoResult>(
+          `/projects/${projectUuid}/context/geocode?address=${encodeURIComponent(address)}`,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const previewSrc =
+    result ?
+      pointMapSrc(projectUuid, result.breitengrad, result.laengengrad)
+    : null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {label} ändern
+        </div>
+        <div className="flex items-center gap-2 pt-3">
+          <Input
+            value={address}
+            disabled={loading}
+            placeholder="Adresse, Ort oder Streckenabschnitt…"
+            onChange={(e) => setAddress(e.target.value)}
+          />
+          <Button
+            disabled={loading || !address.trim()}
+            onClick={search}
+          >
+            {loading ? 'Suche…' : 'Suchen'}
+          </Button>
+        </div>
+        {error ?
+          <Text className="pt-2 text-xs text-red-600 dark:text-red-400">
+            Geokodierung fehlgeschlagen: {error}
+          </Text>
+        : null}
+        {result ?
+          <div className="flex flex-col gap-1 pt-3">
+            <Text className="text-xs text-zinc-500">
+              {result.formatiert} — {result.breitengrad}, {result.laengengrad}{' '}
+              (Konfidenz {(result.konfidenz * 100).toFixed(0)} %)
+            </Text>
+            {previewSrc ?
+              <img
+                src={previewSrc}
+                alt="Vorschau"
+                className={MAP_IMG}
+              />
+            : null}
+          </div>
+        : null}
+        <div className="flex gap-2 pt-4">
+          <Button
+            disabled={!result}
+            onClick={() =>
+              result &&
+              onConfirm(address, result.breitengrad, result.laengengrad)
+            }
+          >
+            Übernehmen
+          </Button>
+          <Button
+            outline
+            onClick={onClose}
+          >
+            Abbrechen
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A project location (Baustelle/Deponie): its address + a 4:3 map of the geocoded point, with an
+// "Ändern" button opening the geocode modal. Coords are local (from the gate) and update on edit.
+function LocationEditor({
+  label,
+  projectUuid,
+  address,
+  lat,
+  lon,
+  status,
+  note,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  projectUuid: string;
+  address: string;
+  lat: string;
+  lon: string;
+  status?: string;
+  note?: string;
+  disabled?: boolean;
+  onChange: (address: string, lat: string, lon: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const src = pointMapSrc(projectUuid, lat, lon);
+  return (
+    <div className="flex flex-col gap-1">
+      <Text className="text-xs text-zinc-500">
+        {label}
+        {status ?
+          <StatusHint status={status} />
+        : null}
+        {note ?
+          <span className="ml-2 text-indigo-600 dark:text-indigo-400">
+            {note}
+          </span>
+        : null}
+      </Text>
+      <div className="flex items-center gap-2">
+        <Input
+          value={address}
+          disabled
+          readOnly
+          placeholder="— nicht gesetzt —"
+        />
+        <Button
+          outline
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+        >
+          Ändern
+        </Button>
+      </div>
+      {src ?
+        <img
+          src={src}
+          alt={label}
+          className={MAP_IMG}
+        />
+      : <div className="flex aspect-[4/3] items-center justify-center rounded-md border border-dashed border-zinc-300 text-xs text-zinc-400 dark:border-white/10">
+          Kein Standort — „Ändern“, um zu lokalisieren.
+        </div>
+      }
+      {open ?
+        <LocationModal
+          label={label}
+          projectUuid={projectUuid}
+          initialAddress={address}
+          onClose={() => setOpen(false)}
+          onConfirm={(a, la, lo) => {
+            onChange(a, la, lo);
+            setOpen(false);
+          }}
+        />
+      : null}
+    </div>
+  );
 }
 
 function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
   const kontext =
-    payload.projekt_kontext && typeof payload.projekt_kontext === 'object'
-      ? (payload.projekt_kontext as Record<string, unknown>)
-      : {};
+    payload.projekt_kontext && typeof payload.projekt_kontext === 'object' ?
+      (payload.projekt_kontext as Record<string, unknown>)
+    : {};
   const reconcile =
-    payload.reconcile && typeof payload.reconcile === 'object'
-      ? (payload.reconcile as Record<string, ReconcileEntry>)
-      : {};
+    payload.reconcile && typeof payload.reconcile === 'object' ?
+      (payload.reconcile as Record<string, ReconcileEntry>)
+    : {};
 
+  // Blocking error (the required Baustelle is not yet geocoded). project_uuid drives the map URLs.
+  const fehler = str(payload.fehler);
+  const projectUuid = str(payload.project_uuid);
+
+  // Locations track BOTH address + coords: coords render the maps immediately and update on the fly
+  // when a location is re-geocoded in the "Ändern" modal (the saver re-geocodes the address on save).
   const [baustelle, setBaustelle] = useState(
     initialValue(kontext.baustelle_location, reconcile.baustelle_location),
+  );
+  const [baustelleLat, setBaustelleLat] = useState(
+    str(kontext.baustelle_breitengrad),
+  );
+  const [baustelleLon, setBaustelleLon] = useState(
+    str(kontext.baustelle_laengengrad),
   );
   const [deponie, setDeponie] = useState(
     initialValue(kontext.deponie_location, reconcile.deponie_location),
   );
+  const [deponieLat, setDeponieLat] = useState(
+    str(kontext.deponie_breitengrad),
+  );
+  const [deponieLon, setDeponieLon] = useState(
+    str(kontext.deponie_laengengrad),
+  );
   const [length, setLength] = useState(
     initialValue(kontext.strip_length_m, reconcile.strip_length_m),
   );
-  const [width, setWidth] = useState(initialValue(kontext.strip_width_m, reconcile.strip_width_m));
+  const [width, setWidth] = useState(
+    initialValue(kontext.strip_width_m, reconcile.strip_width_m),
+  );
   const [fraesgut, setFraesgut] = useState(
     initialValue(kontext.fraesgut_klasse, reconcile.fraesgut_klasse),
   );
 
-  // Label a field that opened with a chat-stated value (nothing saved yet) so the source is clear.
-  const chatNote = (kontextVal: unknown, entry: ReconcileEntry | undefined): string | undefined =>
-    !str(kontextVal) && entry?.flag === RECONCILE_UEBERSCHREIBEN && entry.chat_wert
-      ? 'aus Chat übernommen'
-      : undefined;
+  const setBaustelleLoc = (a: string, la: string, lo: string) => {
+    setBaustelle(a);
+    setBaustelleLat(la);
+    setBaustelleLon(lo);
+  };
+  const setDeponieLoc = (a: string, la: string, lo: string) => {
+    setDeponie(a);
+    setDeponieLat(la);
+    setDeponieLon(lo);
+  };
 
-  // Only the changed fields are sent; each becomes a new version on the backend.
+  // Route map (4:3) once both endpoints are located.
+  const routeSrc =
+    projectUuid && baustelleLat && baustelleLon && deponieLat && deponieLon ?
+      `${apiBase}/projects/${projectUuid}/context/route-map?origin_lat=${encodeURIComponent(
+        baustelleLat,
+      )}&origin_lon=${encodeURIComponent(baustelleLon)}&dest_lat=${encodeURIComponent(
+        deponieLat,
+      )}&dest_lon=${encodeURIComponent(deponieLon)}`
+    : null;
+
+  // Label a field that opened with a chat-stated value (nothing saved yet) so the source is clear.
+  const chatNote = (
+    kontextVal: unknown,
+    entry: ReconcileEntry | undefined,
+  ): string | undefined =>
+    (
+      !str(kontextVal) &&
+      entry?.flag === RECONCILE_UEBERSCHREIBEN &&
+      entry.chat_wert
+    ) ?
+      'aus Chat übernommen'
+    : undefined;
+
+  // Only the changed fields are sent; each becomes a new version on the backend (which re-geocodes
+  // a changed location, so only the address string needs to travel here).
   const changed = (): Record<string, string> => {
     const u: Record<string, string> = {};
-    if (baustelle !== str(kontext.baustelle_location)) u.baustelle_location = baustelle;
+    if (baustelle !== str(kontext.baustelle_location))
+      u.baustelle_location = baustelle;
     if (deponie !== str(kontext.deponie_location)) u.deponie_location = deponie;
     if (length !== str(kontext.strip_length_m)) u.strip_length_m = length;
     if (width !== str(kontext.strip_width_m)) u.strip_width_m = width;
@@ -565,28 +861,59 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
   return (
     <Panel title="Projektkontext bestätigen">
       <Text className="text-xs text-zinc-500">
-        Diese Werte gelten für das ganze Projekt (Streckenabschnitt). Bestätigen oder überschreiben —
-        Änderungen werden als neue Version gespeichert.
+        Diese Werte gelten für das ganze Projekt (Streckenabschnitt). Bestätigen
+        oder überschreiben — Änderungen werden als neue Version gespeichert.
       </Text>
+      {fehler && (
+        <div className="mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {fehler} Die Berechnung startet erst, wenn die Baustelle lokalisiert
+          ist.
+        </div>
+      )}
       <div className="flex flex-col gap-3 pt-2">
-        <ContextField
-          label="Baustelle (Standort)"
-          value={baustelle}
-          onChange={setBaustelle}
-          status={str(kontext.baustelle_status)}
-          conflict={reconcile.baustelle_location}
-          note={chatNote(kontext.baustelle_location, reconcile.baustelle_location)}
-          disabled={disabled}
-        />
-        <ContextField
-          label="Deponie / Entsorgung"
-          value={deponie}
-          onChange={setDeponie}
-          status={str(kontext.deponie_status)}
-          conflict={reconcile.deponie_location}
-          note={chatNote(kontext.deponie_location, reconcile.deponie_location)}
-          disabled={disabled}
-        />
+        <div className="flex justify-between gap-4 items-end">
+          <LocationEditor
+            label="Baustelle (Standort)"
+            projectUuid={projectUuid}
+            address={baustelle}
+            lat={baustelleLat}
+            lon={baustelleLon}
+            status={str(kontext.baustelle_status)}
+            note={chatNote(
+              kontext.baustelle_location,
+              reconcile.baustelle_location,
+            )}
+            disabled={disabled}
+            onChange={setBaustelleLoc}
+          />
+          <LocationEditor
+            label="Deponie / Entsorgung"
+            projectUuid={projectUuid}
+            address={deponie}
+            lat={deponieLat}
+            lon={deponieLon}
+            status={str(kontext.deponie_status)}
+            note={chatNote(
+              kontext.deponie_location,
+              reconcile.deponie_location,
+            )}
+            disabled={disabled}
+            onChange={setDeponieLoc}
+          />
+          {routeSrc ?
+            <div className="flex flex-col gap-1">
+              <Text className="text-xs text-zinc-500">
+                Route Baustelle → Deponie (
+                {str(kontext.entfernung_deponie_km) || '—'} km)
+              </Text>
+              <img
+                src={routeSrc}
+                alt="Route Baustelle zur Deponie"
+                className={MAP_IMG}
+              />
+            </div>
+          : null}
+        </div>
         <ContextField
           label="Streckenlänge (m)"
           value={length}
@@ -614,21 +941,27 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
           disabled={disabled}
           numeric
         />
-        <div className="flex flex-col gap-1">
-          <Text className="text-xs text-zinc-500">Entfernung zur Deponie (km, berechnet)</Text>
-          <Input value={str(kontext.entfernung_deponie_km) || '—'} disabled readOnly />
-        </div>
       </div>
       <div className="flex gap-2 pt-4">
-        <Button disabled={disabled} onClick={() => onResume({ projekt_kontext: changed() })}>
+        <Button
+          disabled={disabled}
+          onClick={() => onResume({ projekt_kontext: changed() })}
+        >
           Bestätigen & weiter
+        </Button>
+        <Button
+          outline
+          disabled={disabled}
+          onClick={() => onResume({ cancel: true })}
+        >
+          Abbrechen
         </Button>
       </div>
     </Panel>
   );
 }
 
-// --- Gate B: review/override every worklist leaf, tiered --------------------
+// --- Gate 4: machines + supplier + review/override every worklist leaf ------
 const QUELLE_LABEL: Record<string, string> = {
   langtext: 'Langtext',
   rag: 'RAG',
@@ -675,12 +1008,14 @@ function VariableRow({
     <div className="flex flex-col gap-1">
       <Text>
         <Strong>{str(v.bezeichnung) || name}</Strong>
-        {v.einheit ? <span className="text-zinc-500"> ({str(v.einheit)})</span> : null}
-        {v.hochrisiko ? (
+        {v.einheit ?
+          <span className="text-zinc-500"> ({str(v.einheit)})</span>
+        : null}
+        {v.hochrisiko ?
           <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-400/15 dark:text-amber-300">
             hohes Risiko
           </span>
-        ) : null}
+        : null}
       </Text>
       <Input
         value={value}
@@ -690,19 +1025,23 @@ function VariableRow({
         placeholder={unresolved ? 'Wert erforderlich' : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
-      {invalid ? (
+      {invalid ?
         <Text className="text-xs text-red-600 dark:text-red-400">
           Bitte eine Zahl eingeben (z. B. 12,5).
         </Text>
-      ) : null}
+      : null}
       <Text className="text-xs text-zinc-500 dark:text-zinc-400">
         {name}
-        {v.quelle ? ` · ${QUELLE_LABEL[str(v.quelle)] ?? str(v.quelle)}` : unresolved ? ' · ungelöst' : ''}
+        {v.quelle ?
+          ` · ${QUELLE_LABEL[str(v.quelle)] ?? str(v.quelle)}`
+        : unresolved ?
+          ' · ungelöst'
+        : ''}
         {v.konfidenz != null ? ` · Konfidenz ${str(v.konfidenz)}` : ''}
         {v.beleg ? ` · ${str(v.beleg)}` : ''}
       </Text>
       {/* A changed value is an override; offer an optional reason so corrections can be analysed. */}
-      {changed && onReason ? (
+      {changed && onReason ?
         <select
           className={REASON_PICKER}
           value={reason ?? ''}
@@ -711,12 +1050,15 @@ function VariableRow({
         >
           <option value="">Grund der Änderung (optional)…</option>
           {REASON_OPTIONS.map((r) => (
-            <option key={r.value} value={r.value}>
+            <option
+              key={r.value}
+              value={r.value}
+            >
               {r.label}
             </option>
           ))}
         </select>
-      ) : null}
+      : null}
     </div>
   );
 }
@@ -726,16 +1068,36 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
   const collapsed = asRecordArray(payload.collapsed);
   const rows = [...surfaced, ...collapsed];
 
+  // Machine + supplier pickers, ranked/right-sized upstream. Changing the machine re-binds its
+  // rates; changing the supplier re-applies its price + road distance (both backend-side on resume).
+  const maschinenKandidaten = asMaschinenKandidaten(
+    payload.maschinen_kandidaten,
+  );
+  const gewaehlteMaschinen = asStringMap(payload.gewaehlte_maschinen);
+  const lieferantenVorschlag = asLieferanten(payload.lieferanten_vorschlag);
+  const gewaehlterLieferant = asStringMap(payload.gewaehlter_lieferant);
+  const baustoffCode = Object.keys(lieferantenVorschlag)[0] ?? ''; // one material per position
+  const supplierAngebote = lieferantenVorschlag[baustoffCode]?.angebote ?? [];
+
   // Each input is pre-filled with the proposed value (empty when unresolved). Leaving it unchanged
   // accepts the proposal; editing it sends an override. Only changed leaves are submitted.
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(rows.map((v) => [str(v.name), v.wert == null ? '' : str(v.wert)])),
+    Object.fromEntries(
+      rows.map((v) => [str(v.name), v.wert == null ? '' : str(v.wert)]),
+    ),
+  );
+  const [maschinen, setMaschinen] = useState<Record<string, string>>(() => ({
+    ...gewaehlteMaschinen,
+  }));
+  const [lieferant, setLieferant] = useState<string>(
+    () => gewaehlterLieferant[baustoffCode] ?? '',
   );
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [markGroundTruth, setMarkGroundTruth] = useState(false);
   const [showRates, setShowRates] = useState(false);
 
-  const original = (v: Record<string, unknown>) => (v.wert == null ? '' : str(v.wert));
+  const original = (v: Record<string, unknown>) =>
+    v.wert == null ? '' : str(v.wert);
   // A leaf whose value was edited away from its proposal — i.e. an override.
   const isChanged = (v: Record<string, unknown>) => {
     const next = (values[str(v.name)] ?? '').trim();
@@ -766,7 +1128,8 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
   const missing = surfaced.some(
     (v) => v.wert == null && (values[str(v.name)] ?? '').trim() === '',
   );
-  const set = (name: string) => (next: string) => setValues((s) => ({ ...s, [name]: next }));
+  const set = (name: string) => (next: string) =>
+    setValues((s) => ({ ...s, [name]: next }));
   const setReason = (name: string) => (next: string) =>
     setReasons((s) => ({ ...s, [name]: next }));
 
@@ -774,19 +1137,76 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
     const reasonMap = pickedReasons();
     onResume({
       overrides: overrides(),
+      ...(Object.keys(maschinen).length > 0 ? { maschinen } : {}),
+      ...(baustoffCode && lieferant ?
+        { lieferanten: { [baustoffCode]: lieferant } }
+      : {}),
       ...(Object.keys(reasonMap).length > 0 ? { reasons: reasonMap } : {}),
       ...(markGroundTruth ? { mark_as_ground_truth: true } : {}),
     });
   };
 
   return (
-    <Panel title="Variablen prüfen">
+    <Panel title="Maschinen, Lieferant & Variablen prüfen">
       <Text className="text-xs">
-        Geprüft werden zuerst unsichere und besonders preiswirksame Eingaben. Sätze und Stammdaten
-        sind vorab akzeptiert, lassen sich aber einblenden und überschreiben.
+        Geprüft werden zuerst unsichere und besonders preiswirksame Eingaben.
+        Sätze und Stammdaten sind vorab akzeptiert, lassen sich aber einblenden
+        und überschreiben.
       </Text>
 
-      {surfaced.length > 0 ? (
+      {Object.keys(maschinenKandidaten).length > 0 ?
+        <div className="flex flex-col gap-2 pt-3">
+          <Text className="text-xs text-zinc-500">
+            Maschine je Geräteplatz (Standard vorausgewählt)
+          </Text>
+          {Object.entries(maschinenKandidaten).map(([slot, kand]) => (
+            <select
+              key={slot}
+              className={PICKER}
+              value={maschinen[slot] ?? ''}
+              disabled={disabled}
+              onChange={(e) =>
+                setMaschinen((w) => ({ ...w, [slot]: e.target.value }))
+              }
+            >
+              {kand.map((m) => (
+                <option
+                  key={m.code}
+                  value={m.code}
+                >
+                  {m.hersteller} {m.modell}
+                </option>
+              ))}
+            </select>
+          ))}
+        </div>
+      : null}
+
+      {supplierAngebote.length > 0 ?
+        <div className="flex flex-col gap-1 pt-3">
+          <Text className="text-xs text-zinc-500">
+            Lieferant (günstigster frei Baustelle vorausgewählt)
+          </Text>
+          <select
+            className={PICKER}
+            value={lieferant}
+            disabled={disabled}
+            onChange={(e) => setLieferant(e.target.value)}
+          >
+            {supplierAngebote.map((a) => (
+              <option
+                key={a.code}
+                value={a.code}
+              >
+                {a.name} ({a.ort}) — {a.frei_bau_eur_pro_t} €/t frei Baustelle ·
+                Werk {a.werk_eur_pro_t} · {a.strasse_km} km
+              </option>
+            ))}
+          </select>
+        </div>
+      : null}
+
+      {surfaced.length > 0 ?
         <div className="grid grid-cols-1 gap-3 pt-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
           {surfaced.map((v) => (
             <VariableRow
@@ -802,20 +1222,23 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
             />
           ))}
         </div>
-      ) : (
-        <Text className="pt-3 text-xs">Keine unsicheren Eingaben — bitte bestätigen.</Text>
-      )}
+      : <Text className="pt-3 text-xs">
+          Keine unsicheren Eingaben — bitte bestätigen.
+        </Text>
+      }
 
-      {collapsed.length > 0 ? (
+      {collapsed.length > 0 ?
         <div className="pt-3">
           <button
             type="button"
             className="text-xs font-medium text-zinc-600 underline dark:text-zinc-400"
             onClick={() => setShowRates((s) => !s)}
           >
-            {showRates ? 'Sätze & Stammdaten ausblenden' : `Sätze & Stammdaten anzeigen (${collapsed.length})`}
+            {showRates ?
+              'Sätze & Stammdaten ausblenden'
+            : `Sätze & Stammdaten anzeigen (${collapsed.length})`}
           </button>
-          {showRates ? (
+          {showRates ?
             <div className="grid grid-cols-1 gap-3 pt-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
               {collapsed.map((v) => (
                 <VariableRow
@@ -828,9 +1251,9 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
                 />
               ))}
             </div>
-          ) : null}
+          : null}
         </div>
-      ) : null}
+      : null}
 
       <div className="pt-4">
         <label className="flex items-center gap-2 pb-3 text-xs text-zinc-700 dark:text-zinc-300">
@@ -843,21 +1266,24 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
           />
           Als Ground Truth speichern (geprüfte Werte als Referenz sichern)
         </label>
-        <Button disabled={disabled || missing || hasInvalid} onClick={submit}>
+        <Button
+          disabled={disabled || missing || hasInvalid}
+          onClick={submit}
+        >
           Werte bestätigen & berechnen
         </Button>
-        {hasInvalid ? (
+        {hasInvalid ?
           <Text className="pt-1 text-xs text-red-600 dark:text-red-400">
             Bitte ungültige Werte korrigieren.
-            {!showRates && collapsed.some((v) => invalid(str(v.name)))
-              ? ' Ein Wert unter „Sätze & Stammdaten“ ist ungültig — bitte einblenden.'
-              : ''}
+            {!showRates && collapsed.some((v) => invalid(str(v.name))) ?
+              ' Ein Wert unter „Sätze & Stammdaten“ ist ungültig — bitte einblenden.'
+            : ''}
           </Text>
-        ) : missing ? (
+        : missing ?
           <Text className="pt-1 text-xs text-amber-700 dark:text-amber-400">
             Bitte alle erforderlichen Werte eintragen.
           </Text>
-        ) : null}
+        : null}
       </div>
     </Panel>
   );

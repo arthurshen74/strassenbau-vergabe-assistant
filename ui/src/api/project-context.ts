@@ -53,3 +53,13 @@ export function useResolveProjectContext(projectUuid: string) {
     onSuccess: () => invalidateContext(qc, projectUuid),
   });
 }
+
+// Delete every saved version so the next resolve re-runs from scratch (RAG + geocode). Recovers a
+// project whose Baustelle was stored before geocoding worked.
+export function useClearProjectContext(projectUuid: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<ProjectContextRead>(`/projects/${projectUuid}/context`),
+    onSuccess: () => invalidateContext(qc, projectUuid),
+  });
+}

@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import {
+  useClearProjectContext,
   useProjectContext,
   useProjectContextHistory,
   useResolveProjectContext,
@@ -192,6 +193,7 @@ function VersionHistory({ projectUuid }: { projectUuid: string }) {
 export function ProjectContextPanel({ projectUuid }: { projectUuid: string }) {
   const context = useProjectContext(projectUuid);
   const resolve = useResolveProjectContext(projectUuid);
+  const clear = useClearProjectContext(projectUuid);
 
   if (context.isPending) return <LoadingState label="Lade Projektkontext…" />;
   if (context.isError) {
@@ -216,14 +218,34 @@ export function ProjectContextPanel({ projectUuid }: { projectUuid: string }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <Heading level={5}>Projektkontext (globale Variablen)</Heading>
-        <Button
-          outline
-          disabled={resolve.isPending}
-          onClick={() => resolve.mutate()}
-        >
-          {resolve.isPending ? "Ermittelt…" : "Fehlende automatisch ermitteln"}
-        </Button>
+        <div className="flex gap-2">
+          {data.vorhanden && (
+            <Button
+              outline
+              disabled={clear.isPending || resolve.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Alle gespeicherten Projektkontext-Werte löschen? Die nächste Ermittlung startet neu (inkl. Geokodierung).",
+                  )
+                ) {
+                  clear.mutate();
+                }
+              }}
+            >
+              {clear.isPending ? "Setzt zurück…" : "Zurücksetzen"}
+            </Button>
+          )}
+          <Button outline disabled={resolve.isPending} onClick={() => resolve.mutate()}>
+            {resolve.isPending ? "Ermittelt…" : "Fehlende automatisch ermitteln"}
+          </Button>
+        </div>
       </div>
+      {clear.isError && (
+        <Text className="text-sm text-red-600 dark:text-red-400">
+          {(clear.error as Error).message}
+        </Text>
+      )}
       {!data.vorhanden && (
         <Text className="text-sm text-zinc-500">
           Noch keine Werte. „Fehlende automatisch ermitteln“ startet die Recherche aus den

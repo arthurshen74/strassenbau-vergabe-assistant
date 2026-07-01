@@ -39,14 +39,25 @@ function derivePendingInterrupt(
   conversation: ConversationRead | undefined,
   messages: MessageRead[] | undefined,
 ): PendingInterrupt | null {
-  if (!conversation || conversation.calculation_status !== 'awaiting_input' || !messages) {
+  if (
+    !conversation ||
+    conversation.calculation_status !== 'awaiting_input' ||
+    !messages
+  ) {
     return null;
   }
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m.kind === 'function_call' && m.tool_name === TOOL_INTERRUPT && m.arguments) {
+    if (
+      m.kind === 'function_call' &&
+      m.tool_name === TOOL_INTERRUPT &&
+      m.arguments
+    ) {
       const args = m.arguments as Record<string, unknown>;
-      return { stage: typeof args.stage === 'string' ? args.stage : '', payload: args };
+      return {
+        stage: typeof args.stage === 'string' ? args.stage : '',
+        payload: args,
+      };
     }
   }
   return null;
@@ -68,7 +79,12 @@ export function WorkspaceView() {
     return <ErrorState message="Missing conversation id" />;
   }
   // Key by conversation so per-conversation stream state (incl. retained notices) resets on switch.
-  return <WorkspaceViewInner key={conversationId} conversationId={conversationId} />;
+  return (
+    <WorkspaceViewInner
+      key={conversationId}
+      conversationId={conversationId}
+    />
+  );
 }
 
 function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
@@ -99,7 +115,9 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
       navigate('/');
     } else if (cmd === SLASH_REMOVE) {
       // Delete this conversation and return to the dispatcher home.
-      deleteConversation.mutate(conversationId, { onSuccess: () => navigate('/') });
+      deleteConversation.mutate(conversationId, {
+        onSuccess: () => navigate('/'),
+      });
     }
   };
 
@@ -131,18 +149,24 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     );
   }
 
-  const title = isPositionChat
-    ? (conversation.data?.title ?? 'EKT-Position')
-    : (project.data?.project_name ?? conversation.data?.title ?? 'Project chat');
+  const title =
+    isPositionChat ?
+      (conversation.data?.title ?? 'EKT-Position')
+    : (project.data?.project_name ??
+      conversation.data?.title ??
+      'Project chat');
 
   // While a calculation is paused at a HITL gate, the structured panel replaces the chat input.
   const interrupt =
-    pendingInterrupt ?? derivePendingInterrupt(conversation.data, messagesQuery.data);
+    pendingInterrupt ??
+    derivePendingInterrupt(conversation.data, messagesQuery.data);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex h-12 shrink-0 items-center border-b border-zinc-950/5 px-4 dark:border-white/5">
-        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</div>
+        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {title}
+        </div>
       </header>
       <MessageList
         messages={merged}
@@ -152,10 +176,13 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
         collapseStreamingReasoning={isCalculating}
       />
 
-      {interrupt ? (
-        <InterruptPanel interrupt={interrupt} onResume={sendResume} disabled={isStreaming} />
-      ) : (
-        <>
+      {interrupt ?
+        <InterruptPanel
+          interrupt={interrupt}
+          onResume={sendResume}
+          disabled={isStreaming}
+        />
+      : <>
           <RetrievalConfigBar conversationId={conversationId} />
           <ChatInput
             onSend={sendMessage}
@@ -163,15 +190,15 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
             slashCommands={PROJECT_CHAT_SLASH_COMMANDS}
             disabled={isStreaming}
             placeholder={
-              isPositionChat
-                ? 'Über diese Position chatten, oder um die Kalkulation bitten…'
-                : 'Ask about this project… (/clear, /close, /remove)'
+              isPositionChat ?
+                'Über diese Position chatten, oder um die Kalkulation bitten…'
+              : 'Ask about this project… (/clear, /close, /remove)'
             }
             draftKey={`ws:${conversationId}`}
             hint={isStreaming ? 'Thinking…' : undefined}
           />
         </>
-      )}
+      }
     </div>
   );
 }
