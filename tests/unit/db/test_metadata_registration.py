@@ -22,6 +22,21 @@ EXPECTED_TABLES = {
     "calculation_ground_truth",
     "variable_corrections",
     "project_context_values",
+    "katalog_leistungen",
+    "katalog_bauverfahren",
+    "katalog_vorgaenge",
+    "katalog_ausfuehrungsarten",
+    "katalog_betriebskategorien",
+    "katalog_betriebsarten",
+    "katalog_formeln",
+    "katalog_variablen",
+    "katalog_globale_variablen",
+    "katalog_baustoffe",
+    "katalog_lieferanten",
+    "katalog_maschinen",
+    "katalog_leistung_bauverfahren",
+    "katalog_bauverfahren_vorgaenge",
+    "katalog_lieferanten_preise",
 }
 
 

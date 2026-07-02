@@ -24,6 +24,7 @@ from shared.repositories.ground_truth import GroundTruthRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.ingestion_activity import IngestionActivityLogRepository
+from shared.repositories.katalog import KatalogRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.messages import MessageRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
@@ -55,6 +56,7 @@ class UnitOfWork:
         self.ground_truth = GroundTruthRepository(conn)
         self.variable_corrections = VariableCorrectionRepository(conn)
         self.project_context_values = ProjectContextValueRepository(conn)
+        self.katalog = KatalogRepository(conn)
         # Registered for read/report composition; the Database*Sinks write independently.
         self.openrouter_usage = OpenRouterUsageRepository(conn)
         self.prompt_execution_log = PromptExecutionLogRepository(conn)

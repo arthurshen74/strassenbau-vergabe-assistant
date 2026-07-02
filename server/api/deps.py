@@ -33,8 +33,10 @@ from shared.clients.storage.client import StorageClient
 from shared.db.unit_of_work import UnitOfWork
 from shared.services.calculator.run_service import CalculatorRunService
 from shared.services.dispatcher import Dispatcher
+from shared.services.katalog.service import KatalogService
 from shared.services.project_chat import ProjectChatService
 from shared.services.retrieval import RetrievalService
+from shared.services.rezept_autor.run_service import RezeptAutorRunService
 
 
 def get_engine(request: Request) -> AsyncEngine:
@@ -90,6 +92,18 @@ def get_dispatcher(
     llm: LLMClient = Depends(get_llm_client),
 ) -> Dispatcher:
     return Dispatcher(llm, engine)
+
+
+def get_katalog_service(engine: AsyncEngine = Depends(get_engine)) -> KatalogService:
+    return KatalogService(engine)
+
+
+def get_rezept_autor_run_service(
+    engine: AsyncEngine = Depends(get_engine),
+    llm: LLMClient = Depends(get_llm_client),
+    checkpointer: BaseCheckpointSaver = Depends(get_calculator_checkpointer),
+) -> RezeptAutorRunService:
+    return RezeptAutorRunService(engine=engine, llm=llm, checkpointer=checkpointer)
 
 
 def get_project_chat_service(

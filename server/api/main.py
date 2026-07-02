@@ -15,6 +15,7 @@ from api.routes import (
     dispatch,
     health,
     ingest_jobs,
+    katalog,
     project_contexts,
     projects,
     prompt_execution_logs,
@@ -32,6 +33,7 @@ from shared.clients.storage.client import build_storage_client
 from shared.clients.tracing import setup_phoenix_tracing
 from shared.config import settings
 from shared.db.engine import make_engine
+from shared.services.kalkulation_v2.provider import lade_katalog
 
 # Connection pool for the calculator's LangGraph Postgres checkpointer (HITL state across requests).
 CALCULATOR_CHECKPOINTER_POOL_SIZE = 10
@@ -50,6 +52,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         application_name="api",
     )
     app.state.engine = engine
+    # Load the persisted catalog into the kalkulation_v2 module dicts before serving. A dev DB
+    # without seed logs a warning and keeps the fixture data, so startup never crashes.
+    async with engine.connect() as conn:
+        await lade_katalog(conn)
     app.state.storage = build_storage_client()
     app.state.search = SearchClient.from_settings()
     # One shared telemetry-sink set per process, reused by every OpenRouter client so usage +
@@ -104,6 +110,7 @@ def create_app() -> FastAPI:
     app.include_router(usage.router)
     app.include_router(ingest_jobs.router)
     app.include_router(calculations.router)
+    app.include_router(katalog.router)
     return app
 
 

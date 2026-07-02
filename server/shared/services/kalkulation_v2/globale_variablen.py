@@ -110,8 +110,10 @@ GLOBALE_VARIABLEN: dict[str, GlobaleVariable] = {
     ),
 }
 
-GLOBAL_VAR_NAMES = frozenset(GLOBALE_VARIABLEN)
-ERFORDERLICHE_GLOBALE = frozenset(n for n, gv in GLOBALE_VARIABLEN.items() if gv.erforderlich)
+# Plain sets (not frozensets) so the KatalogProvider can refresh them in place (clear/update)
+# after a catalog reload; importers hold the same set object and see the new membership.
+GLOBAL_VAR_NAMES: set[str] = set(GLOBALE_VARIABLEN)
+ERFORDERLICHE_GLOBALE: set[str] = {n for n, gv in GLOBALE_VARIABLEN.items() if gv.erforderlich}
 
 
 def standort_koordinaten_keys(var_name: str) -> tuple[str, str]:

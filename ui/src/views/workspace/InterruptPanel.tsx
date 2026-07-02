@@ -15,6 +15,7 @@ import { Input } from '../../components/ui/input';
 import { Strong, Text } from '../../components/ui/text';
 import { api, apiBase } from '../../api/client';
 import type { CalculationResume } from '../../api/calculations';
+import type { RezeptReviewDecision } from '../../api/katalog';
 import type { PendingInterrupt } from './hooks/useWorkspaceConversation';
 
 // Interrupt stages, matching the backend STAGE_* constants in shared/services/calculator/state.py.
@@ -22,6 +23,8 @@ const STAGE_PROJECT_CONTEXT_REVIEW = 'project_context_review';
 const STAGE_LEISTUNG_BV_REVIEW = 'leistung_bv_review';
 const STAGE_MATERIAL_REVIEW = 'material_review';
 const STAGE_VARIABLE_REVIEW = 'variable_review';
+// Recipe-author review, matching shared/services/rezept_autor/graph.STAGE_REZEPT_REVIEW.
+const STAGE_REZEPT_REVIEW = 'rezept_review';
 
 // Location geocoding status, matching the backend ContextStatus / BAUSTELLE_* values.
 const BAUSTELLE_OK = 'aufgeloest';
@@ -71,13 +74,23 @@ function isNumericInput(raw: string): boolean {
 export function InterruptPanel({
   interrupt,
   onResume,
+  onRezeptReview,
   disabled,
 }: {
   interrupt: PendingInterrupt;
   onResume: (decision: CalculationResume) => void;
+  onRezeptReview?: (decision: RezeptReviewDecision) => void;
   disabled?: boolean;
 }) {
   switch (interrupt.stage) {
+    case STAGE_REZEPT_REVIEW:
+      return onRezeptReview ?
+          <RezeptReview
+            payload={interrupt.payload}
+            onRezeptReview={onRezeptReview}
+            disabled={disabled}
+          />
+        : null;
     case STAGE_PROJECT_CONTEXT_REVIEW:
       return (
         <ProjectContextReview
@@ -123,6 +136,215 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
       </div>
       <div className="pt-2">{children}</div>
     </div>
+  );
+}
+
+// --- Recipe author: review the drafted bundle, then confirm / feedback / discard ------------
+function bundleListe(payload: Record<string, unknown>, key: string): Record<string, unknown>[] {
+  const bundle =
+    payload.bundle && typeof payload.bundle === 'object' ?
+      (payload.bundle as Record<string, unknown>)
+    : {};
+  return asRecordArray(bundle[key]);
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="pt-3">
+      <Text className="text-xs font-medium text-zinc-500">{title}</Text>
+      <div className="flex flex-col gap-0.5 pt-1">{children}</div>
+    </div>
+  );
+}
+
+function RezeptReview({
+  payload,
+  onRezeptReview,
+  disabled,
+}: {
+  payload: Record<string, unknown>;
+  onRezeptReview: (decision: RezeptReviewDecision) => void;
+  disabled?: boolean;
+}) {
+  const [feedback, setFeedback] = useState('');
+  const [aktivieren, setAktivieren] = useState(true);
+
+  const bericht =
+    payload.bericht && typeof payload.bericht === 'object' ?
+      (payload.bericht as Record<string, unknown>)
+    : {};
+  const fehler = asStringArray(bericht.fehler);
+  const aktualisierungen = asStringArray(bericht.aktualisierungen);
+
+  const leistungen = bundleListe(payload, 'leistungen');
+  const bauverfahren = bundleListe(payload, 'bauverfahren');
+  const vorgaenge = bundleListe(payload, 'vorgaenge');
+  const formeln = bundleListe(payload, 'formeln');
+  const variablen = bundleListe(payload, 'variablen');
+  const mapping =
+    (payload.bundle as Record<string, unknown>)?.leistung_bauverfahren ?? {};
+  const mappingEntries = Object.entries(asStringMap(mapping));
+
+  return (
+    <Panel title="Rezept prüfen">
+      {fehler.length > 0 ?
+        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300">
+          {fehler.length} Validierungsfehler:
+          <ul className="list-disc pl-4 pt-1">
+            {fehler.map((f, i) => (
+              <li key={i}>{f}</li>
+            ))}
+          </ul>
+        </div>
+      : <Text className="text-xs text-zinc-500">
+          Rezept ist gültig. Prüfen und bestätigen (optional aktivieren) oder Feedback geben.
+        </Text>
+      }
+      {aktualisierungen.length > 0 ?
+        <div className="mt-2 rounded-md border border-amber-400/40 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-400/10 dark:text-amber-300">
+          Ersetzt aktive Versionen:
+          <ul className="list-disc pl-4 pt-1">
+            {aktualisierungen.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+        </div>
+      : null}
+
+      {leistungen.length > 0 ?
+        <Section title="Leistungen">
+          {leistungen.map((l, i) => (
+            <Text key={i}>
+              <Strong>{str(l.code)}</Strong> — {str(l.name)}{' '}
+              <span className="text-zinc-500">({str(l.einheit)})</span>
+            </Text>
+          ))}
+        </Section>
+      : null}
+
+      {bauverfahren.length > 0 ?
+        <Section title="Bauverfahren">
+          {bauverfahren.map((b, i) => (
+            <Text key={i}>
+              <Strong>{str(b.code)}</Strong> — {str(b.name)}{' '}
+              <span className="text-zinc-500">
+                [{asStringArray(b.vorgang_codes).join(', ')}]
+              </span>
+            </Text>
+          ))}
+        </Section>
+      : null}
+
+      {vorgaenge.length > 0 ?
+        <Section title="Vorgänge">
+          {vorgaenge.map((v, i) => (
+            <Text key={i}>
+              <Strong>{str(v.code)}</Strong> — {str(v.name)}
+              <span className="text-zinc-500">
+                {Object.entries(asStringMap(v.kostenvariablen))
+                  .map(([ka, name]) => ` · ${ka}: ${name}`)
+                  .join('')}
+              </span>
+            </Text>
+          ))}
+        </Section>
+      : null}
+
+      {formeln.length > 0 ?
+        <Section title="Formeln">
+          {formeln.map((f, i) => (
+            <Text
+              key={i}
+              className="font-mono text-xs"
+            >
+              {str(f.name)} = {str(f.ausdruck)}
+              {f.einheit ? ` [${str(f.einheit)}]` : ''}
+            </Text>
+          ))}
+        </Section>
+      : null}
+
+      {variablen.length > 0 ?
+        <Section title="Variablen">
+          {variablen.map((bv, i) => {
+            const def =
+              bv.definition && typeof bv.definition === 'object' ?
+                (bv.definition as Record<string, unknown>)
+              : {};
+            return (
+              <Text key={i}>
+                <span className="text-zinc-500">{str(bv.gruppe)} · </span>
+                <Strong>{str(def.name)}</Strong>
+                {def.bezeichnung ? ` — ${str(def.bezeichnung)}` : ''}
+              </Text>
+            );
+          })}
+        </Section>
+      : null}
+
+      {mappingEntries.length > 0 ?
+        <Section title="Leistung → Bauverfahren">
+          {mappingEntries.map(([lk, bvs]) => (
+            <Text key={lk}>
+              <Strong>{lk}</Strong> → {bvs}
+            </Text>
+          ))}
+        </Section>
+      : null}
+
+      <div className="pt-4">
+        <label className="flex items-center gap-2 pb-2 text-xs text-zinc-700 dark:text-zinc-300">
+          <input
+            type="checkbox"
+            checked={aktivieren}
+            disabled={disabled}
+            onChange={(e) => setAktivieren(e.target.checked)}
+            className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
+          />
+          Nach dem Speichern aktivieren (sofort im Katalog verfügbar)
+        </label>
+        <div className="flex gap-2">
+          <Button
+            disabled={disabled || fehler.length > 0}
+            onClick={() =>
+              onRezeptReview({ bestaetigt: true, feedback: null, aktivieren })
+            }
+          >
+            Bestätigen
+          </Button>
+          <Button
+            outline
+            disabled={disabled}
+            onClick={() =>
+              onRezeptReview({ bestaetigt: false, feedback: null, aktivieren: false })
+            }
+          >
+            Verwerfen
+          </Button>
+        </div>
+        <div className="flex items-center gap-2 pt-3">
+          <Input
+            value={feedback}
+            disabled={disabled}
+            placeholder="Feedback zum Überarbeiten…"
+            onChange={(e) => setFeedback(e.target.value)}
+          />
+          <Button
+            outline
+            disabled={disabled || feedback.trim() === ''}
+            onClick={() =>
+              onRezeptReview({
+                bestaetigt: false,
+                feedback: feedback.trim(),
+                aktivieren: false,
+              })
+            }
+          >
+            Feedback senden
+          </Button>
+        </div>
+      </div>
+    </Panel>
   );
 }
 

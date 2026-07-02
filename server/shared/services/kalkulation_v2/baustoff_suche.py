@@ -89,6 +89,13 @@ class BaustoffMatch(BaseModel):
 _INDEX = _BM25(BAUSTOFFE)
 
 
+def baue_index() -> None:
+    """Rebuild the BM25 index over the current BAUSTOFFE. Module import already builds it once
+    (so non-DB processes are unaffected); the KatalogProvider calls this after refilling BAUSTOFFE."""
+    global _INDEX
+    _INDEX = _BM25(BAUSTOFFE)
+
+
 def suche_baustoff(text: str, *, top_n: int = 5) -> BaustoffMatch:
     """BM25-match an LV text to the Baustoff catalog. Returns the top-n grounded hits and a
     separation confidence; the caller compares konfidenz against the configured threshold."""

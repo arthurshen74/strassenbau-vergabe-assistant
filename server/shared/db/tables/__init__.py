@@ -14,6 +14,21 @@ from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
 from shared.db.tables.ingestion_activity_log import ingestion_activity_log
 from shared.db.tables.ingestion_activity_log_archive import ingestion_activity_log_archive
+from shared.db.tables.katalog_ausfuehrungsarten import katalog_ausfuehrungsarten
+from shared.db.tables.katalog_baustoffe import katalog_baustoffe
+from shared.db.tables.katalog_bauverfahren import katalog_bauverfahren
+from shared.db.tables.katalog_bauverfahren_vorgaenge import katalog_bauverfahren_vorgaenge
+from shared.db.tables.katalog_betriebsarten import katalog_betriebsarten
+from shared.db.tables.katalog_betriebskategorien import katalog_betriebskategorien
+from shared.db.tables.katalog_formeln import katalog_formeln
+from shared.db.tables.katalog_globale_variablen import katalog_globale_variablen
+from shared.db.tables.katalog_leistung_bauverfahren import katalog_leistung_bauverfahren
+from shared.db.tables.katalog_leistungen import katalog_leistungen
+from shared.db.tables.katalog_lieferanten import katalog_lieferanten
+from shared.db.tables.katalog_lieferanten_preise import katalog_lieferanten_preise
+from shared.db.tables.katalog_maschinen import katalog_maschinen
+from shared.db.tables.katalog_variablen import katalog_variablen
+from shared.db.tables.katalog_vorgaenge import katalog_vorgaenge
 from shared.db.tables.lv_items import lv_items
 from shared.db.tables.messages import messages
 from shared.db.tables.openrouter_usage import openrouter_usage
@@ -34,6 +49,21 @@ __all__ = [
     "ingest_jobs",
     "ingestion_activity_log",
     "ingestion_activity_log_archive",
+    "katalog_ausfuehrungsarten",
+    "katalog_baustoffe",
+    "katalog_bauverfahren",
+    "katalog_bauverfahren_vorgaenge",
+    "katalog_betriebsarten",
+    "katalog_betriebskategorien",
+    "katalog_formeln",
+    "katalog_globale_variablen",
+    "katalog_leistung_bauverfahren",
+    "katalog_leistungen",
+    "katalog_lieferanten",
+    "katalog_lieferanten_preise",
+    "katalog_maschinen",
+    "katalog_variablen",
+    "katalog_vorgaenge",
     "lv_items",
     "messages",
     "openrouter_usage",

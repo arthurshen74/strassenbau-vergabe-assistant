@@ -17,6 +17,7 @@ from api.deps import (
     get_current_user,
     get_llm_client,
     get_project_chat_service,
+    get_rezept_autor_run_service,
     get_uow,
 )
 from api.sse import SSE_MEDIA_TYPE, format_sse
@@ -50,6 +51,7 @@ from shared.repositories.messages import MessageRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.services.calculator.run_service import CalculatorRunService
 from shared.services.conversation_naming import ConversationNamingService
+from shared.services.rezept_autor.run_service import RezeptAutorRunService
 from shared.services.project_chat import ProjectChatService, config_from_request
 from shared.services.project_chat_agent import TOOL_CALCULATE_EKT
 from shared.services.prompt_runner import PromptRunner
@@ -85,21 +87,35 @@ class CalculationResume(BaseModel):
     cancel: bool | None = None
 
 
+class RezeptReviewDecision(BaseModel):
+    """The reviewer's decision for a paused recipe-author run (rezept_review interrupt): `feedback`
+    loops back to a redraft; `bestaetigt` persists the draft; `aktivieren` additionally activates it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    bestaetigt: bool = False
+    feedback: str | None = None
+    aktivieren: bool = False
+
+
 class TurnRequest(BaseModel):
     """One turn of a chat conversation. Exactly one of `content` (a free-text message, which for a
-    position chat may ask to run the calculation) or `resume` (a structured decision answering a
-    paused calculation's HITL gate)."""
+    position chat may ask to run the calculation, or a recipe description for the author), `resume`
+    (a paused calculation's HITL gate decision), or `rezept_review` (a paused recipe-author review
+    decision)."""
 
     model_config = ConfigDict(extra="forbid")
 
     content: str | None = Field(default=None, min_length=1)
     resume: CalculationResume | None = None
+    rezept_review: RezeptReviewDecision | None = None
     retrieval: TurnRetrievalConfig | None = None
 
     @model_validator(mode="after")
     def _exactly_one_input(self) -> TurnRequest:
-        if (self.content is None) == (self.resume is None):
-            raise ValueError("provide exactly one of `content` or `resume`")
+        gesetzt = sum(x is not None for x in (self.content, self.resume, self.rezept_review))
+        if gesetzt != 1:
+            raise ValueError("provide exactly one of `content`, `resume` or `rezept_review`")
         return self
 
 
@@ -174,6 +190,7 @@ async def run_turn(
     conn: AsyncConnection = Depends(get_connection),
     project_chat: ProjectChatService = Depends(get_project_chat_service),
     calc: CalculatorRunService = Depends(get_calculator_run_service),
+    rezept: RezeptAutorRunService = Depends(get_rezept_autor_run_service),
 ) -> StreamingResponse:
     """One streaming turn. `content` is a free-text message (project chat, or position chat that may
     ask to run the calculation); `resume` is a structured decision answering a paused calculation's
@@ -182,18 +199,25 @@ async def run_turn(
     conversation = await ConversationRepository(conn).get(conversation_uuid)
     if conversation is None or conversation.user_uuid != principal.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
-    if conversation.prompt_type not in (PromptType.PROJECT_CHAT, PromptType.EKT_CALCULATOR):
+    if conversation.prompt_type not in (
+        PromptType.PROJECT_CHAT,
+        PromptType.EKT_CALCULATOR,
+        PromptType.REZEPT_AUTOR,
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="conversation is not continuable as a chat",
         )
 
-    config = config_from_request(payload.retrieval)
-    if payload.resume is not None:
-        events = _resume_events(calc, conversation, payload.resume)
+    if conversation.prompt_type == PromptType.REZEPT_AUTOR:
+        events = _rezept_events(rezept, conversation, payload)
     else:
-        assert payload.content is not None  # the schema validator guarantees one of the two
-        events = await _content_events(conn, project_chat, calc, conversation, payload.content, config)
+        config = config_from_request(payload.retrieval)
+        if payload.resume is not None:
+            events = _resume_events(calc, conversation, payload.resume)
+        else:
+            assert payload.content is not None  # the schema validator guarantees one of the two
+            events = await _content_events(conn, project_chat, calc, conversation, payload.content, config)
 
     async def event_stream() -> AsyncIterator[str]:
         # The 200 + headers are already committed once streaming starts, so an exception here
@@ -228,6 +252,37 @@ def _resume_events(
             status_code=status.HTTP_409_CONFLICT, detail="calculation is not awaiting input"
         )
     return calc.resume(conversation, resume.model_dump(mode="json", exclude_none=True))
+
+
+def _rezept_events(
+    rezept: RezeptAutorRunService, conversation: Conversation, payload: TurnRequest
+) -> AsyncIterator[dict[str, Any]]:
+    """Drive a recipe-author turn: a description starts a run, a `rezept_review` answers a paused one.
+    Raises before streaming starts (a calculator `resume` is not valid for a recipe-author chat)."""
+    if payload.resume is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="use rezept_review to answer a recipe-author review",
+        )
+    if payload.rezept_review is not None:
+        if conversation.calculation_status != CalculationStatus.AWAITING_INPUT:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="recipe author is not awaiting input"
+            )
+        return rezept.resume(conversation, payload.rezept_review.model_dump(mode="json"))
+    assert payload.content is not None  # the schema validator guarantees one of the three
+    try:
+        guard_user_input(payload.content)
+    except InputRejectedError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if conversation.calculation_status in (
+        CalculationStatus.RUNNING,
+        CalculationStatus.AWAITING_INPUT,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="recipe author is mid-run; resume it instead"
+        )
+    return rezept.start(conversation, payload.content)
 
 
 async def _content_events(

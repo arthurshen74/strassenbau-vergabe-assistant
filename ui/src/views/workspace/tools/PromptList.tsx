@@ -27,6 +27,7 @@ const TYPE_COLOR: Record<PromptVersionRead['prompt_type'], BadgeColor> = {
   lv_extraction: 'sky',
   conversation_name: 'rose',
   ekt_calculator: 'zinc',
+  rezept_autor: 'purple',
   ekt_leistung_classify: 'purple',
   ekt_chat_values: 'blue',
   ekt_langtext_extract: 'green',

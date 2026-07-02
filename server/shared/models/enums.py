@@ -44,6 +44,10 @@ class PromptType(StrEnum):
     # CONVERSATION_DISCRIMINATORS below. The ekt_* below are the EKT calculation graph's structured
     # LLM prompts (shared/services/calculator/llm_calls.py).
     EKT_CALCULATOR = "ekt_calculator"
+    # rezept_autor is a conversation discriminator (a recipe-authoring chat that owns a
+    # rezept_autor graph run); its entwerfen prompt is an inline placeholder (Part C designs the
+    # real one), so it ships no seeded .prompt file — grouped in CONVERSATION_DISCRIMINATORS below.
+    REZEPT_AUTOR = "rezept_autor"
     # kalkulation_v2 prompts (the live graph).
     EKT_LEISTUNG_CLASSIFY = "ekt_leistung_classify"
     EKT_CHAT_VALUES = "ekt_chat_values"
@@ -58,7 +62,9 @@ class PromptType(StrEnum):
 # ship no .prompt file and are never seeded or loaded as prompts. When you stand up a new StateGraph
 # and tag its conversations with a new member, add it here so the seed-coverage test does not require
 # a .prompt file for it. See ADDING_A_PROMPT_TYPE.md ("StateGraph / conversation discriminators").
-CONVERSATION_DISCRIMINATORS: frozenset[PromptType] = frozenset({PromptType.EKT_CALCULATOR})
+CONVERSATION_DISCRIMINATORS: frozenset[PromptType] = frozenset(
+    {PromptType.EKT_CALCULATOR, PromptType.REZEPT_AUTOR}
+)
 
 
 class CalculationStatus(StrEnum):

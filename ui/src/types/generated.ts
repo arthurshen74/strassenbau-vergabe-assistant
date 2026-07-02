@@ -213,6 +213,7 @@ export interface PromptVersionRead {
     | "lv_extraction"
     | "conversation_name"
     | "ekt_calculator"
+    | "rezept_autor"
     | "ekt_leistung_classify"
     | "ekt_chat_values"
     | "ekt_langtext_extract"
@@ -236,6 +237,7 @@ export interface PromptVersionCreate {
     | "lv_extraction"
     | "conversation_name"
     | "ekt_calculator"
+    | "rezept_autor"
     | "ekt_leistung_classify"
     | "ekt_chat_values"
     | "ekt_langtext_extract"
@@ -260,6 +262,7 @@ export interface ConversationRead {
     | "lv_extraction"
     | "conversation_name"
     | "ekt_calculator"
+    | "rezept_autor"
     | "ekt_leistung_classify"
     | "ekt_chat_values"
     | "ekt_langtext_extract"
@@ -281,6 +284,7 @@ export interface ConversationCreate {
     | "lv_extraction"
     | "conversation_name"
     | "ekt_calculator"
+    | "rezept_autor"
     | "ekt_leistung_classify"
     | "ekt_chat_values"
     | "ekt_langtext_extract"
@@ -616,6 +620,10 @@ export interface SSEInterrupt {
   };
 }
 
+export interface SSECalcStart {
+  event: "calc_start";
+}
+
 export interface SSEDone {
   event: "done";
 }
@@ -634,4 +642,5 @@ export type SSEEvent =
   | SSEFunctionCallOutput
   | SSEUiNotice
   | SSEInterrupt
+  | SSECalcStart
   | SSEDone;
