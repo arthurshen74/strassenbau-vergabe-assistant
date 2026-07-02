@@ -17,14 +17,29 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.db.unit_of_work import unit_of_work
 from shared.models.katalog import (
+    BundleBauverfahren,
     BundleBericht,
+    BundleVariable,
+    BundleVorgang,
     KatalogEntitaet,
+    KatalogStatus,
     KatalogZeile,
     RezeptBundle,
     VariablenGruppe,
 )
 from shared.repositories.katalog import KATALOG_REGISTRY, KatalogRepository
-from shared.services.kalkulation_v2.model import AufloesungsMethode, AufloesungsSchritt, VariableDefinition
+from shared.services.kalkulation_v2.model import (
+    AufloesungsMethode,
+    AufloesungsSchritt,
+    Ausführungsart,
+    Baustoff,
+    Betriebsart,
+    Betriebskategorie,
+    Formel,
+    Leistung,
+    Maschine,
+    VariableDefinition,
+)
 from shared.services.kalkulation_v2.provider import lade_katalog
 from shared.services.katalog.validierung import lade_stand, pruefe_bundle
 
@@ -127,8 +142,6 @@ class KatalogService:
     async def _entwuerfe(
         repo: KatalogRepository, bundle_uuid: UUID
     ) -> dict[KatalogEntitaet, list[KatalogZeile]]:
-        from shared.models.katalog import KatalogStatus
-
         gruppen = await repo.nach_bundle(bundle_uuid)
         entwuerfe = {
             entitaet: [z for z in zeilen if z.status == KatalogStatus.ENTWURF]
@@ -182,16 +195,6 @@ class KatalogService:
         repo: KatalogRepository, entwuerfe: dict[KatalogEntitaet, list[KatalogZeile]]
     ) -> RezeptBundle:
         """Reconstruct a RezeptBundle from its draft rows, for re-validation on activation."""
-        from shared.models.katalog import BundleBauverfahren, BundleVariable, BundleVorgang
-        from shared.services.kalkulation_v2.model import (
-            Ausführungsart,
-            Baustoff,
-            Betriebsart,
-            Betriebskategorie,
-            Formel,
-            Leistung,
-            Maschine,
-        )
 
         def modelle(entitaet: KatalogEntitaet, cls, schluessel_feld: str):
             return [

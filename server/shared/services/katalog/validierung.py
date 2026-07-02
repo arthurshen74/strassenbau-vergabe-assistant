@@ -8,8 +8,9 @@ pure function of (bundle, stand) returning a `BundleBericht`. The six rules mirr
 3. every Vorgang cost variable is producible (has a FORMEL/KONSTANTE/STAMMDATEN step, or is a
    kontext-gruppe variable, or is a formula output);
 4. every code reference resolves (Ausführungsart/Betriebsart/Kategorie/Vorgang/Leistung/Bauverfahren);
-5. a bundle variable does not newly shadow an active variable of a different gruppe (the KATALOG
-   merge would resolve the collision silently);
+5. a bundle variable does not introduce a new cross-gruppe shadowing — updating an existing
+   (name, gruppe) pairing is allowed; only a new pairing creates a collision the KATALOG merge
+   would resolve silently;
 6. a bundle key equal to an active key is reported as a supersede (an update, not an error).
 """
 
@@ -192,14 +193,18 @@ def pruefe_bundle(bundle: RezeptBundle, stand: KatalogStand) -> BundleBericht:
             if bc not in bv_codes:
                 fehler.append(f"Mapping '{lk}': unbekanntes Bauverfahren '{bc}'.")
 
-    # Rule 5 — a bundle variable must not newly shadow an active variable of a different gruppe.
+    # Rule 5 — a bundle variable must not introduce a NEW cross-gruppe shadowing. Updating an
+    # existing (name, gruppe) pairing is allowed even when the name is deliberately shadowed
+    # already (the fixtures' KONSTANTE + Formel pair); only a pairing the active catalog does not
+    # have yet creates a collision the KATALOG merge would resolve silently.
     for name, gruppen in bundle_var_gruppen.items():
-        fremd = stand.var_gruppen.get(name, set()) - gruppen
-        if fremd:
-            gruppen_txt = ", ".join(sorted(g.value for g in fremd))
+        aktive_gruppen = stand.var_gruppen.get(name, set())
+        alle = aktive_gruppen | gruppen
+        if (gruppen - aktive_gruppen) and len(alle) > 1:
+            gruppen_txt = ", ".join(sorted(g.value for g in alle))
             fehler.append(
-                f"Variable '{name}' kollidiert mit aktiver Gruppe(n) [{gruppen_txt}] — "
-                f"der KATALOG-Merge würde die Kollision still auflösen."
+                f"Variable '{name}': neue Gruppen-Kollision [{gruppen_txt}] — "
+                f"der KATALOG-Merge würde sie still auflösen."
             )
 
     # Rule 6 — bundle keys equal to active keys are supersedes (updates), not errors.

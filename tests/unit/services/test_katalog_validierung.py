@@ -82,7 +82,36 @@ def test_rule5_variable_schattet_andere_gruppe() -> None:
     )
     bericht = pruefe_bundle(bundle, stand)
     assert not bericht.gueltig
-    assert any("kollidiert mit aktiver Gruppe" in f for f in bericht.fehler)
+    assert any("neue Gruppen-Kollision" in f for f in bericht.fehler)
+
+
+def test_rule5_update_einer_bestehenden_paarung_ist_erlaubt() -> None:
+    """The fixtures deliberately shadow a stammdaten KONSTANTE with a Formel
+    (entsorgung_fraesasphalt_eur_pro_t); updating either side of that existing pairing must
+    validate — only a NEW pairing is a collision."""
+    stand = KatalogStand(
+        known_var_namen={"X"},
+        produzierbare_namen={"X"},
+        var_gruppen={"X": {VariablenGruppe.STAMMDATEN, VariablenGruppe.FORMEL}},
+    )
+    als_stammdaten = RezeptBundle(
+        variablen=[BundleVariable(gruppe=VariablenGruppe.STAMMDATEN, definition=_konstante("X"))]
+    )
+    als_formel = RezeptBundle(
+        formeln=[Formel(name="X", ergebnis_variable="X", ausdruck="2", einheit="€")]
+    )
+    assert pruefe_bundle(als_stammdaten, stand).gueltig, pruefe_bundle(als_stammdaten, stand).fehler
+    assert pruefe_bundle(als_formel, stand).gueltig, pruefe_bundle(als_formel, stand).fehler
+
+
+def test_rule5_neue_paarung_innerhalb_des_bundles_ist_fehler() -> None:
+    bundle = RezeptBundle(
+        variablen=[BundleVariable(gruppe=VariablenGruppe.KONTEXT, definition=_konstante("X"))],
+        formeln=[Formel(name="X", ergebnis_variable="X", ausdruck="2", einheit="€")],
+    )
+    bericht = pruefe_bundle(bundle, KatalogStand())
+    assert not bericht.gueltig
+    assert any("neue Gruppen-Kollision" in f for f in bericht.fehler)
 
 
 def test_rule6_supersede_ist_kein_fehler() -> None:
