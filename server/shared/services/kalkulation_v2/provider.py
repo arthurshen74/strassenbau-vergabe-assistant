@@ -102,14 +102,15 @@ def _maschine_aus_zeile(zeile: KatalogZeile) -> Maschine:
     return Maschine.model_validate({"code": zeile.schluessel, **payload})
 
 
-async def lade_katalog(conn: AsyncConnection) -> None:
+async def lade_katalog(conn: AsyncConnection) -> dict[str, int] | None:
     """Load all `aktiv` rows, validate into domain models, refill the module dicts in place and
-    rebuild derived state. If the katalog tables are empty, keep the fixture data (dev DB without
-    seed must not crash) and warn once."""
+    rebuild derived state. Returns a per-entity count summary of what was loaded. If the katalog
+    tables are empty, keep the fixture data (dev DB without seed must not crash), warn once and
+    return None."""
     repo = KatalogRepository(conn)
     if await repo.ist_leer():
         logger.warning("katalog_* tables are empty — keeping kalkulation_v2 fixture data.")
-        return
+        return None
 
     async def aktive(entitaet: KatalogEntitaet) -> list[KatalogZeile]:
         return await repo.aktive(entitaet)
@@ -233,3 +234,20 @@ async def lade_katalog(conn: AsyncConnection) -> None:
     m_glob.ERFORDERLICHE_GLOBALE.update(
         n for n, gv in m_glob.GLOBALE_VARIABLEN.items() if gv.erforderlich
     )
+
+    return {
+        KatalogEntitaet.BETRIEBSKATEGORIEN.value: len(m_bt.BETRIEBSKATEGORIEN),
+        KatalogEntitaet.BETRIEBSARTEN.value: len(m_bt.BETRIEBSARTEN),
+        KatalogEntitaet.AUSFUEHRUNGSARTEN.value: len(m_aa.AUSFUEHRUNGSARTEN),
+        KatalogEntitaet.FORMELN.value: len(m_formel.FORMELN),
+        KatalogEntitaet.VARIABLEN.value: len(m_store.KATALOG),
+        KatalogEntitaet.GLOBALE_VARIABLEN.value: len(m_glob.GLOBALE_VARIABLEN),
+        KatalogEntitaet.BAUSTOFFE.value: len(m_mat.BAUSTOFFE),
+        KatalogEntitaet.LIEFERANTEN.value: len(m_lief.LIEFERANTEN),
+        "lieferanten_preise": sum(len(l.preise) for l in m_lief.LIEFERANTEN.values()),
+        KatalogEntitaet.MASCHINEN.value: len(m_masch.MASCHINEN),
+        KatalogEntitaet.VORGAENGE.value: len(m_vorg.VORGAENGE),
+        KatalogEntitaet.BAUVERFAHREN.value: len(m_bv.BAUVERFAHREN),
+        KatalogEntitaet.LEISTUNGEN.value: len(m_leist.LEISTUNGEN),
+        KatalogEntitaet.LEISTUNG_BAUVERFAHREN.value: len(m_lb.LEISTUNG_BAUVERFAHREN),
+    }

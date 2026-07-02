@@ -17,6 +17,7 @@ from shared.models.katalog import (
     RezeptBundle,
 )
 from shared.repositories.katalog import KatalogRepository
+from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
 from shared.services.kalkulation_v2.model import Formel, Kostenart, Leistung
 from shared.services.kalkulation_v2.positionen import Position
 from shared.services.kalkulation_v2.store import kalkuliere
@@ -74,6 +75,42 @@ async def test_bundle_aktivierung_macht_rezept_kalkulierbar(engine: AsyncEngine)
             assert ergebnis["bauverfahren"] == "BV_KATALOG_TEST"
             assert ergebnis["ekt_eur"] == Decimal("500.00")
             assert ergebnis["ep_eur"] == Decimal("5.00")
+        finally:
+            async with engine.begin() as conn:
+                await KatalogRepository(conn).alles_leeren()
+
+
+async def test_neu_laden_macht_externe_aenderungen_sichtbar(engine: AsyncEngine) -> None:
+    """An edit that bypasses the bundle service (repo-level supersede, as an external CRUD tool
+    would do) is invisible to the running engine until `neu_laden` re-reads the catalog."""
+    with zustand_sichern():
+        async with engine.begin() as conn:
+            repo = KatalogRepository(conn)
+            await repo.alles_leeren()
+            await seed_katalog(repo)
+        try:
+            service = KatalogService(engine)
+            geladen = await service.neu_laden()
+            assert geladen is not None and geladen["leistungen"] == len(LEISTUNGEN)
+
+            # External edit: supersede a Leistung directly at the repository, no bundle.
+            async with engine.begin() as conn:
+                repo = KatalogRepository(conn)
+                zeile = next(
+                    z for z in await repo.aktive(KatalogEntitaet.LEISTUNGEN) if z.schluessel == "L_FSS"
+                )
+                neu = await repo.neue_version(
+                    KatalogEntitaet.LEISTUNGEN,
+                    "L_FSS",
+                    {**zeile.payload, "name": "FSS (extern geändert)"},
+                    benutzer="test",
+                    bundle_uuid=None,
+                )
+                await repo.aktiviere(KatalogEntitaet.LEISTUNGEN, neu.zeile_uuid)
+
+            assert LEISTUNGEN["L_FSS"].name != "FSS (extern geändert)"  # engine still on old state
+            await service.neu_laden()
+            assert LEISTUNGEN["L_FSS"].name == "FSS (extern geändert)"
         finally:
             async with engine.begin() as conn:
                 await KatalogRepository(conn).alles_leeren()

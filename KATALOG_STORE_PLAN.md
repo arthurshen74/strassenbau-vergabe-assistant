@@ -301,6 +301,8 @@ API (`server/api/routes/katalog.py`, thin wrappers only):
 - `POST /katalog/bundle/pruefen` — validation report, no write
 - `POST /katalog/bundle` — draft save
 - `POST /katalog/bundle/{bundle_uuid}/aktivieren` / `.../verwerfen`
+- `POST /katalog/neu-laden` — re-read the persisted catalog into the running engine (for edits
+  that bypassed a bundle activation; activation itself reloads automatically)
 
 Run `npm run gen:types` after the routes exist.
 

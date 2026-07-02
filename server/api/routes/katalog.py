@@ -120,3 +120,25 @@ async def bundle_verwerfen(
         await service.bundle_verwerfen(bundle_uuid)
     except BundleNichtGefunden as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+class KatalogGeladen(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    geladen: dict[str, int]
+
+
+@router.post("/neu-laden", response_model=KatalogGeladen)
+async def katalog_neu_laden(
+    service: KatalogService = Depends(get_katalog_service),
+    _principal: Principal = Depends(get_current_user),
+) -> KatalogGeladen:
+    """Re-read the persisted catalog into the running engine (edits that bypassed a bundle
+    activation become visible without a restart)."""
+    geladen = await service.neu_laden()
+    if geladen is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="katalog tables are empty — seed first",
+        )
+    return KatalogGeladen(geladen=geladen)

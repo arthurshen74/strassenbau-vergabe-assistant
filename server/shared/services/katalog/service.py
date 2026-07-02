@@ -136,6 +136,14 @@ class KatalogService:
                 gruppen[bundle_uuid] = await self._entwuerfe(repo, bundle_uuid)
             return gruppen
 
+    async def neu_laden(self) -> dict[str, int] | None:
+        """Re-read the persisted catalog into the running engine's module dicts, so edits that did
+        not go through a bundle activation (external tools, manual fixes) become visible without a
+        restart. Returns the per-entity counts, or None when the katalog tables are empty (the
+        provider keeps the fixture data)."""
+        async with self.engine.connect() as conn:
+            return await lade_katalog(conn)
+
     # --- helpers ------------------------------------------------------------------------------ #
 
     @staticmethod
