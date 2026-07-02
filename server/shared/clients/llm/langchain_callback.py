@@ -70,7 +70,7 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
     def __init__(
         self,
         *,
-        project_uuid: UUID,
+        project_uuid: UUID | None = None,
         prompt_type: str,
         provider_url: str,
         chat_model: str,

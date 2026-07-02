@@ -33,7 +33,11 @@ export function ConversationRouter() {
     return <Navigate to="/" replace />;
   }
 
-  if (data.prompt_type === 'project_chat' || data.prompt_type === 'ekt_calculator') {
+  if (
+    data.prompt_type === 'project_chat' ||
+    data.prompt_type === 'ekt_calculator' ||
+    data.prompt_type === 'katalog_chat'
+  ) {
     return <WorkspaceView />;
   }
   return (

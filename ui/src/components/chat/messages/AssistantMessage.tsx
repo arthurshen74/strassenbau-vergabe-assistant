@@ -6,7 +6,10 @@
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import type { Element } from 'hast';
+import 'katex/dist/katex.min.css';
 import { CitationsPanel, type CitationData } from './CitationsPanel';
 import { rehypeCitations } from './rehypeCitations';
 
@@ -120,8 +123,8 @@ export function AssistantMessage({
           aria-busy={streaming || undefined}
         >
           <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeCitations]}
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex, rehypeCitations]}
             components={
               {
                 // `citation` is a custom tag emitted by rehypeCitations; not in Components.

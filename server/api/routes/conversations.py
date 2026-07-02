@@ -15,6 +15,7 @@ from api.deps import (
     get_calculator_run_service,
     get_connection,
     get_current_user,
+    get_katalog_chat_service,
     get_llm_client,
     get_project_chat_service,
     get_rezept_autor_run_service,
@@ -51,6 +52,7 @@ from shared.repositories.messages import MessageRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.services.calculator.run_service import CalculatorRunService
 from shared.services.conversation_naming import ConversationNamingService
+from shared.services.katalog.chat_service import KatalogChatService
 from shared.services.rezept_autor.run_service import RezeptAutorRunService
 from shared.services.project_chat import ProjectChatService, config_from_request
 from shared.services.project_chat_agent import TOOL_CALCULATE_EKT
@@ -191,6 +193,7 @@ async def run_turn(
     project_chat: ProjectChatService = Depends(get_project_chat_service),
     calc: CalculatorRunService = Depends(get_calculator_run_service),
     rezept: RezeptAutorRunService = Depends(get_rezept_autor_run_service),
+    katalog: KatalogChatService = Depends(get_katalog_chat_service),
 ) -> StreamingResponse:
     """One streaming turn. `content` is a free-text message (project chat, or position chat that may
     ask to run the calculation); `resume` is a structured decision answering a paused calculation's
@@ -203,6 +206,7 @@ async def run_turn(
         PromptType.PROJECT_CHAT,
         PromptType.EKT_CALCULATOR,
         PromptType.REZEPT_AUTOR,
+        PromptType.KATALOG_CHAT,
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -211,6 +215,8 @@ async def run_turn(
 
     if conversation.prompt_type == PromptType.REZEPT_AUTOR:
         events = _rezept_events(rezept, conversation, payload)
+    elif conversation.prompt_type == PromptType.KATALOG_CHAT:
+        events = _katalog_events(katalog, conversation, payload)
     else:
         config = config_from_request(payload.retrieval)
         if payload.resume is not None:
@@ -283,6 +289,23 @@ def _rezept_events(
             status_code=status.HTTP_409_CONFLICT, detail="recipe author is mid-run; resume it instead"
         )
     return rezept.start(conversation, payload.content)
+
+
+def _katalog_events(
+    katalog: KatalogChatService, conversation: Conversation, payload: TurnRequest
+) -> AsyncIterator[dict[str, Any]]:
+    """Drive a catalog-chat turn: only a free-text `content` message is valid (read-only, no resume /
+    review). Raises before streaming starts."""
+    if payload.content is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="katalog chat expects a free-text `content` message",
+        )
+    try:
+        guard_user_input(payload.content)
+    except InputRejectedError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return katalog.run_turn(conversation, payload.content)
 
 
 async def _content_events(

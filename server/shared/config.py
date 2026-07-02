@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     retriever_candidate_k: int = 50
     retriever_top_k: int = 10
 
+    # Katalog-Chat agent: the OpenRouter model behind the read-only catalog chat's create_agent
+    # loop (its system prompt is the hardcoded Katalog-Handbuch, so it carries no seeded prompt).
+    katalog_chat_model: str = "openai/gpt-5.4"
+    katalog_chat_temperature: float | None = None
+
     # EKT calculator agent: the OpenRouter model behind its three LLM sites, and the
     # offline mock toggle (canned replies, wired to the FSS demo position).
     calculator_model: str = "openai/gpt-5.4"

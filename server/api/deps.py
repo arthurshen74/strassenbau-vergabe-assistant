@@ -34,6 +34,7 @@ from shared.db.unit_of_work import UnitOfWork
 from shared.services.calculator.run_service import CalculatorRunService
 from shared.services.dispatcher import Dispatcher
 from shared.services.katalog.service import KatalogService
+from shared.services.katalog.chat_service import KatalogChatService
 from shared.services.project_chat import ProjectChatService
 from shared.services.retrieval import RetrievalService
 from shared.services.rezept_autor.run_service import RezeptAutorRunService
@@ -121,6 +122,13 @@ def get_project_chat_service(
     return ProjectChatService(
         llm=llm, engine=engine, retrieval=retrieval, storage=storage, sinks=sinks
     )
+
+
+def get_katalog_chat_service(
+    engine: AsyncEngine = Depends(get_engine),
+    sinks: TelemetrySinks = Depends(get_telemetry_sinks),
+) -> KatalogChatService:
+    return KatalogChatService(engine=engine, sinks=sinks)
 
 
 async def get_connection(

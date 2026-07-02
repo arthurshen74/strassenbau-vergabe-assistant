@@ -15,6 +15,7 @@ import {
 } from '../../api/conversations';
 import { useProject } from '../../api/projects';
 import { useStartProjectChat } from '../main/useStartProjectChat';
+import { useStartKatalogChat } from '../main/useStartKatalogChat';
 import {
   useWorkspaceConversation,
   type PendingInterrupt,
@@ -90,6 +91,7 @@ export function WorkspaceView() {
 function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
   const navigate = useNavigate();
   const startProjectChat = useStartProjectChat();
+  const startKatalogChat = useStartKatalogChat();
   const deleteConversation = useDeleteConversation();
   const conversation = useConversation(conversationId);
   const projectUuid = conversation.data?.project_uuid ?? undefined;
@@ -107,11 +109,14 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     sendRezeptReview,
   } = useWorkspaceConversation(conversationId, retrievalConfig);
   const isPositionChat = conversation.data?.prompt_type === 'ekt_calculator';
+  const isKatalogChat = conversation.data?.prompt_type === 'katalog_chat';
 
   const onSlashCommand = (cmd: string) => {
     if (cmd === SLASH_CLEAR) {
-      // Fresh thread, same project scope; the old conversation stays in the list.
-      if (projectUuid) void startProjectChat(projectUuid);
+      // Fresh thread: a new Katalog-Chat (global) or a project chat in the same project scope; the
+      // old conversation stays in the list.
+      if (isKatalogChat) void startKatalogChat();
+      else if (projectUuid) void startProjectChat(projectUuid);
     } else if (cmd === SLASH_CLOSE) {
       navigate('/');
     } else if (cmd === SLASH_REMOVE) {
@@ -153,6 +158,8 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
   const title =
     isPositionChat ?
       (conversation.data?.title ?? 'EKT-Position')
+    : isKatalogChat ?
+      (conversation.data?.title ?? 'Katalog-Chat')
     : (project.data?.project_name ??
       conversation.data?.title ??
       'Project chat');
@@ -185,7 +192,8 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
           disabled={isStreaming}
         />
       : <>
-          <RetrievalConfigBar conversationId={conversationId} />
+          {/* The catalog chat has no retrieval config (it queries the catalog via tools, not RAG). */}
+          {!isKatalogChat && <RetrievalConfigBar conversationId={conversationId} />}
           <ChatInput
             onSend={sendMessage}
             onSlashCommand={onSlashCommand}
@@ -194,6 +202,8 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
             placeholder={
               isPositionChat ?
                 'Über diese Position chatten, oder um die Kalkulation bitten…'
+              : isKatalogChat ?
+                'Frag den Katalog… (z. B. „Welche Lieferanten können AC 22 T S liefern?")'
               : 'Ask about this project… (/clear, /close, /remove)'
             }
             draftKey={`ws:${conversationId}`}

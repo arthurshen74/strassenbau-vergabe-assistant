@@ -5,6 +5,7 @@
 
 import { Link } from 'react-router-dom';
 import {
+  BookOpenIcon,
   ChartBarIcon,
   ClipboardDocumentListIcon,
   CommandLineIcon,
@@ -13,9 +14,11 @@ import {
 } from '@heroicons/react/20/solid';
 import {
   PROMPT_TYPE_EKT_CALCULATOR,
+  PROMPT_TYPE_KATALOG_CHAT,
   PROMPT_TYPE_PROJECT_CHAT,
   useConversationList,
 } from '../../api/conversations';
+import { useStartKatalogChat } from '../../views/main/useStartKatalogChat';
 import { useMainWindowStore, type MainWindowKind } from '../../store/mainWindow';
 import { ConversationList } from './ConversationList';
 
@@ -47,12 +50,16 @@ const SECTION_LABEL =
 export function Sidebar() {
   const { data, isLoading, isError } = useConversationList();
   const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
+  const startKatalogChat = useStartKatalogChat();
 
   const all = data ?? [];
   const projectConvos = all.filter(
     (c) =>
       c.prompt_type === PROMPT_TYPE_PROJECT_CHAT ||
       c.prompt_type === PROMPT_TYPE_EKT_CALCULATOR,
+  );
+  const katalogConvos = all.filter(
+    (c) => c.prompt_type === PROMPT_TYPE_KATALOG_CHAT,
   );
 
   return (
@@ -80,6 +87,21 @@ export function Sidebar() {
               {label}
             </button>
           ))}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className={SECTION_LABEL}>Katalog</div>
+          <button
+            type="button"
+            onClick={() => void startKatalogChat()}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <BookOpenIcon className="h-4 w-4 shrink-0 text-zinc-400" />
+            Neuer Katalog-Chat
+          </button>
+          {!isLoading && !isError && katalogConvos.length > 0 && (
+            <ConversationList items={katalogConvos} emptyHint="" />
+          )}
         </div>
 
         <div className="flex flex-col gap-1">

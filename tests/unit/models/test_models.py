@@ -33,6 +33,7 @@ def test_enum_values() -> None:
         "conversation_name",
         "ekt_calculator",
         "rezept_autor",
+        "katalog_chat",
         "ekt_leistung_classify",
         "ekt_chat_values",
         "ekt_langtext_extract",

@@ -172,6 +172,35 @@ class KatalogRepository:
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [self._zeile(spec, r) for r in rows]
 
+    async def nach_status(
+        self, entitaet: KatalogEntitaet, status: KatalogStatus
+    ) -> list[KatalogZeile]:
+        """Every row of an entity in a given lifecycle status, ordered by natural key."""
+        spec = KATALOG_REGISTRY[entitaet]
+        t = spec.tabelle
+        stmt = (
+            select(t).where(t.c[SPALTE_STATUS] == status.value).order_by(t.c[spec.schluessel])
+        )
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [self._zeile(spec, r) for r in rows]
+
+    async def alle_versionen(
+        self, entitaet: KatalogEntitaet, schluessel: str
+    ) -> list[KatalogZeile]:
+        """Every version of one natural key (any status), oldest first — the SCD-2 timeline (T32).
+
+        For an entity with a discriminator (variablen: gruppe) a name may recur once per gruppe;
+        all rows are returned, ordered by (version, gueltig_ab) so a shadowed name shows both."""
+        spec = KATALOG_REGISTRY[entitaet]
+        t = spec.tabelle
+        stmt = (
+            select(t)
+            .where(t.c[spec.schluessel] == schluessel)
+            .order_by(t.c[SPALTE_VERSION], t.c[SPALTE_GUELTIG_AB])
+        )
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [self._zeile(spec, r) for r in rows]
+
     async def nach_bundle(self, bundle_uuid: UUID) -> dict[KatalogEntitaet, list[KatalogZeile]]:
         """All rows carrying `bundle_uuid`, grouped by entity (any status)."""
         gruppen: dict[KatalogEntitaet, list[KatalogZeile]] = {}

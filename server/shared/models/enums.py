@@ -48,6 +48,10 @@ class PromptType(StrEnum):
     # rezept_autor graph run); its entwerfen prompt is an inline placeholder (Part C designs the
     # real one), so it ships no seeded .prompt file — grouped in CONVERSATION_DISCRIMINATORS below.
     REZEPT_AUTOR = "rezept_autor"
+    # katalog_chat is a conversation discriminator (a read-only catalog chat that owns a
+    # create_agent tool loop over the persisted Katalog); its system prompt (the Katalog-Handbuch)
+    # is hardcoded in the service, so it ships no seeded .prompt file — grouped below.
+    KATALOG_CHAT = "katalog_chat"
     # kalkulation_v2 prompts (the live graph).
     EKT_LEISTUNG_CLASSIFY = "ekt_leistung_classify"
     EKT_CHAT_VALUES = "ekt_chat_values"
@@ -63,7 +67,7 @@ class PromptType(StrEnum):
 # and tag its conversations with a new member, add it here so the seed-coverage test does not require
 # a .prompt file for it. See ADDING_A_PROMPT_TYPE.md ("StateGraph / conversation discriminators").
 CONVERSATION_DISCRIMINATORS: frozenset[PromptType] = frozenset(
-    {PromptType.EKT_CALCULATOR, PromptType.REZEPT_AUTOR}
+    {PromptType.EKT_CALCULATOR, PromptType.REZEPT_AUTOR, PromptType.KATALOG_CHAT}
 )
 
 

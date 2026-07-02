@@ -21,6 +21,7 @@ import type {
 
 export const PROMPT_TYPE_PROJECT_CHAT = 'project_chat';
 export const PROMPT_TYPE_EKT_CALCULATOR = 'ekt_calculator';
+export const PROMPT_TYPE_KATALOG_CHAT = 'katalog_chat';
 
 export const conversationKeys = {
   all: ['conversations'] as const,
