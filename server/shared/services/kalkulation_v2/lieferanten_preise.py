@@ -1,12 +1,20 @@
 """
-lieferanten_preise.py — STATIC price list (no RNG at runtime).
+lieferanten_preise.py — STATIC price list + full-coverage gap fill (no RNG at runtime).
 
-PREISE is the flat join table (lieferant_code, baustoff_code, preis_eur_pro_t).
-Hand-edit freely. lade_preise() attaches these to the supplier objects,
-resolving baustoff codes to ids against the current material catalog.
+PREISE is the flat join table (lieferant_code, baustoff_code, preis_eur_pro_t) of curated,
+region-realistic prices. Hand-edit freely. lade_preise() attaches these to the supplier objects
+and then GAP-FILLS every remaining supplier x tonnage-material pair with a price derived
+deterministically from the material base price, so for prototyping every tonnage-priced material
+is offered by every supplier and no position falls back to the catalog base price merely for lack
+of a carrier. Per-unit materials (priced per m2/m) and price-less classes are left uncovered: the
+delivered-EUR/t supplier model does not apply to them and they price from the catalog by design.
 """
 
+from __future__ import annotations
+
+import hashlib
 from datetime import date
+from decimal import Decimal
 
 from shared.services.kalkulation_v2.model import BaustoffPreis, D
 
@@ -633,14 +641,39 @@ PREISE: list[tuple[str, str, str]] = [
 ]
 
 
+# Gap-fill ex-works spread: +/- this many promille around the material base price, so gap-filled
+# suppliers differ on price (not only on distance). Keyed by (lieferant, baustoff) so it is stable
+# across runs (the file's no-runtime-RNG contract).
+_SPREAD_PROMILLE = 100  # +/- 10.0 %
+
+
+def _spread_faktor(lcode: str, bcode: str) -> Decimal:
+    """Deterministic price factor in [0.900, 1.100] from a stable hash of the supplier+material."""
+    h = int(hashlib.sha256(f"{lcode}:{bcode}".encode()).hexdigest(), 16)
+    promille = (h % (2 * _SPREAD_PROMILLE + 1)) - _SPREAD_PROMILLE
+    return Decimal(1000 + promille) / Decimal(1000)
+
+
 def lade_preise(baustoffe: dict, lieferanten: dict, stichtag: date = date(2026, 1, 1)) -> int:
-    """Attach the static prices to the supplier objects. Idempotent."""
+    """Attach the curated prices, then gap-fill every remaining supplier x tonnage-material pair
+    from the material base price (deterministic spread). Returns the total row count. Idempotent."""
     for lief in lieferanten.values():
         lief.preise.clear()
+    explizit: set[tuple[str, str]] = set()
     for lcode, bcode, preis in PREISE:
         lieferanten[lcode].preise.append(
             BaustoffPreis(baustoff_id=baustoffe[bcode].id, preis_eur_pro_t=D(preis), gueltig_ab=stichtag))
-    return len(PREISE)
+        explizit.add((lcode, bcode))
+    gefuellt = 0
+    for lcode, lief in lieferanten.items():
+        for bcode, baustoff in baustoffe.items():
+            if (lcode, bcode) in explizit or baustoff.basispreis_eur_pro_t is None:
+                continue
+            werk = (baustoff.basispreis_eur_pro_t * _spread_faktor(lcode, bcode)).quantize(Decimal("0.01"))
+            lief.preise.append(
+                BaustoffPreis(baustoff_id=baustoff.id, preis_eur_pro_t=werk, gueltig_ab=stichtag))
+            gefuellt += 1
+    return len(PREISE) + gefuellt
 
 
 if __name__ == "__main__":

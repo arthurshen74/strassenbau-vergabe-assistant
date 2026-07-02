@@ -65,8 +65,9 @@ async def test_hgv_detour_factor_scales_distance(monkeypatch) -> None:
 
 
 async def test_uncarried_material_returns_empty() -> None:
-    # No supplier price rows exist for the joint-sealant specialty -> caller falls back to catalog.
-    rangliste = await rang_lieferanten("FUGENMASSE_N2", *SITE)
+    # Per-m2 surface treatments are not gap-filled (the delivered-EUR/t model does not apply), so
+    # no supplier carries them -> the caller falls back to the catalog per-unit price.
+    rangliste = await rang_lieferanten("DSK_5", *SITE)
     assert rangliste.angebote == []
     assert rangliste.warnung is None
 

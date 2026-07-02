@@ -1,17 +1,19 @@
 # pyright: reportTypedDictNotRequiredAccess=false
 """LangGraph wiring for the EKT position-calculation agent (kalkulation_v2 engine).
 
-Topology (ARCHITECTURE §7; PROJECT_CONTEXT_PLAN §8), per position:
+Topology (ARCHITECTURE §7; CALCULATOR_GATE_FLOW_PLAN), four HITL gates, each consuming only
+inputs the human already confirmed:
   launch -> extract_chat_values (also harvests project-global candidates)
   -> load_project_context (resolve/reconcile the project globals)
-  -> project_context_review (pre-Gate-A interrupt: confirm/override the project globals)
-  -> classify_leistung
-  -> rank_lieferanten (rank suppliers for the proposed material at the confirmed project Baustelle)
-  -> method_review (Gate A interrupt: confirm Leistung, select Bauverfahren + resources + supplier)
-  -> bind_resources (auto-select a machine per slot + baustoff)
-  -> bind_lieferant (finalize the supplier -> ex-works price override + Antransport distance)
-  -> derive_required_variables -> resolve_variables (merge the project globals as proposals)
-  -> variable_review (Gate B interrupt: accept/override every leaf, tiered)
+  -> project_context_review (GATE 1: confirm/override the project globals)
+  -> classify_leistung (Leistung + Bauverfahren candidates only)
+  -> leistung_bv_review (GATE 2: confirm Leistung, select Bauverfahren)
+  -> resolve_material (BM25-propose the Baustoff for the confirmed recipe; skipped if none needed)
+  -> material_review (GATE 3: confirm the acquisition Baustoff; skipped for material-free recipes)
+  -> rank_lieferanten (rank suppliers for the CONFIRMED Baustoff at the confirmed Baustelle)
+  -> bind_resources (right-size a machine per slot) -> bind_lieferant (cheapest supplier default)
+  -> derive_required_variables -> resolve_variables (merge globals + machine/supplier as proposals)
+  -> variable_review (GATE 4: machines + supplier picker + accept/override every leaf, tiered)
   -> compute (deterministic kalkuliere; injects the deponie distance + strip geometry fallback)
   -> render_output
 
@@ -58,7 +60,8 @@ from shared.services.calculator.state import (
     RECONCILE_BESTAETIGEN,
     RECONCILE_KONFLIKT,
     RECONCILE_UEBERSCHREIBEN,
-    STAGE_METHOD_REVIEW,
+    STAGE_LEISTUNG_BV_REVIEW,
+    STAGE_MATERIAL_REVIEW,
     STAGE_PROJECT_CONTEXT_REVIEW,
     STAGE_VARIABLE_REVIEW,
     STATUS_AKZEPTIERT,
@@ -76,6 +79,7 @@ from shared.services.calculator.state import (
 from shared.services.kalkulation_v2.globale_variablen import (
     GLOBAL_VAR_NAMES,
     GLOBALE_VARIABLEN,
+    fehlende_erforderliche,
     VAR_DEPONIE_LOCATION,
     VAR_ENTFERNUNG_DEPONIE_KM,
     VAR_FRAESGUT_KLASSE,
@@ -363,27 +367,24 @@ def _slot_betriebsart(bauverfahren, slot: str) -> str | None:
                  and vg.betriebsart_code), None)
 
 
-def _maschinen_defaults(bv_key: str, menge: Decimal) -> dict[str, str]:
-    """Right-sized default machine per slot for this recipe + job size: the smallest machine
-    whose capacity clears the job within the target deployment window
-    (settings.calculator_maschine_zielstunden). Calibrated for the recipe's primary machine
-    (whose productivity matches the booked geometry); secondary slots are approximate but still
-    scale with job size. Falls back to fleet order when the target is unset."""
-    bv = BAUVERFAHREN[bv_key]
-    ziel = Decimal(str(settings.calculator_maschine_zielstunden))
-    bedarf = (menge / ziel) if ziel > 0 else None
-    out: dict[str, str] = {}
-    for slot in dict.fromkeys(vg.ausfuehrungsart.code for vg in bv.vorgaenge
-                              if vg.ausfuehrungsart is not None):
-        sortiert = maschinen_sortiert(slot, betriebsart_code=_slot_betriebsart(bv, slot),
-                                      bedarf_pro_stunde=bedarf)
-        if sortiert:
-            out[slot] = sortiert[0].code
-    return out
+def _route_after_leistung_bv(state: PositionKalkulationState) -> str:
+    return END if state.get("abgebrochen") else "resolve_material"
 
 
-def _route_after_method(state: PositionKalkulationState) -> str:
-    return END if state.get("abgebrochen") else "bind_resources"
+def _route_after_resolve_material(state: PositionKalkulationState) -> str:
+    # A recipe that needs a material got a proposal (even if the code is None -> pick at Gate 3);
+    # a material-free recipe got none, so skip Gate 3 and go straight to supplier ranking (a no-op).
+    return "material_review" if state.get("baustoff_vorschlag") is not None else "rank_lieferanten"
+
+
+def _route_after_material(state: PositionKalkulationState) -> str:
+    return END if state.get("abgebrochen") else "rank_lieferanten"
+
+
+def _erforderlich_fehler(fehlend: list[str]) -> str:
+    """Human message naming the required globals that are not yet validly resolved."""
+    namen = ", ".join(GLOBALE_VARIABLEN[n].bezeichnung for n in fehlend)
+    return f"Pflichtangabe fehlt oder nicht lokalisierbar: {namen}."
 
 
 def _nachweis(ctx: Kalkulationskontext, preis_beleg: str | None = None) -> list[NachweisZeile]:
@@ -627,26 +628,43 @@ def build_graph(
 
     async def project_context_review(state: PositionKalkulationState) -> dict:
         """Pre-Gate-A: let the Kalkulator confirm/override the project globals (Confirm / Override /
-        resolve-Conflict per variable). The submit persists changed fields as new versions via the
-        injected saver. Skipped entirely when no project-context service is wired (standalone tests)."""
+        resolve-Conflict per variable), with a map of the geocoded Baustelle to confirm. The submit
+        persists changed fields as new versions via the injected saver. A required global that is not
+        validly resolved (the Baustelle must geocode to coordinates) blocks the run: the router loops
+        back here until it resolves or the Kalkulator cancels. Skipped entirely with no seams."""
         if project_context_loader is None and project_context_saver is None:
             return {"reasoning_log": [reason("project_context_review", REASONING_NARRATION,
                                              "Projektkontext-Prüfung übersprungen.")]}
         kontext = state.get("projekt_kontext") or {}
         reconcile = state.get("projekt_kontext_reconcile") or {}
-        antwort = interrupt({
+        payload = {
             "stage": STAGE_PROJECT_CONTEXT_REVIEW,
+            "project_uuid": str(state["project_uuid"]),   # lets the gate render the Baustelle map
             "projekt_kontext": kontext,
             "reconcile": reconcile,
-        }) or {}
-        updates = {k: v for k, v in (antwort.get("projekt_kontext") or {}).items() if v not in (None, "")}
-        if updates and project_context_saver is not None:
-            neu = await project_context_saver(state["project_uuid"], updates)
-            return {"projekt_kontext": neu,
+        }
+        fehlend = fehlende_erforderliche(kontext)
+        if fehlend:
+            payload["fehlende_erforderliche"] = fehlend
+            payload["fehler"] = _erforderlich_fehler(fehlend)
+        antwort = interrupt(payload) or {}
+        if antwort.get("cancel"):
+            return {"abgebrochen": True,
                     "reasoning_log": [reason("project_context_review", REASONING_NARRATION,
-                                             f"{len(updates)} globale Variable(n) überschrieben und gespeichert.")]}
-        return {"reasoning_log": [reason("project_context_review", REASONING_NARRATION,
-                                         "Projektkontext bestätigt.")]}
+                                             "Projektkontext abgebrochen — Kalkulation gestoppt.")]}
+        updates = {k: v for k, v in (antwort.get("projekt_kontext") or {}).items() if v not in (None, "")}
+        log = []
+        if updates and project_context_saver is not None:
+            kontext = await project_context_saver(state["project_uuid"], updates)
+            log.append(reason("project_context_review", REASONING_NARRATION,
+                              f"{len(updates)} globale Variable(n) überschrieben und gespeichert."))
+        else:
+            log.append(reason("project_context_review", REASONING_NARRATION, "Projektkontext bestätigt."))
+        noch_fehlend = fehlende_erforderliche(kontext)
+        if noch_fehlend:
+            log.append(reason("project_context_review", REASONING_NARRATION,
+                              _erforderlich_fehler(noch_fehlend) + " Bitte korrigieren."))
+        return {"projekt_kontext": kontext, "reasoning_log": log}
 
     async def classify_leistung(state: PositionKalkulationState) -> dict:
         """Map the position to a Leistung. Mock honours `position.leistung_hint`; live runs
@@ -676,29 +694,86 @@ def build_graph(
         out: dict = {"leistung_key": leistung_key, "leistung_name": name,
                      "bauverfahren_kandidaten": kand, "reasoning_log": log}
         if leistung_key not in LEISTUNGEN:
-            out["warnungen"] = [f"Leistung '{leistung_key}' nicht im Katalog — in Gate A korrigieren."]
-        if kand:                                   # right-sized machine default per slot (Gate A pre-fill)
-            out["maschinen_default"] = _maschinen_defaults(kand[0], Decimal(str(pos["menge"])))
-        vorschlag = _baustoff_match(kand, pos)
-        if vorschlag is not None:
-            out["baustoff_vorschlag"] = vorschlag
-            if vorschlag["code"]:
-                log.append(reason("classify_leistung", REASONING_NARRATION,
-                                  f"Baustoff erkannt (BM25): {vorschlag['name']} — Konfidenz "
-                                  f"{vorschlag['konfidenz']:.2f}, "
-                                  f"{'automatisch' if vorschlag['auto'] else 'zur Prüfung in Gate A'}."))
-            else:
-                log.append(reason("classify_leistung", REASONING_NARRATION,
-                                  "Rezept benötigt Baustoff, kein eindeutiger Treffer — Auswahl in Gate A."))
+            out["warnungen"] = [f"Leistung '{leistung_key}' nicht im Katalog — in Gate 2 korrigieren."]
         return out
 
-    async def rank_lieferanten(state: PositionKalkulationState) -> dict:
-        """Rank suppliers for the proposed Baustoff using the CONFIRMED project Baustelle coords,
-        so Gate A can offer a per-material picker. A position with no material needs no supplier;
-        without a confirmed Baustelle location the ranking is deferred (catalog price applies)."""
-        pos = state["position"]
+    def leistung_bv_review(state: PositionKalkulationState) -> dict:
+        """Gate 2: confirm (or correct) the Leistung and select the Bauverfahren. Machines and
+        material are decided at later gates (they depend on the confirmed recipe). The full Leistung
+        catalog is offered so an unclassified position can still be assigned; cancel aborts."""
+        lk = state["leistung_key"]
+        kand = state["bauverfahren_kandidaten"]
+        antwort = interrupt({
+            "stage": STAGE_LEISTUNG_BV_REVIEW,
+            "leistung_key": lk,
+            "leistung_name": state.get("leistung_name"),
+            "bauverfahren_kandidaten": kand,
+            "bauverfahren_default": kand[0] if kand else None,
+            "katalog": LEISTUNG_KATALOG,
+            "bauverfahren_ressourcen": BAUVERFAHREN_RESSOURCEN,
+        }) or {}
+        if antwort.get("cancel"):
+            return {"abgebrochen": True,
+                    "reasoning_log": [reason("leistung_bv_review", REASONING_NARRATION,
+                                             "Kalkulation vom Kalkulator abgebrochen.")]}
+        confirmed_lk = antwort.get("leistung_key") or lk
+        if confirmed_lk not in LEISTUNGEN:
+            raise ValueError(f"unbekannte Leistung in Gate 2: {confirmed_lk!r}")
+        bv = waehle_bauverfahren(confirmed_lk, antwort.get("bauverfahren_key"))
+        out = {
+            "leistung_key": confirmed_lk,
+            "bauverfahren_key": bv,
+            "reasoning_log": [reason("leistung_bv_review", REASONING_NARRATION,
+                                     f"Leistung {confirmed_lk} bestätigt; Bauverfahren {bv} gewählt.")],
+        }
+        if confirmed_lk != lk:
+            out["leistung_name"] = LEISTUNGEN[confirmed_lk].name
+            out["bauverfahren_kandidaten"] = kandidaten(confirmed_lk)
+        return out
+
+    def resolve_material(state: PositionKalkulationState) -> dict:
+        """After the recipe is confirmed: BM25-propose the acquisition Baustoff it consumes. Returns
+        no proposal when the recipe needs no material (e.g. Fräsen) — the router then skips Gate 3."""
+        vorschlag = _baustoff_match([state["bauverfahren_key"]], state["position"])
+        if vorschlag is None:
+            return {"reasoning_log": [reason("resolve_material", REASONING_NARRATION,
+                                             "Rezept benötigt kein Material — kein Material-Gate.")]}
+        log = [reason("resolve_material", REASONING_NARRATION,
+                      "Ermittle das Material für das gewählte Rezept.")]
+        if vorschlag["code"]:
+            log.append(reason("resolve_material", REASONING_NARRATION,
+                              f"Baustoff erkannt (BM25): {vorschlag['name']} — Konfidenz "
+                              f"{vorschlag['konfidenz']:.2f}, zur Prüfung in Gate 3."))
+        else:
+            log.append(reason("resolve_material", REASONING_NARRATION,
+                              "Rezept benötigt Baustoff, kein eindeutiger Treffer — Auswahl in Gate 3."))
+        return {"baustoff_vorschlag": vorschlag, "reasoning_log": log}
+
+    def material_review(state: PositionKalkulationState) -> dict:
+        """Gate 3: confirm (or correct) the acquisition Baustoff for the confirmed recipe. Reached
+        only when the recipe needs a material; the supplier is ranked next, against this choice, so a
+        correction here re-ranks (no stale supplier list). Cancel aborts."""
         vorschlag = state.get("baustoff_vorschlag") or {}
-        bc = vorschlag.get("code") or pos.get("baustoff_code")
+        auto = vorschlag.get("code") if vorschlag.get("auto") else None
+        antwort = interrupt({
+            "stage": STAGE_MATERIAL_REVIEW,
+            "baustoff_vorschlag": vorschlag,
+            "baustoff_katalog": BAUSTOFF_KATALOG,
+        }) or {}
+        if antwort.get("cancel"):
+            return {"abgebrochen": True,
+                    "reasoning_log": [reason("material_review", REASONING_NARRATION,
+                                             "Kalkulation vom Kalkulator abgebrochen.")]}
+        bc = antwort.get("baustoff_code") or auto or state["position"].get("baustoff_code")
+        return {"baustoff_code": bc,
+                "reasoning_log": [reason("material_review", REASONING_NARRATION,
+                                         f"Material bestätigt: {bc}." if bc else "Kein Material bestätigt.")]}
+
+    async def rank_lieferanten(state: PositionKalkulationState) -> dict:
+        """Rank suppliers for the CONFIRMED Baustoff (Gate 3) using the confirmed project Baustelle
+        coords, so Gate 4 can offer a supplier picker. A material-free position needs no supplier;
+        without confirmed coords the ranking is deferred (catalog price applies)."""
+        bc = state.get("baustoff_code")
         if not bc:
             return {"reasoning_log": [reason("rank_lieferanten", REASONING_NARRATION,
                     "Kein Material in der Position — Lieferantenwahl entfällt.")]}
@@ -719,59 +794,12 @@ def build_graph(
             out["lieferanten_vorschlag"] = {bc: {
                 "default": rangliste.angebote[0].code,
                 "angebote": [a.model_dump(mode="json") for a in rangliste.angebote]}}
+            out["gewaehlter_lieferant"] = {bc: rangliste.angebote[0].code}   # cheapest, overridable at Gate 4
             log.append(reason("rank_lieferanten", REASONING_NARRATION,
                               f"{len(rangliste.angebote)} Lieferant(en) für {bc} gerankt; günstigster: "
                               f"{rangliste.angebote[0].name} "
                               f"({rangliste.angebote[0].frei_bau_eur_pro_t} €/t frei Baustelle)."))
         out["reasoning_log"] = log
-        return out
-
-    def method_review(state: PositionKalkulationState) -> dict:
-        """Gate A: confirm (or correct) the Leistung and select the Bauverfahren before the
-        worklist is derived (the worklist depends on the chosen recipe). The full Leistung
-        catalog is offered so an unclassified position can still be assigned; cancel aborts."""
-        lk = state["leistung_key"]
-        kand = state["bauverfahren_kandidaten"]
-        antwort = interrupt({
-            "stage": STAGE_METHOD_REVIEW,
-            "leistung_key": lk,
-            "leistung_name": state.get("leistung_name"),
-            "bauverfahren_kandidaten": kand,
-            "bauverfahren_default": kand[0] if kand else None,
-            "katalog": LEISTUNG_KATALOG,
-            "bauverfahren_ressourcen": BAUVERFAHREN_RESSOURCEN,
-            "baustoff_katalog": BAUSTOFF_KATALOG,
-            "baustoff_vorschlag": state.get("baustoff_vorschlag"),
-            "maschinen_default": state.get("maschinen_default") or {},
-            "lieferanten_vorschlag": state.get("lieferanten_vorschlag") or {},
-        }) or {}
-        if antwort.get("cancel"):
-            return {"abgebrochen": True,
-                    "reasoning_log": [reason("method_review", REASONING_NARRATION,
-                                             "Kalkulation vom Kalkulator abgebrochen.")]}
-        confirmed_lk = antwort.get("leistung_key") or lk
-        if confirmed_lk not in LEISTUNGEN:
-            raise ValueError(f"unbekannte Leistung in Gate A: {confirmed_lk!r}")
-        bv = waehle_bauverfahren(confirmed_lk, antwort.get("bauverfahren_key"))
-        # Material: an explicit Gate A pick wins; else an above-threshold BM25 auto-match applies;
-        # else whatever the LV position already carried.
-        vorschlag = state.get("baustoff_vorschlag") or {}
-        auto_baustoff = vorschlag.get("code") if vorschlag.get("auto") else None
-        out = {
-            "leistung_key": confirmed_lk,
-            "bauverfahren_key": bv,
-            # Resource picks (machines per slot, material, supplier) — bind_resources / bind_lieferant
-            # auto-fill the rest. Supplier picks are keyed per material (baustoff_code).
-            "gewaehlte_maschinen": antwort.get("maschinen") or {},
-            "gewaehlter_lieferant": antwort.get("lieferanten") or {},
-            "baustoff_code": (antwort.get("baustoff_code") or auto_baustoff
-                              or state["position"].get("baustoff_code")),
-            "reasoning_log": [reason("method_review", REASONING_NARRATION,
-                                     f"Leistung {confirmed_lk} bestätigt; Bauverfahren {bv} gewählt.")],
-        }
-        if confirmed_lk != lk:
-            out["leistung_name"] = LEISTUNGEN[confirmed_lk].name
-            out["bauverfahren_kandidaten"] = kandidaten(confirmed_lk)
         return out
 
     def bind_resources(state: PositionKalkulationState) -> dict:
@@ -922,8 +950,9 @@ def build_graph(
         return {"vorschlaege": vorschlaege, "reasoning_log": log}
 
     def variable_review(state: PositionKalkulationState) -> dict:
-        """Gate B: every leaf shown (surfaced tier for decision, collapsed pre-accepted);
-        accept/override each. The submit writes the confirmed `werte` the calc consumes."""
+        """Gate 4: machines + supplier + every worklist leaf (surfaced for decision, collapsed
+        pre-accepted). Changing the machine model re-binds its rates; changing the supplier re-applies
+        that ranked offer's ex-works price + road distance. The submit writes the confirmed `werte`."""
         vorschlaege = state["vorschlaege"]
         surfaced = [v for v in vorschlaege.values() if v["tier"] == TIER_SURFACED]
         collapsed = [v for v in vorschlaege.values() if v["tier"] == TIER_COLLAPSED]
@@ -932,9 +961,58 @@ def build_graph(
             "konfidenz_schwelle_review": state["konfidenz_schwelle_review"],
             "surfaced": surfaced,
             "collapsed": collapsed,
+            "maschinen_kandidaten": state.get("maschinen_kandidaten") or {},
+            "gewaehlte_maschinen": state.get("gewaehlte_maschinen") or {},
+            "lieferanten_vorschlag": state.get("lieferanten_vorschlag") or {},
+            "gewaehlter_lieferant": state.get("gewaehlter_lieferant") or {},
         }) or {}
-        overrides = antwort.get("overrides") or {}
 
+        out: dict = {}
+        log: list[dict] = []
+        maschinen_werte = state.get("maschinen_werte") or {}
+        lieferant_werte = state.get("lieferant_werte") or {}
+
+        # Machine model changed -> re-bind that slot's rates/productivity. They feed compute via
+        # maschinen_werte, so they need no entry in `werte` (see the `gebunden` skip below).
+        maschinen_pick = antwort.get("maschinen") or {}
+        if maschinen_pick and maschinen_pick != (state.get("gewaehlte_maschinen") or {}):
+            bv = BAUVERFAHREN[state["bauverfahren_key"]]
+            auswahl = {slot: MASCHINEN[c] for slot, c in maschinen_pick.items() if c in MASCHINEN}
+            maschinen_werte = {n: wert_to_json(w) for n, w in rezept_maschinen_werte(bv, auswahl).items()}
+            out["maschinen_werte"] = maschinen_werte
+            out["gewaehlte_maschinen"] = maschinen_pick
+            log.append(reason("variable_review", REASONING_NARRATION, "Maschinenauswahl aktualisiert."))
+
+        # Supplier changed -> re-apply the chosen offer's ex-works price + road distance from the
+        # already-ranked list (no re-routing). compute rebuilds the price bridge from the werkspreis.
+        bc = state.get("baustoff_code")
+        pick = (antwort.get("lieferanten") or {}).get(bc) if bc else None
+        if bc and pick and pick != (state.get("gewaehlter_lieferant") or {}).get(bc):
+            angebote = {a["code"]: a for a in
+                        ((state.get("lieferanten_vorschlag") or {}).get(bc) or {}).get("angebote", [])}
+            raw = angebote.get(pick)
+            if raw is not None:
+                chosen = LieferantAngebot.model_validate(raw)
+                dist = VariablenWert(name=LIEFERANT_DISTANCE_VAR, wert=chosen.strasse_km, quelle=M.STAMMDATEN,
+                                     beleg=f"{chosen.name} ({chosen.ort}) → Baustelle, "
+                                           f"{chosen.strasse_km} km (Google Routes)")
+                lieferant_werte = {LIEFERANT_DISTANCE_VAR: wert_to_json(dist)}
+                out.update({
+                    "lieferant_code": chosen.code,
+                    "lieferant_werkspreis": str(chosen.werk_eur_pro_t),
+                    "lieferant_beleg": (f"Lieferant {chosen.name} ({chosen.ort}), Werkspreis "
+                                        f"{chosen.werk_eur_pro_t} €/t frei Werk, Stichtag {STICHTAG}"),
+                    "lieferant_werte": lieferant_werte,
+                    "gewaehlter_lieferant": {**(state.get("gewaehlter_lieferant") or {}), bc: chosen.code},
+                })
+                log.append(reason("variable_review", REASONING_NARRATION,
+                                  f"Lieferant geändert: {chosen.name} ({chosen.werk_eur_pro_t} €/t, "
+                                  f"{chosen.strasse_km} km)."))
+
+        # Bound values (machine rates, supplier distance) reach compute via their own dicts; only
+        # UNBOUND EINGABE proposals are written into `werte` (an explicit override always wins).
+        gebunden = set(maschinen_werte) | set(lieferant_werte)
+        overrides = antwort.get("overrides") or {}
         werte: dict = {}
         updated = dict(vorschlaege)
         warnungen: list[str] = []
@@ -953,8 +1031,8 @@ def build_graph(
                 warnungen.append(f"{name} ({defn.bezeichnung}): »{overrides[name]}« ist keine "
                                  f"gültige Zahl — Überschreibung verworfen, Vorschlag übernommen.")
             updated[name] = {**v, "status": STATUS_AKZEPTIERT}
-            # Engine resolves SATZ/STAMMDATEN itself; only EINGABE values must be pre-filled.
-            if v["art"] == BlattArt.EINGABE.value:
+            # Engine resolves SATZ/STAMMDATEN itself; only unbound EINGABE values must be pre-filled.
+            if v["art"] == BlattArt.EINGABE.value and name not in gebunden:
                 if v["wert"] is None:
                     warnungen.append(f"{name} ({defn.bezeichnung}) ohne Wert bestätigt — "
                                      f"Kalkulation kann scheitern.")
@@ -964,13 +1042,14 @@ def build_graph(
                         quelle=M(v["quelle"]) if v["quelle"] else M.HITL,
                         konfidenz=Decimal(v["konfidenz"]) if v["konfidenz"] else None,
                         beleg=v["beleg"]))
-        return {
+        out.update({
             "werte": werte,
             "vorschlaege": updated,
             "warnungen": warnungen,
-            "reasoning_log": [reason("variable_review", REASONING_NARRATION,
-                                     f"{ueberschrieben} Wert(e) überschrieben, übrige akzeptiert.")],
-        }
+            "reasoning_log": log + [reason("variable_review", REASONING_NARRATION,
+                                           f"{ueberschrieben} Wert(e) überschrieben, übrige akzeptiert.")],
+        })
+        return out
 
     def compute(state: PositionKalkulationState) -> dict:
         """Deterministic: build the context from the confirmed werte + booked geometry,
@@ -1048,8 +1127,10 @@ def build_graph(
     g.add_node("load_project_context", load_project_context)
     g.add_node("project_context_review", project_context_review)
     g.add_node("classify_leistung", classify_leistung)
+    g.add_node("leistung_bv_review", leistung_bv_review)
+    g.add_node("resolve_material", resolve_material)
+    g.add_node("material_review", material_review)
     g.add_node("rank_lieferanten", rank_lieferanten)
-    g.add_node("method_review", method_review)
     g.add_node("bind_resources", bind_resources)
     g.add_node("bind_lieferant", bind_lieferant)
     g.add_node("derive_required_variables", derive_required_variables)
@@ -1058,15 +1139,32 @@ def build_graph(
     g.add_node("compute", compute)
     g.add_node("render_output", render_output)
 
+    def _route_after_project_context(state: PositionKalkulationState) -> str:
+        """Block the run at the review gate until every required global is validly resolved: an
+        unresolved required global loops back to the gate; a cancel aborts. With no seams (standalone
+        tests) enforcement is off — the gate cannot resolve anything, so proceeding is the only option."""
+        if state.get("abgebrochen"):
+            return END
+        if project_context_loader is None and project_context_saver is None:
+            return "classify_leistung"
+        if fehlende_erforderliche(state.get("projekt_kontext") or {}):
+            return "project_context_review"
+        return "classify_leistung"
+
     g.add_edge(START, "launch")
     g.add_edge("launch", "extract_chat_values")
     g.add_edge("extract_chat_values", "load_project_context")
     g.add_edge("load_project_context", "project_context_review")
-    g.add_edge("project_context_review", "classify_leistung")
-    g.add_edge("classify_leistung", "rank_lieferanten")
-    g.add_edge("rank_lieferanten", "method_review")
-    g.add_conditional_edges("method_review", _route_after_method,
-                            ["bind_resources", END])
+    g.add_conditional_edges("project_context_review", _route_after_project_context,
+                            ["classify_leistung", "project_context_review", END])
+    g.add_edge("classify_leistung", "leistung_bv_review")
+    g.add_conditional_edges("leistung_bv_review", _route_after_leistung_bv,
+                            ["resolve_material", END])
+    g.add_conditional_edges("resolve_material", _route_after_resolve_material,
+                            ["material_review", "rank_lieferanten"])
+    g.add_conditional_edges("material_review", _route_after_material,
+                            ["rank_lieferanten", END])
+    g.add_edge("rank_lieferanten", "bind_resources")
     g.add_edge("bind_resources", "bind_lieferant")
     g.add_edge("bind_lieferant", "derive_required_variables")
     g.add_edge("derive_required_variables", "resolve_variables")

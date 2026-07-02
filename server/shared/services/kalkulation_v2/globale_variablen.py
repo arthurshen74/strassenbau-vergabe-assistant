@@ -10,6 +10,8 @@ member of this registry.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from pydantic import BaseModel, ConfigDict
 
 from shared.services.kalkulation_v2.model import Datentyp
@@ -29,6 +31,13 @@ ZIEL_LAENGE_M = "laenge_m"
 ZIEL_FLAECHE_M2 = "flaeche_m2"  # bridged from strip_length_m x strip_width_m (fallback geometry)
 ZIEL_FRAESGUT_KLASSE = "fraesgut_klasse"
 
+# Flat-view coordinate keys for a location global: ProjectContextRead exposes
+# `<prefix>_breitengrad` / `<prefix>_laengengrad`, where prefix = the variable name without the
+# `_location` suffix (e.g. baustelle_location -> baustelle_breitengrad).
+_LOCATION_SUFFIX = "_location"
+KOORD_BREITENGRAD_SUFFIX = "_breitengrad"
+KOORD_LAENGENGRAD_SUFFIX = "_laengengrad"
+
 
 class GlobaleVariable(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -38,6 +47,7 @@ class GlobaleVariable(BaseModel):
     einheit: str | None
     datentyp: Datentyp
     ist_standort: bool = False  # location: string value + geocoded coords
+    erforderlich: bool = False  # calculation may not proceed until this is validly resolved
     ziel_variable: str | None = None  # engine variable it sources, if any
     rag_prompt: str  # retrieval intent for retrieve_context
 
@@ -49,6 +59,7 @@ GLOBALE_VARIABLEN: dict[str, GlobaleVariable] = {
         einheit=None,
         datentyp=Datentyp.DEZIMAL,
         ist_standort=True,
+        erforderlich=True,  # drives supplier ranking; no EKT may be computed without it
         rag_prompt=(
             "Wo befindet sich die Baustelle? Ort, Adresse, Straße, Streckenabschnitt "
             "oder Bauabschnitt der Maßnahme."
@@ -100,3 +111,26 @@ GLOBALE_VARIABLEN: dict[str, GlobaleVariable] = {
 }
 
 GLOBAL_VAR_NAMES = frozenset(GLOBALE_VARIABLEN)
+ERFORDERLICHE_GLOBALE = frozenset(n for n, gv in GLOBALE_VARIABLEN.items() if gv.erforderlich)
+
+
+def standort_koordinaten_keys(var_name: str) -> tuple[str, str]:
+    """The (breitengrad, laengengrad) flat-view keys for a location global."""
+    prefix = var_name.removesuffix(_LOCATION_SUFFIX)
+    return prefix + KOORD_BREITENGRAD_SUFFIX, prefix + KOORD_LAENGENGRAD_SUFFIX
+
+
+def fehlende_erforderliche(kontext: Mapping[str, object]) -> list[str]:
+    """Required globals that are not yet validly resolved. A required LOCATION needs geocoded
+    coordinates (its address string alone is not enough — geocoding is what proves it valid); a
+    required scalar needs a value. `kontext` is the flat ProjectContextRead view."""
+    fehlend: list[str] = []
+    for name in ERFORDERLICHE_GLOBALE:
+        gv = GLOBALE_VARIABLEN[name]
+        if gv.ist_standort:
+            lat_key, lon_key = standort_koordinaten_keys(name)
+            if not kontext.get(lat_key) or not kontext.get(lon_key):
+                fehlend.append(name)
+        elif not kontext.get(name):
+            fehlend.append(name)
+    return fehlend

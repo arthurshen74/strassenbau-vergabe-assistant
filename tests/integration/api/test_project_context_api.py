@@ -91,7 +91,79 @@ async def test_context_lifecycle(conn: AsyncConnection, client: AsyncClient) -> 
     assert entries["fraesgut_klasse"][1]["quelle"] == "hitl"
 
 
+async def test_context_clear(conn: AsyncConnection, client: AsyncClient) -> None:
+    project_uuid = await _project(conn)
+    await client.post(f"/projects/{project_uuid}/context/resolve")
+
+    cleared = await client.delete(f"/projects/{project_uuid}/context")
+    assert cleared.status_code == 200
+    assert cleared.json()["vorhanden"] is False
+
+    after = await client.get(f"/projects/{project_uuid}/context")
+    assert after.json()["vorhanden"] is False
+
+
 async def test_context_404_for_unknown_project(client: AsyncClient) -> None:
     missing = UUID("00000000-0000-0000-0000-0000000000ff")
     resp = await client.get(f"/projects/{missing}/context")
     assert resp.status_code == 404
+
+
+async def test_context_map_returns_png(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from api.routes import project_contexts
+
+    async def _fake_png(address: str, *, zoom: int, **_kw: object) -> bytes:
+        assert "," in address                                  # centered on "lat,lon"
+        return b"PNGBYTES"
+
+    monkeypatch.setattr(project_contexts, "fetch_static_map_png", _fake_png)
+    resp = await client.get(
+        "/projects/00000000-0000-0000-0000-0000000000aa/context/map",
+        params={"lat": "51.42", "lon": "10.81"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content == b"PNGBYTES"
+
+
+async def test_context_map_502_without_key(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "google_static_maps_api_key", None)
+    resp = await client.get(
+        "/projects/00000000-0000-0000-0000-0000000000aa/context/map",
+        params={"lat": "51.42", "lon": "10.81"},
+    )
+    assert resp.status_code == 502
+
+
+async def test_context_geocode_returns_coords(client: AsyncClient) -> None:
+    # Mock mode: the geocoder returns the fixture coordinate for any address (no network).
+    resp = await client.get(
+        "/projects/00000000-0000-0000-0000-0000000000aa/context/geocode",
+        params={"address": "L 151 Blankenheim"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["breitengrad"] == "51.42"
+    assert body["laengengrad"] == "10.81"
+
+
+async def test_context_route_map_returns_png(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from api.routes import project_contexts
+
+    async def _fake_route_png(origin: str, dest: str, polyline: str, **_kw: object) -> bytes:
+        assert "," in origin and "," in dest                   # both "lat,lon"
+        return b"ROUTEPNG"
+
+    monkeypatch.setattr(project_contexts, "fetch_route_map_png", _fake_route_png)
+    resp = await client.get(
+        "/projects/00000000-0000-0000-0000-0000000000aa/context/route-map",
+        params={"origin_lat": "51.42", "origin_lon": "10.81",
+                "dest_lat": "51.47", "dest_lon": "11.30"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content == b"ROUTEPNG"

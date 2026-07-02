@@ -24,7 +24,7 @@ from shared.services.calculator.llm_calls import (
     WertExtraktion,
 )
 from shared.services.calculator.state import (
-    STAGE_METHOD_REVIEW,
+    STAGE_LEISTUNG_BV_REVIEW,
     STAGE_VARIABLE_REVIEW,
 )
 
@@ -109,7 +109,7 @@ async def test_live_full_flow_matches_golden():
     cfg = {"configurable": {"thread_id": "live-golden"}}
 
     gate_a = (await app.ainvoke({"position": dict(POSITION), "chat_verlauf": []}, cfg))["__interrupt__"][0].value
-    assert gate_a["stage"] == STAGE_METHOD_REVIEW
+    assert gate_a["stage"] == STAGE_LEISTUNG_BV_REVIEW
     assert gate_a["leistung_key"] == "L_FRAESEN"
 
     gate_b = (await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FRAESEN"}), cfg))["__interrupt__"][0].value

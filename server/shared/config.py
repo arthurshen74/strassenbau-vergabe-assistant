@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     google_maps_route_matrix_url: str = (
         "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
     )
+    # computeRoutes (single route) returns the road polyline for the Baustelle->Deponie route map.
+    google_maps_compute_routes_url: str = (
+        "https://routes.googleapis.com/directions/v2:computeRoutes"
+    )
     maps_request_timeout_seconds: float = 20.0
 
     openrouter_api_url_chat: str = "https://openrouter.ai/api/v1/chat/completions"

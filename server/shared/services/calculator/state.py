@@ -22,9 +22,12 @@ from shared.services.kalkulation_v2.model import AufloesungsMethode, VariablenWe
 # Default confidence threshold for Gate B tiering (ARCHITECTURE §7).
 DEFAULT_REVIEW_SCHWELLE = 0.75
 
-# Interrupt payload stages (the UI dispatches its gate components on these).
+# Interrupt payload stages (the UI dispatches its gate components on these). Four HITL gates, each
+# consuming only inputs the human already confirmed: project context (G1), Leistung+Bauverfahren
+# (G2), Material (G3, skipped for material-free recipes), then machines+supplier+variables (G4).
 STAGE_PROJECT_CONTEXT_REVIEW = "project_context_review"
-STAGE_METHOD_REVIEW = "method_review"
+STAGE_LEISTUNG_BV_REVIEW = "leistung_bv_review"
+STAGE_MATERIAL_REVIEW = "material_review"
 STAGE_VARIABLE_REVIEW = "variable_review"
 
 # Gate B presentation tiers + per-variable review status.
@@ -137,7 +140,7 @@ class PositionKalkulationState(TypedDict, total=False):
     # --- config ---
     konfidenz_schwelle_review: float
 
-    # --- method decision (Gate A) ---
+    # --- method decision (Gate 2: Leistung + Bauverfahren) ---
     leistung_key: str
     leistung_name: str
     bauverfahren_kandidaten: list[str]
@@ -145,13 +148,12 @@ class PositionKalkulationState(TypedDict, total=False):
     abgebrochen: bool                        # the Kalkulator cancelled at Gate A
 
     # --- resources (machines + material), bound after the recipe is chosen ---
-    gewaehlte_maschinen: dict                # ausfuehrungsart_code -> Maschine code
-    maschinen_default: dict                  # ausfuehrungsart_code -> right-sized default code
+    gewaehlte_maschinen: dict                # ausfuehrungsart_code -> Maschine code (default; Gate 4 override)
     maschinen_kandidaten: dict               # ausfuehrungsart_code -> [{code, hersteller, modell}]
     maschinen_werte: dict                    # name -> wert_to_json (machine-sourced cost/productivity)
     baustoff_code: str | None
-    # BM25 match from the LV text -> Baustoff catalog (pre-fills the Gate A picker).
-    # {code, name, konfidenz, auto, treffer:[{code,name,score}]}; None if the recipe needs none.
+    # BM25 match from the LV text -> Baustoff catalog (resolved after Gate 2, pre-fills the Gate 3
+    # picker). {code, name, konfidenz, auto, treffer:[{code,name,score}]}; None if the recipe needs none.
     baustoff_vorschlag: dict | None
 
     # --- project context (global variables, resolved once per project; §1) ---
@@ -162,17 +164,17 @@ class PositionKalkulationState(TypedDict, total=False):
     projekt_kontext_reconcile: dict          # variable_name -> {flag (RECONCILE_*), chat_wert, aktuell_wert}
     chat_global_kandidaten: dict             # variable_name -> {wert, beleg, quelle}: globals stated in chat
 
-    # --- supplier selection ---
+    # --- supplier selection (ranked after Material is confirmed at Gate 3) ---
     # baustoff_code -> {default: lieferant_code|None, angebote: [LieferantAngebot.model_dump(json)]}.
-    # Ranked cheapest-delivered for the Gate A per-material supplier picker.
+    # Ranked cheapest-delivered for the Gate 4 supplier picker.
     lieferanten_vorschlag: dict
-    gewaehlter_lieferant: dict               # baustoff_code -> lieferant_code (Gate A pick)
+    gewaehlter_lieferant: dict               # baustoff_code -> lieferant_code (default cheapest; Gate 4 override)
     lieferant_code: str | None               # finalized supplier for the bound Baustoff
     lieferant_werkspreis: str | None         # finalized ex-works €/t override (string); None = catalog price
     lieferant_beleg: str | None              # Nachweis beleg for the supplier-driven material price
     lieferant_werte: dict                    # name -> wert_to_json (supplier-sourced, e.g. entfernung_lieferant_km)
 
-    # --- resolution (Gate B) ---
+    # --- resolution (Gate 4: machines + supplier + variables) ---
     chat_werte: dict                         # name -> wert_to_json: values pinned from chat
     benoetigte: list[dict]                   # VariablenBlatt.model_dump() worklist leaves
     vorschlaege: dict                        # name -> VariablenVorschlag.model_dump()

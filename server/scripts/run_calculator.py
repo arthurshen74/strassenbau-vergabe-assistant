@@ -43,7 +43,10 @@ from shared.services.calculator.graph import (
     build_graph,
 )
 from shared.services.calculator.prompts import load_calculator_prompts
-from shared.services.calculator.state import STAGE_METHOD_REVIEW
+from shared.services.calculator.state import (
+    STAGE_LEISTUNG_BV_REVIEW,
+    STAGE_MATERIAL_REVIEW,
+)
 from shared.services.retrieval import RetrievalService
 
 PHOENIX_PROJECT = "ekt-calculator"
@@ -176,15 +179,24 @@ def _print_reasoning(entry: dict) -> None:
 
 
 async def _prompt_for_resume(payload: dict) -> Command:
-    if payload.get("stage") == STAGE_METHOD_REVIEW:
-        print("\nGRAPH PAUSED: Gate A — method review")
+    stage = payload.get("stage")
+    if stage == STAGE_LEISTUNG_BV_REVIEW:
+        print("\nGRAPH PAUSED: Gate 2 — Leistung + Bauverfahren")
         print(f"  Leistung    : {payload['leistung_key']} ({payload['leistung_name']})")
         print(f"  Kandidaten  : {', '.join(payload['bauverfahren_kandidaten'])}")
         default = payload["bauverfahren_default"]
         answer = await _prompt(f"  Bauverfahren [{default}]> ")
         return Command(resume={"bauverfahren_key": answer or default})
 
-    print("\nGRAPH PAUSED: Gate B — variable review")
+    if stage == STAGE_MATERIAL_REVIEW:
+        print("\nGRAPH PAUSED: Gate 3 — Material")
+        vorschlag = payload.get("baustoff_vorschlag") or {}
+        default = vorschlag.get("code")
+        print(f"  Vorschlag   : {default} ({vorschlag.get('name')}) @ {vorschlag.get('konfidenz')}")
+        answer = await _prompt(f"  Baustoff [{default}]> ")
+        return Command(resume={"baustoff_code": answer or default})
+
+    print("\nGRAPH PAUSED: Gate 4 — machines + supplier + variables")
     overrides: dict[str, str] = {}
     for v in payload["surfaced"]:
         flag = " [HOCHRISIKO]" if v["hochrisiko"] else ""

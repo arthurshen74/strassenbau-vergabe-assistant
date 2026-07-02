@@ -1,10 +1,10 @@
 """Tests for the kalkulation_v2 position-calculation graph (mock mode).
 
-Drive the full flow offline (`settings.calculator_mock`): geocoding/supplier
-selection, both HITL gates (method review, variable review) and the deterministic
-compute, on the L 101 fraesen slice (no material) plus a graded-material position.
-The compute path is checked against the proven engine golden, and the Gate B
-tiering / override / fail-soft behaviour is asserted.
+Drive the full four-gate flow offline (`settings.calculator_mock`): project context (G1),
+Leistung+Bauverfahren (G2), Material (G3, skipped for material-free recipes), and
+machines+supplier+variables (G4), then the deterministic compute. The compute path is checked
+against the proven engine golden; the tiering / override / fail-soft behaviour is asserted; and
+the ordering fix (supplier ranking runs on the CONFIRMED material) is regression-tested.
 """
 
 from __future__ import annotations
@@ -23,7 +23,8 @@ from shared.services.calculator.graph import (
 )
 from shared.services.calculator.lieferant_ranking import rang_lieferanten
 from shared.services.calculator.state import (
-    STAGE_METHOD_REVIEW,
+    STAGE_LEISTUNG_BV_REVIEW,
+    STAGE_MATERIAL_REVIEW,
     STAGE_PROJECT_CONTEXT_REVIEW,
     STAGE_VARIABLE_REVIEW,
     STATUS_UEBERSCHRIEBEN,
@@ -83,22 +84,37 @@ def _payload(vorgaben=VORGABEN):
 
 
 async def _to_gate_b(app, cfg, vorgaben=VORGABEN):
-    """Start a run and step through Gate A, returning the Gate B interrupt payload."""
+    """Fräsen (material-free): start, step through Gate 2, return the Gate 4 (variable) payload.
+    Material-free positions skip Gate 3, so a single Bauverfahren resume reaches Gate 4."""
     result = await app.ainvoke(_payload(vorgaben), cfg)
-    assert result["__interrupt__"][0].value["stage"] == STAGE_METHOD_REVIEW
+    assert result["__interrupt__"][0].value["stage"] == STAGE_LEISTUNG_BV_REVIEW
     result = await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FRAESEN"}), cfg)
+    assert result["__interrupt__"][0].value["stage"] == STAGE_VARIABLE_REVIEW
     return result["__interrupt__"][0].value
 
 
-async def test_method_review_is_gate_a():
+async def _sts_to_gate4(app, cfg, material=None):
+    """STS (material): start, confirm Bauverfahren (Gate 2), confirm Material (Gate 3), return the
+    Gate 4 payload. `material` is the Gate-3 resume; the default (`baustoff_code=None`) accepts the
+    auto/BM25 default (the interrupt payload must be non-empty for LangGraph to resume it)."""
+    await app.ainvoke(_sts_payload(), cfg)
+    res = await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER"}), cfg)
+    assert res["__interrupt__"][0].value["stage"] == STAGE_MATERIAL_REVIEW
+    res = await app.ainvoke(Command(resume=material or {"baustoff_code": None}), cfg)
+    assert res["__interrupt__"][0].value["stage"] == STAGE_VARIABLE_REVIEW
+    return res["__interrupt__"][0].value
+
+
+async def test_leistung_bv_review_is_gate_2():
     app = build_graph(retriever=None)
-    cfg = {"configurable": {"thread_id": "ga"}}
+    cfg = {"configurable": {"thread_id": "g2"}}
     result = await app.ainvoke(_payload(), cfg)
     gate = result["__interrupt__"][0].value
-    assert gate["stage"] == STAGE_METHOD_REVIEW
+    assert gate["stage"] == STAGE_LEISTUNG_BV_REVIEW
     assert gate["leistung_key"] == "L_FRAESEN"
     assert gate["bauverfahren_kandidaten"] == ["BV_FRAESEN"]
     assert gate["bauverfahren_default"] == "BV_FRAESEN"
+    assert "baustoff_vorschlag" not in gate            # material is decided at Gate 3, not here
 
 
 async def test_variable_review_tiers_high_stakes_surfaced():
@@ -137,81 +153,77 @@ async def test_compute_binds_default_machine_and_computes():
     assert state.get("warnungen", []) == []
 
 
-async def test_gate_a_machine_pick_changes_the_ekt():
+async def test_gate_4_machine_pick_changes_the_ekt():
     app = build_graph(retriever=None)
-    cfg = {"configurable": {"thread_id": "ga-machine"}}
-    await app.ainvoke(_payload(), cfg)                                      # Gate A interrupt
-    # Pick the larger/faster Kaltfräse explicitly in the Gate A resume.
-    await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FRAESEN",
-                                       "maschinen": {"AA_KALTFRAESE": "WIRTGEN_W150CFI"}}), cfg)
-    await app.ainvoke(Command(resume={"overrides": {}}), cfg)
+    cfg = {"configurable": {"thread_id": "g4-machine"}}
+    await _to_gate_b(app, cfg)                                              # at Gate 4
+    # Pick the larger/faster Kaltfräse at Gate 4 -> its rates are re-bound before compute.
+    await app.ainvoke(Command(resume={"overrides": {},
+                                      "maschinen": {"AA_KALTFRAESE": "WIRTGEN_W150CFI"}}), cfg)
     state = (await app.aget_state(cfg)).values
     assert state["gewaehlte_maschinen"]["AA_KALTFRAESE"] == "WIRTGEN_W150CFI"
     assert state["ekt_zeile"]["ep_eur"] != "0.92"      # differs from the default W100 result
 
 
 async def test_machine_default_right_sizes_to_target_window(monkeypatch):
-    # 7800 m²: a 16h window fits the small W100; an 8h window needs the big W150.
+    # 7800 m²: a 16h window fits the small W100; an 8h window needs the big W150. The right-sized
+    # default is bound in bind_resources and shown at Gate 4 as `gewaehlte_maschinen`.
     monkeypatch.setattr(settings, "calculator_maschine_zielstunden", 16.0)
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "rs-16"}}
-    gate = (await app.ainvoke(_payload(), cfg))["__interrupt__"][0].value
-    assert gate["maschinen_default"]["AA_KALTFRAESE"] == "WIRTGEN_W100CFI"
+    gate = await _to_gate_b(app, cfg)
+    assert gate["gewaehlte_maschinen"]["AA_KALTFRAESE"] == "WIRTGEN_W100CFI"
 
     monkeypatch.setattr(settings, "calculator_maschine_zielstunden", 8.0)
     app2 = build_graph(retriever=None)
     cfg2 = {"configurable": {"thread_id": "rs-8"}}
-    gate2 = (await app2.ainvoke(_payload(), cfg2))["__interrupt__"][0].value
-    assert gate2["maschinen_default"]["AA_KALTFRAESE"] == "WIRTGEN_W150CFI"
-    # The right-sized default flows through bind_resources to the bound machine.
-    await app2.ainvoke(
-        Command(resume={"bauverfahren_key": "BV_FRAESEN", "maschinen": gate2["maschinen_default"]}), cfg2
-    )
+    gate2 = await _to_gate_b(app2, cfg2)
+    assert gate2["gewaehlte_maschinen"]["AA_KALTFRAESE"] == "WIRTGEN_W150CFI"
     await app2.ainvoke(Command(resume={"overrides": {}}), cfg2)
     state = (await app2.aget_state(cfg2)).values
     assert state["gewaehlte_maschinen"]["AA_KALTFRAESE"] == "WIRTGEN_W150CFI"
 
 
-async def test_material_position_surfaces_baustoff_suggestion():
+async def test_material_gate_surfaces_baustoff_suggestion():
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "mat-suggest"}}
-    gate = (await app.ainvoke(_sts_payload(), cfg))[
-        "__interrupt__"
-    ][0].value
+    await app.ainvoke(_sts_payload(), cfg)
+    gate = (await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER"}), cfg))[
+        "__interrupt__"][0].value
+    assert gate["stage"] == STAGE_MATERIAL_REVIEW
     v = gate["baustoff_vorschlag"]
     assert v["code"] == "STS_0_32"                      # grounded to a real catalog code
     assert v["auto"] is False                           # ~0.58 < default 0.6 -> surfaced for HITL
     assert v["treffer"][1]["code"] == "FSS_0_32"        # the close runner-up the human can pick
 
 
-async def test_fraesen_position_has_no_baustoff_suggestion():
+async def test_fraesen_position_skips_material_gate():
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "no-mat"}}
-    gate = (await app.ainvoke(_payload(), cfg))["__interrupt__"][0].value
-    assert gate["baustoff_vorschlag"] is None           # milling consumes no material
-    assert gate["lieferanten_vorschlag"] == {}          # ... so no supplier picker either
+    await app.ainvoke(_payload(), cfg)                                      # Gate 2
+    # Milling consumes no material -> Gate 3 is skipped; the next gate is Gate 4.
+    res = await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FRAESEN"}), cfg)
+    gate = res["__interrupt__"][0].value
+    assert gate["stage"] == STAGE_VARIABLE_REVIEW
+    assert gate["lieferanten_vorschlag"] == {}          # ... and no supplier picker either
 
 
 async def test_supplier_drives_material_price_and_antransport(monkeypatch):
     """A graded-material position: the chosen supplier feeds BOTH the ex-works material price and
-    the inbound Antransport distance, and both reach the audit (plan §3, §6.11)."""
+    the inbound Antransport distance, and both reach the audit. Ranking runs AFTER Gate 3."""
     monkeypatch.setattr(settings, "calculator_baustoff_match_threshold", 0.55)  # auto-apply STS_0_32
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "supplier"}}
 
-    gate_a = (await app.ainvoke(_sts_payload(), cfg))[
-        "__interrupt__"][0].value
-    vorschlag = gate_a["lieferanten_vorschlag"]["STS_0_32"]
-    assert vorschlag["angebote"]                                   # ranked, cheapest first
+    gate_4 = await _sts_to_gate4(app, cfg)                          # accept the auto Baustoff
+    vorschlag = gate_4["lieferanten_vorschlag"]["STS_0_32"]
+    assert vorschlag["angebote"]                                    # ranked, cheapest first
     assert vorschlag["default"] == vorschlag["angebote"][0]["code"]
 
     # The cheapest-delivered supplier the graph's default mirrors (mock route = haversine).
     cheapest = (await rang_lieferanten("STS_0_32", Decimal("51.42"), Decimal("10.81"))).angebote[0]
-
-    gate_b = (await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER"}), cfg))[
-        "__interrupt__"][0].value
-    dist = {v["name"]: v for v in gate_b["collapsed"]}["entfernung_lieferant_km"]
-    assert dist["wert"] == str(cheapest.strasse_km)               # supplier road km, not the 10 km default
+    dist = {v["name"]: v for v in gate_4["collapsed"]}["entfernung_lieferant_km"]
+    assert dist["wert"] == str(cheapest.strasse_km)                # supplier road km, not the 10 km default
     assert "Google Routes" in (dist["beleg"] or "")
 
     await app.ainvoke(Command(resume={"overrides": {}}), cfg)
@@ -224,21 +236,37 @@ async def test_supplier_drives_material_price_and_antransport(monkeypatch):
     assert kostenarten["Material"] > 0 and kostenarten["Antransport"] > 0
 
 
-async def test_gate_a_supplier_pick_is_honoured(monkeypatch):
-    """An explicit Gate A supplier pick wins over the cheapest-delivered default."""
+async def test_gate_4_supplier_pick_is_honoured(monkeypatch):
+    """An explicit Gate 4 supplier pick wins over the cheapest-delivered default."""
     monkeypatch.setattr(settings, "calculator_baustoff_match_threshold", 0.55)
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "supplier-pick"}}
-    gate_a = (await app.ainvoke(_sts_payload(), cfg))[
-        "__interrupt__"][0].value
-    angebote = gate_a["lieferanten_vorschlag"]["STS_0_32"]["angebote"]
-    pick = angebote[1]["code"]                                     # the 2nd-cheapest, not the default
-    await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER",
-                                       "lieferanten": {"STS_0_32": pick}}), cfg)
-    await app.ainvoke(Command(resume={"overrides": {}}), cfg)
+    gate_4 = await _sts_to_gate4(app, cfg)
+    angebote = gate_4["lieferanten_vorschlag"]["STS_0_32"]["angebote"]
+    pick = angebote[1]["code"]                                      # the 2nd-cheapest, not the default
+    await app.ainvoke(Command(resume={"overrides": {}, "lieferanten": {"STS_0_32": pick}}), cfg)
     state = (await app.aget_state(cfg)).values
     assert state["lieferant_code"] == pick
     assert state["lieferant_werkspreis"] == angebote[1]["werk_eur_pro_t"]
+
+
+async def test_material_correction_reranks_suppliers():
+    """Regression (the whole point of the split): correcting the Baustoff at Gate 3 re-ranks
+    suppliers for the CORRECTED material. Pre-split, ranking ran on the proposed material and a
+    correction stranded it into the catalog fallback (the 524.90-bitumen-as-asphalt incident)."""
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "mat-correct"}}
+    # Gate 3 proposes STS_0_32; the human corrects it to the runner-up FSS_0_32.
+    gate_4 = await _sts_to_gate4(app, cfg, material={"baustoff_code": "FSS_0_32"})
+    assert "FSS_0_32" in gate_4["lieferanten_vorschlag"]           # ranked for the CORRECTED material
+    assert "STS_0_32" not in gate_4["lieferanten_vorschlag"]
+
+    await app.ainvoke(Command(resume={"overrides": {}}), cfg)
+    state = (await app.aget_state(cfg)).values
+    assert state["baustoff_code"] == "FSS_0_32"
+    assert state["lieferant_code"] is not None                     # supplier-driven, not catalog fallback
+    by_name = {n["name"]: n for n in state["nachweis_tabelle"]}
+    assert "Lieferant" in (by_name["materialpreis_eur_pro_t"]["beleg"] or "")
 
 
 # Project context the stub loader returns (the run_service loader is exercised separately).
@@ -268,9 +296,9 @@ def _stub_context_seams():
 
 
 async def test_project_context_review_gate_overrides_and_flows():
-    """The pre-Gate-A project-context gate fires first; an override saves and flows into the calc:
-    the project deponie distance (routed) replaces the 10 km default, and the Fräsgutklasse the
-    Kalkulator overrode is the one surfaced at Gate B."""
+    """The Gate-1 project-context gate fires first; an override saves and flows into the calc: the
+    project deponie distance (routed) replaces the 10 km default, and the Fräsgutklasse the
+    Kalkulator overrode is the one surfaced at Gate 4."""
     loader, saver, saved = _stub_context_seams()
     app = build_graph(retriever=None, project_context_loader=loader, project_context_saver=saver)
     cfg = {"configurable": {"thread_id": "pctx"}}
@@ -285,10 +313,11 @@ async def test_project_context_review_gate_overrides_and_flows():
     # Confirm the context, overriding the Fräsgutklasse; the saver persists just that field.
     res2 = await app.ainvoke(Command(resume={"projekt_kontext": {"fraesgut_klasse": "2"}}), cfg)
     assert saved == {"fraesgut_klasse": "2"}
-    assert res2["__interrupt__"][0].value["stage"] == STAGE_METHOD_REVIEW
+    assert res2["__interrupt__"][0].value["stage"] == STAGE_LEISTUNG_BV_REVIEW
 
     gate_b = (await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FRAESEN"}), cfg))[
         "__interrupt__"][0].value
+    assert gate_b["stage"] == STAGE_VARIABLE_REVIEW               # fräsen skips Gate 3
     fraesgut = next(v for v in gate_b["surfaced"] if v["name"] == "fraesgut_klasse")
     assert fraesgut["wert"] == "2"                          # the project default (overridden) is surfaced
     deponie = {v["name"]: v for v in gate_b["collapsed"]}["entfernung_deponie_km"]
@@ -303,23 +332,92 @@ async def test_project_context_review_gate_overrides_and_flows():
 
 
 async def test_project_context_review_skipped_without_seams():
-    """With no project-context seams (standalone) the gate is a no-op: method_review is first."""
+    """With no project-context seams (standalone) the gate is a no-op: Gate 2 is first."""
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "pctx-skip"}}
     res = await app.ainvoke(_payload(), cfg)
-    assert res["__interrupt__"][0].value["stage"] == STAGE_METHOD_REVIEW
+    assert res["__interrupt__"][0].value["stage"] == STAGE_LEISTUNG_BV_REVIEW
+
+
+def _blocking_context_seams():
+    """A loader whose Baustelle has an address but NO geocoded coordinates (geocode failed); the
+    saver resolves coordinates only when a specific corrected address is provided."""
+    no_coords = {
+        "baustelle_location": "L 151 (unklar)",
+        "baustelle_status": "fehlgeschlagen",
+        "deponie_location": "Deponie Sangerhausen",
+        "entfernung_deponie_km": "12.0",
+        "strip_length_m": "5100",
+        "strip_width_m": "1.0",
+        "fraesgut_klasse": "1",
+    }
+
+    async def loader(project_uuid, _kandidaten):
+        return {"projekt_kontext": dict(no_coords)}
+
+    async def saver(project_uuid, updates):
+        neu = {**no_coords, **updates}
+        if updates.get("baustelle_location") == "Blankenheim":
+            neu["baustelle_breitengrad"] = "51.42"
+            neu["baustelle_laengengrad"] = "10.81"
+            neu["baustelle_status"] = "aufgeloest"
+        return neu
+
+    return loader, saver
+
+
+async def test_project_context_gate_blocks_until_baustelle_geocoded():
+    """A required global (Baustelle) that has no coordinates blocks the run at the review gate:
+    confirming without fixing it re-blocks; a corrected, geocodable address clears it to Gate 2."""
+    loader, saver = _blocking_context_seams()
+    app = build_graph(retriever=None, project_context_loader=loader, project_context_saver=saver)
+    cfg = {"configurable": {"thread_id": "pctx-block"}}
+
+    res = await app.ainvoke(
+        {"position": dict(POSITION), "vorgaben": {}, "project_uuid": uuid4()}, cfg)
+    gate = res["__interrupt__"][0].value
+    assert gate["stage"] == STAGE_PROJECT_CONTEXT_REVIEW
+    assert "baustelle_location" in gate["fehlende_erforderliche"]
+    assert gate["fehler"]
+
+    # Confirming without a valid Baustelle re-blocks at the same gate (still no coordinates).
+    res2 = await app.ainvoke(Command(resume={"projekt_kontext": {}}), cfg)
+    gate2 = res2["__interrupt__"][0].value
+    assert gate2["stage"] == STAGE_PROJECT_CONTEXT_REVIEW
+    assert gate2["fehler"]
+
+    # A corrected address geocodes -> the gate clears and Gate 2 is next.
+    res3 = await app.ainvoke(
+        Command(resume={"projekt_kontext": {"baustelle_location": "Blankenheim"}}), cfg)
+    assert res3["__interrupt__"][0].value["stage"] == STAGE_LEISTUNG_BV_REVIEW
+
+
+async def test_project_context_gate_cancel_aborts():
+    """Cancelling the project-context gate stops the run (no EKT) instead of computing without a
+    valid Baustelle."""
+    loader, saver = _blocking_context_seams()
+    app = build_graph(retriever=None, project_context_loader=loader, project_context_saver=saver)
+    cfg = {"configurable": {"thread_id": "pctx-cancel"}}
+
+    await app.ainvoke({"position": dict(POSITION), "vorgaben": {}, "project_uuid": uuid4()}, cfg)
+    res = await app.ainvoke(Command(resume={"cancel": True}), cfg)
+    assert "__interrupt__" not in res
+    state = (await app.aget_state(cfg)).values
+    assert state.get("abgebrochen") is True
+    assert state.get("ekt_zeile") is None
 
 
 async def test_baustoff_auto_applies_above_threshold(monkeypatch):
     monkeypatch.setattr(settings, "calculator_baustoff_match_threshold", 0.55)
     app = build_graph(retriever=None)
     cfg = {"configurable": {"thread_id": "mat-auto"}}
-    gate = (await app.ainvoke(_sts_payload(), cfg))[
-        "__interrupt__"
-    ][0].value
+    await app.ainvoke(_sts_payload(), cfg)
+    gate = (await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER"}), cfg))[
+        "__interrupt__"][0].value
+    assert gate["stage"] == STAGE_MATERIAL_REVIEW
     assert gate["baustoff_vorschlag"]["auto"] is True
-    # Resume Gate A WITHOUT an explicit Baustoff pick -> the above-threshold match auto-applies.
-    await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER"}), cfg)
+    # Resume Gate 3 WITHOUT an explicit pick -> the above-threshold match auto-applies.
+    await app.ainvoke(Command(resume={"baustoff_code": None}), cfg)
     state = (await app.aget_state(cfg)).values
     assert state["baustoff_code"] == "STS_0_32"
 
@@ -389,12 +487,12 @@ async def test_reasoning_is_narrated_each_stage():
 
     state = (await app.aget_state(cfg)).values
     stages = {e["stage"] for e in state["reasoning_log"] if e["kind"] == REASONING_NARRATION}
-    assert {"launch", "classify_leistung", "method_review", "compute"} <= stages
+    assert {"launch", "classify_leistung", "leistung_bv_review", "compute"} <= stages
 
 
-async def test_method_review_offers_full_katalog():
+async def test_leistung_bv_review_offers_full_katalog():
     app = build_graph(retriever=None)
-    cfg = {"configurable": {"thread_id": "ga-katalog"}}
+    cfg = {"configurable": {"thread_id": "g2-katalog"}}
     gate = (await app.ainvoke(_payload(), cfg))["__interrupt__"][0].value
     eintrag = next(e for e in gate["katalog"] if e["leistung_key"] == "L_FRAESEN")
     assert eintrag["kandidaten"] == ["BV_FRAESEN"]
@@ -402,10 +500,10 @@ async def test_method_review_offers_full_katalog():
     assert any(e["leistung_key"] == "L_AUFBRECHEN" for e in gate["katalog"])
 
 
-async def test_method_review_cancel_aborts():
+async def test_leistung_bv_review_cancel_aborts():
     app = build_graph(retriever=None)
-    cfg = {"configurable": {"thread_id": "ga-cancel"}}
-    await app.ainvoke(_payload(), cfg)                        # pause at Gate A
+    cfg = {"configurable": {"thread_id": "g2-cancel"}}
+    await app.ainvoke(_payload(), cfg)                        # pause at Gate 2
     result = await app.ainvoke(Command(resume={"cancel": True}), cfg)
     assert "__interrupt__" not in result                      # ran to END, no further gate
     state = (await app.aget_state(cfg)).values
@@ -413,9 +511,22 @@ async def test_method_review_cancel_aborts():
     assert state.get("ekt_zeile") is None
 
 
-async def test_method_review_corrects_leistung_and_rederives():
+async def test_material_gate_cancel_aborts(monkeypatch):
+    monkeypatch.setattr(settings, "calculator_baustoff_match_threshold", 0.55)
     app = build_graph(retriever=None)
-    cfg = {"configurable": {"thread_id": "ga-correct"}}
+    cfg = {"configurable": {"thread_id": "g3-cancel"}}
+    await app.ainvoke(_sts_payload(), cfg)                                        # Gate 2
+    await app.ainvoke(Command(resume={"bauverfahren_key": "BV_FSS_GRADER"}), cfg)  # -> Gate 3
+    result = await app.ainvoke(Command(resume={"cancel": True}), cfg)
+    assert "__interrupt__" not in result
+    state = (await app.aget_state(cfg)).values
+    assert state.get("abgebrochen") is True
+    assert state.get("ekt_zeile") is None
+
+
+async def test_leistung_bv_review_corrects_leistung_and_rederives():
+    app = build_graph(retriever=None)
+    cfg = {"configurable": {"thread_id": "g2-correct"}}
     await app.ainvoke(_payload(), cfg)                        # classified L_FRAESEN
     # Correct to a different Leistung + pick a candidate recipe; the worklist re-derives.
     gate_b = (await app.ainvoke(

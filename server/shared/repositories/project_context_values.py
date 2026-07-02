@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.project_context_values import project_context_values
@@ -62,6 +62,14 @@ class ProjectContextValueRepository:
         return {
             r["variable_name"]: ProjectContextValue.model_validate(dict(r)) for r in rows
         }
+
+    async def delete_all(self, project_uuid: UUID) -> int:
+        """Delete every context version for a project (all variables + full history), so the next
+        resolve starts from scratch. Returns the number of rows deleted. Runs in the caller's UoW."""
+        stmt = delete(project_context_values).where(
+            project_context_values.c.project_uuid == project_uuid
+        )
+        return (await self.conn.execute(stmt)).rowcount
 
     async def supersede(self, new: NewProjectContextValue) -> ProjectContextValue:
         """Close out the current version of `new.variable_name` and insert the next version.

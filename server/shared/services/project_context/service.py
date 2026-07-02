@@ -13,6 +13,7 @@ the projecting paths. It owns no graph dependency; the retrieval policy is mirro
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from uuid import UUID
 
@@ -44,6 +45,8 @@ from shared.services.project_context.llm import resolve_globale
 from shared.services.retrieval import RetrievalService
 from shared.services.retrieval.config import RetrievalConfig
 from shared.services.retrieval.models import RetrievalContext
+
+logger = logging.getLogger(__name__)
 
 # Mirrors the calculator's hybrid policy (graph.CALCULATOR_RETRIEVAL_CONFIG): the resolver owns
 # its own instance so this module never imports the heavy calculator graph.
@@ -109,11 +112,52 @@ class ProjectContextService:
             if new is not None:
                 await self._repo.supersede(new)
                 location_resolved = location_resolved or gv.ist_standort
+        # Repair: a location resolved on an earlier run but never geocoded (e.g. the Geocoding API
+        # was disabled then, or the address was corrected later) is retried here by re-geocoding its
+        # current address. A new version is written only on SUCCESS, so a still-failing geocode never
+        # spams the history; once coordinates exist this is a no-op (idempotent).
+        location_resolved = await self._repair_locations(project_uuid, current) or location_resolved
         # Route the deponie distance only when a location was newly resolved this run (or none exists
         # yet); otherwise a no-op resolve would append a spurious ROUTING version every calculation.
         if location_resolved or VAR_ENTFERNUNG_DEPONIE_KM not in current:
             await self._recompute_deponie_distance(project_uuid)
         return await self.current_read(project_uuid)
+
+    async def clear(self, project_uuid: UUID) -> int:
+        """Delete all persisted context versions for a project so the next resolve re-runs from
+        scratch (RAG + geocode). Returns the number of rows deleted."""
+        return await self._repo.delete_all(project_uuid)
+
+    async def _repair_locations(
+        self, project_uuid: UUID, current: dict[str, ProjectContextValue]
+    ) -> bool:
+        """Re-geocode any location global that is present but has no coordinates. Returns whether a
+        location was newly geocoded (so the caller reroutes the deponie distance)."""
+        repariert = False
+        for name, gv in GLOBALE_VARIABLEN.items():
+            vorhanden = current.get(name)
+            if not gv.ist_standort or vorhanden is None or vorhanden.breitengrad is not None:
+                continue
+            breitengrad, laengengrad, status = await self._geocode(vorhanden.wert)
+            if breitengrad is None:
+                continue
+            await self._repo.supersede(
+                NewProjectContextValue(
+                    project_uuid=project_uuid,
+                    variable_name=name,
+                    wert=vorhanden.wert,
+                    breitengrad=breitengrad,
+                    laengengrad=laengengrad,
+                    quelle=vorhanden.quelle,
+                    beleg=vorhanden.beleg,
+                    quelle_referenz=vorhanden.quelle_referenz,
+                    konfidenz=vorhanden.konfidenz,
+                    benutzer=vorhanden.benutzer,
+                    status=status,
+                )
+            )
+            repariert = True
+        return repariert
 
     async def save(
         self, project_uuid: UUID, update: ProjectContextUpdate, *, benutzer: str
@@ -207,7 +251,8 @@ class ProjectContextService:
         """Geocode an address string to (breitengrad, laengengrad, status). Never raises."""
         try:
             geo = await geocode(address)
-        except MapsError:
+        except MapsError as exc:
+            logger.warning("Geocoding failed for %r: %s", address, exc)
             return None, None, ContextStatus.FEHLGESCHLAGEN
         status = ContextStatus.AUFGELOEST
         if not settings.calculator_mock and geo.konfidenz < GEOCODE_UNSICHER_SCHWELLE:
