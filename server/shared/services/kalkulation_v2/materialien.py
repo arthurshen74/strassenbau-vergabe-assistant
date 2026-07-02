@@ -115,10 +115,9 @@ def _kategorien_fuer(firmenname: str) -> set[str]:
 
 def guenstigster_lieferant(baustoff_code: str, lat: float, lon: float):
     """Cheapest DELIVERED (price + transport·distance) supplier for a material."""
-    bid = BAUSTOFFE[baustoff_code].id
     angebote = []
     for lief in LIEFERANTEN.values():
-        preis = lief.preis_fuer(bid, STICHTAG)
+        preis = lief.preis_fuer(baustoff_code, STICHTAG)
         if preis is None:
             continue
         km = D(str(round(entfernung_km(lief, lat, lon), 1)))
@@ -130,8 +129,8 @@ def guenstigster_lieferant(baustoff_code: str, lat: float, lon: float):
 if __name__ == "__main__":
     lade_preise(BAUSTOFFE, LIEFERANTEN)
     print(f"{len(BAUSTOFFE)} Materialien im Katalog. Lieferantensortimente bestückt.\n")
-    fss = sum(1 for l in LIEFERANTEN.values() if l.preis_fuer(BAUSTOFFE['FSS_0_32'].id, STICHTAG))
-    asp = sum(1 for l in LIEFERANTEN.values() if l.preis_fuer(BAUSTOFFE['ASPHALT_AC32TS'].id, STICHTAG))
+    fss = sum(1 for l in LIEFERANTEN.values() if l.preis_fuer('FSS_0_32', STICHTAG))
+    asp = sum(1 for l in LIEFERANTEN.values() if l.preis_fuer('ASPHALT_AC32TS', STICHTAG))
     print(f"Lieferanten mit FSS 0/32: {fss} · mit Asphalt AC 32 T S: {asp}\n")
 
     site = (51.42, 10.81)

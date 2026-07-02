@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 
-from shared.services.kalkulation_v2.model import Baustofflieferant, BaustoffPreis, D
+from shared.services.kalkulation_v2.model import Baustofflieferant, D
 
 # (code, Firmenname, Straße, PLZ, Ort, lat, lon)
 _DATA = [
@@ -110,22 +110,6 @@ def entfernung_km(lief: Baustofflieferant, lat: float, lon: float, detour: float
 def naechste_lieferanten(lat: float, lon: float, n: int = 10) -> list[tuple[Baustofflieferant, float]]:
     ranked = sorted(((l, entfernung_km(l, lat, lon)) for l in LIEFERANTEN.values()), key=lambda t: t[1])
     return ranked[:n]
-
-
-def attach_prices(baustoffe: dict, seed: int = 42) -> None:
-    """Optional: give each supplier plausible prices for a random subset of materials.
-    Pass Store.BAUSTOFFE. Prices are illustrative."""
-    import random
-    from datetime import date
-    rng = random.Random(seed)
-    basis = {"GROBK_BODEN": 9.5, "MG_B2_0_32": 19.0, "OBERBODEN": 7.0, "BODEN_KL_3_5": 0.0}
-    for lief in LIEFERANTEN.values():
-        for code, b in baustoffe.items():
-            if rng.random() < 0.6:  # not every supplier carries every material
-                grund = basis.get(code, 15.0)
-                preis = round(grund * rng.uniform(0.9, 1.2), 2) if grund else 0.0
-                lief.preise.append(BaustoffPreis(baustoff_id=b.id, preis_eur_pro_t=D(str(preis)),
-                                                 gueltig_ab=date(2026, 1, 1)))
 
 
 if __name__ == "__main__":

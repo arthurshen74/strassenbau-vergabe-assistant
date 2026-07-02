@@ -80,7 +80,7 @@ async def rang_lieferanten(
     # Carriers: a valid ex-works price for this material at the Stichtag, with a known location.
     carriers: list[tuple[float, object, Decimal]] = []
     for lief in LIEFERANTEN.values():
-        werk = lief.preis_fuer(baustoff.id, STICHTAG)
+        werk = lief.preis_fuer(baustoff_code, STICHTAG)
         if werk is None or lief.breitengrad is None or lief.laengengrad is None:
             continue
         luft = haversine_km(float(lief.breitengrad), float(lief.laengengrad),

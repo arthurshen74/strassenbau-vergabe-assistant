@@ -34,7 +34,6 @@ import operator
 from datetime import date
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from enum import Enum
-from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -144,7 +143,7 @@ class VariablenWert(BaseModel):
 # --------------------------------------------------------------------------- #
 class BaustoffPreis(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    baustoff_id: UUID
+    baustoff_code: str
     preis_eur_pro_t: Decimal
     gueltig_ab: date
     gueltig_bis: date | None = None
@@ -152,7 +151,6 @@ class BaustoffPreis(BaseModel):
 
 class Baustoff(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    id: UUID = Field(default_factory=uuid4)
     code: str
     name: str
     rohdichte_t_pro_m3: Decimal
@@ -166,7 +164,6 @@ class Baustoff(BaseModel):
 
 class Baustofflieferant(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    id: UUID = Field(default_factory=uuid4)
     code: str
     name: str
     standort: str | None = None
@@ -174,9 +171,9 @@ class Baustofflieferant(BaseModel):
     laengengrad: Decimal | None = None
     preise: list[BaustoffPreis] = Field(default_factory=list)
 
-    def preis_fuer(self, baustoff_id: UUID, stichtag: date) -> Decimal | None:
+    def preis_fuer(self, baustoff_code: str, stichtag: date) -> Decimal | None:
         for p in self.preise:
-            if p.baustoff_id == baustoff_id and p.gueltig_ab <= stichtag and (
+            if p.baustoff_code == baustoff_code and p.gueltig_ab <= stichtag and (
                 p.gueltig_bis is None or stichtag <= p.gueltig_bis
             ):
                 return p.preis_eur_pro_t
@@ -354,7 +351,6 @@ class Maschine(BaseModel):
     property bag holds operating cost, fuel, mob/demob and any added spec; the
     `leistungsprofile` give per-Betriebsart productivity."""
     model_config = ConfigDict(extra="forbid")
-    id: UUID = Field(default_factory=uuid4)
     code: str
     hersteller: str
     modell: str
@@ -376,7 +372,6 @@ class Maschine(BaseModel):
 # --------------------------------------------------------------------------- #
 class Ausführungsart(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    id: UUID = Field(default_factory=uuid4)
     code: str
     name: str
     geraetebezug: str | None = None
@@ -384,7 +379,6 @@ class Ausführungsart(BaseModel):
 
 class Vorgang(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    id: UUID = Field(default_factory=uuid4)
     code: str
     name: str
     ausfuehrungsart: Ausführungsart | None = None
@@ -412,7 +406,6 @@ class Vorgang(BaseModel):
 
 class Bauverfahren(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    id: UUID = Field(default_factory=uuid4)
     code: str
     name: str
     vorgaenge: list[Vorgang] = Field(default_factory=list)
@@ -422,7 +415,6 @@ class Leistung(BaseModel):
     """The service to be rendered (your 'classification'), e.g. an STLB text.
     A leaf: it does NOT own a Bauverfahren — the calculator selects one to fulfil it."""
     model_config = ConfigDict(extra="forbid")
-    id: UUID = Field(default_factory=uuid4)
     code: str
     name: str
     beschreibung: str | None = None

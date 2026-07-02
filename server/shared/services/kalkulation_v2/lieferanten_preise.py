@@ -661,8 +661,10 @@ def lade_preise(baustoffe: dict, lieferanten: dict, stichtag: date = date(2026, 
         lief.preise.clear()
     explizit: set[tuple[str, str]] = set()
     for lcode, bcode, preis in PREISE:
+        if bcode not in baustoffe:  # a hand-edited PREISE typo must fail loudly at load
+            raise KeyError(f"PREISE: unbekannter Baustoff-Code {bcode}")
         lieferanten[lcode].preise.append(
-            BaustoffPreis(baustoff_id=baustoffe[bcode].id, preis_eur_pro_t=D(preis), gueltig_ab=stichtag))
+            BaustoffPreis(baustoff_code=bcode, preis_eur_pro_t=D(preis), gueltig_ab=stichtag))
         explizit.add((lcode, bcode))
     gefuellt = 0
     for lcode, lief in lieferanten.items():
@@ -671,7 +673,7 @@ def lade_preise(baustoffe: dict, lieferanten: dict, stichtag: date = date(2026, 
                 continue
             werk = (baustoff.basispreis_eur_pro_t * _spread_faktor(lcode, bcode)).quantize(Decimal("0.01"))
             lief.preise.append(
-                BaustoffPreis(baustoff_id=baustoff.id, preis_eur_pro_t=werk, gueltig_ab=stichtag))
+                BaustoffPreis(baustoff_code=bcode, preis_eur_pro_t=werk, gueltig_ab=stichtag))
             gefuellt += 1
     return len(PREISE) + gefuellt
 
