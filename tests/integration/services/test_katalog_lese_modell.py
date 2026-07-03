@@ -34,7 +34,10 @@ async def lese(engine: AsyncEngine) -> AsyncIterator[LeseModell]:
 async def test_t1_katalog_uebersicht(lese: LeseModell) -> None:
     u = await lese.katalog_uebersicht()
     assert u["entitaeten"]["leistungen"] > 0
-    assert "gueltig_ab" in u["stand"] and u["stand"]["benutzer"] == "seed"
+    # T1 reads the katalog_stand row: version 1 at seed, benutzer "seed", last-touched timestamp.
+    assert u["stand"]["version"] == 1
+    assert u["stand"]["benutzer"] == "seed"
+    assert "aktualisiert_am" in u["stand"]
     assert u["offene_entwuerfe"] == 0
 
 

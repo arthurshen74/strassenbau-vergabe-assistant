@@ -6,9 +6,31 @@
 import type { MessageRead } from '../../../types/generated';
 import { AggregateResultMessage } from './AggregateResultMessage';
 import { EktResultMessage } from './EktResultMessage';
+import { KatalogEntwurfCard } from './KatalogEntwurfCard';
 import { LvResultMessage } from './LvResultMessage';
 import { MapResultMessage } from './MapResultMessage';
 import { RetrievalTraceMessage } from './RetrievalTraceMessage';
+
+// The catalog write tools (W1–W17) all emit a draft envelope the KatalogEntwurfCard renders.
+const KATALOG_SCHREIB_WERKZEUGE = new Set<string>([
+  'neue_formel',
+  'aendere_formel',
+  'neue_stammdaten_variable',
+  'aendere_stammdaten_wert',
+  'neue_kontext_variable',
+  'neuer_baustoff',
+  'aendere_baustoff',
+  'neuer_lieferant',
+  'aendere_lieferant',
+  'neuer_preis',
+  'neue_maschine',
+  'aendere_maschine',
+  'neue_ausfuehrungsart',
+  'neue_betriebskategorie',
+  'neue_betriebsart',
+  'bauverfahren_zu_leistung',
+  'entwurf_verwerfen',
+]);
 
 // Wire tool names, matching the names the project-chat agent emits (ProjectChatAgent tools).
 export const TOOL_GET_PROJECT_CONTEXT = 'get_project_context';
@@ -29,6 +51,9 @@ export function ToolResultMessage({
   projectUuid?: string;
 }) {
   if (!m.success) return null;
+  if (m.tool_name && KATALOG_SCHREIB_WERKZEUGE.has(m.tool_name)) {
+    return <KatalogEntwurfCard data={m.data ?? null} />;
+  }
   switch (m.tool_name) {
     case TOOL_GET_PROJECT_CONTEXT:
     case TOOL_GET_LV_CONTEXT:

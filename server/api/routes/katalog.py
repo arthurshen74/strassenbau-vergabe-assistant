@@ -15,20 +15,19 @@ from pydantic import BaseModel, ConfigDict
 from api.deps import Principal, get_current_user, get_katalog_service
 from shared.models.katalog import (
     BundleBericht,
+    BundleZustandAnsicht,
+    KatalogBundle,
     KatalogEntitaet,
     KatalogZeile,
-    KatalogBundle,
 )
 from shared.services.katalog.service import (
+    DEFAULT_AUTOR,
     BundleNichtGefunden,
     BundleUngueltig,
     KatalogService,
 )
 
 router = APIRouter(prefix="/katalog", tags=["katalog"])
-
-# Author recorded on seed-independent catalog edits until real auth lands.
-DEFAULT_AUTOR = "kalkulator"
 
 
 class BundleGespeichert(BaseModel):
@@ -66,6 +65,16 @@ async def liste_aktive(
     return await service.aktive(entitaet)
 
 
+@router.get("/bundle/{bundle_uuid}", response_model=BundleZustandAnsicht)
+async def bundle_ansicht(
+    bundle_uuid: UUID,
+    service: KatalogService = Depends(get_katalog_service),
+) -> BundleZustandAnsicht:
+    """The confirm card's state re-query: the bundle's rows plus its derived zustand
+    (offen | aktiviert | geschlossen)."""
+    return await service.bundle_zustand(bundle_uuid)
+
+
 @router.post("/bundle/pruefen", response_model=BundleBericht)
 async def bundle_pruefen(
     bundle: KatalogBundle,
@@ -100,7 +109,7 @@ async def bundle_aktivieren(
 ) -> BundleBericht:
     """Activate a draft bundle atomically and reload the provider."""
     try:
-        return await service.bundle_aktivieren(bundle_uuid)
+        return await service.bundle_aktivieren(bundle_uuid, benutzer=DEFAULT_AUTOR)
     except BundleNichtGefunden as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BundleUngueltig as exc:
@@ -117,7 +126,7 @@ async def bundle_verwerfen(
 ) -> None:
     """Archive a draft bundle."""
     try:
-        await service.bundle_verwerfen(bundle_uuid)
+        await service.bundle_verwerfen(bundle_uuid, benutzer=DEFAULT_AUTOR)
     except BundleNichtGefunden as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

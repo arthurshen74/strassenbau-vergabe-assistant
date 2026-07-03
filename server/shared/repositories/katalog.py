@@ -17,10 +17,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Table, delete, func, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.katalog_ausfuehrungsarten import katalog_ausfuehrungsarten
@@ -45,9 +47,22 @@ from shared.db.tables.katalog_lifecycle import (
     SPALTE_ZEILE_UUID,
 )
 from shared.db.tables.katalog_maschinen import katalog_maschinen
+from shared.db.tables.katalog_stand import (
+    SPALTE_AKTUALISIERT_AM as STAND_SPALTE_AKTUALISIERT_AM,
+)
+from shared.db.tables.katalog_stand import SPALTE_BENUTZER as STAND_SPALTE_BENUTZER
+from shared.db.tables.katalog_stand import SPALTE_ID as STAND_SPALTE_ID
+from shared.db.tables.katalog_stand import SPALTE_VERSION as STAND_SPALTE_VERSION
+from shared.db.tables.katalog_stand import STAND_ID, katalog_stand
 from shared.db.tables.katalog_variablen import katalog_variablen
 from shared.db.tables.katalog_vorgaenge import katalog_vorgaenge
-from shared.models.katalog import KatalogEntitaet, KatalogPreis, KatalogStatus, KatalogZeile
+from shared.models.katalog import (
+    KatalogEntitaet,
+    KatalogPreis,
+    KatalogStandZeile,
+    KatalogStatus,
+    KatalogZeile,
+)
 
 
 @dataclass(frozen=True)
@@ -146,6 +161,56 @@ class KatalogRepository:
             gueltig_ab=m[SPALTE_GUELTIG_AB],
             gueltig_bis=m[SPALTE_GUELTIG_BIS],
             payload={c: m[c] for c in spec.payload},
+        )
+
+    # --- global catalog version (katalog_stand) ---------------------------------------------- #
+
+    async def stand_lesen(self) -> KatalogStandZeile | None:
+        """The global catalog version row, or None on an unseeded DB (no row yet)."""
+        row = (
+            await self.conn.execute(
+                select(katalog_stand).where(katalog_stand.c[STAND_SPALTE_ID] == STAND_ID)
+            )
+        ).mappings().first()
+        if row is None:
+            return None
+        return KatalogStandZeile(
+            version=row[STAND_SPALTE_VERSION],
+            aktualisiert_am=row[STAND_SPALTE_AKTUALISIERT_AM],
+            benutzer=row[STAND_SPALTE_BENUTZER],
+        )
+
+    async def stand_beruehren(self, benutzer: str | None, aktivierung: bool) -> KatalogStandZeile:
+        """Upsert the singleton catalog-version row: bump `version` only on activation, otherwise
+        just touch `aktualisiert_am`/`benutzer`. Runs in the caller's UoW — the same transaction as
+        the write it records. clock_timestamp() advances within the transaction (like the SCD-2
+        supersede), so the touch instant is the write's instant."""
+        inkrement = 1 if aktivierung else 0
+        stmt = (
+            pg_insert(katalog_stand)
+            .values(
+                **{
+                    STAND_SPALTE_ID: STAND_ID,
+                    STAND_SPALTE_VERSION: 1,
+                    STAND_SPALTE_AKTUALISIERT_AM: func.clock_timestamp(),
+                    STAND_SPALTE_BENUTZER: benutzer,
+                }
+            )
+            .on_conflict_do_update(
+                index_elements=[katalog_stand.c[STAND_SPALTE_ID]],
+                set_={
+                    STAND_SPALTE_VERSION: katalog_stand.c[STAND_SPALTE_VERSION] + inkrement,
+                    STAND_SPALTE_AKTUALISIERT_AM: func.clock_timestamp(),
+                    STAND_SPALTE_BENUTZER: benutzer,
+                },
+            )
+            .returning(katalog_stand)
+        )
+        row = (await self.conn.execute(stmt)).mappings().one()
+        return KatalogStandZeile(
+            version=row[STAND_SPALTE_VERSION],
+            aktualisiert_am=row[STAND_SPALTE_AKTUALISIERT_AM],
+            benutzer=row[STAND_SPALTE_BENUTZER],
         )
 
     async def aktive(self, entitaet: KatalogEntitaet) -> list[KatalogZeile]:
@@ -327,32 +392,118 @@ class KatalogRepository:
         )
         return list((await self.conn.execute(stmt)).scalars().all())
 
+    @staticmethod
+    def _preis(r: Mapping[str, Any]) -> KatalogPreis:
+        return KatalogPreis(
+            lieferant_code=r["lieferant_code"],
+            baustoff_code=r["baustoff_code"],
+            preis_eur_pro_t=r["preis_eur_pro_t"],
+            gueltig_ab=r["gueltig_ab"],
+            gueltig_bis=r["gueltig_bis"],
+            status=r["status"],
+            bundle_uuid=r["bundle_uuid"],
+            benutzer=r["benutzer"],
+        )
+
     async def preise_schreiben(self, preise: list[KatalogPreis]) -> None:
-        """Append supplier price rows (immutable; a correction inserts a new row)."""
+        """Append supplier price rows (immutable; a correction inserts a new row). Each row carries
+        its lifecycle status — seed/active prices are `aktiv`, a bundle's proposals `entwurf`."""
         if not preise:
             return
         await self.conn.execute(
             insert(katalog_lieferanten_preise),
-            [p.model_dump() for p in preise],
+            [{**p.model_dump(), "status": p.status.value} for p in preise],
         )
 
     async def preise(self) -> list[KatalogPreis]:
-        """All supplier price rows, ordered by (lieferant, baustoff) for deterministic loads."""
-        stmt = select(katalog_lieferanten_preise).order_by(
-            katalog_lieferanten_preise.c.lieferant_code,
-            katalog_lieferanten_preise.c.baustoff_code,
+        """All ACTIVE supplier price rows, ordered by (lieferant, baustoff) for deterministic loads.
+        Draft and discarded rows are excluded — the running catalog and the read tools see only
+        active prices; temporal validity (gueltig_ab/bis) still selects the price at a Stichtag."""
+        t = katalog_lieferanten_preise
+        stmt = (
+            select(t)
+            .where(t.c.status == KatalogStatus.AKTIV.value)
+            .order_by(t.c.lieferant_code, t.c.baustoff_code)
         )
         rows = (await self.conn.execute(stmt)).mappings().all()
-        return [
-            KatalogPreis(
-                lieferant_code=r["lieferant_code"],
-                baustoff_code=r["baustoff_code"],
-                preis_eur_pro_t=r["preis_eur_pro_t"],
-                gueltig_ab=r["gueltig_ab"],
-                gueltig_bis=r["gueltig_bis"],
+        return [self._preis(r) for r in rows]
+
+    async def preise_nach_bundle(
+        self, bundle_uuid: UUID, status: KatalogStatus | None = None
+    ) -> list[KatalogPreis]:
+        """Price rows carrying `bundle_uuid`, optionally filtered by status (any status if None)."""
+        t = katalog_lieferanten_preise
+        bedingungen = [t.c.bundle_uuid == bundle_uuid]
+        if status is not None:
+            bedingungen.append(t.c.status == status.value)
+        stmt = select(t).where(*bedingungen).order_by(t.c.lieferant_code, t.c.baustoff_code)
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [self._preis(r) for r in rows]
+
+    async def preis_vorgaenger_offen(
+        self, lieferant_code: str, baustoff_code: str, gueltig_ab: date
+    ) -> KatalogPreis | None:
+        """The open-ended active price for (lieferant, baustoff) that a new price starting at
+        `gueltig_ab` would close out on activation (D5), or None if there is none."""
+        t = katalog_lieferanten_preise
+        stmt = select(t).where(
+            t.c.lieferant_code == lieferant_code,
+            t.c.baustoff_code == baustoff_code,
+            t.c.status == KatalogStatus.AKTIV.value,
+            t.c.gueltig_bis.is_(None),
+            t.c.gueltig_ab <= gueltig_ab,
+        )
+        row = (await self.conn.execute(stmt)).mappings().first()
+        return self._preis(row) if row is not None else None
+
+    async def preise_aktivieren(self, bundle_uuid: UUID) -> None:
+        """Activate the bundle's draft price rows. Each closes out an overlapping open-ended active
+        predecessor for the same (lieferant, baustoff) — its gueltig_bis set to the day before the
+        new gueltig_ab (D5, the same close-out-never-mutate move as project_context_values) — then
+        the draft goes active. Drafts activate earliest-validity-first, so several prices for the
+        same pair in one bundle close each other in sequence."""
+        t = katalog_lieferanten_preise
+        drafts = (
+            await self.conn.execute(
+                select(
+                    t.c.zeile_uuid, t.c.lieferant_code, t.c.baustoff_code, t.c.gueltig_ab
+                )
+                .where(
+                    t.c.bundle_uuid == bundle_uuid,
+                    t.c.status == KatalogStatus.ENTWURF.value,
+                )
+                # Earliest first: a later-starting draft activated before an earlier one would not
+                # be caught by the earlier one's close-out (its filter is gueltig_ab <= own start),
+                # leaving TWO open-ended active prices for the pair.
+                .order_by(t.c.gueltig_ab)
             )
-            for r in rows
-        ]
+        ).all()
+        for zeile_uuid, lieferant_code, baustoff_code, gueltig_ab in drafts:
+            await self.conn.execute(
+                update(t)
+                .where(
+                    t.c.lieferant_code == lieferant_code,
+                    t.c.baustoff_code == baustoff_code,
+                    t.c.status == KatalogStatus.AKTIV.value,
+                    t.c.gueltig_bis.is_(None),
+                    t.c.gueltig_ab <= gueltig_ab,
+                )
+                .values(gueltig_bis=gueltig_ab - timedelta(days=1))
+            )
+            await self.conn.execute(
+                update(t)
+                .where(t.c.zeile_uuid == zeile_uuid)
+                .values(status=KatalogStatus.AKTIV.value)
+            )
+
+    async def preise_verwerfen(self, bundle_uuid: UUID) -> None:
+        """Archive the bundle's draft price rows (discard — the active catalog is untouched)."""
+        t = katalog_lieferanten_preise
+        await self.conn.execute(
+            update(t)
+            .where(t.c.bundle_uuid == bundle_uuid, t.c.status == KatalogStatus.ENTWURF.value)
+            .values(status=KatalogStatus.ARCHIVIERT.value)
+        )
 
     async def ist_leer(self) -> bool:
         """True when no lifecycle catalog rows exist (a fresh, unseeded DB)."""
@@ -365,8 +516,10 @@ class KatalogRepository:
         return True
 
     async def alles_leeren(self) -> None:
-        """Delete every catalog row (lifecycle tables + junction + prices) for a reseed."""
+        """Delete every catalog row (lifecycle tables + junction + prices + the version row) for
+        a reseed, so the next seed restarts the version at 1."""
         await self.conn.execute(delete(katalog_bauverfahren_vorgaenge))
         await self.conn.execute(delete(katalog_lieferanten_preise))
+        await self.conn.execute(delete(katalog_stand))
         for spec in KATALOG_REGISTRY.values():
             await self.conn.execute(delete(spec.tabelle))

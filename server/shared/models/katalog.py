@@ -90,10 +90,13 @@ class KatalogZeile(BaseModel):
 
 
 class KatalogPreis(BaseModel):
-    """One supplier price row (`katalog_lieferanten_preise`): version-independent, immutable.
+    """One supplier price row (`katalog_lieferanten_preise`): version-independent, immutable VALUE.
 
     References a Lieferant and a Baustoff by code; a price correction inserts a new row rather
-    than updating. Maps field-for-field onto `BaustoffPreis` (plus the owning `lieferant_code`)."""
+    than updating. Maps field-for-field onto `BaustoffPreis` (plus the owning `lieferant_code`).
+    Phase 2 adds a lifecycle `status` (+ `bundle_uuid`/`benutzer`) so a price rides the
+    draft→confirm flow like everything else — the VALUE stays immutable/unversioned; the status
+    only tracks entwurf|aktiv|archiviert (D5)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -102,6 +105,20 @@ class KatalogPreis(BaseModel):
     preis_eur_pro_t: Decimal
     gueltig_ab: date
     gueltig_bis: date | None = None
+    status: KatalogStatus = KatalogStatus.AKTIV
+    bundle_uuid: UUID | None = None
+    benutzer: str | None = None
+
+
+class KatalogStandZeile(BaseModel):
+    """The global catalog version row (`katalog_stand`, single row id=1): the effective catalog's
+    `version` (bumped on activation) plus the last-touched audit (`aktualisiert_am`/`benutzer`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: int
+    aktualisiert_am: datetime
+    benutzer: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -131,6 +148,33 @@ class BundleBauverfahren(BaseModel):
     code: str
     name: str
     vorgang_codes: list[str] = Field(default_factory=list)
+
+
+class BundleLieferant(BaseModel):
+    """A Lieferant in bundle transport (D6): code + location. Its price rows travel separately as
+    `BundlePreis` (prices are immutable value rows, not part of the Lieferant's payload)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    name: str
+    standort: str | None = None
+    breitengrad: Decimal | None = None
+    laengengrad: Decimal | None = None
+
+
+class BundlePreis(BaseModel):
+    """A supplier price in bundle transport (D6): references a Lieferant and a Baustoff by code.
+    Saved as a draft price row; on activation it closes out an overlapping open-ended predecessor
+    (D5). `gueltig_ab` defaults are applied at the tool layer (today)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lieferant_code: str
+    baustoff_code: str
+    preis_eur_pro_t: Decimal
+    gueltig_ab: date
+    gueltig_bis: date | None = None
 
 
 class BundleVariable(BaseModel):
@@ -164,6 +208,8 @@ class KatalogBundle(BaseModel):
     variablen: list[BundleVariable] = Field(default_factory=list)
     baustoffe: list[Baustoff] = Field(default_factory=list)
     maschinen: list[Maschine] = Field(default_factory=list)
+    lieferanten: list[BundleLieferant] = Field(default_factory=list)
+    preise: list[BundlePreis] = Field(default_factory=list)
     leistung_bauverfahren: dict[str, list[str]] = Field(default_factory=dict)
 
 
@@ -179,3 +225,32 @@ class BundleBericht(BaseModel):
     @property
     def gueltig(self) -> bool:
         return not self.fehler
+
+
+class BundleZustand(StrEnum):
+    """The confirm card's view of a bundle: still open for a decision, already activated, or no
+    longer open (discarded or later superseded)."""
+
+    OFFEN = "offen"
+    AKTIVIERT = "aktiviert"
+    GESCHLOSSEN = "geschlossen"
+
+
+class BundleZeileAnsicht(BaseModel):
+    """One row of a bundle for the confirm card's state re-query (entity, natural key, status)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entitaet: str
+    schluessel: str
+    status: KatalogStatus
+
+
+class BundleZustandAnsicht(BaseModel):
+    """The GET /katalog/bundle/{uuid} payload: the bundle's derived state + its rows. Lets a card
+    re-query on reload so a draft long since activated or discarded renders truthfully."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    zustand: BundleZustand
+    zeilen: list[BundleZeileAnsicht]

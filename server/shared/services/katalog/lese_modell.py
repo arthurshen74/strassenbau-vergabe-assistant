@@ -260,7 +260,10 @@ class LeseModell:
 
     # --- Meta and search (T1–T3) ----------------------------------------- #
     async def katalog_uebersicht(self) -> dict[str, Any]:
-        """T1: counts per entity, catalog stand (last change), open-draft count."""
+        """T1: counts per entity, catalog stand (version + last change), open-draft count.
+
+        The stand reads the katalog_stand row; on an unseeded DB (no row) it falls back to the
+        max gueltig_ab across the lifecycle tables (the Phase-1 derivation)."""
         counts: dict[str, int] = {}
         letzte: Any = None
         letzter_benutzer: str | None = None
@@ -270,11 +273,20 @@ class LeseModell:
             for z in zeilen:
                 if letzte is None or z.gueltig_ab > letzte:
                     letzte, letzter_benutzer = z.gueltig_ab, z.benutzer
+        stand_zeile = await self.repo.stand_lesen()
+        if stand_zeile is not None:
+            stand = {
+                "version": stand_zeile.version,
+                "aktualisiert_am": stand_zeile.aktualisiert_am,
+                "benutzer": stand_zeile.benutzer,
+            }
+        else:
+            stand = {"aktualisiert_am": letzte, "benutzer": letzter_benutzer}
         offene = await self.repo.offene_bundles()
         return _env(
             {
                 "entitaeten": counts,
-                "stand": {"gueltig_ab": letzte, "benutzer": letzter_benutzer},
+                "stand": stand,
                 "offene_entwuerfe": len(offene),
             }
         )

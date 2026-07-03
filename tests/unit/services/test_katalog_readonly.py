@@ -1,42 +1,43 @@
-"""Read-only guarantee for the Katalog-Chat service (§10.5).
+"""Write-boundary guarantee for the catalog agent (§8, D8).
 
-Phase 1 is reads only, by construction: the katalog_chat service must not be able to reach the write
-surface (the bundle service `KatalogService.entwurf_speichern` / `bundle_aktivieren` and its
-validator). A fresh interpreter imports the chat service and asserts neither write module was pulled
-into the transitive import graph — so a future edit that accidentally wires a write path in fails
-here.
+Activation is a human-only operation: the agent's write tools save drafts through
+`KatalogEntwurfDienst` and can NEVER promote one — `bundle_aktivieren` lives only on the bundle
+service, called only by the API route (a human request on the confirm card). This is enforced
+structurally: every module under `shared/services/katalog` EXCEPT the bundle service itself must be
+free of any *code reference* to `bundle_aktivieren`. The check is AST-based, so a docstring that
+merely names the boundary does not count — only an actual attribute/name reference does. A future
+edit that wires activation into a tool, the agent, or the facade fails here.
 """
 
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
+import ast
 from pathlib import Path
 
-import shared
+import shared.services.katalog as katalog_pkg
 
-_WRITE_MODULES = (
-    "shared.services.katalog.service",
-    "shared.services.katalog.validierung",
-)
+# The one module that legitimately owns activation (invoked only by the API route).
+_AKTIVIERUNG_ERLAUBT = {"service.py"}
+_VERBOTEN = "bundle_aktivieren"
 
 
-def test_katalog_chat_service_imports_no_write_surface() -> None:
-    server_dir = Path(shared.__file__).resolve().parents[1]
-    verboten = ", ".join(repr(m) for m in _WRITE_MODULES)
-    code = (
-        "import sys\n"
-        "import shared.services.katalog.chat_service  # noqa: F401\n"
-        f"treffer = {{{verboten}}} & set(sys.modules)\n"
-        "assert not treffer, f'write surface reachable: {treffer}'\n"
-        "print('OK')\n"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        env={**os.environ, "PYTHONPATH": str(server_dir)},
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stderr
-    assert "OK" in result.stdout
+def _referenziert(quelle: str, name: str) -> bool:
+    """True if the source references `name` as an attribute or bare name (ignores strings/comments)."""
+    baum = ast.parse(quelle)
+    for node in ast.walk(baum):
+        if isinstance(node, ast.Attribute) and node.attr == name:
+            return True
+        if isinstance(node, ast.Name) and node.id == name:
+            return True
+    return False
+
+
+def test_write_tools_never_reference_activation() -> None:
+    paket = Path(katalog_pkg.__file__).parent
+    treffer = {
+        p.name
+        for p in paket.glob("*.py")
+        if p.name not in _AKTIVIERUNG_ERLAUBT
+        and _referenziert(p.read_text(encoding="utf-8"), _VERBOTEN)
+    }
+    assert not treffer, f"{_VERBOTEN} reachable from non-service modules: {sorted(treffer)}"

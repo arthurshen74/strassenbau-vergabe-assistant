@@ -26,6 +26,7 @@ from shared.clients.openrouter.usage import UsageEvent
 from shared.config import settings
 from shared.models.enums import PromptType
 from shared.services.katalog.werkzeuge import katalog_werkzeuge
+from shared.services.katalog.werkzeuge_schreiben import katalog_schreib_werkzeuge
 from shared.services.project_chat_agent import (
     USAGE_ACCOUNTING_EXTRA_BODY,
     AgentEvent,
@@ -69,7 +70,8 @@ class KatalogChatAgent:
             streaming=True,
             stream_usage=True,
         )
-        self._agent = create_agent(model, katalog_werkzeuge(engine), system_prompt=system_prompt)
+        werkzeuge = katalog_werkzeuge(engine) + katalog_schreib_werkzeuge(engine)
+        self._agent = create_agent(model, werkzeuge, system_prompt=system_prompt)
 
     async def astream(self, messages: list[dict[str, Any]]) -> AsyncIterator[AgentEvent]:
         """Stream the agent over the prior message list: answer tokens, tool calls, tool results."""

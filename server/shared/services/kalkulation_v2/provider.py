@@ -235,7 +235,7 @@ async def lade_katalog(conn: AsyncConnection) -> dict[str, int] | None:
         n for n, gv in m_glob.GLOBALE_VARIABLEN.items() if gv.erforderlich
     )
 
-    return {
+    summary = {
         KatalogEntitaet.BETRIEBSKATEGORIEN.value: len(m_bt.BETRIEBSKATEGORIEN),
         KatalogEntitaet.BETRIEBSARTEN.value: len(m_bt.BETRIEBSARTEN),
         KatalogEntitaet.AUSFUEHRUNGSARTEN.value: len(m_aa.AUSFUEHRUNGSARTEN),
@@ -251,3 +251,8 @@ async def lade_katalog(conn: AsyncConnection) -> dict[str, int] | None:
         KatalogEntitaet.LEISTUNGEN.value: len(m_leist.LEISTUNGEN),
         KatalogEntitaet.LEISTUNG_BAUVERFAHREN.value: len(m_lb.LEISTUNG_BAUVERFAHREN),
     }
+    # Provenance: report the effective catalog version so neu-laden surfaces it.
+    stand_zeile = await repo.stand_lesen()
+    if stand_zeile is not None:
+        summary["stand"] = stand_zeile.version
+    return summary

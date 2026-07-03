@@ -19,8 +19,8 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from shared.models.katalog import BundleBericht, KatalogEntitaet, KatalogBundle, VariablenGruppe
-from shared.repositories.katalog import KatalogRepository
+from shared.models.katalog import BundleBericht, KatalogBundle, KatalogEntitaet, VariablenGruppe
+from shared.repositories.katalog import KATALOG_REGISTRY, KatalogRepository
 from shared.services.kalkulation_v2.model import AufloesungsMethode, Formel, VariableDefinition
 
 # Resolution methods that let the Kalkulator produce a value deterministically (no StateGraph).
@@ -48,6 +48,7 @@ class KatalogStand:
     betriebskategorie_codes: set[str] = field(default_factory=set)
     baustoff_codes: set[str] = field(default_factory=set)
     maschinen_codes: set[str] = field(default_factory=set)
+    lieferanten_codes: set[str] = field(default_factory=set)
 
 
 def _ist_produzierbar(gruppe: VariablenGruppe, definition: VariableDefinition) -> bool:
@@ -85,6 +86,7 @@ async def lade_stand(repo: KatalogRepository) -> KatalogStand:
     stand.betriebskategorie_codes = await codes(KatalogEntitaet.BETRIEBSKATEGORIEN)
     stand.baustoff_codes = await codes(KatalogEntitaet.BAUSTOFFE)
     stand.maschinen_codes = await codes(KatalogEntitaet.MASCHINEN)
+    stand.lieferanten_codes = await codes(KatalogEntitaet.LIEFERANTEN)
     return stand
 
 
@@ -193,6 +195,21 @@ def pruefe_bundle(bundle: KatalogBundle, stand: KatalogStand) -> BundleBericht:
             if bc not in bv_codes:
                 fehler.append(f"Mapping '{lk}': unbekanntes Bauverfahren '{bc}'.")
 
+    # Rule 7/8 — a bundle price references a known Lieferant AND Baustoff (active ∪ bundle), and
+    # carries an ordered validity + a positive rate.
+    lieferant_codes = stand.lieferanten_codes | {lf.code for lf in bundle.lieferanten}
+    baustoff_codes = stand.baustoff_codes | {bst.code for bst in bundle.baustoffe}
+    for p in bundle.preise:
+        stelle = f"Preis {p.lieferant_code}/{p.baustoff_code}"
+        if p.lieferant_code not in lieferant_codes:
+            fehler.append(f"{stelle}: unbekannter Lieferant '{p.lieferant_code}'.")
+        if p.baustoff_code not in baustoff_codes:
+            fehler.append(f"{stelle}: unbekannter Baustoff '{p.baustoff_code}'.")
+        if p.gueltig_bis is not None and p.gueltig_ab > p.gueltig_bis:
+            fehler.append(f"{stelle}: gueltig_ab {p.gueltig_ab} liegt nach gueltig_bis {p.gueltig_bis}.")
+        if p.preis_eur_pro_t <= 0:
+            fehler.append(f"{stelle}: preis_eur_pro_t muss > 0 sein (ist {p.preis_eur_pro_t}).")
+
     # Rule 5 — a bundle variable must not introduce a NEW cross-gruppe shadowing. Updating an
     # existing (name, gruppe) pairing is allowed even when the name is deliberately shadowed
     # already (the fixtures' KONSTANTE + Formel pair); only a pairing the active catalog does not
@@ -221,9 +238,25 @@ def pruefe_bundle(bundle: KatalogBundle, stand: KatalogStand) -> BundleBericht:
     flag({f.name for f in bundle.formeln}, set(stand.formeln), "Formel")
     flag({b.code for b in bundle.baustoffe}, stand.baustoff_codes, "Baustoff")
     flag({m.code for m in bundle.maschinen}, stand.maschinen_codes, "Maschine")
+    flag({lf.code for lf in bundle.lieferanten}, stand.lieferanten_codes, "Lieferant")
     flag(set(bundle.leistung_bauverfahren), stand.leistung_codes, "Mapping")
     for name, gruppen in bundle_var_gruppen.items():
         if gruppen & stand.var_gruppen.get(name, set()):
             aktualisierungen.append(f"Variable '{name}' aktualisiert eine aktive Version.")
 
     return BundleBericht(fehler=fehler, aktualisierungen=aktualisierungen)
+
+
+def pruefe_aenderungsfelder(
+    entitaet: KatalogEntitaet, aenderungen: dict[str, object]
+) -> list[str]:
+    """Rule 9 — an `aendere_*` delta may only touch the entity's registry payload columns. Returns
+    one error per unknown field, naming the valid ones (empty list when the delta is clean). The
+    registry payload is the single source of truth for what an entity's editable fields are."""
+    erlaubt = set(KATALOG_REGISTRY[entitaet].payload)
+    valid = ", ".join(sorted(erlaubt))
+    return [
+        f"unbekanntes Feld '{feld}' für {entitaet.value} — erlaubt: {valid}."
+        for feld in aenderungen
+        if feld not in erlaubt
+    ]

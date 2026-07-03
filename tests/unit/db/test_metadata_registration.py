@@ -34,6 +34,7 @@ EXPECTED_TABLES = {
     "katalog_baustoffe",
     "katalog_lieferanten",
     "katalog_maschinen",
+    "katalog_stand",
     "katalog_leistung_bauverfahren",
     "katalog_bauverfahren_vorgaenge",
     "katalog_lieferanten_preise",

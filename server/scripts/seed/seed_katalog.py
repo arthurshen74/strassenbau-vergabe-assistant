@@ -139,6 +139,11 @@ async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
         )
     zaehler[KatalogEntitaet.LEISTUNG_BAUVERFAHREN.value] = len(LEISTUNG_BAUVERFAHREN)
 
+    # The global catalog version starts at 1 (seed is not an activation, so no bump — the insert
+    # sets version=1 directly).
+    await repo.stand_beruehren(benutzer="seed", aktivierung=False)
+    zaehler["katalog_stand"] = 1
+
     return zaehler
 
 

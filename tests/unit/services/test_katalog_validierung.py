@@ -3,12 +3,16 @@ happy-path bundle. `pruefe_bundle` is pure, so each test builds a `KatalogStand`
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from shared.models.katalog import (
+    BundleLieferant,
+    BundlePreis,
     BundleVariable,
     BundleVorgang,
     KatalogBundle,
+    KatalogEntitaet,
     VariablenGruppe,
 )
 from shared.services.kalkulation_v2.model import (
@@ -19,7 +23,11 @@ from shared.services.kalkulation_v2.model import (
     Leistung,
     VariableDefinition,
 )
-from shared.services.katalog.validierung import KatalogStand, pruefe_bundle
+from shared.services.katalog.validierung import (
+    KatalogStand,
+    pruefe_aenderungsfelder,
+    pruefe_bundle,
+)
 
 
 def _konstante(name: str) -> VariableDefinition:
@@ -37,6 +45,23 @@ def test_rule1_unbekannte_variable_in_formel() -> None:
     bericht = pruefe_bundle(bundle, KatalogStand())
     assert not bericht.gueltig
     assert any("unbekannte Variable" in f for f in bericht.fehler)
+
+
+def test_rule1_unbekannte_funktion_nennt_whitelist() -> None:
+    """The Rule-1 split: an unknown Call target is a *function* error naming the DSL whitelist,
+    not a phantom variable (§7)."""
+    bundle = KatalogBundle(
+        formeln=[Formel(name="f1", ergebnis_variable="f1", ausdruck="interpoliere(a)", einheit="€")]
+    )
+    stand = KatalogStand(known_var_namen={"a"}, produzierbare_namen={"a"})
+    bericht = pruefe_bundle(bundle, stand)
+    assert not bericht.gueltig
+    assert any(
+        "unbekannte Funktion 'interpoliere'" in f and "abs" in f and "round" in f
+        for f in bericht.fehler
+    )
+    # The bare `a` is a known variable, so it must NOT surface as an unknown-variable error.
+    assert not any("unbekannte Variable" in f for f in bericht.fehler)
 
 
 def test_rule2_formelzyklus() -> None:
@@ -145,3 +170,81 @@ def test_gueltiges_bundle_ohne_fehler() -> None:
     )
     bericht = pruefe_bundle(bundle, KatalogStand())
     assert bericht.gueltig, bericht.fehler
+
+
+def test_rule7_preis_unbekannter_lieferant() -> None:
+    bundle = KatalogBundle(
+        preise=[
+            BundlePreis(
+                lieferant_code="LIEF_GHOST",
+                baustoff_code="B_GHOST",
+                preis_eur_pro_t=Decimal("10"),
+                gueltig_ab=date(2026, 1, 1),
+            )
+        ]
+    )
+    bericht = pruefe_bundle(bundle, KatalogStand())
+    assert not bericht.gueltig
+    assert any("unbekannter Lieferant" in f for f in bericht.fehler)
+    assert any("unbekannter Baustoff" in f for f in bericht.fehler)
+
+
+def test_rule7_preis_referenziert_bundle_lieferant_und_baustoff() -> None:
+    """A price may reference a Lieferant/Baustoff created in the same bundle (active ∪ bundle)."""
+    from shared.services.kalkulation_v2.model import Baustoff
+
+    bundle = KatalogBundle(
+        lieferanten=[BundleLieferant(code="LIEF_NEU", name="Neu")],
+        baustoffe=[
+            Baustoff(code="B_NEU", name="Neu", rohdichte_t_pro_m3=Decimal("2.4"), einheit="t")
+        ],
+        preise=[
+            BundlePreis(
+                lieferant_code="LIEF_NEU",
+                baustoff_code="B_NEU",
+                preis_eur_pro_t=Decimal("15.90"),
+                gueltig_ab=date(2026, 8, 1),
+            )
+        ],
+    )
+    bericht = pruefe_bundle(bundle, KatalogStand())
+    assert bericht.gueltig, bericht.fehler
+
+
+def test_rule8_preis_validitaet_und_positiv() -> None:
+    stand = KatalogStand(lieferanten_codes={"LIEF_X"}, baustoff_codes={"B_X"})
+    verdreht = KatalogBundle(
+        preise=[
+            BundlePreis(
+                lieferant_code="LIEF_X",
+                baustoff_code="B_X",
+                preis_eur_pro_t=Decimal("10"),
+                gueltig_ab=date(2026, 2, 1),
+                gueltig_bis=date(2026, 1, 1),
+            )
+        ]
+    )
+    bericht = pruefe_bundle(verdreht, stand)
+    assert not bericht.gueltig and any("gueltig_ab" in f and "gueltig_bis" in f for f in bericht.fehler)
+
+    nicht_positiv = KatalogBundle(
+        preise=[
+            BundlePreis(
+                lieferant_code="LIEF_X",
+                baustoff_code="B_X",
+                preis_eur_pro_t=Decimal("0"),
+                gueltig_ab=date(2026, 1, 1),
+            )
+        ]
+    )
+    bericht = pruefe_bundle(nicht_positiv, stand)
+    assert not bericht.gueltig and any("muss > 0" in f for f in bericht.fehler)
+
+
+def test_rule9_aenderungsfeld_whitelist() -> None:
+    fehler = pruefe_aenderungsfelder(
+        KatalogEntitaet.BAUSTOFFE, {"basispreis_eur_pro_t": Decimal("16.20"), "quatsch": 1}
+    )
+    assert any("quatsch" in f and "basispreis_eur_pro_t" in f for f in fehler)
+    # A clean delta touching only payload columns passes.
+    assert pruefe_aenderungsfelder(KatalogEntitaet.BAUSTOFFE, {"kategorie": "Asphaltmischgut"}) == []

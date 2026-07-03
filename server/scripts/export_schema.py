@@ -35,6 +35,11 @@ from shared.models.ingest_schema import (
     IngestStatusRead,
 )
 from shared.models.ingestion_activity import IngestionActivity
+from shared.models.katalog import (
+    BundleBericht,
+    BundleZeileAnsicht,
+    BundleZustandAnsicht,
+)
 from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
 from shared.models.openrouter_usage_schema import OpenRouterUsageRead
@@ -143,6 +148,11 @@ BODY_MODELS: list[type[BaseModel]] = [
     AggregateCoverage,
     AggregateTraceEntry,
     AggregateResult,
+    # Katalog confirm card: the bundle-state re-query (with its nested rows) and the activation
+    # report. The draft envelope itself stays untyped JSON (a per-tool artifact).
+    BundleZeileAnsicht,
+    BundleZustandAnsicht,
+    BundleBericht,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

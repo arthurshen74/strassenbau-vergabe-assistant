@@ -27,6 +27,7 @@ from shared.db.tables.katalog_leistungen import katalog_leistungen
 from shared.db.tables.katalog_lieferanten import katalog_lieferanten
 from shared.db.tables.katalog_lieferanten_preise import katalog_lieferanten_preise
 from shared.db.tables.katalog_maschinen import katalog_maschinen
+from shared.db.tables.katalog_stand import katalog_stand
 from shared.db.tables.katalog_variablen import katalog_variablen
 from shared.db.tables.katalog_vorgaenge import katalog_vorgaenge
 from shared.db.tables.lv_items import lv_items
@@ -62,6 +63,7 @@ __all__ = [
     "katalog_lieferanten",
     "katalog_lieferanten_preise",
     "katalog_maschinen",
+    "katalog_stand",
     "katalog_variablen",
     "katalog_vorgaenge",
     "lv_items",

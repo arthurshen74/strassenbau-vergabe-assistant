@@ -546,6 +546,29 @@ export interface AggregateResult {
   trace?: AggregateTraceEntry[];
 }
 
+export interface BundleZeileAnsicht {
+  entitaet: string;
+  schluessel: string;
+  /**
+   * Lifecycle state of a catalog row. The single source for these values.
+   */
+  status: "entwurf" | "aktiv" | "archiviert";
+}
+
+export interface BundleZustandAnsicht {
+  /**
+   * The confirm card's view of a bundle: still open for a decision, already activated, or no
+   * longer open (discarded or later superseded).
+   */
+  zustand: "offen" | "aktiviert" | "geschlossen";
+  zeilen: BundleZeileAnsicht[];
+}
+
+export interface BundleBericht {
+  fehler?: string[];
+  aktualisierungen?: string[];
+}
+
 // ---- Types pinned by scripts/export_schema.py ----
 
 export interface IngestQueued {

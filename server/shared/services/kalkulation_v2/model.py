@@ -112,14 +112,33 @@ class Formel(BaseModel):
         baum = ast.parse(self.ausdruck, mode="eval")
         return {n.id for n in ast.walk(baum) if isinstance(n, ast.Name)} - set(_FUNKTIONEN)
 
+    def funktionen(self) -> set[str]:
+        """Function names in call position (Call targets) — the DSL functions the formula invokes."""
+        baum = ast.parse(self.ausdruck, mode="eval")
+        return {
+            n.func.id
+            for n in ast.walk(baum)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+        }
+
     def validieren(self, bekannte_variablen: set[str]) -> list[str]:
-        """Dry-check before saving: parseable + every referenced name is known."""
-        probleme: list[str] = []
+        """Dry-check before saving: parseable + every referenced name is known. An unknown *function*
+        (a Call target outside the DSL whitelist) and an unknown *variable* (a value name) get
+        distinct messages — the function message names the whitelist so the author can express the
+        math with existing vocabulary or formulate an engineering request (never invent a function)."""
         try:
-            self.eingaben()
+            eingaben = self.eingaben()
         except SyntaxError as e:
             return [f"Syntaxfehler: {e}"]
-        for ref in self.eingaben():
+        probleme: list[str] = []
+        verfuegbar = ", ".join(sorted(_FUNKTIONEN))
+        for fn in sorted(self.funktionen() - set(_FUNKTIONEN)):
+            probleme.append(
+                f"unbekannte Funktion '{fn}' — keine DSL-Funktion. Verfügbar: {verfuegbar}. "
+                "Mit vorhandenem Vokabular ausdrücken oder als Entwicklerauftrag formulieren."
+            )
+        # A Call target that is not a DSL function is a function error, not a phantom variable.
+        for ref in sorted(eingaben - self.funktionen()):
             if ref not in bekannte_variablen:
                 probleme.append(f"unbekannte Variable referenziert: {ref}")
         return probleme
