@@ -7,7 +7,7 @@ A conversational interface over the persisted catalog (the Katalog Store, see
   entity and every relationship, forward and reverse ("Welche Lieferanten können AC 22 T S
   liefern?"). No mutations.
 - **Phase 2 — Mutations.** The same agent gains write tools. Every write is a single-entity
-  (or minimal) `RezeptBundle` draft → HITL confirm → activate → provider reload, plus a global
+  (or minimal) `KatalogBundle` draft → HITL confirm → activate → provider reload, plus a global
   catalog version (`katalog_stand`).
 - **Phase 3 — Recipe compiler.** NL Construction German → full multi-entity bundle. Reuses
   the Phase-1 tool surface for discovery and the Phase-2 write path for persistence. Sketched
@@ -270,7 +270,7 @@ concern, not a read gap.
   `aendere_formel`, `neue_stammdaten_variable`, `aendere_stammdaten_wert` (rate change),
   `neue_ausfuehrungsart`, `neue_betriebsart`/`-kategorie`,
   `bauverfahren_zu_leistung` (mapping supersede), `entwurf_verwerfen`.
-  All are thin wrappers producing single-entity (or minimal) `RezeptBundle`s through the
+  All are thin wrappers producing single-entity (or minimal) `KatalogBundle`s through the
   existing `KatalogService` — validation, lifecycle, atomic activation, auto-reload all
   come for free.
 - **Formula authoring rules:** vocabulary-first instruction; structured escalation
@@ -310,7 +310,7 @@ Phase-1 reads already cover the status quo (rates via T27/T28, Lohn formulas via
 
 Discovery through the Phase-1 tools (the agent searches before it mints — reuse pressure by
 prompt + the `wiederverwendung`/`neu` justification envelope), full multi-entity
-`RezeptBundle` output, Phase-2 write path, eval treadmill (compile → validate → calculate →
+`KatalogBundle` output, Phase-2 write path, eval treadmill (compile → validate → calculate →
 judge; reuse rate as the core metric). Own plan document when Phases 1–2 are reviewed.
 
 ## 8. Open questions (answers wanted during THIS review)

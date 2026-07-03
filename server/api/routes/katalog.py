@@ -1,7 +1,7 @@
 """Katalog endpoints (thin wrappers over KatalogService).
 
 Reads expose the active catalog and the open draft bundles; writes validate, save, activate or
-discard a `RezeptBundle`. All logic lives in `shared.services.katalog`; these handlers only shape
+discard a `KatalogBundle`. All logic lives in `shared.services.katalog`; these handlers only shape
 requests/responses and map service errors to HTTP status codes.
 """
 
@@ -17,7 +17,7 @@ from shared.models.katalog import (
     BundleBericht,
     KatalogEntitaet,
     KatalogZeile,
-    RezeptBundle,
+    KatalogBundle,
 )
 from shared.services.katalog.service import (
     BundleNichtGefunden,
@@ -68,7 +68,7 @@ async def liste_aktive(
 
 @router.post("/bundle/pruefen", response_model=BundleBericht)
 async def bundle_pruefen(
-    bundle: RezeptBundle,
+    bundle: KatalogBundle,
     service: KatalogService = Depends(get_katalog_service),
 ) -> BundleBericht:
     """Validate a bundle against the active catalog without writing."""
@@ -77,7 +77,7 @@ async def bundle_pruefen(
 
 @router.post("/bundle", response_model=BundleGespeichert)
 async def bundle_speichern(
-    bundle: RezeptBundle,
+    bundle: KatalogBundle,
     service: KatalogService = Depends(get_katalog_service),
     _principal: Principal = Depends(get_current_user),
 ) -> BundleGespeichert:

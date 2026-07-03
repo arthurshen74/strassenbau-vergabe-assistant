@@ -37,8 +37,10 @@ implementation, like Phase 1's §3.**
   open-ended active predecessor for the same (lieferant, baustoff), the predecessor's
   `gueltig_bis` is closed to the day before the new `gueltig_ab` — the same close-out-never-mutate
   SCD-2 move as `project_context_values`. Requires `sql/11` (ALTER; create_all cannot add columns).
-- **D6 — `RezeptBundle` grows `lieferanten` and `preise`.** Discovered gap: the bundle today
+- **D6 — `KatalogBundle` grows `lieferanten` and `preise`.** Discovered gap: the bundle today
   carries neither, so W5–W7 would have no write path. New fields + validation rules (§4).
+  (The class was renamed `RezeptBundle` → `KatalogBundle` on this branch, 2026-07-03 — it is the
+  general catalog change-set, and a recipe is just its most complex kind. No compat alias.)
 - **D7 — No parked invalid drafts.** If a formula needs a DSL function that does not exist, the
   draft is NOT saved (validation would have to be weakened to persist it). The agent relays the
   enriched Rule-1 error (§7) and formulates the engineering request conversationally. The
@@ -241,7 +243,7 @@ with corrected input). `benutzer` = `DEFAULT_AUTOR` until auth lands.
 0. Phase 1 branch merged first (including the `_vorgang_rollen` fixes — W11 uses it).
 1. `katalog_stand`: table + repo `stand_beruehren` + service hook points + seed + T1 switch (§2).
 2. `sql/11` + preise status columns + provider/seed/T21/T24 filter on `aktiv` (§ D5) +
-   `RezeptBundle` extension + R7–R9 (§3, §4-Preis rows).
+   `KatalogBundle` extension + R7–R9 (§3, §4-Preis rows).
 3. Rule-1 split + Handbuch authoring section (§7).
 4. `KatalogEntwurfDienst` + boundary test update (§8).
 5. W-tools batch A — W8–W12 (Formeln/Variablen: the demo-relevant rate flow) + tests.

@@ -8,7 +8,7 @@ from decimal import Decimal
 from shared.models.katalog import (
     BundleVariable,
     BundleVorgang,
-    RezeptBundle,
+    KatalogBundle,
     VariablenGruppe,
 )
 from shared.services.kalkulation_v2.model import (
@@ -31,7 +31,7 @@ def _konstante(name: str) -> VariableDefinition:
 
 
 def test_rule1_unbekannte_variable_in_formel() -> None:
-    bundle = RezeptBundle(
+    bundle = KatalogBundle(
         formeln=[Formel(name="f1", ergebnis_variable="f1", ausdruck="a + b", einheit="€")]
     )
     bericht = pruefe_bundle(bundle, KatalogStand())
@@ -40,7 +40,7 @@ def test_rule1_unbekannte_variable_in_formel() -> None:
 
 
 def test_rule2_formelzyklus() -> None:
-    bundle = RezeptBundle(
+    bundle = KatalogBundle(
         formeln=[
             Formel(name="f1", ergebnis_variable="f1", ausdruck="f2 + 1", einheit="€"),
             Formel(name="f2", ergebnis_variable="f2", ausdruck="f1 + 1", einheit="€"),
@@ -52,7 +52,7 @@ def test_rule2_formelzyklus() -> None:
 
 
 def test_rule3_kostenvariable_nicht_produzierbar() -> None:
-    bundle = RezeptBundle(
+    bundle = KatalogBundle(
         vorgaenge=[
             BundleVorgang(code="V_X", name="x", kostenvariablen={Kostenart.MATERIAL: "ghost"})
         ]
@@ -63,7 +63,7 @@ def test_rule3_kostenvariable_nicht_produzierbar() -> None:
 
 
 def test_rule4_unbekannte_ausfuehrungsart() -> None:
-    bundle = RezeptBundle(
+    bundle = KatalogBundle(
         vorgaenge=[BundleVorgang(code="V_X", name="x", ausfuehrungsart_code="AA_MISSING")]
     )
     bericht = pruefe_bundle(bundle, KatalogStand())
@@ -77,7 +77,7 @@ def test_rule5_variable_schattet_andere_gruppe() -> None:
         produzierbare_namen={"X"},
         var_gruppen={"X": {VariablenGruppe.FORMEL}},
     )
-    bundle = RezeptBundle(
+    bundle = KatalogBundle(
         variablen=[BundleVariable(gruppe=VariablenGruppe.STAMMDATEN, definition=_konstante("X"))]
     )
     bericht = pruefe_bundle(bundle, stand)
@@ -94,10 +94,10 @@ def test_rule5_update_einer_bestehenden_paarung_ist_erlaubt() -> None:
         produzierbare_namen={"X"},
         var_gruppen={"X": {VariablenGruppe.STAMMDATEN, VariablenGruppe.FORMEL}},
     )
-    als_stammdaten = RezeptBundle(
+    als_stammdaten = KatalogBundle(
         variablen=[BundleVariable(gruppe=VariablenGruppe.STAMMDATEN, definition=_konstante("X"))]
     )
-    als_formel = RezeptBundle(
+    als_formel = KatalogBundle(
         formeln=[Formel(name="X", ergebnis_variable="X", ausdruck="2", einheit="€")]
     )
     assert pruefe_bundle(als_stammdaten, stand).gueltig, pruefe_bundle(als_stammdaten, stand).fehler
@@ -105,7 +105,7 @@ def test_rule5_update_einer_bestehenden_paarung_ist_erlaubt() -> None:
 
 
 def test_rule5_neue_paarung_innerhalb_des_bundles_ist_fehler() -> None:
-    bundle = RezeptBundle(
+    bundle = KatalogBundle(
         variablen=[BundleVariable(gruppe=VariablenGruppe.KONTEXT, definition=_konstante("X"))],
         formeln=[Formel(name="X", ergebnis_variable="X", ausdruck="2", einheit="€")],
     )
@@ -116,7 +116,7 @@ def test_rule5_neue_paarung_innerhalb_des_bundles_ist_fehler() -> None:
 
 def test_rule6_supersede_ist_kein_fehler() -> None:
     stand = KatalogStand(leistung_codes={"L_X"})
-    bundle = RezeptBundle(leistungen=[Leistung(code="L_X", name="X", einheit="m2")])
+    bundle = KatalogBundle(leistungen=[Leistung(code="L_X", name="X", einheit="m2")])
     bericht = pruefe_bundle(bundle, stand)
     assert bericht.gueltig
     assert any("L_X" in a and "aktualisiert" in a for a in bericht.aktualisierungen)
@@ -128,7 +128,7 @@ def test_gueltiges_bundle_ohne_fehler() -> None:
     from shared.models.katalog import BundleBauverfahren
     from shared.services.kalkulation_v2.model import Ausführungsart
 
-    bundle = RezeptBundle(
+    bundle = KatalogBundle(
         leistungen=[Leistung(code="L_NEU", name="Neu", einheit="m2")],
         ausfuehrungsarten=[Ausführungsart(code="AA_NEU", name="Neu")],
         formeln=[Formel(name="kosten_neu", ergebnis_variable="kosten_neu", ausdruck="10", einheit="€")],

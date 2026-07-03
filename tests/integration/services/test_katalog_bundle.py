@@ -14,7 +14,7 @@ from shared.models.katalog import (
     BundleBauverfahren,
     BundleVorgang,
     KatalogEntitaet,
-    RezeptBundle,
+    KatalogBundle,
 )
 from shared.repositories.katalog import KatalogRepository
 from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
@@ -27,9 +27,9 @@ from scripts.check_katalog_parity import zustand_sichern
 from scripts.seed.seed_katalog import seed_katalog
 
 
-def _neues_rezept() -> RezeptBundle:
+def _neues_rezept() -> KatalogBundle:
     """A self-contained new Leistung: one Vorgang whose cost is a bundle Formel over booked area."""
-    return RezeptBundle(
+    return KatalogBundle(
         leistungen=[Leistung(code="L_KATALOG_TEST", name="Katalog-Teststrecke", einheit="m2")],
         formeln=[
             Formel(

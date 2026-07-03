@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from shared.models.katalog import (
     BundleBauverfahren,
     BundleVorgang,
-    RezeptBundle,
+    KatalogBundle,
 )
 from shared.repositories.katalog import KatalogRepository
 from shared.services.kalkulation_v2.model import Formel, Kostenart, Leistung
@@ -33,8 +33,8 @@ from scripts.seed.seed_katalog import seed_katalog
 INTERRUPT_KEY = "__interrupt__"
 
 
-def _fixed_bundle() -> RezeptBundle:
-    return RezeptBundle(
+def _fixed_bundle() -> KatalogBundle:
+    return KatalogBundle(
         leistungen=[Leistung(code="L_AUTOR_TEST", name="Autor-Teststrecke", einheit="m2")],
         formeln=[
             Formel(name="mk_autor_test", ergebnis_variable="mk_autor_test", ausdruck="flaeche_m2 * 7", einheit="€")

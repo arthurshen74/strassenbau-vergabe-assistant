@@ -44,7 +44,7 @@ Companion docs: `DATA_ARCHITECTURE.md`, `server/shared/services/kalkulation_v2/A
    module-level dicts **in place** (`d.clear(); d.update(...)`). `Kalkulator`,
    `graph.py`, `binden.py`, `worklist.py` are not rewritten. Derived state is
    rebuilt explicitly (§5).
-5. **The write unit is a bundle.** The service accepts a `RezeptBundle` (any subset
+5. **The write unit is a bundle.** The service accepts a `KatalogBundle` (any subset
    of catalog entities that belong together), validates it as a whole, and persists
    it in one Unit-of-Work transaction as drafts sharing a `bundle_uuid`. Activation
    is likewise per bundle, atomic.
@@ -152,7 +152,7 @@ consistent with validate-at-the-boundary.
 
 - `server/shared/models/katalog.py`: `KatalogStatus` (StrEnum), `KatalogZeile`
   (envelope: uuid, key, version, status, bundle_uuid, benutzer, gueltig_ab/bis,
-  payload dict) for the CRUD surface, and `RezeptBundle` (§7). Payload contracts
+  payload dict) for the CRUD surface, and `KatalogBundle` (§7). Payload contracts
   remain the existing `kalkulation_v2.model` classes — no parallel DTOs.
 - `server/shared/repositories/katalog.py`: **one generic repository**, parameterized
   by an entity registry (table, key column, payload column set). Thirteen
@@ -251,7 +251,7 @@ style as the existing seed scripts):
 `server/shared/services/katalog/service.py` + `validierung.py`.
 
 ```python
-class RezeptBundle(BaseModel):
+class KatalogBundle(BaseModel):
     """One coherent catalog change set: any subset of entities that belong together."""
     leistungen: list[Leistung] = []
     bauverfahren: list[Bauverfahren] = []          # vorgaenge referenced by code in transport,
@@ -316,7 +316,7 @@ for conversation + SSE + checkpointer. New conversation topic for recipe authori
 
 Graph, minimal:
 
-1. `entwerfen` — one LLM call, structured output = `RezeptBundle` (JSON schema from
+1. `entwerfen` — one LLM call, structured output = `KatalogBundle` (JSON schema from
    the Pydantic model). Placeholder system prompt: the active catalog's Leistungen/
    Vorgänge/Variablen index as context, instruction to reuse existing Vorgänge and
    variables where possible and to write `Formel.ausdruck` in the DSL. No further

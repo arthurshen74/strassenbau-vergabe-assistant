@@ -105,7 +105,7 @@ class KatalogPreis(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Recipe bundle (the write unit) — flat, code-referenced transport shapes.
+# Katalog bundle (the write unit) — flat, code-referenced transport shapes.
 # --------------------------------------------------------------------------- #
 class BundleVorgang(BaseModel):
     """A Vorgang in bundle transport: the Ausführungsart is referenced by code (embedded on load),
@@ -144,10 +144,13 @@ class BundleVariable(BaseModel):
     definition: VariableDefinition
 
 
-class RezeptBundle(BaseModel):
-    """One coherent catalog change set: any subset of entities that belong together, persisted as
-    drafts sharing a bundle_uuid and activated atomically. Lieferanten/prices and project globals
-    are out of scope here (recipe authoring), so the bundle carries recipe entities only."""
+class KatalogBundle(BaseModel):
+    """One coherent catalog change set — THE catalog write unit: any subset of entities that
+    belong together, validated as a whole, persisted as drafts sharing a bundle_uuid, and
+    activated atomically. A single superseded rate is a bundle; a full recipe (Leistung +
+    Bauverfahren + Vorgänge + Formeln) is just the most complex kind. Lieferanten and Preise
+    join the field set in Phase 2 (KATALOG_AGENT_PHASE2_PLAN.md D6); project globals stay out
+    (governed set)."""
 
     model_config = ConfigDict(extra="forbid")
 

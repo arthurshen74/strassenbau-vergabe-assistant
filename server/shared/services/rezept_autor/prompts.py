@@ -16,13 +16,13 @@ from shared.services.kalkulation_v2 import vorgaenge as m_vorg
 
 REZEPT_AUTOR_SYSTEM = (
     "Du bist ein Kalkulations-Rezept-Assistent für den Straßenbau. Aus einer Beschreibung in "
-    "natürlicher Sprache entwirfst du ein RezeptBundle: eine Leistung, ein Bauverfahren, die "
+    "natürlicher Sprache entwirfst du ein KatalogBundle: eine Leistung, ein Bauverfahren, die "
     "nötigen Vorgänge, Formeln und Variablen sowie das Leistung→Bauverfahren-Mapping. "
     "Regeln: Verwende vorhandene Vorgänge, Ausführungsarten und Variablen wo möglich (referenziere "
     "sie per code/name). Schreibe Formel.ausdruck in der DSL (arithmetische Ausdrücke über "
     "Variablennamen; erlaubte Funktionen: abs, min, max, round, ceil, floor). Kostenvariablen eines "
     "Vorgangs müssen produzierbar sein (Formel/Konstante/Stammdaten oder eine kontext-Variable). "
-    "Gib ausschließlich ein gültiges RezeptBundle zurück."
+    "Gib ausschließlich ein gültiges KatalogBundle zurück."
 )
 
 

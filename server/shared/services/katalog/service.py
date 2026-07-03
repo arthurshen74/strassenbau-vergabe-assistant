@@ -24,7 +24,7 @@ from shared.models.katalog import (
     KatalogEntitaet,
     KatalogStatus,
     KatalogZeile,
-    RezeptBundle,
+    KatalogBundle,
     VariablenGruppe,
 )
 from shared.repositories.katalog import KATALOG_REGISTRY, KatalogRepository
@@ -74,13 +74,13 @@ class KatalogService:
     def __init__(self, engine: AsyncEngine) -> None:
         self.engine = engine
 
-    async def pruefen(self, bundle: RezeptBundle) -> BundleBericht:
+    async def pruefen(self, bundle: KatalogBundle) -> BundleBericht:
         """Validate a bundle against the current active catalog (no write)."""
         async with self.engine.connect() as conn:
             stand = await lade_stand(KatalogRepository(conn))
         return pruefe_bundle(bundle, stand)
 
-    async def entwurf_speichern(self, bundle: RezeptBundle, benutzer: str) -> UUID:
+    async def entwurf_speichern(self, bundle: KatalogBundle, benutzer: str) -> UUID:
         """Validate, then insert every bundle row as `entwurf` sharing one bundle_uuid."""
         bundle_uuid = uuid4()
         async with unit_of_work(self.engine) as uow:
@@ -158,7 +158,7 @@ class KatalogService:
         return {entitaet: zeilen for entitaet, zeilen in entwuerfe.items() if zeilen}
 
     async def _schreibe_bundle(
-        self, repo: KatalogRepository, bundle: RezeptBundle, benutzer: str, bundle_uuid: UUID
+        self, repo: KatalogRepository, bundle: KatalogBundle, benutzer: str, bundle_uuid: UUID
     ) -> None:
         async def draft(entitaet: KatalogEntitaet, schluessel: str, payload: dict) -> KatalogZeile:
             return await repo.neue_version(entitaet, schluessel, payload, benutzer, bundle_uuid)
@@ -201,8 +201,8 @@ class KatalogService:
     @staticmethod
     async def _bundle_aus_zeilen(
         repo: KatalogRepository, entwuerfe: dict[KatalogEntitaet, list[KatalogZeile]]
-    ) -> RezeptBundle:
-        """Reconstruct a RezeptBundle from its draft rows, for re-validation on activation."""
+    ) -> KatalogBundle:
+        """Reconstruct a KatalogBundle from its draft rows, for re-validation on activation."""
 
         def modelle(entitaet: KatalogEntitaet, cls, schluessel_feld: str):
             return [
@@ -231,7 +231,7 @@ class KatalogService:
             )
             for z in entwuerfe.get(KatalogEntitaet.BAUVERFAHREN, [])
         ]
-        return RezeptBundle(
+        return KatalogBundle(
             leistungen=modelle(KatalogEntitaet.LEISTUNGEN, Leistung, "code"),
             bauverfahren=bauverfahren,
             vorgaenge=vorgaenge,

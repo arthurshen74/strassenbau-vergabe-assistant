@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from shared.models.katalog import BundleBericht, KatalogEntitaet, RezeptBundle, VariablenGruppe
+from shared.models.katalog import BundleBericht, KatalogEntitaet, KatalogBundle, VariablenGruppe
 from shared.repositories.katalog import KatalogRepository
 from shared.services.kalkulation_v2.model import AufloesungsMethode, Formel, VariableDefinition
 
@@ -124,7 +124,7 @@ def _hat_zyklus(formeln: dict[str, Formel]) -> list[str]:
     return []
 
 
-def pruefe_bundle(bundle: RezeptBundle, stand: KatalogStand) -> BundleBericht:
+def pruefe_bundle(bundle: KatalogBundle, stand: KatalogStand) -> BundleBericht:
     """Validate a bundle against the active catalog. Pure; no I/O."""
     fehler: list[str] = []
     aktualisierungen: list[str] = []

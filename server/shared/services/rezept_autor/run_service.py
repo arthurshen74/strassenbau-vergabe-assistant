@@ -29,7 +29,7 @@ from shared.clients.llm.client import (
 from shared.config import settings
 from shared.models.conversation import Conversation
 from shared.models.enums import CalculationStatus, MessageKind
-from shared.models.katalog import RezeptBundle
+from shared.models.katalog import KatalogBundle
 from shared.models.message import NewMessage
 from shared.models.sse_schema import (
     DATA,
@@ -108,14 +108,14 @@ class RezeptAutorRunService:
         )
 
     def _entwerfer(self, conversation: Conversation):
-        async def entwerfer(beschreibung: str, fehler: list[str], feedback: str | None) -> RezeptBundle:
+        async def entwerfer(beschreibung: str, fehler: list[str], feedback: str | None) -> KatalogBundle:
             bundle, _reasoning = await self._llm.chat_with_reasoning(
                 model=settings.calculator_model,
                 messages=[
                     {MESSAGE_ROLE: ROLE_SYSTEM, MESSAGE_CONTENT: REZEPT_AUTOR_SYSTEM},
                     {MESSAGE_ROLE: ROLE_USER, MESSAGE_CONTENT: baue_user_prompt(beschreibung, fehler, feedback)},
                 ],
-                output_model=RezeptBundle,
+                output_model=KatalogBundle,
                 reasoning_effort=settings.calculator_reasoning_effort,
                 strict=False,
                 conversation_uuid=conversation.conversation_uuid,

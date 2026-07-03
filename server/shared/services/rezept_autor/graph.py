@@ -1,6 +1,6 @@
 """Rezept-Autor graph (Part B — deliberately dumb): describe → validate → human review.
 
-Three nodes: `entwerfen` drafts a `RezeptBundle` (one LLM call, injected as `entwerfer`), `pruefen`
+Three nodes: `entwerfen` drafts a `KatalogBundle` (one LLM call, injected as `entwerfer`), `pruefen`
 validates it (injected `pruefer`), and `rezept_review` is a HITL interrupt carrying the bundle, the
 validation report and the supersede flags. Validation errors loop back to `entwerfen` (up to
 `MAX_VERSUCHE`, then the errors are surfaced to the human); the reviewer either sends feedback (loops
@@ -23,7 +23,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
-from shared.models.katalog import BundleBericht, RezeptBundle
+from shared.models.katalog import BundleBericht, KatalogBundle
 
 # Interrupt discriminator (mirrored in the UI's InterruptPanel).
 STAGE_REZEPT_REVIEW = "rezept_review"
@@ -32,16 +32,16 @@ REASONING_NARRATION = "narration"
 # Max entwerfen attempts before surfacing validation errors to the human.
 MAX_VERSUCHE = 3
 
-Entwerfer = Callable[[str, list[str], str | None], Awaitable[RezeptBundle]]
-Pruefer = Callable[[RezeptBundle], Awaitable[BundleBericht]]
-Speichern = Callable[[RezeptBundle], Awaitable[UUID]]
+Entwerfer = Callable[[str, list[str], str | None], Awaitable[KatalogBundle]]
+Pruefer = Callable[[KatalogBundle], Awaitable[BundleBericht]]
+Speichern = Callable[[KatalogBundle], Awaitable[UUID]]
 Aktivieren = Callable[[UUID], Awaitable[BundleBericht]]
 
 
 class RezeptAutorState(TypedDict, total=False):
     beschreibung: str
     versuche: int
-    bundle: dict  # RezeptBundle as JSON
+    bundle: dict  # KatalogBundle as JSON
     bericht: dict  # BundleBericht as JSON
     feedback: str | None
     reasoning_log: Annotated[list[dict], operator.add]
@@ -79,7 +79,7 @@ def build_graph(
         }
 
     async def pruefen(state: RezeptAutorState) -> dict:
-        bericht = await pruefer(RezeptBundle.model_validate(state["bundle"]))
+        bericht = await pruefer(KatalogBundle.model_validate(state["bundle"]))
         text = (
             "Rezept ist gültig."
             if bericht.gueltig
@@ -101,7 +101,7 @@ def build_graph(
             return {"feedback": antwort["feedback"], "reasoning_log": [_reason("Feedback erhalten — überarbeite das Rezept.")]}
         if not antwort.get("bestaetigt"):
             return {"verworfen": True, "reasoning_log": [_reason("Rezept verworfen.")]}
-        bundle = RezeptBundle.model_validate(state["bundle"])
+        bundle = KatalogBundle.model_validate(state["bundle"])
         bundle_uuid = await speichern(bundle)
         aktiviert = False
         if antwort.get("aktivieren"):
