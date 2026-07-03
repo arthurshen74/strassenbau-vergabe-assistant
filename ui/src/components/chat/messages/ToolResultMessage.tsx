@@ -11,8 +11,10 @@ import { LvResultMessage } from './LvResultMessage';
 import { MapResultMessage } from './MapResultMessage';
 import { RetrievalTraceMessage } from './RetrievalTraceMessage';
 
-// The catalog write tools (W1–W17) all emit a draft envelope the KatalogEntwurfCard renders.
+// The catalog write tools (W1–W18) all emit a draft envelope the KatalogEntwurfCard renders;
+// rezept_entwurf_speichern's envelope carries the sectioned recipe bundle.
 const KATALOG_SCHREIB_WERKZEUGE = new Set<string>([
+  'rezept_entwurf_speichern',
   'neue_formel',
   'aendere_formel',
   'neue_stammdaten_variable',

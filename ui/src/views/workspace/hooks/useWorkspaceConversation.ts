@@ -23,7 +23,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { postStream } from '../../../api/sse';
 import { conversationKeys, useNameConversation } from '../../../api/conversations';
 import type { CalculationResume } from '../../../api/calculations';
-import type { RezeptReviewDecision } from '../../../api/katalog';
 import { promptKeys } from '../../../api/prompts';
 import { log } from '../../../lib/logger';
 import { useUIStore } from '../../../store/ui';
@@ -130,7 +129,7 @@ export function useWorkspaceConversation(
 
       streamStateRef.current = { openAssistantId: null, toolNameByCallId: {} };
       setIsStreaming(true);
-      setIsCalculating('resume' in body || 'rezept_review' in body);
+      setIsCalculating('resume' in body);
       setStreamActive(conversationId, true);
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -336,12 +335,6 @@ export function useWorkspaceConversation(
     [runTurn],
   );
 
-  // Answer a paused recipe-author review (feedback / confirm / discard); the run continues streaming.
-  const sendRezeptReview = useCallback(
-    (decision: RezeptReviewDecision) => runTurn({ rezept_review: decision }, null),
-    [runTurn],
-  );
-
   return {
     streamMessages,
     streamingMessageId,
@@ -350,6 +343,5 @@ export function useWorkspaceConversation(
     pendingInterrupt,
     sendMessage,
     sendResume,
-    sendRezeptReview,
   };
 }

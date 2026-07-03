@@ -44,9 +44,9 @@ class PromptType(StrEnum):
     # CONVERSATION_DISCRIMINATORS below. The ekt_* below are the EKT calculation graph's structured
     # LLM prompts (shared/services/calculator/llm_calls.py).
     EKT_CALCULATOR = "ekt_calculator"
-    # rezept_autor is a conversation discriminator (a recipe-authoring chat that owns a
-    # rezept_autor graph run); its entwerfen prompt is an inline placeholder (Part C designs the
-    # real one), so it ships no seeded .prompt file — grouped in CONVERSATION_DISCRIMINATORS below.
+    # retired — kept for historical rows: the rezept_autor harness is deleted (the recipe compiler
+    # is the katalog_chat agent + rezept_entwurf_speichern); existing conversations with this
+    # discriminator must stay parseable, but run_turn treats them as not continuable.
     REZEPT_AUTOR = "rezept_autor"
     # katalog_chat is a conversation discriminator (a read-only catalog chat that owns a
     # create_agent tool loop over the persisted Katalog); its system prompt (the Katalog-Handbuch)

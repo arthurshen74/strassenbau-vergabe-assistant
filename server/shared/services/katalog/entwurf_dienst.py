@@ -88,6 +88,23 @@ class KatalogEntwurfDienst:
         async with self._engine.connect() as conn:
             return await LeseModell(conn).verwendung_von_variable(name)
 
+    async def suche(
+        self, text: str, entitaeten: list[str], limit: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Ranked BM25 hits over the active catalog — the W18 near-duplicate probe."""
+        async with self._engine.connect() as conn:
+            env = await LeseModell(conn).suche_katalog(text, entitaeten=entitaeten, limit=limit)
+        return env["eintraege"]
+
+    async def aktive_formeln_und_vorgaenge(self) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+        """Active Formeln (by name) and Vorgang payloads (by code) — the W18 geometry walk's view
+        of what a reused chain member transitively depends on."""
+        async with self._engine.connect() as conn:
+            repo = KatalogRepository(conn)
+            formeln = {z.schluessel: z.payload for z in await repo.aktive(KatalogEntitaet.FORMELN)}
+            vorgaenge = {z.schluessel: z.payload for z in await repo.aktive(KatalogEntitaet.VORGAENGE)}
+        return formeln, vorgaenge
+
     async def aktive_preise(self) -> list[KatalogPreis]:
         """All active supplier price rows (used to render a supplier's assortment on a card)."""
         async with self._engine.connect() as conn:

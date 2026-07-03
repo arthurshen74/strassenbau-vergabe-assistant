@@ -39,7 +39,7 @@ lade_preise(BAUSTOFFE, LIEFERANTEN)
 # Merge the variable catalog from its three sources (no key overlaps by design).
 KATALOG = {**STAMMDATEN_VARIABLEN, **KONTEXT_VARIABLEN, **FORMEL_VARIABLEN}
 
-GEOM = {"m2": "flaeche_m2", "m": "laenge_m", "m3": "volumen_m3", "t": "menge_t"}
+GEOM = {"m2": "flaeche_m2", "m": "laenge_m", "m3": "volumen_m3", "t": "menge_t", "St": "anzahl_st"}
 
 
 def baue_kontext(pos: Position, einheit: str) -> Kalkulationskontext:

@@ -81,7 +81,7 @@ eingabe("ev2_ziel", "Verdichtungsanforderung Ev2", "MPa",
 # flaeche_m2 is intentionally NOT here: when a position is booked in m² it is filled
 # directly from `menge` (and the resolver short-circuits on the booked value); when a
 # position is booked in m³, flaeche_m2 is DERIVED via volumen_m3 / schichtdicke_m (see formel.py).
-for _g, _e in [("laenge_m", "m"), ("volumen_m3", "m³")]:
+for _g, _e in [("laenge_m", "m"), ("volumen_m3", "m³"), ("anzahl_st", "St")]:
     geometrie(_g, _e)
 # menge_t is NOT a booked placeholder: t-billed positions fill it from `menge`
 # (resolver short-circuits); m²-billed asphalt derives it (see formel.py).

@@ -46,16 +46,27 @@ failure behaviour (the script re-raises; the worker swallows to keep looping). *
 two callers. If a third runner appears, extract a shared `run_ingest(stack, job)` (and a stack builder)
 into `shared/services/ingestion`.
 
+### Duplicated write-tool test driver `_call` (ainvoke a tool_call dict, return the artifact)
+
+- `tests/integration/services/test_katalog_schreib_werkzeuge.py` — `_call`
+- `tests/integration/services/test_katalog_e2e.py` — `_call`
+- `tests/integration/services/test_katalog_rezept_werkzeug.py` — `_call`
+
+Identical four-liner: `tool.ainvoke({"type": "tool_call", ...})` and return `msg.artifact`. **Do not
+extract yet** — three test files, trivially small. A fourth katalog-tool test file extracts a
+`werkzeug_aufrufen` helper into a tests-side conftest or helper module. (Good Bet, listed under
+Longshots layout-wise to keep entity order; 3 instances.)
+
 ### OpenRouter-backed ChatOpenAI construction (base-url suffix strip + secret key wrap)
 
 - `server/shared/services/project_chat_agent.py` — `_openrouter_base_url()` + `ChatOpenAI(...)` (streaming chat agent, telemetry callbacks)
 - `server/shared/services/calculator/llm_calls.py` — `_llm()` (structured-output sites, no streaming)
+- `server/shared/services/katalog/chat_agent.py` — `_openrouter_base_url()` + `ChatOpenAI(...)` (katalog chat agent; the Phase-3 eval script reuses this via `KatalogChatAgent.ainvoke`, so it is NOT a fourth copy)
 
-Both strip `/chat/completions` off `settings.openrouter_api_url_chat` and build a `ChatOpenAI` with
+All strip `/chat/completions` off `settings.openrouter_api_url_chat` and build a `ChatOpenAI` with
 `convert_to_secret_str(settings.openrouter_api_key or "")`. The construction diverges after that
-(streaming + usage accounting + callbacks vs `with_structured_output`). **Do not extract yet** — two
-callers. A third LangChain-over-OpenRouter site extracts a `build_chat_model(model, **kwargs)` into
-`shared/clients/llm`.
+(streaming + usage accounting + callbacks vs `with_structured_output`). **Good Bet (3 instances) —
+extract on the fourth**: a `build_chat_model(model, **kwargs)` in `shared/clients/llm`.
 
 ### Duration-by-rate formulas (quantity / hourly performance)
 

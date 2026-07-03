@@ -26,6 +26,7 @@ from shared.clients.openrouter.usage import UsageEvent
 from shared.config import settings
 from shared.models.enums import PromptType
 from shared.services.katalog.werkzeuge import katalog_werkzeuge
+from shared.services.katalog.werkzeuge_rezept import katalog_rezept_werkzeuge
 from shared.services.katalog.werkzeuge_schreiben import katalog_schreib_werkzeuge
 from shared.services.project_chat_agent import (
     USAGE_ACCOUNTING_EXTRA_BODY,
@@ -70,7 +71,11 @@ class KatalogChatAgent:
             streaming=True,
             stream_usage=True,
         )
-        werkzeuge = katalog_werkzeuge(engine) + katalog_schreib_werkzeuge(engine)
+        werkzeuge = (
+            katalog_werkzeuge(engine)
+            + katalog_schreib_werkzeuge(engine)
+            + katalog_rezept_werkzeuge(engine)
+        )
         self._agent = create_agent(model, werkzeuge, system_prompt=system_prompt)
 
     async def astream(self, messages: list[dict[str, Any]]) -> AsyncIterator[AgentEvent]:
@@ -79,6 +84,15 @@ class KatalogChatAgent:
             mapped = map_agent_event(event)
             if mapped is not None:
                 yield mapped
+
+    async def ainvoke(
+        self, messages: list[dict[str, Any]], recursion_limit: int = 25
+    ) -> dict[str, Any]:
+        """Run the agent to completion and return the final graph state (`messages` includes the
+        AI tool calls and ToolMessages with artifacts). The non-SSE path, used by the eval harness."""
+        return await self._agent.ainvoke(
+            {"messages": messages}, config={"recursion_limit": recursion_limit}
+        )
 
     def drain_telemetry(self) -> tuple[list[UsageEvent], list[ExecutionLogEvent]]:
         """Return the usage + execution-log events buffered since the last drain, and clear them."""

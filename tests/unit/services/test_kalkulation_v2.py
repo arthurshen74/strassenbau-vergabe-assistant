@@ -14,7 +14,7 @@ from shared.services.kalkulation_v2.leistung_bauverfahren import waehle_bauverfa
 from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
 from shared.services.kalkulation_v2.model import Kalkulator
 from shared.services.kalkulation_v2.positionen import POSITIONEN, P
-from shared.services.kalkulation_v2.store import FORMELN, KATALOG, GEOM, kalkuliere
+from shared.services.kalkulation_v2.store import FORMELN, KATALOG, GEOM, baue_kontext, kalkuliere
 from shared.services.kalkulation_v2.worklist import BlattArt, benoetigte_variablen
 
 # Golden values for the authored L 101 fixture (Bauabschnitt 01). Update only when
@@ -110,6 +110,14 @@ def test_feinfraesen_is_slower_than_regelfraesen() -> None:
         P("Tr", "L_FRAESEN", "1000", tiefe_cm="2", erschwernisfaktor="1.0", fraesgut_klasse="1")
     )["ep_eur"]
     assert fein > regel
+
+
+def test_st_geometry_books_anzahl_st() -> None:
+    """D4: `St` is engine geometry — a Stück-billed position books its menge onto `anzahl_st`."""
+    assert GEOM["St"] == "anzahl_st"
+    assert "anzahl_st" in KATALOG and KATALOG["anzahl_st"].einheit == "St"
+    ctx = baue_kontext(P("T-St", "L_FRAESEN", "12"), "St")
+    assert ctx.werte["anzahl_st"].wert == Decimal("12")
 
 
 def test_secondary_gap_leistungen_classify_and_compute() -> None:

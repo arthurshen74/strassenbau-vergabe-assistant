@@ -106,7 +106,6 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     pendingInterrupt,
     sendMessage,
     sendResume,
-    sendRezeptReview,
   } = useWorkspaceConversation(conversationId, retrievalConfig);
   const isPositionChat = conversation.data?.prompt_type === 'ekt_calculator';
   const isKatalogChat = conversation.data?.prompt_type === 'katalog_chat';
@@ -188,7 +187,6 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
         <InterruptPanel
           interrupt={interrupt}
           onResume={sendResume}
-          onRezeptReview={sendRezeptReview}
           disabled={isStreaming}
         />
       : <>
