@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.models.katalog import KatalogEntitaet, KatalogStatus
 from shared.repositories.katalog import KatalogRepository
+from shared.services.katalog.werkzeuge import katalog_werkzeuge
 from shared.services.katalog.werkzeuge_schreiben import katalog_schreib_werkzeuge
 
 from scripts.seed.seed_katalog import seed_katalog
@@ -269,3 +270,13 @@ async def test_w17_ungueltige_uuid(schreib) -> None:
     _, tools = schreib
     art = await _call(tools, "entwurf_verwerfen", bundle_uuid="kein-uuid")
     assert art.get("bundle_uuid") is None and art["bericht"]["fehler"]
+
+
+async def test_t33_offener_entwurf_erscheint_in_liste(schreib) -> None:
+    engine, tools = schreib
+    art = await _call(tools, "neue_ausfuehrungsart", code="AA_LISTE_T33", name="Liste")
+    lese_tools = {t.name: t for t in katalog_werkzeuge(engine)}
+    msg = await lese_tools["liste_entwuerfe"].ainvoke(
+        {"type": "tool_call", "name": "liste_entwuerfe", "args": {}, "id": "c"}
+    )
+    assert art["bundle_uuid"] in {e["bundle_uuid"] for e in msg.artifact["eintraege"]}

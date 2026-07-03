@@ -5,7 +5,7 @@ One class, `LeseModell`, answers every catalog read: enumerations, single-entity
 one reference deep with its reverse edges, targeted relationship queries, lexical search, formula
 rendering, and the transitive variable analyses (derivation tree, where-used). All logic lives here;
 the tool handlers are thin wrappers (§1.3). Every tool returns a JSON-compact envelope — short keys,
-Decimals/dates stringified, None values dropped — designed for LLM consumption (§2).
+Decimals/dates/UUIDs stringified, None values dropped — designed for LLM consumption (§2).
 
 The source of truth is the DATABASE (`KatalogRepository`), not the engine's in-memory module dicts
 (§1.2): default visibility is `aktiv` rows; drafts and archived versions are reachable only through
@@ -24,6 +24,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -75,7 +76,7 @@ _DSL_FUNKTION_DOKU = {
 
 
 def _env(obj: Any) -> Any:
-    """Normalise an envelope for JSON/LLM consumption: drop None, stringify Decimal/date, unwrap Enum."""
+    """Normalise an envelope for JSON/LLM consumption: drop None, stringify Decimal/date/UUID, unwrap Enum."""
     if isinstance(obj, dict):
         return {k: _env(v) for k, v in obj.items() if v is not None}
     if isinstance(obj, (list, tuple)):
@@ -86,6 +87,8 @@ def _env(obj: Any) -> Any:
         return obj.isoformat()
     if isinstance(obj, Enum):
         return obj.value
+    if isinstance(obj, UUID):
+        return str(obj)
     return obj
 
 
