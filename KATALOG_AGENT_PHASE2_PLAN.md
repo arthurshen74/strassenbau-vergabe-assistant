@@ -253,14 +253,11 @@ with corrected input). `benutzer` = `DEFAULT_AUTOR` until auth lands.
 
 Steps 1–4 are backend-only and independently landable; 5–7 stack on them.
 
-## 12. Open questions (answer during review)
+## 12. Open questions — ALL RESOLVED (Arthur, 2026-07-03). The spec is BINDING as written.
 
-1. **D4 bump semantics:** `version` on activation only (recommended — it's the provenance/reload
-   number), with `aktualisiert_am` tracking every write. OK, or must every write bump `version`?
-2. **D7:** dropping the "parked draft awaiting a DSL function" idea — conversational escalation
-   only. OK?
-3. **W-list completeness (§4/§5):** anything your Kalkulator changes weekly that has no W-tool?
-   (Candidates deliberately excluded: Leistung/BV/Vorgang — Phase 3; Globale — governed.)
-4. **W7/D5 price close-out:** auto-closing the open-ended predecessor on activation — right
-   semantics, or should overlapping prices be a validation ERROR instead (forcing explicit
-   `gueltig_bis` first)?
+1. **RESOLVED — D4 stands:** `version` bumps on activation only; `aktualisiert_am`/`benutzer`
+   track every write.
+2. **RESOLVED — D7 stands:** conversational escalation only; no parked invalid drafts.
+3. **RESOLVED:** W1–W17 confirmed complete; §4 matrix boundaries confirmed
+   (Leistung/BV/Vorgang — Phase 3; Globale — governed).
+4. **RESOLVED — D5 stands:** auto close-out of the open-ended predecessor on activation.
