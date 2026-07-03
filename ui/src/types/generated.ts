@@ -551,16 +551,19 @@ export interface BundleZeileAnsicht {
   schluessel: string;
   /**
    * Lifecycle state of a catalog row. The single source for these values.
+   *
+   * `verworfen` and `archiviert` are distinct ends: a discarded draft was never in force, a
+   * superseded version was. Only activation writes `archiviert`.
    */
-  status: "entwurf" | "aktiv" | "archiviert";
+  status: "entwurf" | "aktiv" | "verworfen" | "archiviert";
 }
 
 export interface BundleZustandAnsicht {
   /**
-   * The confirm card's view of a bundle: still open for a decision, already activated, or no
-   * longer open (discarded or later superseded).
+   * The confirm card's view of a bundle: still open for a decision, already activated,
+   * discarded without ever being active, or activated and later superseded.
    */
-  zustand: "offen" | "aktiviert" | "geschlossen";
+  zustand: "offen" | "aktiviert" | "verworfen" | "geschlossen";
   zeilen: BundleZeileAnsicht[];
 }
 

@@ -17,21 +17,7 @@ import {
 } from '../../../api/katalog';
 import { Button } from '../../ui/button';
 import { Strong, Text } from '../../ui/text';
-
-const ENTITAET_LABEL: Record<string, string> = {
-  baustoffe: 'Baustoff',
-  maschinen: 'Maschine',
-  lieferanten: 'Lieferant',
-  preise: 'Preis',
-  formeln: 'Formel',
-  variablen: 'Variable',
-  ausfuehrungsarten: 'Geräteklasse',
-  betriebskategorien: 'Betriebskategorie',
-  betriebsarten: 'Betriebsart',
-  leistung_bauverfahren: 'Leistung → Bauverfahren',
-  entwurf: 'Entwurf',
-  bundle: 'Katalog-Bundle',
-};
+import { ENTITAET_LABEL, ZUSTAND_LABEL } from './katalogLabels';
 
 const AKTION_LABEL: Record<string, string> = {
   neu: 'Neu',
@@ -375,7 +361,7 @@ export function KatalogEntwurfCard({ data }: { data: Record<string, unknown> | n
             </>
           ) : (
             <Text className="text-sm text-zinc-500">
-              {zustand === 'aktiviert' ? 'Aktiviert.' : 'Nicht mehr offen.'}
+              {ZUSTAND_LABEL[zustand ?? ''] ?? 'Nicht mehr offen.'}
             </Text>
           )}
           {aktivieren.isError || verwerfen.isError ? (

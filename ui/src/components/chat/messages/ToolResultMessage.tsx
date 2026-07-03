@@ -7,6 +7,7 @@ import type { MessageRead } from '../../../types/generated';
 import { AggregateResultMessage } from './AggregateResultMessage';
 import { EktResultMessage } from './EktResultMessage';
 import { KatalogEntwurfCard } from './KatalogEntwurfCard';
+import { KatalogEntwurfListe } from './KatalogEntwurfListe';
 import { LvResultMessage } from './LvResultMessage';
 import { MapResultMessage } from './MapResultMessage';
 import { RetrievalTraceMessage } from './RetrievalTraceMessage';
@@ -34,6 +35,9 @@ const KATALOG_SCHREIB_WERKZEUGE = new Set<string>([
   'entwurf_verwerfen',
 ]);
 
+// The T33 draft listing renders as actionable rows (KatalogEntwurfListe).
+const TOOL_LISTE_ENTWUERFE = 'liste_entwuerfe';
+
 // Wire tool names, matching the names the project-chat agent emits (ProjectChatAgent tools).
 export const TOOL_GET_PROJECT_CONTEXT = 'get_project_context';
 export const TOOL_GET_LV_CONTEXT = 'get_lv_context';
@@ -55,6 +59,9 @@ export function ToolResultMessage({
   if (!m.success) return null;
   if (m.tool_name && KATALOG_SCHREIB_WERKZEUGE.has(m.tool_name)) {
     return <KatalogEntwurfCard data={m.data ?? null} />;
+  }
+  if (m.tool_name === TOOL_LISTE_ENTWUERFE) {
+    return <KatalogEntwurfListe data={m.data ?? null} />;
   }
   switch (m.tool_name) {
     case TOOL_GET_PROJECT_CONTEXT:
