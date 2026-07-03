@@ -873,10 +873,12 @@ class LeseModell:
             }
             for v in sorted(f.eingaben())
         ]
+        # Reverse edge: every Vorgang that uses the formula's output in ANY of the three variable
+        # roles. The role definition is shared with verwendung_von_variable (T30) via
+        # _vorgang_rollen so the detail view and the impact analysis can never disagree.
         gebunden_in = [
             vc for vc, vp in (await self._payloads(KatalogEntitaet.VORGAENGE)).items()
-            if f.ergebnis_variable in (vp.get("kostenvariablen") or {}).values()
-            or vp.get("leistung_variable") == f.ergebnis_variable
+            if _vorgang_rollen(vp, f.ergebnis_variable)
         ]
         referenziert_in = [
             other.name for other in formeln.values()
@@ -995,13 +997,7 @@ class LeseModell:
         ]
         vorgaenge = []
         for vc, vp in (await self._payloads(KatalogEntitaet.VORGAENGE)).items():
-            rollen = []
-            if name in (vp.get("kostenvariablen") or {}).values():
-                rollen.append("kostenvariable")
-            if vp.get("leistung_variable") == name:
-                rollen.append("leistung_variable")
-            if name in (vp.get("kosten_bindung") or {}):
-                rollen.append("kosten_bindung")
+            rollen = _vorgang_rollen(vp, name)
             if rollen:
                 vorgaenge.append({"code": vc, "rollen": rollen})
         globale = [
@@ -1077,6 +1073,38 @@ class LeseModell:
 # --------------------------------------------------------------------------- #
 # Module helpers
 # --------------------------------------------------------------------------- #
+def _vorgang_rollen(vorgang_payload: dict[str, Any], variable: str) -> list[str]:
+    """The roles in which one Vorgang uses `variable` — THE single definition of "a Vorgang uses
+    a variable". Both reverse-edge tools resolve through it: `zeige_formel` (T26,
+    gebunden_in_vorgaengen) and `verwendung_von_variable` (T30, the impact analysis). Keeping it
+    in one place is load-bearing: when the two answers disagree, a Kalkulator edits a formula on
+    incomplete impact information.
+
+    A Vorgang references variables in three distinct roles:
+
+    - "kostenvariable" — a VALUE of `kostenvariablen` (Kostenart → variable name). These are the
+      cost lines `Vorgang.kalkuliere` sums into the EKT.
+    - "leistung_variable" — the productivity slot. A machine bound at Gate 4 writes its
+      Leistungsprofil rate into this variable (binden.py).
+    - "kosten_bindung" — a KEY of `kosten_bindung` (cost variable ← machine property-bag key).
+      When a machine is bound, its property value is written into this variable and SHADOWS
+      whatever the catalog would otherwise supply — a Stammdaten KONSTANTE or a Formel. This is
+      the easily-missed role: for a formula-produced variable it means "in this Vorgang, a bound
+      machine can override the formula", which is precisely what an author must know before
+      editing that formula. No seeded Vorgang has this shape today (binding keys are currently
+      all Stammdaten rates), so only the synthetic-row regression test exercises it — do not
+      assume fixture coverage.
+    """
+    rollen: list[str] = []
+    if variable in (vorgang_payload.get("kostenvariablen") or {}).values():
+        rollen.append("kostenvariable")
+    if vorgang_payload.get("leistung_variable") == variable:
+        rollen.append("leistung_variable")
+    if variable in (vorgang_payload.get("kosten_bindung") or {}):
+        rollen.append("kosten_bindung")
+    return rollen
+
+
 def _eingaben(ausdruck: str) -> set[str]:
     """The variable names a stored formula expression references (empty on a parse error)."""
     try:

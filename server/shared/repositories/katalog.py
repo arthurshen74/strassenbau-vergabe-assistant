@@ -150,27 +150,11 @@ class KatalogRepository:
 
     async def aktive(self, entitaet: KatalogEntitaet) -> list[KatalogZeile]:
         """Every `aktiv` row of an entity, ordered by natural key (deterministic)."""
-        spec = KATALOG_REGISTRY[entitaet]
-        t = spec.tabelle
-        stmt = (
-            select(t)
-            .where(t.c[SPALTE_STATUS] == KatalogStatus.AKTIV.value)
-            .order_by(t.c[spec.schluessel])
-        )
-        rows = (await self.conn.execute(stmt)).mappings().all()
-        return [self._zeile(spec, r) for r in rows]
+        return await self.nach_status(entitaet, KatalogStatus.AKTIV)
 
     async def entwuerfe(self, entitaet: KatalogEntitaet) -> list[KatalogZeile]:
         """Every `entwurf` (draft) row of an entity."""
-        spec = KATALOG_REGISTRY[entitaet]
-        t = spec.tabelle
-        stmt = (
-            select(t)
-            .where(t.c[SPALTE_STATUS] == KatalogStatus.ENTWURF.value)
-            .order_by(t.c[spec.schluessel])
-        )
-        rows = (await self.conn.execute(stmt)).mappings().all()
-        return [self._zeile(spec, r) for r in rows]
+        return await self.nach_status(entitaet, KatalogStatus.ENTWURF)
 
     async def nach_status(
         self, entitaet: KatalogEntitaet, status: KatalogStatus

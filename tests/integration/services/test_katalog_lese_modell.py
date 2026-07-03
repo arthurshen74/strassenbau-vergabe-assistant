@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from shared.models.katalog import KatalogEntitaet
 from shared.repositories.katalog import KatalogRepository
 from shared.services.katalog.lese_modell import LeseModell
 
@@ -206,6 +207,40 @@ async def test_t26_zeige_formel_latex_und_reverse(lese: LeseModell) -> None:
     assert f["latex"] and f["legende"]
     assert any(e["variable"] == "kraftstoffpreis_eur_pro_l" for e in f["eingaben"])
     assert "V_FRAESEN" in f["gebunden_in_vorgaengen"]
+
+
+async def test_t26_gebunden_auch_ueber_kosten_bindung(lese: LeseModell, engine: AsyncEngine) -> None:
+    """A Vorgang whose kosten_bindung names the formula's output variable (a bound machine would
+    shadow the formula there) must appear in gebunden_in_vorgaengen — consistent with T30's roles.
+    No seeded Vorgang has this shape, so the test activates a synthetic one and archives it again."""
+    payload = {
+        "name": "Test: Bindung schattet Formel",
+        "ausfuehrungsart_code": "AA_KALTFRAESE",
+        "betriebsart_code": "regelfraesen",
+        "leistung_variable": None,
+        "kosten_bindung": {"mk_fraese": "betriebskosten_eur_pro_h"},
+        "kostenvariablen": {},
+    }
+    async with engine.begin() as conn:
+        repo = KatalogRepository(conn)
+        zeile = await repo.neue_version(
+            KatalogEntitaet.VORGAENGE, "V_TEST_BINDUNG", payload, benutzer="test", bundle_uuid=None
+        )
+        await repo.aktiviere(KatalogEntitaet.VORGAENGE, zeile.zeile_uuid)
+    try:
+        async with engine.connect() as conn:  # fresh LeseModell: the module-scoped one has cached rows
+            frisch = LeseModell(conn)
+            f = await frisch.zeige_formel("mk_fraese")
+            verwendung = await frisch.verwendung_von_variable("mk_fraese")
+        # T26 and T30 share the role definition (_vorgang_rollen) — both must list the Vorgang.
+        assert "V_TEST_BINDUNG" in f["gebunden_in_vorgaengen"]
+        assert any(
+            v["code"] == "V_TEST_BINDUNG" and "kosten_bindung" in v["rollen"]
+            for v in verwendung["vorgaenge"]
+        )
+    finally:
+        async with engine.begin() as conn:
+            await KatalogRepository(conn).archiviere(KatalogEntitaet.VORGAENGE, zeile.zeile_uuid)
 
 
 async def test_t27_liste_variablen_gruppe(lese: LeseModell) -> None:
