@@ -540,8 +540,8 @@ def katalog_schreib_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
     # --- Lifecycle (W17) --------------------------------------------------- #
     @tool(response_format="content_and_artifact")
     async def entwurf_verwerfen(bundle_uuid: str) -> tuple[str, dict[str, Any]]:
-        """Einen Entwurfs-Bundle verwerfen (archivieren). Der aktive Katalog bleibt unberührt.
-        Fehler, wenn der Bundle keine offenen Entwürfe hat."""
+        """Einen Entwurfs-Bundle verwerfen (Status verworfen). Der aktive Katalog bleibt
+        unberührt. Fehler, wenn der Bundle keine offenen Entwürfe hat."""
         try:
             uuid = UUID(bundle_uuid)
         except ValueError:

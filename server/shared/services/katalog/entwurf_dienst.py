@@ -52,7 +52,7 @@ class KatalogEntwurfDienst:
         return await self._service.entwurf_speichern(bundle, benutzer)
 
     async def bundle_verwerfen(self, bundle_uuid: UUID, benutzer: str = DEFAULT_AUTOR) -> None:
-        """Discard a draft bundle (archives its rows). Raises `BundleNichtGefunden` if it has no
+        """Discard a draft bundle (rows → verworfen). Raises `BundleNichtGefunden` if it has no
         open drafts. Never touches the active catalog."""
         await self._service.bundle_verwerfen(bundle_uuid, benutzer=benutzer)
 

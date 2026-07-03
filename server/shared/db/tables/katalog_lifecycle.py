@@ -52,7 +52,7 @@ def lifecycle_spalten() -> list[Column]:
             nullable=False,
             server_default=func.now(),
         ),
-        Column(SPALTE_GUELTIG_BIS, DateTime(timezone=True), nullable=True),  # set on archive
+        Column(SPALTE_GUELTIG_BIS, DateTime(timezone=True), nullable=True),  # set on archive/discard
         Column(
             SPALTE_ERSTELLT_AM,
             DateTime(timezone=True),

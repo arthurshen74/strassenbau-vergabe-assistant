@@ -354,15 +354,16 @@ class KatalogRepository:
         ).mappings().one()
         return self._zeile(spec, row)
 
-    async def archiviere(self, entitaet: KatalogEntitaet, zeile_uuid: UUID) -> None:
-        """Discard a draft or retire an active row (status → archiviert, gueltig_bis = now)."""
+    async def verwirf(self, entitaet: KatalogEntitaet, zeile_uuid: UUID) -> None:
+        """Discard a draft (status → verworfen, gueltig_bis = now). Retiring an active row is
+        `aktiviere`'s job and writes `archiviert`, so the two ends stay distinguishable."""
         spec = KATALOG_REGISTRY[entitaet]
         t = spec.tabelle
         now = (await self.conn.execute(select(func.clock_timestamp()))).scalar_one()
         await self.conn.execute(
             update(t)
             .where(t.c[SPALTE_ZEILE_UUID] == zeile_uuid)
-            .values(**{SPALTE_STATUS: KatalogStatus.ARCHIVIERT.value, SPALTE_GUELTIG_BIS: now})
+            .values(**{SPALTE_STATUS: KatalogStatus.VERWORFEN.value, SPALTE_GUELTIG_BIS: now})
         )
 
     # --- non-lifecycle children -------------------------------------------------------------- #
@@ -497,12 +498,13 @@ class KatalogRepository:
             )
 
     async def preise_verwerfen(self, bundle_uuid: UUID) -> None:
-        """Archive the bundle's draft price rows (discard — the active catalog is untouched)."""
+        """Discard the bundle's draft price rows (status → verworfen — the active catalog is
+        untouched)."""
         t = katalog_lieferanten_preise
         await self.conn.execute(
             update(t)
             .where(t.c.bundle_uuid == bundle_uuid, t.c.status == KatalogStatus.ENTWURF.value)
-            .values(status=KatalogStatus.ARCHIVIERT.value)
+            .values(status=KatalogStatus.VERWORFEN.value)
         )
 
     async def ist_leer(self) -> bool:

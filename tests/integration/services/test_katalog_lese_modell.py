@@ -215,7 +215,8 @@ async def test_t26_zeige_formel_latex_und_reverse(lese: LeseModell) -> None:
 async def test_t26_gebunden_auch_ueber_kosten_bindung(lese: LeseModell, engine: AsyncEngine) -> None:
     """A Vorgang whose kosten_bindung names the formula's output variable (a bound machine would
     shadow the formula there) must appear in gebunden_in_vorgaengen — consistent with T30's roles.
-    No seeded Vorgang has this shape, so the test activates a synthetic one and archives it again."""
+    No seeded Vorgang has this shape, so the test activates a synthetic one and removes it from
+    the active set again (via `verwirf` — end status is irrelevant, the fixture reseeds)."""
     payload = {
         "name": "Test: Bindung schattet Formel",
         "ausfuehrungsart_code": "AA_KALTFRAESE",
@@ -243,7 +244,7 @@ async def test_t26_gebunden_auch_ueber_kosten_bindung(lese: LeseModell, engine: 
         )
     finally:
         async with engine.begin() as conn:
-            await KatalogRepository(conn).archiviere(KatalogEntitaet.VORGAENGE, zeile.zeile_uuid)
+            await KatalogRepository(conn).verwirf(KatalogEntitaet.VORGAENGE, zeile.zeile_uuid)
 
 
 async def test_t27_liste_variablen_gruppe(lese: LeseModell) -> None:

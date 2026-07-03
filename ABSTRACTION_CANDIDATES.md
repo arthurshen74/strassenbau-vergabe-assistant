@@ -78,6 +78,15 @@ unit contract (a YAML row binding an m2 quantity to an m3 formula should fail lo
 **Do not extract yet** — if a third unit arrives (t/h for Mischgut), reconsider a unit-typed
 `duration(quantity, rate)` instead of a third copy.
 
+### Tool-artifact `unknown` narrowing helpers (`asRecordArray` / `asStringArray` / `asString`)
+
+- `ui/src/components/chat/messages/KatalogEntwurfCard.tsx` — full set incl. `asRecord`/`fmt`
+- `ui/src/components/chat/messages/KatalogEntwurfListe.tsx` — `asRecordArray`/`asStringArray`/`asString`
+
+Both narrow an untyped tool artifact (`Record<string, unknown>`) into records/string arrays before
+rendering. **Do not extract yet** — two sibling files, five-liners. A third artifact-rendering
+component extracts them into `ui/src/lib/` (they are framework-agnostic).
+
 ### Underline tab navigation (desktop `border-b-2` button bar)
 
 - `ui/src/views/main/DocumentDetailDialog.tsx` — thumbnails / chunks / log tabs (icons + mobile `<Select>`)

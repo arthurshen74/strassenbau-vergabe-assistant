@@ -3,7 +3,7 @@
 Each write is one Unit-of-Work transaction. `entwurf_speichern` validates and inserts every row as
 `entwurf` sharing one `bundle_uuid`; `bundle_aktivieren` re-validates against the *current* active
 catalog, activates every draft row atomically, then reloads the provider on a fresh connection so
-the running engine sees the new recipe; `bundle_verwerfen` archives the drafts.
+the running engine sees the new recipe; `bundle_verwerfen` discards the drafts (`verworfen`).
 
 The service owns the engine (not a single connection) because activation must reload the provider
 on a connection opened *after* the activation commits.
@@ -130,7 +130,7 @@ class KatalogService:
         return bericht
 
     async def bundle_verwerfen(self, bundle_uuid: UUID, benutzer: str = DEFAULT_AUTOR) -> None:
-        """Archive every draft row of the bundle (lifecycle rows + price drafts)."""
+        """Discard every draft row of the bundle (lifecycle rows + price drafts) as `verworfen`."""
         async with unit_of_work(self.engine) as uow:
             repo = uow.katalog
             entwuerfe = await self._entwuerfe(repo, bundle_uuid)
@@ -139,7 +139,7 @@ class KatalogService:
                 raise BundleNichtGefunden(str(bundle_uuid))
             for entitaet, zeilen in entwuerfe.items():
                 for z in zeilen:
-                    await repo.archiviere(entitaet, z.zeile_uuid)
+                    await repo.verwirf(entitaet, z.zeile_uuid)
             await repo.preise_verwerfen(bundle_uuid)
             await repo.stand_beruehren(benutzer, aktivierung=False)
 
@@ -151,7 +151,8 @@ class KatalogService:
 
     async def bundle_zustand(self, bundle_uuid: UUID) -> BundleZustandAnsicht:
         """The confirm card's state re-query: the bundle's rows (lifecycle + prices) plus the
-        derived zustand — any entwurf → offen; else any aktiv → aktiviert; else geschlossen."""
+        derived zustand — any entwurf → offen; else any aktiv → aktiviert; else any verworfen →
+        verworfen; else geschlossen (activated, later superseded)."""
         async with self.engine.connect() as conn:
             repo = KatalogRepository(conn)
             gruppen = await repo.nach_bundle(bundle_uuid)
@@ -174,6 +175,8 @@ class KatalogService:
             zustand = BundleZustand.OFFEN
         elif KatalogStatus.AKTIV in stati:
             zustand = BundleZustand.AKTIVIERT
+        elif KatalogStatus.VERWORFEN in stati:
+            zustand = BundleZustand.VERWORFEN
         else:
             zustand = BundleZustand.GESCHLOSSEN
         return BundleZustandAnsicht(zustand=zustand, zeilen=zeilen)

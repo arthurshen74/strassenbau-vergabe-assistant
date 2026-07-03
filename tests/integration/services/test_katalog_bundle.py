@@ -20,6 +20,7 @@ from shared.models.katalog import (
     BundleZustand,
     KatalogBundle,
     KatalogEntitaet,
+    KatalogStatus,
     VariablenGruppe,
 )
 from shared.repositories.katalog import KatalogRepository
@@ -285,7 +286,8 @@ async def test_preis_closeout_zwei_preise_gleiches_paar_in_einem_bundle(engine: 
 
 
 async def test_bundle_zustand_uebergaenge(engine: AsyncEngine) -> None:
-    """§6: any entwurf row → offen; else any aktiv row → aktiviert; else geschlossen."""
+    """§6: entwurf → offen; aktiv → aktiviert; discarded → verworfen (rows never in force);
+    activated and later superseded → geschlossen (rows archiviert)."""
     with zustand_sichern():
         async with engine.begin() as conn:
             repo = KatalogRepository(conn)
@@ -303,8 +305,16 @@ async def test_bundle_zustand_uebergaenge(engine: AsyncEngine) -> None:
 
             verworfen_uuid = await service.entwurf_speichern(_rate_entwurf(), benutzer="t")
             await service.bundle_verwerfen(verworfen_uuid)
-            geschlossen = await service.bundle_zustand(verworfen_uuid)
+            verworfen = await service.bundle_zustand(verworfen_uuid)
+            assert verworfen.zustand == BundleZustand.VERWORFEN
+            assert all(z.status == KatalogStatus.VERWORFEN for z in verworfen.zeilen)
+
+            # Re-activating the same keys supersedes the first bundle's rows.
+            nachfolger = await service.entwurf_speichern(_neues_rezept(), benutzer="t")
+            await service.bundle_aktivieren(nachfolger)
+            geschlossen = await service.bundle_zustand(buid)
             assert geschlossen.zustand == BundleZustand.GESCHLOSSEN
+            assert all(z.status == KatalogStatus.ARCHIVIERT for z in geschlossen.zeilen)
         finally:
             async with engine.begin() as conn:
                 await KatalogRepository(conn).alles_leeren()

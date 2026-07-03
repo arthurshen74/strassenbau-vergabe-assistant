@@ -33,10 +33,14 @@ from shared.services.kalkulation_v2.model import (
 
 
 class KatalogStatus(StrEnum):
-    """Lifecycle state of a catalog row. The single source for these values."""
+    """Lifecycle state of a catalog row. The single source for these values.
+
+    `verworfen` and `archiviert` are distinct ends: a discarded draft was never in force, a
+    superseded version was. Only activation writes `archiviert`."""
 
     ENTWURF = "entwurf"
     AKTIV = "aktiv"
+    VERWORFEN = "verworfen"
     ARCHIVIERT = "archiviert"
 
 
@@ -96,7 +100,8 @@ class KatalogPreis(BaseModel):
     than updating. Maps field-for-field onto `BaustoffPreis` (plus the owning `lieferant_code`).
     Phase 2 adds a lifecycle `status` (+ `bundle_uuid`/`benutzer`) so a price rides the
     draft→confirm flow like everything else — the VALUE stays immutable/unversioned; the status
-    only tracks entwurf|aktiv|archiviert (D5)."""
+    only tracks entwurf|aktiv|verworfen (D5). A superseded price stays `aktiv` with a closed
+    domain-time `gueltig_bis`, so `archiviert` never occurs on prices."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -228,11 +233,12 @@ class BundleBericht(BaseModel):
 
 
 class BundleZustand(StrEnum):
-    """The confirm card's view of a bundle: still open for a decision, already activated, or no
-    longer open (discarded or later superseded)."""
+    """The confirm card's view of a bundle: still open for a decision, already activated,
+    discarded without ever being active, or activated and later superseded."""
 
     OFFEN = "offen"
     AKTIVIERT = "aktiviert"
+    VERWORFEN = "verworfen"
     GESCHLOSSEN = "geschlossen"
 
 
