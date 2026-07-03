@@ -256,7 +256,7 @@ concern, not a read gap.
 - **UI:** none beyond a way to start a Katalog-Chat conversation (same pattern as the
   rezept_autor entry point). No catalog browser UI — chat-first by design.
 
-## 6. Phase 2 — Mutations (sketch; own review round before implementation)
+## 6. Phase 2 — Mutations (sketch — SUPERSEDED by `KATALOG_AGENT_PHASE2_PLAN.md`, the binding spec)
 
 - **`katalog_stand`** single-row table: `version` (monotonic int), `aktualisiert_am`,
   `benutzer`. Bumped in the SAME transaction as every catalog mutation (draft save,
