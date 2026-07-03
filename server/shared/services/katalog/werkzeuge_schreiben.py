@@ -266,13 +266,14 @@ def katalog_schreib_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
 
     @tool(response_format="content_and_artifact")
     async def neue_kontext_variable(
-        name: str, bezeichnung: str, einheit: str | None = None, datentyp: str | None = None,
+        name: str, bezeichnung: str, einheit: str | None = None,
+        datentyp: Datentyp | None = None,
         beschreibung: str | None = None, llm_hinweis: str | None = None,
         default_wert: float | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Neue Kontext-Variable (situativer Eingabewert) als Entwurf anlegen. Die Kaskade wird
         serverseitig gebaut: mit `llm_hinweis` LANGTEXT+RAG, sonst nur HITL; `default_wert` hängt eine
-        KONSTANTE-Rückfallstufe an."""
+        KONSTANTE-Rückfallstufe an. `datentyp` default: dezimal."""
         schritte: list[AufloesungsSchritt] = []
         if llm_hinweis:
             schritte.append(AufloesungsSchritt(
@@ -290,7 +291,7 @@ def katalog_schreib_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
             ))
         vardef = VariableDefinition(
             name=name, bezeichnung=bezeichnung, beschreibung=beschreibung, einheit=einheit,
-            datentyp=Datentyp(datentyp) if datentyp else Datentyp.DEZIMAL,
+            datentyp=datentyp if datentyp is not None else Datentyp.DEZIMAL,
             llm_kontext=llm_hinweis, aufloesung=schritte,
         )
         bundle = KatalogBundle(
