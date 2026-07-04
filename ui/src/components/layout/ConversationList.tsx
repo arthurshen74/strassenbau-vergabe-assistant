@@ -10,6 +10,7 @@ import { formatRelativeTime } from '../../lib/format';
 import { useDeleteConversation } from '../../api/conversations';
 import { useStartProjectChat } from '../../views/main/useStartProjectChat';
 import { useMainWindowStore } from '../../store/mainWindow';
+import { useCloseTab } from './useCloseTab';
 import { Dropdown, DropdownButton, DropdownItem, DropdownMenu } from '../ui/dropdown';
 
 interface ConversationListProps {
@@ -23,6 +24,7 @@ export function ConversationList({ items, emptyHint }: ConversationListProps) {
   const deleteConversation = useDeleteConversation();
   const startProjectChat = useStartProjectChat();
   const closeMainWindow = useMainWindowStore((s) => s.closeMainWindow);
+  const closeTab = useCloseTab();
 
   // A component window (View Prompts, View Project) covers the conversation view,
   // so it must close before the clicked conversation can render.
@@ -40,11 +42,9 @@ export function ConversationList({ items, emptyHint }: ConversationListProps) {
   }
 
   const onRemove = (c: ConversationRead) => {
-    // If we're removing the conversation we're viewing, head back to the dispatcher home.
+    // Close its tab too; useCloseTab moves to the neighbour when it was active.
     deleteConversation.mutate(c.conversation_uuid, {
-      onSuccess: () => {
-        if (c.conversation_uuid === conversationId) navigate('/');
-      },
+      onSuccess: () => closeTab(c.conversation_uuid),
     });
   };
 

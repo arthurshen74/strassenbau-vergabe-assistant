@@ -117,7 +117,7 @@ export function InterruptPanel({
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="border-t border-zinc-950/5 px-6 py-4 dark:border-white/5">
+    <div className="border-t border-zinc-950/5 px-6 py-4 dark:border-white/5 flex-1 min-h-0 overflow-y-auto">
       <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
         {title}
       </div>
@@ -870,8 +870,8 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
           ist.
         </div>
       )}
-      <div className="flex flex-col gap-3 pt-2">
-        <div className="flex justify-between gap-4 items-end">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 pt-2">
+        <div className="flex justify-between gap-4 items-end col-span-1 lg:col-span-2 xl:col-span-3">
           <LocationEditor
             label="Baustelle (Standort)"
             projectUuid={projectUuid}

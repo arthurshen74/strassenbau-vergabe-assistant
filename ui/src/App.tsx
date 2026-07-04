@@ -1,6 +1,5 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
-import { ConversationRouter } from './views/ConversationRouter';
 import { Home } from './views/Home';
 
 function App() {
@@ -9,7 +8,9 @@ function App() {
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<Home />} />
-          <Route path="/c/:conversationId" element={<ConversationRouter />} />
+          {/* The route only carries the param; the conversation itself renders
+              through AppShell's TabHost, which keeps every open tab mounted. */}
+          <Route path="/c/:conversationId" element={null} />
         </Route>
       </Routes>
     </BrowserRouter>

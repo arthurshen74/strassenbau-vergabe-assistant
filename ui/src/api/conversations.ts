@@ -77,7 +77,7 @@ export function createConversation(
   });
 }
 
-// Create a conversation and seed the list cache so ConversationRouter resolves
+// Create a conversation and seed the list cache so the workspace panel resolves
 // the new thread immediately (no "not found" flash). Callers navigate to it.
 export async function createAndSeedConversation(
   qc: QueryClient,

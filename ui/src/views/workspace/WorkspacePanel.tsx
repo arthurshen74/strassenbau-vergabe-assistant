@@ -1,18 +1,22 @@
-// The project-chat view: the conversation fills the area above the chat input. Sidebar commands
-// open the global main window at the shell level (it overlays this view), so this component only
-// renders the thread.
+// One conversation's workspace: the thread above the chat input (or the HITL
+// interrupt panel while a calculation is paused). TabHost keeps one instance
+// mounted per open tab — hidden, not unmounted, when inactive — so a live
+// stream, interrupt-form edits, and scroll survive tab switches.
 //
 // The display list is server messages + local stream messages, deduped by
 // message_uuid (server wins) so placeholders fall away once the server
 // reconciles after a turn completes.
 
 import { useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import {
+  PROMPT_TYPE_EKT_CALCULATOR,
+  PROMPT_TYPE_KATALOG_CHAT,
+  PROMPT_TYPE_PROJECT_CHAT,
   useConversation,
   useConversationMessages,
   useDeleteConversation,
 } from '../../api/conversations';
+import { useCloseTab } from '../../components/layout/useCloseTab';
 import { useProject } from '../../api/projects';
 import { useStartProjectChat } from '../main/useStartProjectChat';
 import { useStartKatalogChat } from '../main/useStartKatalogChat';
@@ -27,12 +31,19 @@ import { RetrievalConfigBar } from '../../components/chat/RetrievalConfigBar';
 import { useRetrievalConfig } from '../../store/retrievalConfig';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
+import { EmptyState } from '../../components/feedback/EmptyState';
 import type { SlashCommandSpec } from '../../lib/slash-commands';
 import type { ConversationRead, MessageRead } from '../../types/generated';
 import type { DisplayMessage } from '../../components/chat/types';
 
 // The synthetic tool_name the run service persists a HITL interrupt prompt under (run_service.py).
 const TOOL_INTERRUPT = 'interrupt';
+
+const KNOWN_PROMPT_TYPES: string[] = [
+  PROMPT_TYPE_PROJECT_CHAT,
+  PROMPT_TYPE_EKT_CALCULATOR,
+  PROMPT_TYPE_KATALOG_CHAT,
+];
 
 // Rebuild the pending interrupt from the last persisted prompt when reopening a paused calculation
 // (no live stream is in flight, so the interrupt event won't replay).
@@ -70,26 +81,12 @@ const SLASH_CLOSE = '/close';
 const SLASH_REMOVE = '/remove';
 const PROJECT_CHAT_SLASH_COMMANDS: SlashCommandSpec[] = [
   { name: SLASH_CLEAR, description: 'Start a fresh chat for this project' },
-  { name: SLASH_CLOSE, description: 'Back to the dispatcher home' },
+  { name: SLASH_CLOSE, description: 'Close this tab' },
   { name: SLASH_REMOVE, description: 'Delete this conversation' },
 ];
 
-export function WorkspaceView() {
-  const { conversationId } = useParams<{ conversationId: string }>();
-  if (!conversationId) {
-    return <ErrorState message="Missing conversation id" />;
-  }
-  // Key by conversation so per-conversation stream state (incl. retained notices) resets on switch.
-  return (
-    <WorkspaceViewInner
-      key={conversationId}
-      conversationId={conversationId}
-    />
-  );
-}
-
-function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
-  const navigate = useNavigate();
+export function WorkspacePanel({ conversationId }: { conversationId: string }) {
+  const closeTab = useCloseTab();
   const startProjectChat = useStartProjectChat();
   const startKatalogChat = useStartKatalogChat();
   const deleteConversation = useDeleteConversation();
@@ -107,8 +104,10 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
     sendMessage,
     sendResume,
   } = useWorkspaceConversation(conversationId, retrievalConfig);
-  const isPositionChat = conversation.data?.prompt_type === 'ekt_calculator';
-  const isKatalogChat = conversation.data?.prompt_type === 'katalog_chat';
+  const isPositionChat =
+    conversation.data?.prompt_type === PROMPT_TYPE_EKT_CALCULATOR;
+  const isKatalogChat =
+    conversation.data?.prompt_type === PROMPT_TYPE_KATALOG_CHAT;
 
   const onSlashCommand = (cmd: string) => {
     if (cmd === SLASH_CLEAR) {
@@ -117,11 +116,11 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
       if (isKatalogChat) void startKatalogChat();
       else if (projectUuid) void startProjectChat(projectUuid);
     } else if (cmd === SLASH_CLOSE) {
-      navigate('/');
+      closeTab(conversationId);
     } else if (cmd === SLASH_REMOVE) {
-      // Delete this conversation and return to the dispatcher home.
+      // Delete this conversation; its tab closes and the neighbour takes over.
       deleteConversation.mutate(conversationId, {
-        onSuccess: () => navigate('/'),
+        onSuccess: () => closeTab(conversationId),
       });
     }
   };
@@ -153,12 +152,23 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
       />
     );
   }
+  if (!conversation.data) {
+    // List settled without this id: the conversation was deleted elsewhere. The
+    // tab is pruned by TabStrip; TabHost navigates home when it was the active one.
+    return conversation.isFetching ? <LoadingState /> : null;
+  }
+  if (!KNOWN_PROMPT_TYPES.includes(conversation.data.prompt_type)) {
+    return (
+      <EmptyState
+        title="Unsupported conversation type"
+        description={`prompt_type: ${conversation.data.prompt_type}`}
+      />
+    );
+  }
 
   const title =
-    isPositionChat ?
-      (conversation.data?.title ?? 'EKT-Position')
-    : isKatalogChat ?
-      (conversation.data?.title ?? 'Katalog-Chat')
+    isPositionChat ? (conversation.data?.title ?? 'EKT-Position')
+    : isKatalogChat ? (conversation.data?.title ?? 'Katalog-Chat')
     : (project.data?.project_name ??
       conversation.data?.title ??
       'Project chat');
@@ -191,7 +201,9 @@ function WorkspaceViewInner({ conversationId }: { conversationId: string }) {
         />
       : <>
           {/* The catalog chat has no retrieval config (it queries the catalog via tools, not RAG). */}
-          {!isKatalogChat && <RetrievalConfigBar conversationId={conversationId} />}
+          {!isKatalogChat && (
+            <RetrievalConfigBar conversationId={conversationId} />
+          )}
           <ChatInput
             onSend={sendMessage}
             onSlashCommand={onSlashCommand}
