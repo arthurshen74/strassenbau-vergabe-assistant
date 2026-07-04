@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "embedding_cache",
     "calculation_ground_truth",
     "variable_corrections",
+    "rag_ground_truth",
     "project_context_values",
     "katalog_leistungen",
     "katalog_bauverfahren",

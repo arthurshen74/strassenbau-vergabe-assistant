@@ -13,6 +13,7 @@ from api.routes import (
     calculations,
     conversations,
     dispatch,
+    ground_truth,
     health,
     ingest_jobs,
     katalog,
@@ -20,6 +21,7 @@ from api.routes import (
     projects,
     prompt_execution_logs,
     prompts,
+    rag_ground_truth,
     usage,
 )
 from shared.clients.factory import (
@@ -111,6 +113,8 @@ def create_app() -> FastAPI:
     app.include_router(ingest_jobs.router)
     app.include_router(calculations.router)
     app.include_router(katalog.router)
+    app.include_router(ground_truth.router)
+    app.include_router(rag_ground_truth.router)
     return app
 
 

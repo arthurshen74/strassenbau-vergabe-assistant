@@ -572,6 +572,111 @@ export interface BundleBericht {
   aktualisierungen?: string[];
 }
 
+export interface GoldVariable {
+  wert?: string | null;
+  einheit?: string | null;
+  art?: string | null;
+  quelle?: string | null;
+  overridden?: boolean;
+}
+
+export interface GroundTruthRead {
+  project_uuid: string;
+  lv_item_uuid: string;
+  source_conversation_uuid?: string | null;
+  oz?: string | null;
+  leistung_key: string;
+  bauverfahren_key?: string | null;
+  gold_variables: {
+    [k: string]: GoldVariable;
+  };
+  created_by_user_id: string;
+  ground_truth_uuid: string;
+  created_at: string;
+  updated_at: string;
+  stale?: boolean;
+  recipe_missing?: boolean;
+  missing_variables?: string[];
+  extra_variables?: string[];
+}
+
+export interface GroundTruthUpsert {
+  leistung_key: string;
+  bauverfahren_key?: string | null;
+  gold_variables: {
+    [k: string]: GoldVariable;
+  };
+}
+
+export interface VariableCorrection {
+  project_uuid: string;
+  lv_item_uuid?: string | null;
+  oz?: string | null;
+  conversation_uuid?: string | null;
+  leistung_key?: string | null;
+  bauverfahren_key?: string | null;
+  variable_name: string;
+  proposed_wert?: string | null;
+  proposed_quelle?: string | null;
+  proposed_konfidenz?: string | null;
+  proposed_beleg?: string | null;
+  final_wert: string;
+  reason?:
+    | ("falscher_wert" | "falsche_quelle" | "einheit" | "kontext_fehlt" | "kalkulator_ermessen" | "sonstiges")
+    | null;
+  note?: string | null;
+  created_by_user_id: string;
+  correction_uuid: string;
+  created_at: string;
+}
+
+export interface CorrectionSummaryRow {
+  variable_name: string;
+  reason?:
+    | ("falscher_wert" | "falsche_quelle" | "einheit" | "kontext_fehlt" | "kalkulator_ermessen" | "sonstiges")
+    | null;
+  count: number;
+}
+
+export interface RagRef {
+  document_uuid: string;
+  page: number;
+}
+
+export interface RagGroundTruthRead {
+  question: string;
+  gold_answer: string;
+  refs?: RagRef[];
+  /**
+   * Reasoning shape of a RAG reference question (mirrors eval/questions.csv QuestionType).
+   */
+  question_type: "lookup" | "aggregation" | "multi_hop" | "constraint_surfacing" | "cross_doc_conditional";
+  /**
+   * Which role would ask the question.
+   */
+  category: "kalkulator" | "bauleiter";
+  project_uuid: string;
+  created_by_user_id: string;
+  rag_ground_truth_uuid: string;
+  created_at: string;
+  updated_at: string;
+  refs_missing?: boolean;
+}
+
+export interface RagGroundTruthUpsert {
+  question: string;
+  gold_answer: string;
+  refs?: RagRef[];
+  /**
+   * Reasoning shape of a RAG reference question (mirrors eval/questions.csv QuestionType).
+   */
+  question_type: "lookup" | "aggregation" | "multi_hop" | "constraint_surfacing" | "cross_doc_conditional";
+  /**
+   * Which role would ask the question.
+   */
+  category: "kalkulator" | "bauleiter";
+}
+
 // ---- Types pinned by scripts/export_schema.py ----
 
 export interface IngestQueued {

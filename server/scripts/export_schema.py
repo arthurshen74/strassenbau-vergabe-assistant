@@ -34,6 +34,13 @@ from shared.models.ingest_schema import (
     IngestStarted,
     IngestStatusRead,
 )
+from shared.models.ground_truth import (
+    CorrectionSummaryRow,
+    GoldVariable,
+    GroundTruthRead,
+    GroundTruthUpsert,
+    VariableCorrection,
+)
 from shared.models.ingestion_activity import IngestionActivity
 from shared.models.katalog import (
     BundleBericht,
@@ -50,6 +57,11 @@ from shared.models.project_context_schema import (
     ProjectContextUpdate,
 )
 from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from shared.models.rag_ground_truth import (
+    RagGroundTruthRead,
+    RagGroundTruthUpsert,
+    RagRef,
+)
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
 from shared.models.prompt_execution_log_schema import (
     PromptExecutionLogRead,
@@ -153,6 +165,17 @@ BODY_MODELS: list[type[BaseModel]] = [
     BundleZeileAnsicht,
     BundleZustandAnsicht,
     BundleBericht,
+    # Eval curation: gold rows with staleness info (GoldVariable is nested), the PUT body, and
+    # the read-only corrections list + error-analysis summary.
+    GoldVariable,
+    GroundTruthRead,
+    GroundTruthUpsert,
+    VariableCorrection,
+    CorrectionSummaryRow,
+    # RAG reference questions (RagRef is nested in both).
+    RagRef,
+    RagGroundTruthRead,
+    RagGroundTruthUpsert,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

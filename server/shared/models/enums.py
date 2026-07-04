@@ -126,3 +126,20 @@ class ContextStatus(StrEnum):
     AUFGELOEST = "aufgeloest"        # geocoded to coordinates
     UNSICHER = "unsicher"            # geocoded with low confidence
     FEHLGESCHLAGEN = "fehlgeschlagen"  # could not be geocoded
+
+
+class RagQuestionType(StrEnum):
+    """Reasoning shape of a RAG reference question (mirrors eval/questions.csv QuestionType)."""
+
+    LOOKUP = "lookup"                              # single fact from one place
+    AGGREGATION = "aggregation"                    # sum/count over LV positions
+    MULTI_HOP = "multi_hop"                        # answer spans several places
+    CONSTRAINT_SURFACING = "constraint_surfacing"  # find the applicable constraint/clause
+    CROSS_DOC_CONDITIONAL = "cross_doc_conditional"  # condition in one doc, value in another
+
+
+class RagQuestionCategory(StrEnum):
+    """Which role would ask the question."""
+
+    KALKULATOR = "kalkulator"
+    BAULEITER = "bauleiter"

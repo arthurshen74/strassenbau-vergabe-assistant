@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -53,3 +53,12 @@ class GroundTruthRepository:
         )
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [GroundTruth.model_validate(dict(r)) for r in rows]
+
+    async def delete(self, project_uuid: UUID, lv_item_uuid: UUID) -> bool:
+        """Remove the position's gold record; False when there was none."""
+        stmt = delete(calculation_ground_truth).where(
+            calculation_ground_truth.c.project_uuid == project_uuid,
+            calculation_ground_truth.c.lv_item_uuid == lv_item_uuid,
+        )
+        result = await self.conn.execute(stmt)
+        return result.rowcount > 0
