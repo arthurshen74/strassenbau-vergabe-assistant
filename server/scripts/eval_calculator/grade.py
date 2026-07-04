@@ -1,7 +1,9 @@
 """Score the calculator's variable extraction against saved ground truth.
 
-Pure functions: given a position's gold record (leistung_key + gold_variables) and the system's
-fresh Gate B proposals from a re-run, produce per-variable and per-position results, then aggregate.
+Pure functions: given a position's gold record (leistung_key + bauverfahren_key + gold_variables)
+and the system's fresh Gate B proposals from a re-run, produce per-variable and per-position
+results, then aggregate. The system's Bauverfahren choice (its Gate 2 default) is graded against
+gold where gold carries one.
 Values are compared as Decimals -- the proposals and the gold are already engine-coerced decimal
 strings -- so grading is deterministic, no LLM judge. EINGABE leaves are the model-extracted ones
 (SATZ and STAMMDATEN come from the catalog) and carry the headline accuracy. A gold value that the
@@ -85,6 +87,9 @@ class PositionResult:
     gold_leistung_key: str
     system_leistung_key: str | None
     classification_correct: bool
+    gold_bauverfahren_key: str | None
+    system_bauverfahren_key: str | None
+    bauverfahren_correct: bool | None    # None when gold carries no Bauverfahren
     variables: list[VariableResult]
 
 
@@ -95,6 +100,8 @@ def grade_position(
     gold_variables: dict[str, dict[str, Any]],
     system_leistung_key: str | None,
     system_proposals: dict[str, dict[str, Any]],
+    gold_bauverfahren_key: str | None = None,
+    system_bauverfahren_key: str | None = None,
     abs_tol: str = "0",
 ) -> PositionResult:
     variables = [
@@ -106,6 +113,12 @@ def grade_position(
         gold_leistung_key=gold_leistung_key,
         system_leistung_key=system_leistung_key,
         classification_correct=system_leistung_key == gold_leistung_key,
+        gold_bauverfahren_key=gold_bauverfahren_key,
+        system_bauverfahren_key=system_bauverfahren_key,
+        bauverfahren_correct=(
+            None if gold_bauverfahren_key is None
+            else system_bauverfahren_key == gold_bauverfahren_key
+        ),
         variables=variables,
     )
 
@@ -114,6 +127,7 @@ def grade_position(
 class Metrics:
     positions: int
     classification_accuracy: float | None
+    bauverfahren_accuracy: float | None  # over positions whose gold carries a Bauverfahren
     eingabe_variables: int            # model-extracted leaves seen across all positions
     expected_values: int              # of those, the ones with a value to find
     value_accuracy: float | None      # fraction of expected values the re-run got right (within tol)
@@ -129,10 +143,14 @@ def summarize(results: list[PositionResult]) -> Metrics:
     eingabe = [v for r in results for v in r.variables if v.art == ART_EINGABE]
     expected = [v for v in eingabe if v.found_expected]
     assessable = [v for v in eingabe if v.provenance_correct is not None]
+    bv_assessable = [r for r in results if r.bauverfahren_correct is not None]
     return Metrics(
         positions=len(results),
         classification_accuracy=_ratio(
             sum(1 for r in results if r.classification_correct), len(results)
+        ),
+        bauverfahren_accuracy=_ratio(
+            sum(1 for r in bv_assessable if r.bauverfahren_correct), len(bv_assessable)
         ),
         eingabe_variables=len(eingabe),
         expected_values=len(expected),

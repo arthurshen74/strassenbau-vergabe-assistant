@@ -812,6 +812,10 @@ def build_graph(
         menge = Decimal(str(state["position"]["menge"]))
         ziel = Decimal(str(settings.calculator_maschine_zielstunden))
         bedarf = (menge / ziel) if ziel > 0 else None
+        # TODO: New Feature — each Vorgang currently binds exactly one Ausführungsart (fixed in
+        # vorgaenge.py), so no selection happens here. Once a Vorgang admits multiple
+        # Ausführungsarten, the correct (or more correct) one must be chosen per position,
+        # probably via a dedicated prompt — and that choice needs its own eval.
         slots = list(dict.fromkeys(vg.ausfuehrungsart.code for vg in bv.vorgaenge
                                    if vg.ausfuehrungsart is not None))
         auswahl: dict = {}

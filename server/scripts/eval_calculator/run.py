@@ -3,7 +3,8 @@ compare to the endorsed values.
 
 Reads calculation_ground_truth for a project, re-runs each position's extraction headlessly to its
 Gate B proposals (pinning the gold recipe), grades per-variable value/found/provenance plus
-classification, and writes per-position results (JSONL) + a summary keyed to the prompt versions
+classification and Bauverfahren choice, and writes per-position results (JSONL) + a summary keyed
+to the prompt versions
 used -- so a prompt edit's effect on extraction accuracy is measurable. Needs the live stack
 (Postgres with gold rows, Elasticsearch with the project ingested, OpenRouter).
 
@@ -36,6 +37,8 @@ from shared.repositories.ground_truth import GroundTruthRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.services.calculator.graph import CALCULATOR_RETRIEVAL_CONFIG, build_graph
 from shared.services.calculator.prompts import load_calculator_prompts
+from shared.services.kalkulation_v2.leistung_bauverfahren import kandidaten
+from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
 from shared.services.retrieval import RetrievalService
 
 from scripts.eval_calculator.capture import capture_extraction
@@ -64,6 +67,16 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=None, help="grade at most N positions")
     parser.add_argument("--out", type=Path, default=_DEFAULT_OUT, help="results directory")
     return parser.parse_args()
+
+
+def _stale_gold_reason(leistung_key: str, bauverfahren_key: str | None) -> str | None:
+    """A gold recipe that no longer exists in the catalog cannot be pinned at Gate 2 (the graph
+    rejects it); mirrors waehle_bauverfahren's validation. Returns the skip reason, or None."""
+    if leistung_key not in LEISTUNGEN:
+        return f"gold leistung_key {leistung_key!r} not in catalog"
+    if bauverfahren_key is not None and bauverfahren_key not in kandidaten(leistung_key):
+        return f"gold bauverfahren_key {bauverfahren_key!r} not a candidate for {leistung_key!r}"
+    return None
 
 
 def _position(item: LVItem) -> dict[str, Any]:
@@ -114,13 +127,20 @@ async def main() -> None:
         app = build_graph(retriever=retrieve, llm=llm, prompts=prompts)
 
         results: list[PositionResult] = []
+        skipped = 0
         for g in gold:
+            stale = _stale_gold_reason(g.leistung_key, g.bauverfahren_key)
+            if stale:
+                print(f"  skip {g.oz or g.lv_item_uuid}: {stale}", file=sys.stderr)
+                skipped += 1
+                continue
             async with engine.connect() as conn:
                 item = await LVItemRepository(conn).get(g.lv_item_uuid)
             if item is None:
                 print(f"  skip {g.oz or g.lv_item_uuid}: LV position not found", file=sys.stderr)
+                skipped += 1
                 continue
-            system_leistung_key, proposals = await capture_extraction(
+            system_leistung_key, system_bauverfahren_key, proposals = await capture_extraction(
                 app=app,
                 thread_id=f"eval-{args.project}-{item.oz}",
                 position=_position(item),
@@ -134,12 +154,23 @@ async def main() -> None:
                 gold_variables={name: gv.model_dump() for name, gv in g.gold_variables.items()},
                 system_leistung_key=system_leistung_key,
                 system_proposals=proposals,
+                gold_bauverfahren_key=g.bauverfahren_key,
+                system_bauverfahren_key=system_bauverfahren_key,
                 abs_tol=args.abs_tol,
             )
             results.append(result)
+            bv = ("n/a" if result.bauverfahren_correct is None
+                  else "ok" if result.bauverfahren_correct else "MISS")
             print(f"  {result.id}: leistung {'ok' if result.classification_correct else 'MISS'}, "
+                  f"bv {bv}, "
                   f"{sum(1 for v in result.variables if v.value_correct)}/{len(result.variables)} values")
 
+        if skipped:
+            print(f"skipped {skipped} of {len(gold)} gold position(s) — re-confirm stale gold",
+                  file=sys.stderr)
+        if not results:
+            print("nothing gradeable")
+            return
         metrics = summarize(results)
         prompt_versions = {pt.value: prompts[pt].version for pt in _EXTRACTION_PROMPTS if pt in prompts}
         _write(args.out, args.project, args.abs_tol, prompt_versions, results, metrics)

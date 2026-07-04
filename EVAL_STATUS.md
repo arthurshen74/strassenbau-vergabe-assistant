@@ -204,6 +204,7 @@ the model-extracted ones; SATZ/STAMMDATEN are catalog lookups, excluded from the
 | Metric | Definition |
 |---|---|
 | `classification_accuracy` | re-run's `leistung_key` == gold (system's own Gate A choice) |
+| `bauverfahren_accuracy` | re-run's Gate A default Bauverfahren == gold, over positions whose gold carries one |
 | `value_accuracy` | of EINGABE values that should be found, fraction matching gold within tolerance |
 | `found_recall` | of EINGABE values that should be found, fraction the re-run produced at all |
 | `provenance_accuracy` | fraction with the right source, over **assessable** leaves (overridden gold is excluded — its `quelle` is `hitl`) |
@@ -354,9 +355,9 @@ print(summarize_chat([res]))
   catalog changes (e.g. a Leistung generalization), a position's worklist can change, and stale gold
   names then read as `missed` / new vars as un-graded. Re-confirm gold after recipe/catalog changes;
   consider stamping gold with a catalog/recipe version.
-- **Invalid gold recipe**: `capture.py` pins the gold `leistung_key`/`bauverfahren_key` at Gate A; if a
-  saved recipe no longer exists, the resume will raise. Harden the runner to skip + warn rather than
-  abort the whole run.
+- **Invalid gold recipe**: `capture.py` pins the gold `leistung_key`/`bauverfahren_key` at Gate A;
+  `run.py` pre-validates each gold row against the catalog (same rules as `waehle_bauverfahren`) and
+  skips + warns, with an end-of-run skip count, instead of letting the resume raise mid-run.
 - **Verbatim chat values**: the chat extractor takes values without unit conversion, so a fixture that
   states a value in a non-canonical unit (e.g. "8 cm" for a metre variable) will read as the bare
   number. Keep fixtures in each variable's own unit, or add a conversion-aware comparison if needed.

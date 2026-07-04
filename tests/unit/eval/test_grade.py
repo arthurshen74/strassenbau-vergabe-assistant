@@ -79,8 +79,33 @@ def test_summarize_filters_eingabe_and_provenance() -> None:
 
     assert m.positions == 2
     assert m.classification_accuracy == 0.5
+    assert m.bauverfahren_accuracy is None           # no gold carries a Bauverfahren
     assert m.eingabe_variables == 2                  # a, b (rate is SATZ)
     assert m.expected_values == 2
     assert m.value_accuracy == 0.5                   # a correct, b wrong (9 != 2)
     assert m.found_recall == 1.0                     # both produced a value
     assert m.provenance_accuracy == 1.0              # only a is assessable, and it matches
+
+
+def test_bauverfahren_graded_only_when_gold_has_one() -> None:
+    def pos(pid: str, gold_bv: str | None, system_bv: str | None):
+        return grade_position(
+            position_id=pid,
+            gold_leistung_key="L",
+            gold_variables={},
+            system_leistung_key="L",
+            system_proposals={},
+            gold_bauverfahren_key=gold_bv,
+            system_bauverfahren_key=system_bv,
+        )
+
+    hit = pos("01", "BV_FRAESEN", "BV_FRAESEN")
+    miss = pos("02", "BV_FRAESEN", "BV_AUFBRECHEN")
+    no_gold = pos("03", None, "BV_FRAESEN")          # gold has no BV -> not assessable
+
+    assert hit.bauverfahren_correct is True
+    assert miss.bauverfahren_correct is False
+    assert no_gold.bauverfahren_correct is None
+
+    m = summarize([hit, miss, no_gold])
+    assert m.bauverfahren_accuracy == 0.5            # over the two assessable positions
