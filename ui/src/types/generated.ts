@@ -677,6 +677,60 @@ export interface RagGroundTruthUpsert {
   category: "kalkulator" | "bauleiter";
 }
 
+export interface EvalRunCreate {
+  /**
+   * Which grader an eval run executes. rag_* are reserved for the RAG evals (Phase 6).
+   */
+  kind: "calculator_gold" | "chat_values" | "rag_retrieval" | "rag_answers";
+  project_uuid?: string | null;
+  params?: {
+    [k: string]: unknown;
+  };
+}
+
+export interface EvalRun {
+  /**
+   * Which grader an eval run executes. rag_* are reserved for the RAG evals (Phase 6).
+   */
+  kind: "calculator_gold" | "chat_values" | "rag_retrieval" | "rag_answers";
+  project_uuid?: string | null;
+  params?: {
+    [k: string]: unknown;
+  };
+  created_by_user_id: string;
+  eval_run_uuid: string;
+  status: "queued" | "running" | "done" | "failed";
+  locked_at?: string | null;
+  locked_by?: string | null;
+  attempts?: number;
+  error?: string | null;
+  summary?: {
+    [k: string]: unknown;
+  } | null;
+  prompt_versions?: {
+    [k: string]: unknown;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EvalRunEvent {
+  event_uuid: string;
+  eval_run_uuid: string;
+  message: string;
+  ts: string;
+}
+
+export interface EvalResult {
+  result_uuid: string;
+  eval_run_uuid: string;
+  item_id: string;
+  payload: {
+    [k: string]: unknown;
+  };
+  created_at: string;
+}
+
 // ---- Types pinned by scripts/export_schema.py ----
 
 export interface IngestQueued {

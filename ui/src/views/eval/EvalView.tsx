@@ -18,10 +18,11 @@ import { useRagGroundTruthList } from '../../api/ragGroundTruth';
 import { GoldTab } from './GoldTab';
 import { RagTab } from './RagTab';
 import { CorrectionsTab } from './CorrectionsTab';
+import { RunsTab } from './RunsTab';
 
 const ART_EINGABE = 'eingabe';
 
-type EvalTab = 'gold' | 'rag' | 'korrekturen';
+type EvalTab = 'gold' | 'rag' | 'korrekturen' | 'laeufe';
 
 function StatTile({
   label,
@@ -148,6 +149,7 @@ export function EvalView() {
                 { id: 'gold', label: `Kalkulation-Gold (${goldRows.length})` },
                 { id: 'rag', label: `RAG-Fragen (${ragRows.length})` },
                 { id: 'korrekturen', label: `Korrekturen (${correctionCount})` },
+                { id: 'laeufe', label: 'Läufe' },
               ] as { id: EvalTab; label: string }[]
             ).map((t) => (
               <button
@@ -170,7 +172,9 @@ export function EvalView() {
           <GoldTab projectUuid={projectUuid} />
         : tab === 'rag' ?
           <RagTab projectUuid={projectUuid} />
-        : <CorrectionsTab projectUuid={projectUuid} />}
+        : tab === 'korrekturen' ?
+          <CorrectionsTab projectUuid={projectUuid} />
+        : <RunsTab projectUuid={projectUuid} />}
       </div>
     </div>
   );

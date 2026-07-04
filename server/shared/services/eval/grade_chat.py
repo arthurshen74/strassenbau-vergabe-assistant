@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
-from scripts.eval_calculator.grade import values_match
+from shared.services.eval.grade import values_match
 
 STATUS_CORRECT = "correct"
 STATUS_WRONG_VALUE = "wrong_value"

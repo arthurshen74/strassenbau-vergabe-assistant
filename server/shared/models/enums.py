@@ -143,3 +143,19 @@ class RagQuestionCategory(StrEnum):
 
     KALKULATOR = "kalkulator"
     BAULEITER = "bauleiter"
+
+
+class EvalRunKind(StrEnum):
+    """Which grader an eval run executes. rag_* are reserved for the RAG evals (Phase 6)."""
+
+    CALCULATOR_GOLD = "calculator_gold"    # re-run + grade extraction vs calculation_ground_truth
+    CHAT_VALUES = "chat_values"            # replay EKT_CHAT_VALUES over authored fixtures
+    RAG_RETRIEVAL = "rag_retrieval"        # retrieval metrics vs rag_ground_truth refs
+    RAG_ANSWERS = "rag_answers"            # answer correctness/faithfulness vs rag_ground_truth
+
+
+class EvalRunStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"

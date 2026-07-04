@@ -6,7 +6,7 @@ metric valid (an overridden gold is not scored on provenance), and the aggregate
 
 from __future__ import annotations
 
-from scripts.eval_calculator.grade import (
+from shared.services.eval.grade import (
     grade_position,
     grade_variable,
     summarize,

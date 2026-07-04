@@ -1,12 +1,12 @@
-"""Ingestion worker: a competing-consumer loop over the ingest_jobs queue.
+"""Worker process: two competing-consumer loops sharing one set of clients.
 
-The process builds the long-lived clients once, then polls
-`IngestJobRepository.claim_next()` (SELECT ... FOR UPDATE SKIP LOCKED) for the oldest queued job,
-runs the full ingestion pipeline for it, and marks it DONE or FAILED. Several worker containers can
-run this loop concurrently: the SKIP LOCKED claim hands each a distinct job, so Postgres is the
-allocator -- there is no central dispatcher. When the queue is empty the loop sleeps
-`settings.worker_poll_interval_seconds` before re-checking, waking immediately on SIGTERM/SIGINT so a
-clean stop lets the in-flight job finish first.
+The ingestion loop polls `IngestJobRepository.claim_next()` (SELECT ... FOR UPDATE SKIP LOCKED)
+for the oldest queued job, runs the full ingestion pipeline, and marks it DONE or FAILED; the
+eval loop (worker.eval_loop) does the same over the eval_runs queue with the shared graders.
+Several worker containers can run concurrently: the SKIP LOCKED claims hand each a distinct
+job/run, so Postgres is the allocator -- there is no central dispatcher. When a queue is empty
+its loop sleeps `settings.worker_poll_interval_seconds` before re-checking, waking immediately on
+SIGTERM/SIGINT so a clean stop lets in-flight work finish first.
 
     python -m worker.main
 
@@ -28,7 +28,12 @@ from datetime import datetime, timedelta, timezone
 from functools import partial
 
 from shared.clients.embeddings.client import EmbeddingsClient
-from shared.clients.factory import build_embeddings_client, build_telemetry_sinks
+from shared.clients.factory import (
+    build_embeddings_client,
+    build_llm_client,
+    build_rerank_client,
+    build_telemetry_sinks,
+)
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient, build_storage_client
 from shared.clients.tracing import setup_phoenix_tracing
@@ -40,6 +45,7 @@ from shared.services.ingestion import IngestionService
 from shared.services.ingestion.activity import ActivityWriter
 from shared.services.ingestion.ingestion_service import UnitOfWorkFactory
 from shared.services.ingestion.langchain_pipeline import LangchainIngestor
+from worker.eval_loop import eval_loop
 from shared.services.ingestion.progress import IngestPhase
 
 logger = logging.getLogger("worker.main")
@@ -146,6 +152,38 @@ async def run_maintenance(uow_factory: UnitOfWorkFactory) -> None:
         logger.info("[worker] archived %d old activity row(s)", archived)
 
 
+async def ingest_loop(
+    uow_factory: UnitOfWorkFactory,
+    *,
+    worker_id: str,
+    storage: StorageClient,
+    search: SearchClient,
+    embeddings: EmbeddingsClient,
+    langchain_ingestor: LangchainIngestor,
+    shutdown: asyncio.Event,
+) -> None:
+    """Poll the ingest_jobs queue until shutdown, running idle maintenance between polls."""
+    while not shutdown.is_set():
+        ran = await process_one(
+            uow_factory,
+            worker_id=worker_id,
+            storage=storage,
+            search=search,
+            embeddings=embeddings,
+            langchain_ingestor=langchain_ingestor,
+        )
+        if ran:
+            continue
+        # Idle: park poison jobs and prune old activity, then wait (waking on shutdown).
+        await run_maintenance(uow_factory)
+        try:
+            await asyncio.wait_for(
+                shutdown.wait(), timeout=settings.worker_poll_interval_seconds
+            )
+        except asyncio.TimeoutError:
+            pass
+
+
 async def run_worker() -> None:
     # Install OTLP tracing before any client is built so ingestion LangChain runs are captured.
     setup_phoenix_tracing(PHOENIX_PROJECT_NAME)
@@ -156,6 +194,9 @@ async def run_worker() -> None:
     sinks = build_telemetry_sinks(engine)
     embeddings = build_embeddings_client(sinks, engine)
     langchain_ingestor = LangchainIngestor(embeddings)
+    # Eval runs replay LLM extraction + reranked retrieval; ingestion never needs these two.
+    llm = build_llm_client(sinks)
+    reranker = build_rerank_client(sinks)
 
     shutdown = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -170,28 +211,35 @@ async def run_worker() -> None:
             worker_id,
             settings.worker_poll_interval_seconds,
         )
-        while not shutdown.is_set():
-            ran = await process_one(
+        # Two competing-consumer loops share the process and clients: ingestion and eval runs.
+        # Both are I/O-bound, so one event loop carries them; a long eval run never blocks an
+        # ingest claim (and vice versa) because each polls its own queue.
+        await asyncio.gather(
+            ingest_loop(
                 uow_factory,
                 worker_id=worker_id,
                 storage=storage,
                 search=search,
                 embeddings=embeddings,
                 langchain_ingestor=langchain_ingestor,
-            )
-            if ran:
-                continue
-            # Idle: park poison jobs and prune old activity, then wait (waking on shutdown).
-            await run_maintenance(uow_factory)
-            try:
-                await asyncio.wait_for(
-                    shutdown.wait(), timeout=settings.worker_poll_interval_seconds
-                )
-            except asyncio.TimeoutError:
-                pass
+                shutdown=shutdown,
+            ),
+            eval_loop(
+                uow_factory,
+                worker_id=worker_id,
+                engine=engine,
+                llm=llm,
+                embeddings=embeddings,
+                search=search,
+                reranker=reranker,
+                shutdown=shutdown,
+            ),
+        )
         logger.info("[worker] shutdown signal received; exiting")
     finally:
         langchain_ingestor.close()
+        await reranker.aclose()
+        await llm.aclose()
         await search.close()
         await embeddings.aclose()
         await engine.dispose()

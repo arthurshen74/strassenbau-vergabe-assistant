@@ -17,6 +17,9 @@ RUN uv sync --frozen --no-dev --no-install-project --no-cache
 
 WORKDIR /app/server
 COPY server/ ./
+# Eval fixtures next to server/ (same repo-root layout as the host), so worker eval runs
+# can resolve relative dataset paths like eval/calculator/chat_values/example.jsonl.
+COPY eval/ /app/eval/
 
 ENV PYTHONUNBUFFERED=1
 

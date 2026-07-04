@@ -20,6 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.documents import DocumentRepository
+from shared.repositories.eval_results import EvalResultRepository
+from shared.repositories.eval_run_events import EvalRunEventRepository
+from shared.repositories.eval_runs import EvalRunRepository
 from shared.repositories.ground_truth import GroundTruthRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
@@ -55,6 +58,9 @@ class UnitOfWork:
         self.messages = MessageRepository(conn)
         self.ground_truth = GroundTruthRepository(conn)
         self.variable_corrections = VariableCorrectionRepository(conn)
+        self.eval_runs = EvalRunRepository(conn)
+        self.eval_run_events = EvalRunEventRepository(conn)
+        self.eval_results = EvalResultRepository(conn)
         self.project_context_values = ProjectContextValueRepository(conn)
         self.katalog = KatalogRepository(conn)
         # Registered for read/report composition; the Database*Sinks write independently.

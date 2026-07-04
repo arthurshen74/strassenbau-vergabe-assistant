@@ -13,6 +13,7 @@ from api.routes import (
     calculations,
     conversations,
     dispatch,
+    eval_runs,
     ground_truth,
     health,
     ingest_jobs,
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
     app.include_router(katalog.router)
     app.include_router(ground_truth.router)
     app.include_router(rag_ground_truth.router)
+    app.include_router(eval_runs.router)
     return app
 
 

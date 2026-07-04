@@ -188,11 +188,14 @@ corrections count against extraction accuracy; the rest are tracked separately.
 | Capture wiring | `server/shared/services/calculator/run_service.py` → `_capture_gate_b` |
 | API | `server/api/routes/conversations.py` → `CalculationResume` (`reasons`, `mark_as_ground_truth`) |
 | UI | `ui/src/views/workspace/InterruptPanel.tsx`, `ui/src/api/calculations.ts` |
-| Grader (variables) | `server/scripts/eval_calculator/{grade,capture,run}.py` |
-| Grader (chat) | `server/scripts/eval_calculator/{grade_chat,run_chat}.py` |
-| Fixtures | `eval/calculator/chat_values/example.jsonl` |
-| Results (git-ignored) | `eval/calculator/results/` |
-| Tests | `tests/unit/services/test_ground_truth.py`, `tests/unit/eval/test_grade.py`, `tests/unit/eval/test_grade_chat.py` |
+| Graders + runners | `server/shared/services/eval/{grade,grade_chat,capture,calculator_runner,chat_runner}.py` |
+| CLI wrappers | `server/scripts/eval_calculator/{run,run_chat}.py` (same flags; write `eval/calculator/results/`) |
+| Run queue | `sql/11_eval_runs.sql`; `server/shared/db/tables/{eval_runs,eval_run_events,eval_results}.py`; repos + `shared/services/eval/run_service.py` |
+| Worker eval loop | `server/worker/eval_loop.py` (second competing-consumer loop beside ingestion) |
+| Runs API | `server/api/routes/eval_runs.py` (`POST/GET /eval-runs`, `/events`, `/results`) |
+| Curation API + UI | `server/api/routes/{ground_truth,rag_ground_truth}.py`; `ui/src/views/eval/` (Gold, RAG-Fragen, Korrekturen, Läufe) |
+| Fixtures | `eval/calculator/chat_values/example.jsonl` (also baked into the worker image at `/app/eval/`) |
+| Tests | `tests/unit/eval/`, `tests/unit/services/test_ground_truth*.py`, `tests/integration/repositories/test_eval_runs.py`, `tests/integration/api/test_eval_runs_api.py` |
 
 ## 5. Metrics
 
@@ -361,5 +364,6 @@ print(summarize_chat([res]))
 - **Verbatim chat values**: the chat extractor takes values without unit conversion, so a fixture that
   states a value in a non-canonical unit (e.g. "8 cm" for a metre variable) will read as the bare
   number. Keep fixtures in each variable's own unit, or add a conversion-aware comparison if needed.
-- The live runners are **not yet executed end-to-end** — first real runs may surface wiring issues
-  (client construction, retrieval scope, thread reuse) not caught by import checks.
+- The chat-value grader **has run live end-to-end** (worker eval-run queue, 2026-07-05: f1 0.8,
+  value_accuracy 1.0 on the example fixtures at `ekt_chat_values` v3). The calculator grader still
+  awaits its first live run — it needs captured gold, which does not exist yet.

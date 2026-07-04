@@ -34,6 +34,12 @@ from shared.models.ingest_schema import (
     IngestStarted,
     IngestStatusRead,
 )
+from shared.models.eval_run import (
+    EvalResult,
+    EvalRun,
+    EvalRunCreate,
+    EvalRunEvent,
+)
 from shared.models.ground_truth import (
     CorrectionSummaryRow,
     GoldVariable,
@@ -176,6 +182,11 @@ BODY_MODELS: list[type[BaseModel]] = [
     RagRef,
     RagGroundTruthRead,
     RagGroundTruthUpsert,
+    # Eval runs: the enqueue body, the run record, and its progress/result rows.
+    EvalRunCreate,
+    EvalRun,
+    EvalRunEvent,
+    EvalResult,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

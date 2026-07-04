@@ -1,12 +1,8 @@
 """Score saved EKT ground truth: re-run each position's extraction with the current prompts and
-compare to the endorsed values.
-
-Reads calculation_ground_truth for a project, re-runs each position's extraction headlessly to its
-Gate B proposals (pinning the gold recipe), grades per-variable value/found/provenance plus
-classification and Bauverfahren choice, and writes per-position results (JSONL) + a summary keyed
-to the prompt versions
-used -- so a prompt edit's effect on extraction accuracy is measurable. Needs the live stack
-(Postgres with gold rows, Elasticsearch with the project ingested, OpenRouter).
+compare to the endorsed values. Thin CLI over shared.services.eval.calculator_runner (which the
+worker's eval-run queue also uses): builds the clients, prints progress, and writes per-position
+results (JSONL) + a summary keyed to the prompt versions used. Needs the live stack (Postgres
+with gold rows, Elasticsearch with the project ingested, OpenRouter).
 
     python -m scripts.eval_calculator.run --project <uuid> [--abs-tol 0] [--out <dir>] [--limit N]
 """
@@ -19,7 +15,6 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 from uuid import UUID
 
 from shared.clients.factory import (
@@ -31,31 +26,8 @@ from shared.clients.factory import (
 from shared.clients.search import SearchClient
 from shared.config import settings
 from shared.db.engine import make_engine
-from shared.models.enums import PromptType
-from shared.models.lv_item import LVItem
-from shared.repositories.ground_truth import GroundTruthRepository
-from shared.repositories.lv_items import LVItemRepository
-from shared.services.calculator.graph import CALCULATOR_RETRIEVAL_CONFIG, build_graph
-from shared.services.calculator.prompts import load_calculator_prompts
-from shared.services.kalkulation_v2.leistung_bauverfahren import kandidaten
-from shared.services.kalkulation_v2.leistungen import LEISTUNGEN
-from shared.services.retrieval import RetrievalService
-
-from scripts.eval_calculator.capture import capture_extraction
-from scripts.eval_calculator.grade import (
-    PositionResult,
-    grade_position,
-    metrics_to_dict,
-    position_to_dict,
-    summarize,
-)
-
-# The extraction prompts whose versions a run is keyed to (the LLM sites the grader exercises).
-_EXTRACTION_PROMPTS = (
-    PromptType.EKT_LEISTUNG_CLASSIFY,
-    PromptType.EKT_CHAT_VALUES,
-    PromptType.EKT_LANGTEXT_EXTRACT,
-)
+from shared.services.eval.calculator_runner import CalculatorGoldRun, run_calculator_gold
+from shared.services.eval.grade import metrics_to_dict, position_to_dict
 
 _DEFAULT_OUT = Path(__file__).resolve().parents[3] / "eval" / "calculator" / "results"
 
@@ -69,111 +41,40 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _stale_gold_reason(leistung_key: str, bauverfahren_key: str | None) -> str | None:
-    """A gold recipe that no longer exists in the catalog cannot be pinned at Gate 2 (the graph
-    rejects it); mirrors waehle_bauverfahren's validation. Returns the skip reason, or None."""
-    if leistung_key not in LEISTUNGEN:
-        return f"gold leistung_key {leistung_key!r} not in catalog"
-    if bauverfahren_key is not None and bauverfahren_key not in kandidaten(leistung_key):
-        return f"gold bauverfahren_key {bauverfahren_key!r} not a candidate for {leistung_key!r}"
-    return None
-
-
-def _position(item: LVItem) -> dict[str, Any]:
-    return {
-        "oz": item.oz,
-        "kurztext": item.kurztext,
-        "langtext": item.langtext_resolved or item.langtext,
-        "hinweis": item.hinweis,
-        "menge": str(item.menge),
-        "einheit": item.einheit,
-        "baustoff_code": None,
-    }
-
-
 async def main() -> None:
     args = _parse_args()
-    if settings.calculator_mock:
-        print("refusing to grade: settings.calculator_mock is on (extraction would be stubbed)",
-              file=sys.stderr)
-        raise SystemExit(2)
-
     engine = make_engine(settings.database_url, pool_size=2, application_name="eval-calculator")
     sinks = build_telemetry_sinks(engine)
     llm = build_llm_client(sinks)
     embeddings = build_embeddings_client(sinks, engine)
     search = SearchClient.from_settings()
     reranker = build_rerank_client(sinks)
-    retrieval = RetrievalService(
-        engine=engine, llm=llm, embeddings=embeddings, search=search, reranker=reranker
-    )
+
+    async def emit(message: str) -> None:
+        print(f"  {message}")
 
     try:
-        async with engine.connect() as conn:
-            gold = await GroundTruthRepository(conn).list_by_project(args.project)
-            prompts = await load_calculator_prompts(conn)
-        if args.limit is not None:
-            gold = gold[: args.limit]
-        if not gold:
+        run = await run_calculator_gold(
+            engine=engine,
+            llm=llm,
+            embeddings=embeddings,
+            search=search,
+            reranker=reranker,
+            project_uuid=args.project,
+            abs_tol=args.abs_tol,
+            limit=args.limit,
+            emit=emit,
+        )
+        if not run.results and run.skipped == 0:
             print(f"no ground truth for project {args.project}")
             return
-
-        async def retrieve(query: str) -> list[str]:
-            ctx = await retrieval.retrieve_context(
-                query, args.project, CALCULATOR_RETRIEVAL_CONFIG
-            )
-            return [c.chunk_text for c in ctx.context]
-
-        app = build_graph(retriever=retrieve, llm=llm, prompts=prompts)
-
-        results: list[PositionResult] = []
-        skipped = 0
-        for g in gold:
-            stale = _stale_gold_reason(g.leistung_key, g.bauverfahren_key)
-            if stale:
-                print(f"  skip {g.oz or g.lv_item_uuid}: {stale}", file=sys.stderr)
-                skipped += 1
-                continue
-            async with engine.connect() as conn:
-                item = await LVItemRepository(conn).get(g.lv_item_uuid)
-            if item is None:
-                print(f"  skip {g.oz or g.lv_item_uuid}: LV position not found", file=sys.stderr)
-                skipped += 1
-                continue
-            system_leistung_key, system_bauverfahren_key, proposals = await capture_extraction(
-                app=app,
-                thread_id=f"eval-{args.project}-{item.oz}",
-                position=_position(item),
-                project_uuid=args.project,
-                gold_leistung_key=g.leistung_key,
-                gold_bauverfahren_key=g.bauverfahren_key,
-            )
-            result = grade_position(
-                position_id=g.oz or str(g.lv_item_uuid),
-                gold_leistung_key=g.leistung_key,
-                gold_variables={name: gv.model_dump() for name, gv in g.gold_variables.items()},
-                system_leistung_key=system_leistung_key,
-                system_proposals=proposals,
-                gold_bauverfahren_key=g.bauverfahren_key,
-                system_bauverfahren_key=system_bauverfahren_key,
-                abs_tol=args.abs_tol,
-            )
-            results.append(result)
-            bv = ("n/a" if result.bauverfahren_correct is None
-                  else "ok" if result.bauverfahren_correct else "MISS")
-            print(f"  {result.id}: leistung {'ok' if result.classification_correct else 'MISS'}, "
-                  f"bv {bv}, "
-                  f"{sum(1 for v in result.variables if v.value_correct)}/{len(result.variables)} values")
-
-        if skipped:
-            print(f"skipped {skipped} of {len(gold)} gold position(s) — re-confirm stale gold",
-                  file=sys.stderr)
-        if not results:
+        if not run.results:
             print("nothing gradeable")
             return
-        metrics = summarize(results)
-        prompt_versions = {pt.value: prompts[pt].version for pt in _EXTRACTION_PROMPTS if pt in prompts}
-        _write(args.out, args.project, args.abs_tol, prompt_versions, results, metrics)
+        _write(args.out, args.project, args.abs_tol, run)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
     finally:
         await reranker.aclose()
         await embeddings.aclose()
@@ -182,31 +83,24 @@ async def main() -> None:
         await engine.dispose()
 
 
-def _write(
-    out_dir: Path,
-    project: UUID,
-    abs_tol: str,
-    prompt_versions: dict[str, int],
-    results: list[PositionResult],
-    metrics: Any,
-) -> None:
+def _write(out_dir: Path, project: UUID, abs_tol: str, run: CalculatorGoldRun) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     rows_path = out_dir / f"{project}-{stamp}.jsonl"
     summary_path = out_dir / f"{project}-{stamp}.summary.json"
     with rows_path.open("w", encoding="utf-8") as fh:
-        for r in results:
+        for r in run.results:
             fh.write(json.dumps(position_to_dict(r), ensure_ascii=False) + "\n")
     summary = {
         "project_uuid": str(project),
         "generated_at": stamp,
         "abs_tol": abs_tol,
-        "prompt_versions": prompt_versions,
-        "metrics": metrics_to_dict(metrics),
+        "prompt_versions": run.prompt_versions,
+        "metrics": metrics_to_dict(run.metrics),
     }
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nprompt versions: {prompt_versions}")
-    print(json.dumps(metrics_to_dict(metrics), indent=2))
+    print(f"\nprompt versions: {run.prompt_versions}")
+    print(json.dumps(metrics_to_dict(run.metrics), indent=2))
     print(f"\nwrote {rows_path}\n      {summary_path}")
 
 

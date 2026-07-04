@@ -10,6 +10,9 @@ from shared.db.tables.calculation_ground_truth import calculation_ground_truth
 from shared.db.tables.conversations import conversations
 from shared.db.tables.documents import documents
 from shared.db.tables.embedding_cache import embedding_cache
+from shared.db.tables.eval_results import eval_results
+from shared.db.tables.eval_run_events import eval_run_events
+from shared.db.tables.eval_runs import eval_runs
 from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
 from shared.db.tables.ingestion_activity_log import ingestion_activity_log
@@ -47,6 +50,9 @@ __all__ = [
     "conversations",
     "documents",
     "embedding_cache",
+    "eval_results",
+    "eval_run_events",
+    "eval_runs",
     "ingest_job_events",
     "ingest_jobs",
     "ingestion_activity_log",

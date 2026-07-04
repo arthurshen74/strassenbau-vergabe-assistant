@@ -5,7 +5,7 @@ Covers the per-assignment status rules (correct / wrong_value / spurious / misse
 
 from __future__ import annotations
 
-from scripts.eval_calculator.grade_chat import (
+from shared.services.eval.grade_chat import (
     grade_chat_fixture,
     grade_chat_values,
     summarize_chat,
