@@ -37,6 +37,8 @@ interface PanelProps {
   payload: Record<string, unknown>;
   onResume: (decision: CalculationResume) => void;
   disabled?: boolean;
+  /** Open a fresh project chat (new tab) to research the documents while the gate stays paused. */
+  onSearchProject?: () => void;
 }
 
 function asStringArray(v: unknown): string[] {
@@ -72,10 +74,12 @@ export function InterruptPanel({
   interrupt,
   onResume,
   disabled,
+  onSearchProject,
 }: {
   interrupt: PendingInterrupt;
   onResume: (decision: CalculationResume) => void;
   disabled?: boolean;
+  onSearchProject?: () => void;
 }) {
   switch (interrupt.stage) {
     case STAGE_PROJECT_CONTEXT_REVIEW:
@@ -84,6 +88,7 @@ export function InterruptPanel({
           payload={interrupt.payload}
           onResume={onResume}
           disabled={disabled}
+          onSearchProject={onSearchProject}
         />
       );
     case STAGE_LEISTUNG_BV_REVIEW:
@@ -92,6 +97,7 @@ export function InterruptPanel({
           payload={interrupt.payload}
           onResume={onResume}
           disabled={disabled}
+          onSearchProject={onSearchProject}
         />
       );
     case STAGE_MATERIAL_REVIEW:
@@ -100,6 +106,7 @@ export function InterruptPanel({
           payload={interrupt.payload}
           onResume={onResume}
           disabled={disabled}
+          onSearchProject={onSearchProject}
         />
       );
     case STAGE_VARIABLE_REVIEW:
@@ -108,11 +115,27 @@ export function InterruptPanel({
           payload={interrupt.payload}
           onResume={onResume}
           disabled={disabled}
+          onSearchProject={onSearchProject}
         />
       );
     default:
       return null;
   }
+}
+
+// The "research escape hatch" on every gate: opens a fresh project chat in a
+// new tab (the paused gate keeps its edits — panels stay mounted). Deliberately
+// not gated on `disabled`: opening a research tab is always safe.
+function SearchProjectButton({ onClick }: { onClick?: () => void }) {
+  if (!onClick) return null;
+  return (
+    <Button
+      outline
+      onClick={onClick}
+    >
+      Search Project
+    </Button>
+  );
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
@@ -244,7 +267,7 @@ function asStringMap(v: unknown): Record<string, string> {
 const PICKER =
   'block w-full rounded-lg border border-zinc-950/10 bg-transparent px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/5';
 
-function LeistungBvReview({ payload, onResume, disabled }: PanelProps) {
+function LeistungBvReview({ payload, onResume, disabled, onSearchProject }: PanelProps) {
   const katalog = asKatalog(payload.katalog);
   const suggested = str(payload.leistung_key);
   // Pre-select the classified Leistung only when it is valid (has candidate Bauverfahren);
@@ -362,6 +385,7 @@ function LeistungBvReview({ payload, onResume, disabled }: PanelProps) {
       }
 
       <div className="flex gap-2 pt-4">
+        <SearchProjectButton onClick={onSearchProject} />
         <Button
           disabled={disabled || !selected || !bv}
           onClick={() =>
@@ -387,7 +411,7 @@ function LeistungBvReview({ payload, onResume, disabled }: PanelProps) {
 }
 
 // --- Gate 3: confirm/correct the acquisition Baustoff ----------------------
-function MaterialReview({ payload, onResume, disabled }: PanelProps) {
+function MaterialReview({ payload, onResume, disabled, onSearchProject }: PanelProps) {
   const baustoffe = asBaustoffe(payload.baustoff_katalog);
   const vorschlag = asVorschlag(payload.baustoff_vorschlag);
   const [baustoff, setBaustoff] = useState(vorschlag?.code ?? '');
@@ -429,6 +453,7 @@ function MaterialReview({ payload, onResume, disabled }: PanelProps) {
         </select>
       </div>
       <div className="flex gap-2 pt-4">
+        <SearchProjectButton onClick={onSearchProject} />
         {/* Always send baustoff_code (empty string included) so the interrupt payload is non-empty
             and LangGraph resumes; an empty value falls back to the auto/BM25 default backend-side. */}
         <Button
@@ -767,7 +792,7 @@ function LocationEditor({
   );
 }
 
-function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
+function ProjectContextReview({ payload, onResume, disabled, onSearchProject }: PanelProps) {
   const kontext =
     payload.projekt_kontext && typeof payload.projekt_kontext === 'object' ?
       (payload.projekt_kontext as Record<string, unknown>)
@@ -943,6 +968,7 @@ function ProjectContextReview({ payload, onResume, disabled }: PanelProps) {
         />
       </div>
       <div className="flex gap-2 pt-4">
+        <SearchProjectButton onClick={onSearchProject} />
         <Button
           disabled={disabled}
           onClick={() => onResume({ projekt_kontext: changed() })}
@@ -1063,7 +1089,7 @@ function VariableRow({
   );
 }
 
-function VariableReview({ payload, onResume, disabled }: PanelProps) {
+function VariableReview({ payload, onResume, disabled, onSearchProject }: PanelProps) {
   const surfaced = asRecordArray(payload.surfaced);
   const collapsed = asRecordArray(payload.collapsed);
   const rows = [...surfaced, ...collapsed];
@@ -1266,12 +1292,15 @@ function VariableReview({ payload, onResume, disabled }: PanelProps) {
           />
           Als Ground Truth speichern (geprüfte Werte als Referenz sichern)
         </label>
-        <Button
-          disabled={disabled || missing || hasInvalid}
-          onClick={submit}
-        >
-          Werte bestätigen & berechnen
-        </Button>
+        <div className="flex gap-2">
+          <SearchProjectButton onClick={onSearchProject} />
+          <Button
+            disabled={disabled || missing || hasInvalid}
+            onClick={submit}
+          >
+            Werte bestätigen & berechnen
+          </Button>
+        </div>
         {hasInvalid ?
           <Text className="pt-1 text-xs text-red-600 dark:text-red-400">
             Bitte ungültige Werte korrigieren.

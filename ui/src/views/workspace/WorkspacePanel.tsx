@@ -198,6 +198,11 @@ export function WorkspacePanel({ conversationId }: { conversationId: string }) {
           interrupt={interrupt}
           onResume={sendResume}
           disabled={isStreaming}
+          onSearchProject={
+            isPositionChat && projectUuid ?
+              () => void startProjectChat(projectUuid)
+            : undefined
+          }
         />
       : <>
           {/* The catalog chat has no retrieval config (it queries the catalog via tools, not RAG). */}
