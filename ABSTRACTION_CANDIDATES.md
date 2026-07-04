@@ -100,3 +100,13 @@ third tab bar appears, extract a `Tabs` component into `ui/src/components/ui/`.
 > Note: the usage parser + sink (`server/shared/clients/openrouter/usage/`) was already extracted — not on
 > count, but because it crosses a module boundary (clients -> persistence) and is a single orthogonal
 > concern shared verbatim by every OpenRouter client.
+
+### German labels for VariableCorrectionReason chips
+
+- `ui/src/views/workspace/InterruptPanel.tsx` — `REASON_OPTIONS` (Gate-B override reason picker)
+- `ui/src/views/eval/CorrectionsTab.tsx` — `REASON_LABELS` (corrections filter + badge labels)
+
+Same six reason values, same German labels, different shapes (option list vs. record). **Do not
+extract yet** — two views. On a third consumer, lift a `REASON_LABELS` record into
+`ui/src/api/variableCorrections.ts` (which already owns `MODEL_ERROR_REASONS`/`reasonKind`) and
+derive the option list from it.

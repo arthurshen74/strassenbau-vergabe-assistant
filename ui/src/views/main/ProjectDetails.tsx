@@ -1,8 +1,10 @@
 // Project Details body: header fields + document list + "Ingest New Document".
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeftIcon,
+  ChartBarIcon,
   ChatBubbleLeftRightIcon,
   DocumentArrowDownIcon,
   MagnifyingGlassIcon,
@@ -16,6 +18,7 @@ import {
 import { useProject, useProjectDocuments } from "../../api/projects";
 import { useProjectIngestStatus } from "../../api/ingest";
 import { useStartProjectChat } from "./useStartProjectChat";
+import { useMainWindowStore } from "../../store/mainWindow";
 import type { DocumentRead } from "../../types/generated";
 import { IngestStatusCell } from "./IngestStatusCell";
 import { IngestButton } from "./IngestButton";
@@ -65,6 +68,8 @@ export function ProjectDetails({
   const documents = useProjectDocuments(projectUuid);
   const ingestStatus = useProjectIngestStatus(projectUuid);
   const startProjectChat = useStartProjectChat();
+  const navigate = useNavigate();
+  const closeMainWindow = useMainWindowStore((s) => s.closeMainWindow);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
   const [docDetail, setDocDetail] = useState<DocumentRead | null>(null);
@@ -101,6 +106,16 @@ export function ProjectDetails({
             <Button onClick={() => startProjectChat(projectUuid)}>
               <ChatBubbleLeftRightIcon />
               Chat about this project
+            </Button>
+            <Button
+              outline
+              onClick={() => {
+                closeMainWindow();
+                navigate(`/p/${projectUuid}/eval`);
+              }}
+            >
+              <ChartBarIcon />
+              Evaluation
             </Button>
             <Button
               outline
