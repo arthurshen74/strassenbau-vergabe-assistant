@@ -117,10 +117,11 @@ A Vite + React 19 + TypeScript app. Tailwind for styling. Routing is in `App.tsx
 
 ## Where to look for what (Companion Documents)
 
-- Look for model definitions in `server/shared/models`. `claude-stuff/DATA_SCHEMA.md` has human-readable descriptions of the models and entities with Mermaid Class and ERD diagrams.
-- For detailed data layer architecture information, read `claude-stuff/DATA_ARCHITECTURE.md`.
+- The audience-facing documentation lives at the repo root: `APPLICATION_ARCHITECTURE.md` (system, layers, data model + ERD), `AI_ARCHITECTURE.md` (pipelines and agents, state diagrams), `AI_EVALUATION.md`, `DEVOPS.md`, `DATA_GOVERNANCE.md`, `README.md`. When a change affects what they describe, update them.
+- Look for model definitions in `server/shared/models`; the ERD is in `APPLICATION_ARCHITECTURE.md`.
+- For Core + Pydantic implementation patterns (repositories, Unit of Work, query idioms), read `claude-stuff/DATA_ARCHITECTURE.md`.
 - Domain terms are listed in `GLOSSARY.md` (repo root).
-- Design/planning and status documents live in `claude-stuff/`.
+- Working documents (pattern guides, status notes, `ABSTRACTION_CANDIDATES.md`) live in `claude-stuff/`.
 
 ## Things to Not Do
 

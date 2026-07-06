@@ -4,7 +4,7 @@ A cost-calculation (Einzelkosten der Teilleistung) agent for German road-constru
 positions. The LLM only **classifies and reads** — which Leistung the position is, which values
 the Kalkulator stated in chat, which value the Langtext implies. **Every number comes from the
 deterministic `kalkulation_v2` engine** — a Decimal formula cascade over a versioned catalog +
-master data — with per-variable provenance. Two human-in-the-loop gates bracket the run.
+master data — with per-variable provenance. Four human-in-the-loop gates bracket the run.
 
 ## Run
 
@@ -22,9 +22,10 @@ python -m scripts.run_calculator --project <project_uuid> --oz 01.02.0006 \
 ```
 
 The LLM sites run `settings.calculator_model` (default `openai/gpt-5.4`) via OpenRouter
-(`OPENROUTER_API_KEY` in `.env`). The run pauses at the two HITL interrupts — **Gate A** (confirm
-the Leistung, pick the Bauverfahren + machine/Baustoff) and **Gate B** (review the resolved
-variables) — and reads your decision. The result is an **EKT row** (Einheits- + Gesamtpreis with a
+(`OPENROUTER_API_KEY` in `.env`). The run pauses at the four HITL interrupts — **Gate 1** (confirm the
+project context: Baustelle, Deponie, site parameters), **Gate 2** (confirm the Leistung, pick the
+Bauverfahren), **Gate 3** (confirm the matched Baustoff, for material recipes), and **Gate 4**
+(review the resolved variables, machines, and supplier) — and reads your decision. The result is an **EKT row** (Einheits- + Gesamtpreis with a
 cost line per Kostenart), a **Nachweistabelle** (every resolved variable: value, unit, provenance),
 and a short narration. In the UI the same run streams over SSE and resumes across the gates
 (`run_service.py`).
@@ -44,19 +45,24 @@ engine (`../kalkulation_v2/`, see its `ARCHITECTURE.md`). The engine owns the ca
 decides *what to ask a human or the LLM* and feeds the answers back in.
 
 ```
-launch → extract_chat_values → classify_leistung
-  → method_review        (Gate A interrupt: confirm Leistung, pick Bauverfahren + machine/Baustoff)
-  → bind_resources       (right-size a machine per slot; attach the matched Baustoff)
-  → derive_required_variables   (walk the recipe's formula tree → worklist leaves)
-  → resolve_variables    (propose value + provenance + review tier per leaf)
-  → variable_review      (Gate B interrupt: tiered accept/override)
-  → compute              (deterministic engine run → EKT row + Nachweistabelle)
-  → render_output        (narration)
+launch → extract_chat_values → load_project_context
+  → project_context_review    (Gate 1 interrupt: confirm/override globals; loops until the Baustelle geocodes)
+  → classify_leistung
+  → leistung_bv_review        (Gate 2 interrupt: confirm Leistung, pick Bauverfahren)
+  → resolve_material          (BM25 Langtext → Baustoff code; material-free recipes skip Gate 3)
+  → material_review           (Gate 3 interrupt: confirm the Baustoff)
+  → rank_lieferanten          (route-matrix supplier ranking by delivered price)
+  → bind_resources → bind_lieferant   (right-size machines; bind supplier price + haul distance)
+  → derive_required_variables (walk the recipe's formula tree → worklist leaves)
+  → resolve_variables         (propose value + provenance + review tier per leaf)
+  → variable_review           (Gate 4 interrupt: tiered accept/override incl. machines + supplier)
+  → compute                   (deterministic engine run → EKT row + Nachweistabelle)
+  → render_output             (narration)
 ```
 
 | File | Role |
 |---|---|
-| `graph.py` | The StateGraph: nodes, the two HITL interrupts, machine/Baustoff resolution, reducers, the retrieval seam |
+| `graph.py` | The StateGraph: nodes, the four HITL interrupts, machine/Baustoff/supplier resolution, reducers, the retrieval seam |
 | `state.py` | State envelope (plain-JSON for the Postgres checkpointer) + output artifacts (EKTZeile, Nachweistabelle) |
 | `llm_calls.py` | The LLM sites with structured Pydantic outputs: `classify_leistung`, `extract_chat_values`, `extract_value` (Langtext/RAG), `narrate_output` |
 | `prompts.py` | Loads the four DB-backed prompt versions; raises if a required prompt is not seeded |
@@ -93,9 +99,10 @@ LLM site for canned replies (and `extract_chat_values` reads the `--set` pins in
    stated). Every euro is an engine formula output over the catalog + master data; each resolved
    variable carries provenance (LANGTEXT / RAG / HITL / STAMMDATEN / KONSTANTE). The golden L101
    fixture pins the engine total.
-2. **Two gates, not many.** Gate A fixes the method + resources before the worklist is derived;
-   Gate B reviews every leaf, tiered — high-stakes inputs surfaced, rates/master-data collapsed but
-   overridable. No interrupts inside the deterministic compute.
+2. **Four gates, not many.** Gate 1 fixes the project context before anything reads it; Gates 2–3
+   fix method and material before the worklist is derived; Gate 4 reviews every leaf, tiered —
+   high-stakes inputs surfaced, rates/master-data collapsed but overridable. No interrupts inside
+   the deterministic compute.
 3. **Selection is grounded, not hallucinated.** Machine and material are chosen from the catalog
    (fleet candidacy + right-sizing; BM25 over the Baustoff catalog) and confirmed by HITL — never
    free-generated by the LLM.
