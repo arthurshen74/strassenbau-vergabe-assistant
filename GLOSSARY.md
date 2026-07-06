@@ -44,7 +44,7 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Baupläne** — Construction drawings. Plan sheets showing layout, profiles, cross-sections, drainage, and details. Not always provided in road tenders; when provided, typically as PDF.
 
-**Karten** — Maps. Site location maps, regional plans, traffic-management plans, environmental overlays. Out of scope for ingestion in the current sprint.
+**Karten** — Maps. Site location maps, regional plans, traffic-management plans, environmental overlays. Distinct from these tender documents, the system also renders its own site and route maps via geocoding in chat and calculation.
 
 ## GAEB and LV Structure
 
@@ -64,7 +64,7 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Menge** — Quantity. The numeric quantity of the item to be performed (e.g., 2,400.00).
 
-**Einheit** — Unit. The unit of measure for the quantity (m, m², m³, t, St, psch).
+**Einheit** — Unit. The unit of measure for the quantity (m, m², m³, t, St = Stück/piece, psch = pauschal/lump sum).
 
 **Positionstyp** — Position type. Categorises a Position by its pricing and execution semantics. Common types:
 
@@ -83,21 +83,21 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Bauleiter** — Site manager / project manager. The contracting company employee responsible for executing a won project on site. In Roadbuilders Assistant, the Bauleiter role becomes meaningful in later phases when site-execution documents are ingested.
 
-**Subunternehmer** (Pl. Subunternehmer) — Subcontractor. A third-party company executing specific Positionen on behalf of the Auftragnehmer (e.g., signage, line marking, specialised earthworks). Subcontractor management is a Capstone-phase concern.
+**Subunternehmer** (Pl. Subunternehmer) — Subcontractor. A third-party company executing specific Positionen on behalf of the Auftragnehmer (e.g., signage, line marking, specialised earthworks). Subcontractor management is outside the current scope.
 
-**Lieferant** (Pl. Lieferanten) — Supplier. A third party supplying materials (asphalt, aggregates, concrete, prefab elements). Like Subunternehmer, primarily a Capstone-phase concern.
+**Lieferant** (Pl. Lieferanten) — Supplier. A third party supplying materials (asphalt, aggregates, concrete, prefab elements). A Katalog entity carrying a location and dated per-Baustoff prices; the calculator ranks Lieferanten by route distance from the Baustelle when pricing material supply.
 
 ## Construction-Phase Terms
 
-**Bautagebuch** (Pl. Bautagebücher) — Site diary. The daily log kept by the Bauleiter recording weather, crew, equipment, deliveries, work performed, and incidents. A key source document for Nachträge and disputes. Ingested in Sprint 3.
+**Bautagebuch** (Pl. Bautagebücher) — Site diary. The daily log kept by the Bauleiter recording weather, crew, equipment, deliveries, work performed, and incidents. A key source document for Nachträge and disputes. Not part of the current bid-phase scope.
 
-**Nachtrag** (Pl. Nachträge) — Variation order / change order. A formal addition or modification to the contract scope or price during construction. Routinely arise from soil findings, scope changes, or specification conflicts discovered during execution. A Capstone-phase concern.
+**Nachtrag** (Pl. Nachträge) — Variation order / change order. A formal addition or modification to the contract scope or price during construction. Routinely arise from soil findings, scope changes, or specification conflicts discovered during execution. Nachtrag unit prices are derived from the Urkalkulation (**Nachtragskalkulation**) rather than negotiated from scratch.
 
 **Aufmaß** — Quantity survey / measurement. The formal measurement of work actually performed, used for billing. Out of scope for now; mentioned for completeness.
 
 ## Road-Construction Operations and Materials
 
-The Kalkulation subsystem (`server/shared/services/calculator`) prices individual road-construction Leistungen; each work type is one registry YAML. These terms name the operations and materials those registries encode, and recur in Position Langtexte.
+The Kalkulation subsystem (`server/shared/services/calculator`, the agent harness, plus `server/shared/services/kalkulation_v2`, the costing engine) prices individual road-construction Leistungen defined in the Katalog. These terms name the operations and materials the Katalog encodes, and recur in Position Langtexte.
 
 **Oberbau** — Pavement structure. The bound and unbound layers above the Planum (Tragschichten plus Deckschicht) that carry traffic. Sized per RStO by Belastungsklasse.
 
@@ -131,6 +131,12 @@ The Kalkulation subsystem (`server/shared/services/calculator`) prices individua
 
 **Unterlage reinigen** — Cleaning the substrate (e.g. a milled or sanitised asphalt surface) before the next layer, typically with a selbstaufnehmende Kehrmaschine. The `unterlage_reinigen` work type.
 
+**Baustelle** — Construction site. In the system, the geocoded project site location (a project-context variable) used for map rendering and supplier route-distance ranking.
+
+**Deponie** (Pl. Deponien) — Disposal site. Where Fräsgut and excavated material are hauled; a project-context variable used when pricing Abtransport and Entsorgung.
+
+**Mischwerk** (Pl. Mischwerke) — Mixing plant. The Lieferant facility that produces asphalt mix; the supply point to which route distance is computed.
+
 ## Cost and Pricing
 
 **Einheitspreis** (EP) — Unit price. The price per unit of a Position (e.g., €23.45/m²). The Kalkulator's principal output for each Normalposition is its Einheitspreis.
@@ -139,13 +145,19 @@ The Kalkulation subsystem (`server/shared/services/calculator`) prices individua
 
 **Angebotssumme** — Total bid sum. The sum of all Position Gesamtpreise plus any lump-sum and surcharge components.
 
-**EFB** — Einheitliche Formblätter. The standardised cost-structure forms used to break out a bid into its cost components (wages, materials, equipment, subcontractor costs, overhead, profit) for transparent review by the Auftraggeber. Required for public tenders above certain thresholds. "Transparent pricing" in the project description refers to producing output suitable for the EFB forms; full EFB generation is a Capstone-phase goal.
+**EFB** — Einheitliche Formblätter. The standardised cost-structure forms used to break out a bid into its cost components (wages, materials, equipment, subcontractor costs, overhead, profit) for transparent review by the Auftraggeber. Required for public tenders above certain thresholds. "Transparent pricing" in the project description refers to producing output suitable for the EFB forms; full EFB generation is a planned enhancement.
 
 **Gewerk** (Pl. Gewerke) — Trade. A category of work executed as a coherent unit by one crew or one specialty (earthworks, asphalt, drainage, signage, etc.). LVs are typically structured so that all Positionen within a hierarchical branch belong to one Gewerk.
 
+**Teilleistung** (Pl. Teilleistungen) — Partial service / work item. One delimited unit of the contract work; in an LV, each Position describes one Teilleistung. The "T" in EKT.
+
 **EKT** — Einzelkosten der Teilleistungen. The direct costs of a single Teilleistung — wages (Lohn), materials (Stoffe), equipment (Geräte), and other (Sonstiges) — before overhead and profit. The Kalkulation subsystem computes the EKT per Position; they roll up into the Einheitspreis.
 
-**Bauweise** — Construction method. The specific technique chosen to execute an operation (e.g. Fertiger vs. Handeinbau, Walze vs. Rüttelplatte). The calculator selects one Bauweise per operation and prices its machine plus crew accordingly.
+**Kostenart** (Pl. Kostenarten) — Cost category. The classic EKT split is Lohn, Stoffe, Geräte, Sonstiges — the columns of VHB Formblatt 223. The calculator's internal `Kostenart` enum works one level finer (Material, Maschine, Antransport, Abtransport, Entsorgung, Lohn) and its output keeps these six categories per cost line; rendering them into the four 223 columns is a planned enhancement.
+
+**Zeitansatz** — Time allowance. Labour hours per unit of a Position (h/Einheit): the crew hours over the whole Position divided by its Menge. The first component of a Formblatt 223 row.
+
+**Bauweise** — Construction method. The specific technique chosen to execute an operation (e.g. Fertiger vs. Handeinbau, Walze vs. Rüttelplatte). In the Katalog this choice is modelled by the Bauverfahren and Betriebsart entities.
 
 **Aufwandswert** — Labour expenditure value. Man-hours required per unit of output (e.g. h/m³) — the firm's productivity benchmark. The calculator's equipment performance rate (output per machine hour) is its machine-side sibling.
 
@@ -153,9 +165,43 @@ The Kalkulation subsystem (`server/shared/services/calculator`) prices individua
 
 **Mittellohn** — Average wage. The blended hourly labour rate including Lohnzusatzkosten (social and ancillary costs), applied to crew hours.
 
-**Nachkalkulation** — Post-calculation. Comparing as-built actual costs against the bid to refine the firm's productivity and price data; the intended feedback source for the calculator's stores.
+**Nachkalkulation** — Post-calculation. Comparing as-built actual costs against the bid to refine the firm's productivity and price data; the intended feedback source for the Katalog.
 
-**VHB Formblatt 223** — A form from the Vergabe- und Vertragshandbuch breaking the Einheitspreis into its components (a Zeitansatz plus Lohn / Stoffe / Geräte / Sonstiges per unit, ohne USt). The calculator emits a 223-style row on approval; closely related to the EFB forms.
+**VHB** — Vergabe- und Vertragshandbuch des Bundes. The federal procurement handbook whose Formblätter standardise bid cost breakdowns: 221 (Preisermittlung bei Zuschlagskalkulation), 222 (Preisermittlung bei Kalkulation über die Endsumme), 223 (Aufgliederung der Einheitspreise).
+
+**VHB Formblatt 223** — The form breaking the Einheitspreis into its components (a Zeitansatz plus Lohn / Stoffe / Geräte / Sonstiges per unit, ohne USt). The calculator's EKT output (cost lines per Vorgang and Kostenart, plus the Nachweistabelle) carries everything a 223 row needs; the 223-form rendering itself is a planned enhancement. Closely related to the EFB forms.
+
+**Zuschläge** — The overhead and markup layered onto the EKT to reach the Einheitspreis: Baustellengemeinkosten (site overhead), Allgemeine Geschäftskosten (company overhead), and Wagnis und Gewinn (risk and profit), declared on VHB Formblätter 221/222. Not yet produced by the calculator.
+
+**Urkalkulation** — The original bid calculation: the complete per-Position cost breakdowns standing behind an Angebot. Submitted sealed (on the EFB/VHB forms) and opened only for defined causes — Preisprüfung, Nachtragskalkulation, or unit-price disputes.
+
+**Preisprüfung** — Price examination. The Auftraggeber's check of an abnormally low bid to establish whether the price is auskömmlich (cost-covering) before the contract may be awarded.
+
+## The Kalkulation Katalog
+
+The calculator's reference data is a persisted catalog (`katalog_*` tables in Postgres; models in `server/shared/services/kalkulation_v2`). These are the entity names a developer meets in that code.
+
+**Katalog** — The store of calculation reference data: Leistungen, Bauverfahren, Vorgänge, Ausführungsarten, Betriebskategorien and Betriebsarten, Maschinen, Baustoffe, Lieferanten with their Preise, Formeln, and Variablen. Rows have a draft/active lifecycle (`entwurf`, `aktiv`, `verworfen`, `archiviert`); changes are written as a **Bundle** (one coherent change set), and a single **Stand** row names the catalog version in force. Maintained through the Katalog chat agent.
+
+**Leistung** (Pl. Leistungen) — In the Katalog: the service to be rendered — the classification target the calculator maps a Position onto (often keyed to an STLB-Bau text). A Leistung does not own a construction procedure; the calculator selects a Bauverfahren to fulfil it.
+
+**Bauverfahren** — Construction procedure. An ordered list of Vorgänge that fulfils a Leistung; the Leistung–Bauverfahren mapping records which procedures can fulfil which service.
+
+**Vorgang** (Pl. Vorgänge) — One operation within a Bauverfahren. Declares which cost variable yields each Kostenart cost line and, where a machine is involved, the Betriebsart plus the binding from machine properties to cost variables.
+
+**Ausführungsart** — Equipment slot. The kind of machine a Vorgang requires; each Maschine declares which Ausführungsart slot it can fill.
+
+**Betriebskategorie** — A grouping of Betriebsarten (e.g. `fraesen`, `verdichtung`).
+
+**Betriebsart** — One operation mode within a Betriebskategorie (e.g. `feinfraesen`); selects which of a machine's productivity profiles applies.
+
+**Maschine** (Pl. Maschinen) — A concrete machine (manufacturer + model) that fills an Ausführungsart slot. Carries a property bag (operating cost, fuel, mob/demob, specs) and per-Betriebsart productivity profiles (Leistungsprofile).
+
+**Baustoff** (Pl. Baustoffe) — Material. Carries Rohdichte (density, t/m³), Verdichtungsfaktor (compaction factor), Körnung (grading), and base prices; supplier-specific dated prices live on the Lieferant.
+
+**Variable** (Pl. Variablen) — A managed calculation input with an ordered resolution cascade (Auflösung): each step is one method — `langtext` (extract from the Position text), `rag` (retrieve from project documents), `hitl` (ask the human), `stammdaten` (master-data lookup), `formel` (compute), `konstante` (fixed value) — tried top to bottom until one yields an accepted value. Resolved values carry provenance: Quelle (source), Konfidenz (confidence), Beleg (evidence).
+
+**Formel** (Pl. Formeln) — A formula in the calculator's expression DSL producing one result variable; validated against the known variables and the DSL function whitelist before saving.
 
 ## Standards and Regulatory References
 
@@ -187,8 +233,8 @@ These are not domain terms; they recur in the codebase around OpenRouter cost tr
 
 **Search units** — Cohere's rerank billing unit, returned as `search_units` on rerank responses. Rerank reports no prompt/completion tokens.
 
-**Usage sink** — A small async interface (`UsageSink`) an OpenRouter client emits a `UsageEvent` to after each call. `LoggingUsageSink` logs one line (default); `DatabaseUsageSink` persists to `openrouter_usage`. See `tasks/retrofit_clients_for_usage.md`.
+**Usage sink** — A small async interface (`UsageSink`) an OpenRouter client emits a `UsageEvent` to after each call. `LoggingUsageSink` logs one line (default); `DatabaseUsageSink` persists to `openrouter_usage`.
 
 ---
 
-See also `README.md` for the project's functional scope and `ARCHITECTURE.md` for how these concepts map to the system's data model.
+See also `README.md` for the project's functional scope, `APPLICATION_ARCHITECTURE.md` for how these concepts map to the system's data model, and `AI_ARCHITECTURE.md` for the pipelines and agents that operate on them.

@@ -1,4 +1,4 @@
-# CLAUDE.local.md
+# CLAUDE.md
 
 Guidance for working in this repository. Auto-loaded by Claude Code at the start of every session.
 
@@ -68,7 +68,7 @@ A Vite + React 19 + TypeScript app. Tailwind for styling. Routing is in `App.tsx
 ### DRY (and when not)
 
 - Duplicate freely up to three similar instances. The shape of the abstraction is rarely clear before then.
-- Keep a list of abstraction candidates inABSTRACTION_CANDIDATES.md. This list will be populated with 2 similar instances as "Longshots" and 3 similar instances as "Good Bet".
+- Keep a list of abstraction candidates in `claude-stuff/ABSTRACTION_CANDIDATES.md`. This list will be populated with 2 similar instances as "Longshots" and 3 similar instances as "Good Bet".
 - Extract on the fourth instance, or when the duplication crosses a module boundary. If the abstraction is in the candidates list, remove it once the extraction is complete.
 - Premature abstraction is worse than duplication. Three explicit, similar functions are easier to change than one parameterised helper guessed at the wrong dimensions.
 
@@ -117,9 +117,10 @@ A Vite + React 19 + TypeScript app. Tailwind for styling. Routing is in `App.tsx
 
 ## Where to look for what (Companion Documents)
 
-- Look for model definitions in `server/shared/models`. A DATA_SCHEMA.md document will have human-readable descriptions of the models and entities with Mermaid Class and ERD diagrams.
-- For detailed data layer architecture information, read DATA_ARCHITECTURE.md.
-- Domain terms are listed in GLOSSARY.md.
+- Look for model definitions in `server/shared/models`. `claude-stuff/DATA_SCHEMA.md` has human-readable descriptions of the models and entities with Mermaid Class and ERD diagrams.
+- For detailed data layer architecture information, read `claude-stuff/DATA_ARCHITECTURE.md`.
+- Domain terms are listed in `GLOSSARY.md` (repo root).
+- Design/planning and status documents live in `claude-stuff/`.
 
 ## Things to Not Do
 
