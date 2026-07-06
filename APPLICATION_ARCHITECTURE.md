@@ -33,17 +33,17 @@ flowchart LR
     WORKER -.OTLP.-> PHOENIX
 ```
 
-| Component | Role |
-| --- | --- |
-| **UI** | Vite + React 19 SPA. Talks only to the API via `/api/*` (REST + Server-Sent Events). |
-| **API** | FastAPI. Thin HTTP surface over the service layer; streams chat turns and ingest status over SSE. |
-| **Worker** | One asyncio process running two competing-consumer loops (document ingestion, eval runs). Scaled horizontally; Postgres allocates jobs via `SKIP LOCKED`. |
-| **Postgres** | Canonical relational data. Three databases on one host: the domain DB, `{db}_auth` (provisioned for the planned auth stack, currently unused), `{db}_test` (integration tests). |
-| **Elasticsearch** | Two indexes: the SimpleChunk index (`roadbuilders_text`, BM25 + kNN vectors) and a LangChain-managed index. Fully rebuildable from Postgres. |
-| **MinIO / S3** | Raw uploaded PDFs, per-page thumbnails, rendered map PNGs. Key prefixes `raw/`, `thumbnail/`, `map/`. |
-| **Phoenix** | Local OTLP trace collector and UI for every LLM call and agent flow. |
-| **OpenRouter** | The single LLM egress: chat completions, embeddings, rerank. |
-| **Google Maps** | Geocoding, route matrices, and static map rendering for Baustelle/Deponie/Lieferant logistics. |
+| Component         | Role                                                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **UI**            | Vite + React 19 SPA. Talks only to the API via `/api/*` (REST + Server-Sent Events).                                                                                            |
+| **API**           | FastAPI. Thin HTTP surface over the service layer; streams chat turns and ingest status over SSE.                                                                               |
+| **Worker**        | One asyncio process running two competing-consumer loops (document ingestion, eval runs). Scaled horizontally; Postgres allocates jobs via `SKIP LOCKED`.                       |
+| **Postgres**      | Canonical relational data. Three databases on one host: the domain DB, `{db}_auth` (provisioned for the planned auth stack, currently unused), `{db}_test` (integration tests). |
+| **Elasticsearch** | Two indexes: the SimpleChunk index (`roadbuilders_text`, BM25 + kNN vectors) and a LangChain-managed index. Fully rebuildable from Postgres.                                    |
+| **MinIO / S3**    | Raw uploaded PDFs, per-page thumbnails, rendered map PNGs. Key prefixes `raw/`, `thumbnail/`, `map/`.                                                                           |
+| **Phoenix**       | Local OTLP trace collector and UI for every LLM call and agent flow.                                                                                                            |
+| **OpenRouter**    | The single LLM egress: chat completions, embeddings, rerank.                                                                                                                    |
+| **Google Maps**   | Geocoding, route matrices, and static map rendering for Baustelle/Deponie/Lieferant logistics.                                                                                  |
 
 ## Repository Layout
 
@@ -115,19 +115,19 @@ back.
 
 All logic sits behind these route groups (SSE = streaming endpoint):
 
-| Group | Endpoints |
-| --- | --- |
-| `/health` | Liveness and DB connectivity checks. |
-| `/projects` | Project/document CRUD, LV positions and hybrid LV search, document upload, (re-)ingest queueing, **SSE** per-project ingest status stream, thumbnail/map proxies from storage, document detail/chunks/activity. |
-| `/projects/.../context` | Project-context globals: read, per-variable history, HITL override, clear, RAG resolve, geocode, static and route map PNGs. |
-| `/conversations` | Conversation CRUD, message history, per-conversation cost, auto-naming, and the central **SSE** `/turn` endpoint that streams a chat turn (project chat, position chat, Katalog chat, calculator resume). |
-| `/dispatch` | **SSE** single-shot, stateless command-bar routing. |
-| `/projects/.../calculations` | Creates the position-chat conversation for an LV position (the calculation itself streams through `/turn`). |
-| `/katalog` | Catalog reads per entity, bundle validate/save/activate/discard, catalog reload. |
-| `/eval-runs` | Enqueue eval runs, list runs, live progress events, per-item results. |
-| `/projects/.../ground-truth`, `/projects/.../rag-ground-truth` | Curated calculation gold and RAG reference questions; Gate-B variable-correction views. |
-| `/ingest-jobs` | Ops console: list jobs, requeue, **SSE** granular activity stream. |
-| `/prompts`, `/prompt-execution-logs`, `/usage` | Prompt Library (append-only versions), full LLM call log, OpenRouter cost log. |
+| Group                                                          | Endpoints                                                                                                                                                                                                       |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/health`                                                      | Liveness and DB connectivity checks.                                                                                                                                                                            |
+| `/projects`                                                    | Project/document CRUD, LV positions and hybrid LV search, document upload, (re-)ingest queueing, **SSE** per-project ingest status stream, thumbnail/map proxies from storage, document detail/chunks/activity. |
+| `/projects/.../context`                                        | Project-context globals: read, per-variable history, HITL override, clear, RAG resolve, geocode, static and route map PNGs.                                                                                     |
+| `/conversations`                                               | Conversation CRUD, message history, per-conversation cost, auto-naming, and the central **SSE** `/turn` endpoint that streams a chat turn (project chat, position chat, Katalog chat, calculator resume).       |
+| `/dispatch`                                                    | **SSE** single-shot, stateless command-bar routing.                                                                                                                                                             |
+| `/projects/.../calculations`                                   | Creates the position-chat conversation for an LV position (the calculation itself streams through `/turn`).                                                                                                     |
+| `/katalog`                                                     | Catalog reads per entity, bundle validate/save/activate/discard, catalog reload.                                                                                                                                |
+| `/eval-runs`                                                   | Enqueue eval runs, list runs, live progress events, per-item results.                                                                                                                                           |
+| `/projects/.../ground-truth`, `/projects/.../rag-ground-truth` | Curated calculation gold and RAG reference questions; Gate-B variable-correction views.                                                                                                                         |
+| `/ingest-jobs`                                                 | Ops console: list jobs, requeue, **SSE** granular activity stream.                                                                                                                                              |
+| `/prompts`, `/prompt-execution-logs`, `/usage`                 | Prompt Library (append-only versions), full LLM call log, OpenRouter cost log.                                                                                                                                  |
 
 FastAPI serves the generated OpenAPI documentation at `/docs`. CORS is restricted to the Vite dev
 origin. Authentication is a development stub: `get_current_user()` returns a fixed administrator
@@ -506,3 +506,6 @@ claim/lease/finalize path against Postgres with fake clients. `asyncio_mode = au
   per contractor.
 - **Schema migrations** — the schema is created idempotently by `bootstrap_tables.py`; evolving a
   populated production database will need a migration tool (e.g. Alembic).
+- **Pattern Correction** - the current `conversations.py` contains all the service orchestration
+  instead of having a separate service module to handle it. It works fine the way it is but honestly
+  it should be refactored so that the pattern is consistently applied.

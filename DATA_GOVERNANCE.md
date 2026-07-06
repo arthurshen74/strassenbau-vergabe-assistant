@@ -3,7 +3,9 @@
 What data the system holds, where it lives, what leaves the deployment, and who can access it.
 Written for the IT decision maker evaluating the system; readable without the architecture
 documents. This document is deliberately complete about external data flows — including the
-uncomfortable ones — because the people reading it will find them anyway.
+uncomfortable ones — because the people reading it will find them anyway. The purpose of this document
+is to provide the reader with a clear risk assessment of the data privacy and AI ethics implications of this
+specific project.
 
 ## What Data the System Holds
 
@@ -82,13 +84,13 @@ flowchart LR
 The complete egress inventory. OpenRouter is the routing intermediary for the first three rows and
 sees their full content; the downstream provider is whichever model is configured.
 
-| Channel | Content transmitted |
-| --- | --- |
-| **Embedding calls** | Raw chunk text of **every ingested document**, and every search query. The highest-volume channel: at ingestion, essentially the whole tender leaves the deployment. |
+| Channel              | Content transmitted                                                                                                                                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Embedding calls**  | Raw chunk text of **every ingested document**, and every search query. The highest-volume channel: at ingestion, essentially the whole tender leaves the deployment.                                                                                                                                                                             |
 | **Chat completions** | System prompts, chat history, LV text, and retrieved document chunks. Two flows carry more than document content: the **Katalog chat feeds catalog data — rates, prices, productivity profiles — into the model context on every turn**, and the **calculator's narration call receives the complete EKT result including the Nachweistabelle**. |
-| **Rerank calls** | The query plus the candidate chunk texts. |
-| **Google Maps** | Addresses and coordinates of Baustelle, Deponie, and Lieferanten (geocoding, route matrices, map rendering). Metadata rather than content — but *which tender a firm is calculating* is competitively revealing metadata. A documented egress with no replacement planned. |
-| **Dev tooling** | The RAG ground-truth generator (`eval/generator/`) sends project document content to the Anthropic API. Development-time only; not part of the product runtime. |
+| **Rerank calls**     | The query plus the candidate chunk texts.                                                                                                                                                                                                                                                                                                        |
+| **Google Maps**      | Addresses and coordinates of Baustelle, Deponie, and Lieferanten (geocoding, route matrices, map rendering). Metadata rather than content — but _which tender a firm is calculating_ is competitively revealing metadata. A documented egress with no replacement planned.                                                                       |
+| **Dev tooling**      | The RAG ground-truth generator (`eval/generator/`) sends project document content to the Anthropic API. Development-time only; not part of the product runtime.                                                                                                                                                                                  |
 
 Every model call is logged locally in full (request, response, tokens, cost, latency) — useful for
 audit, and itself a sensitive store.
@@ -96,7 +98,7 @@ audit, and itself a sensitive store.
 **Levers available today:** the model (and thereby the downstream provider) is chosen per call
 site — every prompt version pins its model, and the calculator and Katalog chat have their own
 model settings. OpenRouter's provider routing can exclude providers by data policy (training,
-retention). What these levers cannot change today: *some* external model sees the content of each
+retention). What these levers cannot change today: _some_ external model sees the content of each
 flow that uses it.
 
 ## Tenancy and Isolation
@@ -172,3 +174,45 @@ the formal handling requirements for classified material — which are organizat
 technical, and outside the scope of this software alone. The architecture keeps this adaptation
 feasible (single transport seam, per-site model pinning, rebuildable indexes), but it is an
 engineering undertaking, not a configuration toggle.
+
+## AI Ethics Posture
+
+The system is built to **augment the Kalkulator, not to replace them** — and in this domain that
+is a legal fact, not a mission statement. In a German public tender the Urkalkulation is the
+contractor's contractual representation of how its prices were formed: captured on the EFB-Preis
+forms, submitted in a sealed envelope, and opened precisely when it matters most — Preisprüfung of
+a suspiciously low bid, Nachtragskalkulation after scope changes, disputes over unit prices years
+after award. The firm, and the Kalkulator who signs it off, must be able to stand behind every
+number. That accountability cannot be delegated to a model, and the system is deliberately shaped
+so that it never has to be:
+
+- **The human decides, and the boundary is structural, not prompt-based.** The calculation agent
+  stops at four gates for explicit decisions; low-confidence and high-stakes values are never
+  auto-accepted. In the Katalog, the agent can only draft validated change bundles — activation is
+  a human-only action, absent from its tool set entirely.
+- **The LLM judges, deterministic code computes.** No number in an EKT result is produced by a
+  language model: models propose classifications, matches, and values copied verbatim with an
+  evidence quote, and a deterministic engine does all arithmetic. Every value the engine will
+  consume is presented — with its source and confidence — at the variable review before the
+  calculation runs.
+- **Every value is auditable.** The Nachweistabelle records the source and evidence behind every
+  value the calculation consumed, corrections are recorded with full provenance, and every LLM
+  call is logged and traced. There is no unexplainable number.
+
+**Residual risks, named.** Grounded, citation-backed retrieval reduces hallucination but does not
+eliminate extraction or classification error, and the faithfulness of the final narration is a
+known, currently ungraded evaluation gap (`AI_EVALUATION.md`). The most realistic failure mode is
+not a model inventing a number — it is **automation bias**: a Kalkulator who, after enough good
+runs, reviews pre-accepted values less carefully. The confidence surfacing and forced decisions at
+the gates are designed against exactly this, and no design removes it entirely. The output is a
+draft to be examined; the estimate remains human work product.
+
+**Bias.** The system processes no data about persons or social groups; no demographic attribute
+exists anywhere in the pipeline. The closest-looking input, the Lohnstufe, is a tariff wage class
+attached to the classification of the work — what kind of labour an operation requires — not to
+any individual: it prices the work, not the worker, and no person's pay is determined by this
+system. The bias risks that do exist are statistical rather than social: the classifier can favour
+common Bauverfahren over rare-but-correct ones, the Katalog-first reuse preference skews drafts
+toward familiar recipes and suppliers, and retrieval quality varies with the quality of the source
+documents. These skew estimates, not people — and they surface for correction at the gates and are
+measured by the evaluation baselines rather than left to accumulate silently.
