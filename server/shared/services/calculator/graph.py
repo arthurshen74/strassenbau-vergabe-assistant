@@ -162,31 +162,46 @@ LIEFERANT_DISTANCE_VAR = "entfernung_lieferant_km"
 # STAMMDATEN beleg prefix every material price bridge shares (all read baustoff.basispreis*).
 STAMMDATEN_PREIS_PRAEFIX = "baustoff.basispreis"
 
-# Leistung label space + chat-extraction catalog, built once from the engine.
-LEISTUNG_INDEX = [{"leistung_key": k, "name": v.name, "standard_kennung": v.standard_kennung}
-                  for k, v in LEISTUNGEN.items()]
-CHAT_KATALOG = [{"name": n, "bezeichnung": d.bezeichnung, "einheit": d.einheit}
-                for n, d in KONTEXT_VARIABLEN.items()]
-# Chat extraction also targets the project globals, so values the Kalkulator already stated in
-# chat ("die Deponie ist in Sangerhausen", "der Abschnitt ist 5,1 km") are captured as global
-# candidates (the load_project_context node reconciles them against the saved/resolved values).
-GLOBAL_CHAT_KATALOG = [{"name": g.name, "bezeichnung": g.bezeichnung, "einheit": g.einheit}
-                       for g in GLOBALE_VARIABLEN.values()]
-CHAT_KATALOG_MIT_GLOBAL = CHAT_KATALOG + GLOBAL_CHAT_KATALOG
-# Globals captured from chat as project candidates are only those that are NOT also per-position
-# engine variables. fraesgut_klasse is both a global and a KATALOG variable; a chat statement about
-# it is a per-position input (precedence §3: per-position input > project global), so it stays in
-# chat_werte and is not reconciled as a project candidate.
-CHAT_GLOBAL_NAMES = frozenset(n for n in GLOBAL_VAR_NAMES if n not in KATALOG)
-# Full Leistung -> candidate Bauverfahren map for the Gate A method-review UI, so the Kalkulator can
-# correct the classification and pick a recipe even when the position did not classify cleanly.
-LEISTUNG_KATALOG = [{"leistung_key": k, "name": v.name, "kandidaten": kandidaten(k)}
-                    for k, v in LEISTUNGEN.items()]
+# The catalog-derived label spaces and gate payloads below are computed per use, never at module
+# level: this module is imported before `lade_katalog` refills the engine dicts at startup, and an
+# activation refills them again mid-process — an import-time snapshot would pin the fixture
+# catalog for the process lifetime. The lists are tiny; rebuilding per use is negligible.
 
-# Per-Bauverfahren machine slots + candidates, so Gate A can offer a machine picker per slot once a
-# recipe is chosen. Only slots with >=1 catalog machine are pickable. Baustoff catalog for the
-# material picker (offered optionally; most positions need none).
-_AA_BY_CODE = {a.code: a for a in AUSFUEHRUNGSARTEN.values()}
+
+def leistung_index() -> list[dict]:
+    """Leistung label space for the classification prompt."""
+    return [{"leistung_key": k, "name": v.name, "standard_kennung": v.standard_kennung}
+            for k, v in LEISTUNGEN.items()]
+
+
+def chat_katalog() -> list[dict]:
+    """Per-position engine variables targeted by chat extraction."""
+    return [{"name": n, "bezeichnung": d.bezeichnung, "einheit": d.einheit}
+            for n, d in KONTEXT_VARIABLEN.items()]
+
+
+def chat_katalog_mit_global() -> list[dict]:
+    """Chat extraction also targets the project globals, so values the Kalkulator already stated
+    in chat ("die Deponie ist in Sangerhausen", "der Abschnitt ist 5,1 km") are captured as global
+    candidates (the load_project_context node reconciles them against the saved/resolved values)."""
+    return chat_katalog() + [{"name": g.name, "bezeichnung": g.bezeichnung, "einheit": g.einheit}
+                             for g in GLOBALE_VARIABLEN.values()]
+
+
+def chat_global_names() -> frozenset[str]:
+    """Globals captured from chat as project candidates are only those that are NOT also
+    per-position engine variables. fraesgut_klasse is both a global and a KATALOG variable; a chat
+    statement about it is a per-position input (precedence §3: per-position input > project
+    global), so it stays in chat_werte and is not reconciled as a project candidate."""
+    return frozenset(n for n in GLOBAL_VAR_NAMES if n not in KATALOG)
+
+
+def leistung_katalog() -> list[dict]:
+    """Full Leistung -> candidate Bauverfahren map for the Gate A method-review UI, so the
+    Kalkulator can correct the classification and pick a recipe even when the position did not
+    classify cleanly."""
+    return [{"leistung_key": k, "name": v.name, "kandidaten": kandidaten(k)}
+            for k, v in LEISTUNGEN.items()]
 
 
 def _bv_slots(bauverfahren) -> list[str]:
@@ -194,17 +209,26 @@ def _bv_slots(bauverfahren) -> list[str]:
                               if vg.ausfuehrungsart is not None and maschinen_fuer(vg.ausfuehrungsart.code)))
 
 
-BAUVERFAHREN_RESSOURCEN = {
-    bv_code: [
-        {"slot": slot, "geraet": _AA_BY_CODE[slot].name,
-         "kandidaten": [{"code": m.code, "hersteller": m.hersteller, "modell": m.modell}
-                        for m in maschinen_fuer(slot)]}
-        for slot in _bv_slots(bv)
-    ]
-    for bv_code, bv in BAUVERFAHREN.items()
-}
-BAUSTOFF_KATALOG = [{"code": b.code, "name": b.name, "kategorie": b.kategorie}
-                    for b in BAUSTOFFE.values()]
+def bauverfahren_ressourcen() -> dict[str, list[dict]]:
+    """Per-Bauverfahren machine slots + candidates, so Gate A can offer a machine picker per slot
+    once a recipe is chosen. Only slots with >=1 catalog machine are pickable."""
+    aa_by_code = {a.code: a for a in AUSFUEHRUNGSARTEN.values()}
+    return {
+        bv_code: [
+            {"slot": slot, "geraet": aa_by_code[slot].name,
+             "kandidaten": [{"code": m.code, "hersteller": m.hersteller, "modell": m.modell}
+                            for m in maschinen_fuer(slot)]}
+            for slot in _bv_slots(bv)
+        ]
+        for bv_code, bv in BAUVERFAHREN.items()
+    }
+
+
+def baustoff_katalog() -> list[dict]:
+    """Baustoff catalog for the Gate 3 material picker (offered optionally; most positions
+    need none)."""
+    return [{"code": b.code, "name": b.name, "kategorie": b.kategorie}
+            for b in BAUSTOFFE.values()]
 
 # First numeric token in a verbatim read, e.g. "ca. 0,30" or "über 3 bis 4,5 cm".
 _NUMERIC_TOKEN = re.compile(r"-?\d+(?:[.,]\d+)?")
@@ -560,6 +584,7 @@ def build_graph(
         prompt over `chat_verlauf` against the combined catalog."""
         chat_werte: dict = {}
         chat_global: dict = {}
+        chat_globals = chat_global_names()
         log = [reason("extract_chat_values", REASONING_NARRATION,
                       "Prüfe den Chatverlauf auf bereits genannte Werte (Quelle 0).")]
         if settings.calculator_mock:
@@ -570,20 +595,20 @@ def build_graph(
                 log.append(reason("extract_chat_values", REASONING_NARRATION,
                                   f"Aus dem Chat übernommen: {name} = {value}."))
             for name, value in (state.get("globale_vorgaben") or {}).items():
-                if name in CHAT_GLOBAL_NAMES:
+                if name in chat_globals:
                     chat_global[name] = {"wert": str(value), "beleg": PROVENANCE_CHAT, "quelle": "chat"}
         else:
             transcript = state.get("chat_verlauf") or []
             if transcript:
                 ergebnis, prov = await llm_calls.extract_chat_values(
-                    llm, transcript, CHAT_KATALOG_MIT_GLOBAL,
+                    llm, transcript, chat_katalog_mit_global(),
                     prompt=prompts[PromptType.EKT_CHAT_VALUES],
                     project_uuid=state.get("project_uuid"),
                     conversation_uuid=state.get("conversation_uuid"))
                 if prov:
                     log.append(reason("extract_chat_values", REASONING_PROVIDER, prov))
                 for z in ergebnis.zuweisungen:
-                    if z.name in CHAT_GLOBAL_NAMES:
+                    if z.name in chat_globals:
                         # True globals (locations are strings) are kept verbatim, not coerced.
                         chat_global[z.name] = {"wert": z.wert, "beleg": z.beleg, "quelle": "chat"}
                         log.append(reason("extract_chat_values", REASONING_NARRATION,
@@ -681,7 +706,7 @@ def build_graph(
             log.append(reason("classify_leistung", REASONING_NARRATION,
                               f"{len(snippets)} Kontext-Auszug(e) retrievt; klassifiziere."))
             res, prov = await llm_calls.classify_leistung(
-                llm, pos, LEISTUNG_INDEX, snippets,
+                llm, pos, leistung_index(), snippets,
                 prompt=prompts[PromptType.EKT_LEISTUNG_CLASSIFY],
                 project_uuid=state.get("project_uuid"),
                 conversation_uuid=state.get("conversation_uuid"))
@@ -709,8 +734,8 @@ def build_graph(
             "leistung_name": state.get("leistung_name"),
             "bauverfahren_kandidaten": kand,
             "bauverfahren_default": kand[0] if kand else None,
-            "katalog": LEISTUNG_KATALOG,
-            "bauverfahren_ressourcen": BAUVERFAHREN_RESSOURCEN,
+            "katalog": leistung_katalog(),
+            "bauverfahren_ressourcen": bauverfahren_ressourcen(),
         }) or {}
         if antwort.get("cancel"):
             return {"abgebrochen": True,
@@ -758,7 +783,7 @@ def build_graph(
         antwort = interrupt({
             "stage": STAGE_MATERIAL_REVIEW,
             "baustoff_vorschlag": vorschlag,
-            "baustoff_katalog": BAUSTOFF_KATALOG,
+            "baustoff_katalog": baustoff_katalog(),
         }) or {}
         if antwort.get("cancel"):
             return {"abgebrochen": True,

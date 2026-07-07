@@ -5,10 +5,12 @@
 //
 // Stream merge model:
 //   - text_delta:           append to the open assistant message buffer
-//   - function_call:        protocol-only; not shown in the chat
-//   - function_call_output: on success, opens the main window for a routable
-//                           tool (view_prompts / view_projects). Not shown
-//                           inline.
+//   - function_call:        feeds the live activity trail (tool name + args
+//                           excerpt) shown by the thinking indicator; not a
+//                           chat message
+//   - function_call_output: marks its activity step done. On success, opens
+//                           the main window for a routable tool
+//                           (view_prompts / view_projects). Not shown inline.
 //   - ui_notice:            append a notice (error-styled when level==='error');
 //                           never persisted, so it's retained across the refetch
 //                           and cleared on the next turn
@@ -29,6 +31,10 @@ import { useUIStore } from '../../../store/ui';
 import { useMainWindowStore, viewKindForTool } from '../../../store/mainWindow';
 import type { MessageRead, TurnRetrievalConfig } from '../../../types/generated';
 import type { DisplayMessage } from '../../../components/chat/types';
+import {
+  toolActivityHint,
+  type AgentActivityStep,
+} from '../../../components/chat/agentActivity';
 
 // A paused EKT calculation awaiting the Kalkulator's structured decision at a HITL gate.
 export interface PendingInterrupt {
@@ -80,6 +86,8 @@ export function useWorkspaceConversation(
   const [streamMessages, setStreamMessages] = useState<DisplayMessage[]>([]);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  // The turn's tool calls so far (running/done), rendered as the thinking indicator's trail.
+  const [activity, setActivity] = useState<AgentActivityStep[]>([]);
   // True while a HITL-resume turn streams: that segment is always calculator reasoning, so the
   // renderer can collapse it (and show the activity indicator) without mislabeling a chat answer.
   const [isCalculating, setIsCalculating] = useState(false);
@@ -128,6 +136,7 @@ export function useWorkspaceConversation(
       setPendingInterrupt(null);
 
       streamStateRef.current = { openAssistantId: null, toolNameByCallId: {} };
+      setActivity([]);
       setIsStreaming(true);
       setIsCalculating('resume' in body);
       setStreamActive(conversationId, true);
@@ -191,16 +200,31 @@ export function useWorkspaceConversation(
                 break;
               }
               case 'function_call': {
-                // Close any open assistant stream — a tool call follows.
+                // Close any open assistant stream — a tool call follows. Clearing the streaming id
+                // brings the thinking indicator (with the activity trail) back between tool rounds.
                 streamStateRef.current.openAssistantId = null;
+                setStreamingMessageId(null);
                 streamStateRef.current.toolNameByCallId[e.call_id] = e.name;
                 toolGroupEnds[e.call_id] = log.group.tool(e.name, e.call_id);
                 log.tool('args_keys', Object.keys(e.arguments));
+                const step: AgentActivityStep = {
+                  callId: e.call_id,
+                  toolName: e.name,
+                  hint: toolActivityHint(e.arguments),
+                  done: false,
+                };
+                // Guard on call_id: StrictMode double-invokes updaters, so appends must be idempotent.
+                setActivity((prev) =>
+                  prev.some((s) => s.callId === step.callId) ? prev : [...prev, step],
+                );
                 break;
               }
               case 'function_call_output': {
                 const toolName =
                   e.tool_name ?? streamStateRef.current.toolNameByCallId[e.call_id] ?? null;
+                setActivity((prev) =>
+                  prev.map((s) => (s.callId === e.call_id ? { ...s, done: true } : s)),
+                );
                 log.tool('result', {
                   success: e.success,
                   has_data: e.data != null,
@@ -293,6 +317,7 @@ export function useWorkspaceConversation(
         setIsStreaming(false);
         setIsCalculating(false);
         setStreamingMessageId(null);
+        setActivity([]);
         setStreamActive(conversationId, false);
         abortRef.current = null;
 
@@ -340,6 +365,7 @@ export function useWorkspaceConversation(
     streamingMessageId,
     isStreaming,
     isCalculating,
+    activity,
     pendingInterrupt,
     sendMessage,
     sendResume,

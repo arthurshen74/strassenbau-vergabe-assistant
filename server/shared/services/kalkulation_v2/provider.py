@@ -11,11 +11,10 @@ Load order respects embedding dependencies (Ausführungsart → Vorgang → Bauv
 variable groups → KATALOG). After the dicts, the derived state that is computed at import time
 from them is rebuilt: `store.KATALOG`, the Baustoff BM25 index, and the two globals sets.
 
-Scope note: catalog-layer derived state is rebuilt here. The calculator's `graph.py` also builds
-UI/index constants at import time (LEISTUNG_INDEX, BAUVERFAHREN_RESSOURCEN, …); those are refreshed
-on process restart, the same redeploy semantics a catalog swap already assumes (single-process
-deployment). The engine path used for calculation (`kalkuliere_kontext`) reads the refilled dicts
-directly, so a newly activated recipe is calculable immediately.
+Scope note: catalog-layer derived state is rebuilt here. The calculator's `graph.py` computes its
+label spaces and gate payloads (leistung_index(), bauverfahren_ressourcen(), …) per use from the
+module dicts, and the engine path used for calculation (`kalkuliere_kontext`) reads the refilled
+dicts directly — so a newly activated entry is classifiable, pickable and calculable immediately.
 
 Two reconstruction subtleties are handled explicitly: Ausführungsarten and Vorgänge are keyed by
 `code` (the fixtures key them by short names that the engine never reads by key — it iterates

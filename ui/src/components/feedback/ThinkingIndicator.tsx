@@ -5,13 +5,24 @@
 //         already renders this via the `hint` text, but you can drop this
 //         component anywhere a compact indicator is needed).
 //   lg  — full-width card with a pulsing brain/sparkle icon, animated dots,
-//         and a label; used in the inline PromptTester chat.
+//         and a label; used in the chat thread and the inline PromptTester chat.
+//         Optionally renders an agent-activity trail (`steps`): done steps as a
+//         muted checklist, the last running step as the live label.
 
 import clsx from 'clsx';
+
+/** One line of activity shown inside the lg card: done steps as a muted checklist, the last
+ * running step as the live label. */
+export interface ThinkingStep {
+  key: string;
+  label: string;
+  done: boolean;
+}
 
 interface ThinkingIndicatorProps {
   size?: 'sm' | 'lg';
   label?: string;
+  steps?: ThinkingStep[];
   className?: string;
 }
 
@@ -36,6 +47,7 @@ function Dots({ dotClass }: { dotClass?: string }) {
 export function ThinkingIndicator({
   size = 'lg',
   label = 'Thinking',
+  steps,
   className,
 }: ThinkingIndicatorProps) {
   if (size === 'sm') {
@@ -52,10 +64,13 @@ export function ThinkingIndicator({
   }
 
   // lg — prominent card for the inline chat
+  const doneSteps = steps?.filter((s) => s.done) ?? [];
+  const running = steps?.filter((s) => !s.done).at(-1);
+  const currentLabel = running?.label ?? label;
   return (
     <div
       role="status"
-      aria-label={label}
+      aria-label={currentLabel}
       className={clsx(
         'flex items-center gap-3 rounded-xl border border-zinc-950/10 bg-white px-5 py-4 shadow-sm',
         'dark:border-white/10 dark:bg-zinc-900',
@@ -84,10 +99,25 @@ export function ThinkingIndicator({
         </span>
       </span>
 
-      {/* Label + dots */}
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-          {label}
+      {/* Completed steps + current label + dots */}
+      <div className="flex min-w-0 flex-col gap-1">
+        {doneSteps.map((s) => (
+          <span
+            key={s.key}
+            className="flex items-center gap-1.5 truncate text-xs text-zinc-400 dark:text-zinc-500"
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0" aria-hidden>
+              <path
+                fillRule="evenodd"
+                d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span className="truncate">{s.label}</span>
+          </span>
+        ))}
+        <span className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+          {currentLabel}
         </span>
         <Dots dotClass="h-1.5 w-1.5 text-violet-500 dark:text-violet-400" />
       </div>

@@ -18,6 +18,7 @@ import type { CitationData } from './messages/CitationsPanel';
 // The two retrieval tools whose results feed the answer's citations panel.
 const CONTEXT_TOOLS: string[] = [TOOL_GET_PROJECT_CONTEXT, TOOL_GET_LV_CONTEXT];
 import { ThinkingIndicator } from '../feedback/ThinkingIndicator';
+import { toolActivityLabel, type AgentActivityStep } from './agentActivity';
 
 // Marker on a persisted assistant message's `data` flagging it as the calculator's reasoning trail
 // (run_service.CALC_REASONING_MARKER); such a message renders collapsed to its latest line.
@@ -45,6 +46,8 @@ interface MessageListProps {
    * output yet.
    */
   isThinking?: boolean;
+  /** The streaming turn's tool calls so far, rendered as the indicator's activity trail. */
+  activity?: AgentActivityStep[];
   /** Project scope, for project-chat tool results that fetch page thumbnails. */
   projectUuid?: string;
   /** Collapse the currently-streaming assistant message as calculator reasoning (latest line). */
@@ -58,6 +61,7 @@ export function MessageList({
   messages,
   streamingMessageId,
   isThinking,
+  activity,
   projectUuid,
   collapseStreamingReasoning,
   className,
@@ -77,7 +81,7 @@ export function MessageList({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, stick]);
+  }, [messages, activity, isThinking, stick]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -128,7 +132,17 @@ export function MessageList({
             }
           />
         ))}
-        {isThinking && <ThinkingIndicator size="lg" label="Thinking" />}
+        {isThinking && (
+          <ThinkingIndicator
+            size="lg"
+            label="Thinking"
+            steps={activity?.map((s) => ({
+              key: s.callId,
+              label: toolActivityLabel(s),
+              done: s.done,
+            }))}
+          />
+        )}
       </div>
     </div>
   );

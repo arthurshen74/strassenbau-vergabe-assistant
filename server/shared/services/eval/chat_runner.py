@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.llm.client import LLMClient
 from shared.models.enums import PromptType
-from shared.services.calculator.graph import CHAT_KATALOG, _coerce_decimal
+from shared.services.calculator.graph import _coerce_decimal, chat_katalog
 from shared.services.calculator.llm_calls import extract_chat_values
 from shared.services.calculator.prompts import load_calculator_prompts
 from shared.services.eval.grade_chat import (
@@ -95,7 +95,7 @@ async def run_chat_values(
     results: list[ChatFixtureResult] = []
     for fx in fixtures:
         ergebnis, _ = await extract_chat_values(
-            llm, fx["transcript"], CHAT_KATALOG, prompt=chat_prompt
+            llm, fx["transcript"], chat_katalog(), prompt=chat_prompt
         )
         system = system_assignments(ergebnis.zuweisungen)
         result = grade_chat_fixture(

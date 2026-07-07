@@ -100,6 +100,7 @@ export function WorkspacePanel({ conversationId }: { conversationId: string }) {
     streamingMessageId,
     isStreaming,
     isCalculating,
+    activity,
     pendingInterrupt,
     sendMessage,
     sendResume,
@@ -137,8 +138,8 @@ export function WorkspacePanel({ conversationId }: { conversationId: string }) {
     );
   }, [messagesQuery.data, streamMessages]);
 
-  // Show the ThinkingIndicator while a turn is streaming but no assistant text is open yet — the
-  // wait after the user message (chat / calc start) and before the first reasoning line of a resume.
+  // Show the ThinkingIndicator (with the tool-activity trail) whenever a turn is streaming but no
+  // assistant text is open — before the first token and between tool rounds.
   const isThinking = isStreaming && streamingMessageId === null;
 
   if (conversation.isLoading) {
@@ -189,6 +190,7 @@ export function WorkspacePanel({ conversationId }: { conversationId: string }) {
         messages={merged}
         streamingMessageId={streamingMessageId}
         isThinking={isThinking}
+        activity={activity}
         projectUuid={projectUuid}
         collapseStreamingReasoning={isCalculating}
       />
