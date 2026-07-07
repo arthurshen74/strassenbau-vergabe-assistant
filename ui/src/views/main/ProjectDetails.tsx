@@ -1,7 +1,7 @@
 // Project Details body: header fields + document list + "Ingest New Document".
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,
   ChartBarIcon,
@@ -9,23 +9,23 @@ import {
   DocumentArrowDownIcon,
   MagnifyingGlassIcon,
   TrashIcon,
-} from "@heroicons/react/16/solid";
+} from '@heroicons/react/16/solid';
 import {
   DocumentDuplicateIcon,
   GlobeAltIcon,
   ListBulletIcon,
-} from "@heroicons/react/20/solid";
-import { useProject, useProjectDocuments } from "../../api/projects";
-import { useProjectIngestStatus } from "../../api/ingest";
-import { useStartProjectChat } from "./useStartProjectChat";
-import { useMainWindowStore } from "../../store/mainWindow";
-import type { DocumentRead } from "../../types/generated";
-import { IngestStatusCell } from "./IngestStatusCell";
-import { IngestButton } from "./IngestButton";
-import { Heading } from "../../components/ui/heading";
-import { Text } from "../../components/ui/text";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
+} from '@heroicons/react/20/solid';
+import { useProject, useProjectDocuments } from '../../api/projects';
+import { useProjectIngestStatus } from '../../api/ingest';
+import { useStartProjectChat } from './useStartProjectChat';
+import { useMainWindowStore } from '../../store/mainWindow';
+import type { DocumentRead } from '../../types/generated';
+import { IngestStatusCell } from './IngestStatusCell';
+import { IngestButton } from './IngestButton';
+import { Heading } from '../../components/ui/heading';
+import { Text } from '../../components/ui/text';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
 import {
   Table,
   TableBody,
@@ -33,25 +33,25 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../components/ui/table";
-import { LoadingState } from "../../components/feedback/LoadingState";
-import { ErrorState } from "../../components/feedback/ErrorState";
-import { formatRelativeTime } from "../../lib/format";
-import { UploadDocumentDialog } from "./UploadDocumentDialog";
-import { DeleteDocumentDialog } from "./DeleteDocumentDialog";
-import { DeleteProjectDialog } from "./DeleteProjectDialog";
-import { DocumentDetailDialog } from "./DocumentDetailDialog";
-import { LVItemsTable } from "./LVItemsTable";
-import { ProjectContextPanel } from "./ProjectContextPanel";
+} from '../../components/ui/table';
+import { LoadingState } from '../../components/feedback/LoadingState';
+import { ErrorState } from '../../components/feedback/ErrorState';
+import { formatRelativeTime } from '../../lib/format';
+import { UploadDocumentDialog } from './UploadDocumentDialog';
+import { DeleteDocumentDialog } from './DeleteDocumentDialog';
+import { DeleteProjectDialog } from './DeleteProjectDialog';
+import { DocumentDetailDialog } from './DocumentDetailDialog';
+import { LVItemsTable } from './LVItemsTable';
+import { ProjectContextPanel } from './ProjectContextPanel';
 
-type ProjectTab = "lv" | "documents" | "context";
+type ProjectTab = 'lv' | 'documents' | 'context';
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col">
       <span className="text-xs text-zinc-500 dark:text-zinc-400">{label}</span>
       <span className="text-sm text-zinc-900 dark:text-zinc-100">
-        {value || "—"}
+        {value || '—'}
       </span>
     </div>
   );
@@ -74,7 +74,7 @@ export function ProjectDetails({
   const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
   const [docDetail, setDocDetail] = useState<DocumentRead | null>(null);
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
-  const [tab, setTab] = useState<ProjectTab>("lv");
+  const [tab, setTab] = useState<ProjectTab>('lv');
 
   if (project.isPending) return <LoadingState label="Loading project…" />;
   if (project.isError) {
@@ -93,7 +93,11 @@ export function ProjectDetails({
       <div className="flex shrink-0 flex-col gap-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Button plain onClick={onBack} aria-label="Back">
+            <Button
+              plain
+              onClick={onBack}
+              aria-label="Back"
+            >
               <ArrowLeftIcon />
             </Button>
             <Heading level={4}>{p.project_name}</Heading>
@@ -129,24 +133,39 @@ export function ProjectDetails({
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <FieldRow label="Vergabe ProjectID" value={p.vergabe_id} />
-          <FieldRow label="Vergabe Stelle" value={p.vergabestelle} />
-          <FieldRow label="Location" value={p.location ?? ""} />
-          <FieldRow label="Documents" value={String(docs.length)} />
+          <FieldRow
+            label="Vergabe ProjectID"
+            value={p.vergabe_id}
+          />
+          <FieldRow
+            label="Vergabe Stelle"
+            value={p.vergabestelle}
+          />
+          <FieldRow
+            label="Location"
+            value={p.location ?? ''}
+          />
+          <FieldRow
+            label="Documents"
+            value={String(docs.length)}
+          />
         </div>
         {p.project_description && <Text>{p.project_description}</Text>}
 
         <div className="border-b border-zinc-950/10 dark:border-white/10">
-          <nav aria-label="Tabs" className="-mb-px flex space-x-8">
+          <nav
+            aria-label="Tabs"
+            className="-mb-px flex space-x-8"
+          >
             {(
               [
-                { id: "lv", name: "LV Positions", icon: ListBulletIcon },
+                { id: 'lv', name: 'LV Positions', icon: ListBulletIcon },
                 {
-                  id: "documents",
-                  name: "Documents",
+                  id: 'documents',
+                  name: 'Documents',
                   icon: DocumentDuplicateIcon,
                 },
-                { id: "context", name: "Context", icon: GlobeAltIcon },
+                { id: 'context', name: 'Context', icon: GlobeAltIcon },
               ] as const
             ).map((t) => {
               const active = tab === t.id;
@@ -155,21 +174,21 @@ export function ProjectDetails({
                   key={t.id}
                   type="button"
                   onClick={() => setTab(t.id)}
-                  aria-current={active ? "page" : undefined}
+                  aria-current={active ? 'page' : undefined}
                   className={
-                    "group inline-flex items-center border-b-2 px-1 py-3 text-sm font-medium " +
-                    (active
-                      ? "border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
-                      : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-white/20 dark:hover:text-zinc-300")
+                    'group inline-flex items-center border-b-2 px-1 py-3 text-sm font-medium ' +
+                    (active ?
+                      'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                    : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-white/20 dark:hover:text-zinc-300')
                   }
                 >
                   <t.icon
                     aria-hidden="true"
                     className={
-                      "mr-2 -ml-0.5 size-5 " +
-                      (active
-                        ? "text-indigo-500 dark:text-indigo-400"
-                        : "text-zinc-400 group-hover:text-zinc-500 dark:text-zinc-500")
+                      'mr-2 -ml-0.5 size-5 ' +
+                      (active ?
+                        'text-indigo-500 dark:text-indigo-400'
+                      : 'text-zinc-400 group-hover:text-zinc-500 dark:text-zinc-500')
                     }
                   />
                   <span>{t.name}</span>
@@ -181,15 +200,14 @@ export function ProjectDetails({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-        {tab === "lv" && <LVItemsTable projectUuid={projectUuid} />}
+        {tab === 'lv' && <LVItemsTable projectUuid={projectUuid} />}
 
-        {tab === "context" && <ProjectContextPanel projectUuid={projectUuid} />}
+        {tab === 'context' && <ProjectContextPanel projectUuid={projectUuid} />}
 
-        {tab === "documents" &&
-          (docs.length === 0 ? (
+        {tab === 'documents' &&
+          (docs.length === 0 ?
             <Text>No documents yet.</Text>
-          ) : (
-            <Table dense>
+          : <Table dense>
               <TableHead>
                 <TableRow>
                   <TableHeader>File</TableHeader>
@@ -209,12 +227,14 @@ export function ProjectDetails({
                       className="cursor-pointer font-medium text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400"
                       onClick={() => setDocDetail(d)}
                     >
-                      {d.file_name}
+                      <div className="max-w-[350px] whitespace-normal break-words">
+                        {d.file_name}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge
                         color={
-                          d.document_type === "LV_DOCUMENT" ? "amber" : "zinc"
+                          d.document_type === 'LV_DOCUMENT' ? 'amber' : 'zinc'
                         }
                       >
                         {d.document_type}
@@ -248,8 +268,8 @@ export function ProjectDetails({
                           documentUuid={d.document_uuid}
                           active={
                             ingestStatus[d.document_uuid]?.status ===
-                              "queued" ||
-                            ingestStatus[d.document_uuid]?.status === "running"
+                              'queued' ||
+                            ingestStatus[d.document_uuid]?.status === 'running'
                           }
                         />
                         <Button
@@ -264,8 +284,7 @@ export function ProjectDetails({
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-          ))}
+            </Table>)}
       </div>
 
       <UploadDocumentDialog
