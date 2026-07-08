@@ -1,281 +1,297 @@
 """
-formel.py — the calculation formulas (the editable DSL expressions).
+formel.py — the base formula catalog (~16 parameterized DSL expressions).
 
-Each formula produces one variable; registering it also creates that variable's
-definition (resolution method = FORMEL). Formulas reference variables from
-stammdaten (rates), kontext_variablen (geometry, extracted inputs) and each other;
-the Kalkulator resolves the dependency graph lazily at calc time.
+Every calculation in the Katalog is an INSTANTIATION of one of these base formulas
+(REZEPT_REDESIGN_PLAN.md Appendix A): a Vorgang binds the declared parameters to
+source paths; the expressions themselves are written once, in canonical units
+(m, m², m³, t, h, €, St, l, km). Unit scaling happens at the binding seam
+(`einheiten.py`), never inside an expression — no `/100`, `/1000` arithmetic here.
 
-Exports FORMELN (name -> Formel) and FORMEL_VARIABLEN (name -> VariableDefinition).
+Kurven- und Selektionsformeln (F_LEISTUNG_TIEFE, F_UEBERGAENGE, F_STAFFEL) carry the
+empirical company knowledge as PARAMETERS; the expressions are just the shapes.
+
+Exports FORMELN (name -> Formel). Import-time validation guards the catalog.
 """
 
-from shared.services.kalkulation_v2.model import (
-    AufloesungsMethode as M, AufloesungsSchritt as Schritt, Formel, VariableDefinition as VarDef,
-)
+from decimal import Decimal
+
+from shared.services.kalkulation_v2.model import Formel, FormelParameter as P
 
 FORMELN: dict[str, Formel] = {}
-FORMEL_VARIABLEN: dict[str, VarDef] = {}
 
 
-def formel(name, ausdruck, einheit, bez=None):
-    FORMELN[name] = Formel(name=name, ergebnis_variable=name, ausdruck=ausdruck, einheit=einheit)
-    FORMEL_VARIABLEN[name] = VarDef(name=name, bezeichnung=bez or name, einheit=einheit,
-                                    aufloesung=[Schritt(methode=M.FORMEL, formel_name=name)])
-
-
-# --- machine outputs (depth-dependent) ---
-formel("fraese_leistung_m2_pro_h", "max(120, 1000 / tiefe_cm) / erschwernisfaktor", "m²/h")
-formel("schnitt_leistung_m_pro_h", "max(18, 220 / tiefe_cm)", "m/h")
-formel("aufbruch_leistung_m2_pro_h", "max(30, 500 / tiefe_cm)", "m²/h")
-
-# --- operating hours (shared between machine-cost and labour) ---
-formel("fraese_stunden", "flaeche_m2 / fraese_leistung_m2_pro_h", "h")
-formel("schnitt_stunden", "laenge_m / schnitt_leistung_m_pro_h", "h")
-formel("einbau_stunden", "volumen_m3 / einbau_leistung_m3_pro_h", "h")
-formel("bagger_stunden", "volumen_m3 / bagger_leistung_m3_pro_h", "h")
-formel("aufbruch_stunden", "flaeche_m2 / aufbruch_leistung_m2_pro_h", "h")
-formel("markierung_stunden", "laenge_m / markierung_leistung_m_pro_h", "h")
-formel("planum_stunden", "flaeche_m2 / planum_leistung_m2_pro_h", "h")
-formel("verdichten_stunden", "flaeche_m2 / walze_leistung_m2_pro_h", "h")
-formel("asphalt_stunden", "menge_t / asphalt_einbau_leistung_t_pro_h", "h")
-formel("naht_stunden", "laenge_m / naht_leistung_m_pro_h", "h")
-
-# --- tonnages ---
-formel("tonnage_material", "volumen_m3 * dichte_t_pro_m3 * verdichtungsfaktor", "t")
-formel("tonnage_abtrag", "volumen_m3 * dichte_t_pro_m3", "t")
-formel("tonnage_fraesgut", "flaeche_m2 * (tiefe_cm / 100) * dichte_asphalt_t_pro_m3", "t")
-formel("tonnage_aufbruch", "flaeche_m2 * (tiefe_cm / 100) * dichte_asphalt_t_pro_m3", "t")
-formel("naht_menge_t", "naht_material_g_pro_m_cm * naht_dicke_cm * laenge_m / 1000000", "t")
-
-# --- material cost lines ---
-formel("materialkosten", "tonnage_material * materialpreis_eur_pro_t", "€")
-formel("materialkosten_asphalt", "menge_t * asphalt_preis_eur_pro_t", "€")
-formel("materialkosten_naht", "naht_menge_t * pmb_preis_eur_pro_t", "€")
-
-# --- machine cost lines ---
-formel("mk_einbau", "einbau_stunden * (radlader_stundensatz_eur + walze_stundensatz_eur "
-                    "+ (radlader_l_pro_h + walze_l_pro_h) * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_bagger", "bagger_stunden * (bagger_stundensatz_eur + bagger_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_fraese", "fraese_stunden * (kaltfraese_stundensatz_eur + kaltfraese_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_schnitt", "schnitt_stunden * (schneider_stundensatz_eur + schneider_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_markierung", "markierung_stunden * (markfraese_stundensatz_eur + markfraese_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_aufbruch", "aufbruch_stunden * (aufbruch_stundensatz_eur + aufbruch_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_planum", "planum_stunden * ((grader_stundensatz_eur + grader_l_pro_h * kraftstoffpreis_eur_pro_l) "
-                    "+ (walze_stundensatz_eur + walze_l_pro_h * kraftstoffpreis_eur_pro_l))", "€")
-formel("mk_verdichten", "verdichten_stunden * (walze_stundensatz_eur + walze_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_asphalt", "asphalt_stunden * asphalt_zug_geraet_eur_pro_h", "€")
-formel("mk_naht", "naht_stunden * (naht_geraet_stundensatz_eur + naht_geraet_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-
-# --- labour cost lines ---
-formel("lohn_einbau", "einbau_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_bagger", "bagger_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_fraese", "fraese_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_schnitt", "schnitt_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_markierung", "markierung_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_aufbruch", "aufbruch_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_planum", "planum_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_verdichten", "verdichten_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_asphalt", "asphalt_stunden * stundenlohn_eur * asphalt_kolonne", "€")
-formel("lohn_naht", "naht_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_erschwernis", "laenge_m * erschwernis_zulage_eur_pro_m", "€")
-
-# --- disposal cost lines ---
-formel("ent_boden", "tonnage_abtrag * entsorgung_boden_z2_eur_pro_t", "€")
-formel("ent_demark", "laenge_m * entsorgung_demark_eur_pro_m", "€")
-formel("ent_fraesgut", "tonnage_fraesgut * entsorgung_fraesasphalt_eur_pro_t", "€")
-# Disposal rate keyed by Belastungsklasse (1 verwertbar / 2 belastet / 3 pechhaltig):
-formel("entsorgung_fraesasphalt_eur_pro_t",
-       "ent_fraesgut_verwertbar if fraesgut_klasse <= 1 else "
-       "(ent_fraesgut_belastet if fraesgut_klasse <= 2 else ent_fraesgut_pechhaltig)",
-       "€/t", "Entsorgungs-/Verwertungssatz Fräsgut je Belastungsklasse")
-formel("ent_aufbruch", "tonnage_aufbruch * entsorgung_fraesasphalt_eur_pro_t", "€")
-
-# --- transport cost lines ---
-# Antransport (inbound supply) uses the supplier distance; Abtransport (outbound disposal) uses
-# the Deponie distance. The two were one shared `entfernung_km` until supplier selection split them.
-formel("trans_material", "tonnage_material * transport_eur_pro_t_km * entfernung_lieferant_km", "€")
-formel("trans_boden", "tonnage_abtrag * transport_eur_pro_t_km * entfernung_deponie_km", "€")
-formel("trans_fraesgut", "tonnage_fraesgut * transport_eur_pro_t_km * entfernung_deponie_km", "€")
-formel("trans_aufbruch", "tonnage_aufbruch * transport_eur_pro_t_km * entfernung_deponie_km", "€")
-formel("trans_asphalt", "menge_t * transport_eur_pro_t_km * entfernung_lieferant_km", "€")
+def _basis(name: str, ausdruck: str, einheit: str | None, beschreibung: str,
+           parameter: list[P]) -> None:
+    f = Formel(name=name, ausdruck=ausdruck, einheit=einheit,
+               beschreibung=beschreibung, parameter=parameter)
+    probleme = f.validieren()
+    if probleme:
+        raise ValueError(f"Basisformel {name}: {probleme}")
+    FORMELN[name] = f
 
 
 # --------------------------------------------------------------------------- #
-# FSS decomposition: lay / profile / compact, all derived from the booked m³.
-# Geometry bridge — area from booked volume and the (extracted) layer thickness:
-formel("flaeche_m2", "volumen_m3 / schichtdicke_m", "m²", "Fläche (aus Volumen/Schichtdicke)")
-# Lifts: a layer thicker than the max lift goes in several passes of lay+level+compact.
-formel("anzahl_lagen", "ceil(schichtdicke_m / max_lagendicke_b2_m)", "-", "Anzahl Lagen")
-# Walzübergänge as a (clamped) linear function of the Ev2 target, then rounded up.
-formel("verdicht_uebergaenge",
-       "ceil(verdicht_uebergaenge_ev45 + (max(ev2_anker_min, min(ev2_anker_max, ev2_ziel)) - ev2_anker_min) "
-       "* (verdicht_uebergaenge_ev100 - verdicht_uebergaenge_ev45) / (ev2_anker_max - ev2_anker_min))",
-       "-", "Walzübergänge aus Ev2-Ziel")
-
-# Operating hours per step
-formel("fss_legen_stunden", "volumen_m3 / radlader_leistung_m3_pro_h", "h")          # Radlader: by volume
-formel("fss_profil_stunden", "flaeche_m2 * anzahl_lagen / profil_leistung_m2_pro_h", "h")  # Grader: area x lifts
-formel("fss_verdicht_stunden",
-       "flaeche_m2 * anzahl_lagen * verdicht_uebergaenge / walze_uebergang_leistung_m2_pro_h", "h")
-formel("fss_fertiger_stunden", "flaeche_m2 / fertiger_leistung_m2_pro_h", "h")        # Fertiger: lay+level, area
-
-# Machine cost lines (rate incl. Verschleiß + fuel)
-formel("mk_fss_legen", "fss_legen_stunden * (radlader_stundensatz_eur + radlader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_fss_profil", "fss_profil_stunden * (grader_stundensatz_eur + grader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_fss_verdicht", "fss_verdicht_stunden * (walze_stundensatz_eur + walze_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_fss_fertiger", "fss_fertiger_stunden * (fertiger_stundensatz_eur + fertiger_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-
-# Labour: laying carries the crew; solo machine steps carry one operator (PLACEHOLDER staffing)
-formel("lohn_fss_legen", "fss_legen_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_fss_profil", "fss_profil_stunden * stundenlohn_eur", "€")
-formel("lohn_fss_verdicht", "fss_verdicht_stunden * stundenlohn_eur", "€")
-formel("lohn_fss_fertiger", "fss_fertiger_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-
+# Mengengerüst — Geometrie und Masse
+# --------------------------------------------------------------------------- #
+_basis(
+    "F_MENGE_VOLUMEN", "volumen * dichte * verdichtungsfaktor", "t",
+    "Masse aus Volumen und Rohdichte, optional mit Verdichtungsfaktor für verdichteten "
+    "Einbau (Liefermenge > Einbauvolumen). Der universelle m³→t-Übergang: für Abtrag ohne "
+    "Verdichtung den Faktor ungebunden lassen (Standard 1).",
+    [
+        P(name="volumen", einheit="m3",
+          beschreibung="Das Volumen in m³: die gebuchte Geometrie (kontext.volumen_m3) oder "
+                       "eine Volumen-Instanz (formel.volumen)."),
+        P(name="dichte", einheit="t/m3",
+          beschreibung="Rohdichte des Materials: baustoff.rohdichte_t_pro_m3 des gebundenen "
+                       "Baustoffs, sonst ein Stammdaten-Satz (z. B. dichte_asphalt_t_pro_m3)."),
+        P(name="verdichtungsfaktor", einheit="-", standard=Decimal("1"),
+          beschreibung="Auflockerungs-/Verdichtungszuschlag: baustoff.verdichtungsfaktor beim "
+                       "Einbau; ungebunden (1) bei Abtrag und Entsorgungsmengen."),
+    ],
+)
+_basis(
+    "F_VOLUMEN_FLAECHE", "flaeche * dicke", "m3",
+    "Volumen aus Fläche und Schicht-/Einbaudicke. Der m²→m³-Übergang für flächig gebuchte "
+    "Leistungen mit Dickenangabe (Fräsen, Asphalt-Einbau, Bodenabtrag).",
+    [
+        P(name="flaeche", einheit="m2",
+          beschreibung="Die Fläche in m²: die gebuchte Geometrie (kontext.flaeche_m2) oder "
+                       "eine Flächen-Instanz."),
+        P(name="dicke", einheit="m",
+          beschreibung="Dicke bzw. Tiefe in m; cm-Quellen (kontext.tiefe_cm, "
+                       "kontext.einbaudicke_cm) skaliert der Konverter."),
+    ],
+)
+_basis(
+    "F_FLAECHE_VOLUMEN", "volumen / dicke", "m2",
+    "Fläche aus Volumen und Schichtdicke — die Umkehrbrücke für m³-gebuchte Leistungen, "
+    "deren Arbeitsschritte flächenbezogen sind (FSS profilieren/verdichten).",
+    [
+        P(name="volumen", einheit="m3",
+          beschreibung="Das gebuchte Volumen (kontext.volumen_m3)."),
+        P(name="dicke", einheit="m",
+          beschreibung="Schichtdicke in m (kontext.schichtdicke_m; cm-Quellen skaliert "
+                       "der Konverter)."),
+    ],
+)
+_basis(
+    "F_VOLUMEN_QUADER", "breite * laenge * tiefe", "m3",
+    "Quadervolumen aus drei Kantenmaßen — Streckengeometrie (Breite × Länge × Tiefe) und "
+    "Querschnittsmengen (Fugenspalt: Breite × Tiefe × Länge).",
+    [
+        P(name="breite", einheit="m", beschreibung="Breite in m; mm/cm skaliert der Konverter."),
+        P(name="laenge", einheit="m", beschreibung="Länge in m (kontext.laenge_m)."),
+        P(name="tiefe", einheit="m", beschreibung="Tiefe/Dicke in m; mm/cm skaliert der Konverter."),
+    ],
+)
+_basis(
+    "F_MENGE_ANSATZ", "ansatz * bezugsmenge", "t",
+    "Menge aus einem Ansatz (Rate je Bezugseinheit) mal Bezugsmenge: kg/m² × Fläche, "
+    "kg/m × Länge, t/t × Tonnage. Der Ansatz trägt seine Einheit; der Konverter "
+    "normalisiert kg→t exakt.",
+    [
+        P(name="ansatz", einheit=None,
+          beschreibung="Der Ansatz (z. B. Abstreumenge kg/m², Vergussmasse kg/m, "
+                       "Fräsgut-Anteil t/t): eine Stammdaten- oder Kontext-Variable."),
+        P(name="bezugsmenge", einheit=None,
+          beschreibung="Die Bezugsmenge in der Bezugseinheit des Ansatzes (Fläche, Länge, "
+                       "Stück oder Tonnage)."),
+    ],
+)
+_basis(
+    "F_ARBEITSMENGE", "basismenge * lagen * uebergaenge", None,
+    "Arbeitsmenge bei mehrlagigem/mehrgängigem Arbeiten: Basismenge × Lagen × Übergänge. "
+    "Beide Faktoren ungebunden lassen (1), wenn einlagig bzw. eingängig gearbeitet wird.",
+    [
+        P(name="basismenge", einheit=None,
+          beschreibung="Die Basismenge (meist die Fläche einer Lage)."),
+        P(name="lagen", einheit="-", standard=Decimal("1"),
+          beschreibung="Anzahl Einbaulagen (formel.lagen aus F_LAGEN)."),
+        P(name="uebergaenge", einheit="-", standard=Decimal("1"),
+          beschreibung="Anzahl Arbeitsgänge je Lage, z. B. Walzübergänge (formel.uebergaenge "
+                       "aus F_UEBERGAENGE oder ein Stammdaten-Satz)."),
+    ],
+)
+_basis(
+    "F_LAGEN", "ceil(dicke / max_lagendicke)", "-",
+    "Anzahl Einbaulagen: Schichtdicke geteilt durch die maximal verdichtbare Lagendicke, "
+    "aufgerundet. Die max. Lagendicke ist Material-/Normwissen, kein Formelwissen.",
+    [
+        P(name="dicke", einheit="m",
+          beschreibung="Gesamte Schichtdicke in m (kontext.schichtdicke_m)."),
+        P(name="max_lagendicke", einheit="m",
+          beschreibung="Maximale Lagendicke des Materials (Stammdaten-Satz, z. B. "
+                       "max_lagendicke_b2_m)."),
+    ],
+)
 
 # --------------------------------------------------------------------------- #
-# Bankettbefestigung: same skeleton as FSS (m³->area bridge, lifts, Ev2->passes)
-# but narrow-strip productivity and Bankett-specific gear. Material/transport and
-# the anzahl_lagen / verdicht_uebergaenge / flaeche_m2 formulas are reused as-is.
-formel("bankett_legen_stunden", "volumen_m3 / bankett_legen_leistung_m3_pro_h", "h")
-formel("bankett_profil_stunden", "flaeche_m2 * anzahl_lagen / bankett_profil_leistung_m2_pro_h", "h")
-formel("bankett_verdicht_stunden",
-       "flaeche_m2 * anzahl_lagen * verdicht_uebergaenge / bankettwalze_uebergang_leistung_m2_pro_h", "h")
-formel("bankett_fertiger_stunden", "flaeche_m2 / bankettfertiger_leistung_m2_pro_h", "h")
-
-formel("mk_bankett_legen", "bankett_legen_stunden * (radlader_stundensatz_eur + radlader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_bankett_profil", "bankett_profil_stunden * (grader_stundensatz_eur + grader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_bankett_verdicht", "bankett_verdicht_stunden * (bankettwalze_stundensatz_eur + bankettwalze_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_bankett_fertiger", "bankett_fertiger_stunden * (bankettfertiger_stundensatz_eur + bankettfertiger_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-
-formel("lohn_bankett_legen", "bankett_legen_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_bankett_profil", "bankett_profil_stunden * stundenlohn_eur", "€")
-formel("lohn_bankett_verdicht", "bankett_verdicht_stunden * stundenlohn_eur", "€")
-formel("lohn_bankett_fertiger", "bankett_fertiger_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-
+# Zeit und Kosten
+# --------------------------------------------------------------------------- #
+_basis(
+    "F_STUNDEN", "menge / leistung", "h",
+    "Arbeitsdauer eines Vorgangs aus Arbeitsmenge und Leistungsansatz. Universell für jeden "
+    "mengenproportionalen Vorgang: Fräsen (m²), Schneiden (m), Aushub (m³), Asphalteinbau (t), "
+    "Schieberkappen (St). Mengeneinheit und Bezugseinheit des Leistungsansatzes müssen "
+    "dimensionsgleich sein; für Dimensionssprünge eine Mengengerüst-Formel vorschalten.",
+    [
+        P(name="menge", einheit=None,
+          beschreibung="Die Arbeitsmenge in der Bezugsgröße der Leistung: die gebuchte "
+                       "Geometrie-Variable der LV-Position (m² → kontext.flaeche_m2, m → "
+                       "kontext.laenge_m, m³ → kontext.volumen_m3, t → kontext.menge_t, "
+                       "St → kontext.anzahl_st) oder eine Mengen-Instanz (formel.arbeitsmenge)."),
+        P(name="leistung", einheit=None,
+          beschreibung="Der Leistungsansatz (Menge je Stunde): das Leistungsprofil der "
+                       "gebundenen Maschine (überschreibt die Instanz), eine Kurve "
+                       "(formel.leistung aus F_LEISTUNG_TIEFE) oder ein Stammdaten-Ansatz. "
+                       "Niemals als Zahl in einen Ausdruck schreiben."),
+    ],
+)
+_basis(
+    "F_LOHN", "stunden * stundenlohn * kolonne * anteil", "€",
+    "Lohnkosten: Arbeitsdauer × Mittellohn × Kolonnenstärke. Der Anteil skaliert "
+    "Teiltätigkeiten eines kombinierten Vorgangs (z. B. Thermo-Phasen).",
+    [
+        P(name="stunden", einheit="h",
+          beschreibung="Die Arbeitsdauer des Vorgangs (formel.arbeitszeit aus F_STUNDEN)."),
+        P(name="stundenlohn", einheit="€/h",
+          beschreibung="Kalkulatorischer Mittellohn je gewerblichem Mitarbeiter "
+                       "(stammdaten.stundenlohn_eur)."),
+        P(name="kolonne", einheit="-", standard=Decimal("1"),
+          beschreibung="Kolonnenstärke: kontext.anzahl_arbeiter (situativ, je Position "
+                       "geprüft), ein fester Kolonnen-Satz oder ungebunden (1 Bediener)."),
+        P(name="anteil", einheit="-", standard=Decimal("1"),
+          beschreibung="Zeitanteil dieser Teiltätigkeit an den Vorgangsstunden (0–1); "
+                       "ungebunden = voller Vorgang."),
+    ],
+)
+_basis(
+    "F_MASCHINE", "stunden * (stundensatz + verbrauch * kraftstoffpreis) * anteil", "€",
+    "Maschinenkosten: Arbeitsdauer × (Gerätestundensatz + Kraftstoffkosten je Stunde). "
+    "Satz und Verbrauch kommen aus dem Eigenschafts-Beutel der gebundenen Maschine "
+    "(kosten_bindung überschreibt die Stammdaten-Sätze); ohne Verbrauchsangabe (0) bleibt "
+    "der reine Gerätesatz. Je gleichzeitig laufender Maschine eine eigene Kostenzeile.",
+    [
+        P(name="stunden", einheit="h",
+          beschreibung="Die Arbeitsdauer des Vorgangs (formel.arbeitszeit)."),
+        P(name="stundensatz", einheit="€/h",
+          beschreibung="Gerätestundensatz inkl. Verschleiß: Stammdaten-Satz als Vorgabe "
+                       "(z. B. stammdaten.kaltfraese_stundensatz_eur); eine gebundene "
+                       "Maschine überschreibt ihn aus ihrem Eigenschafts-Beutel."),
+        P(name="verbrauch", einheit="l/h", standard=Decimal("0"),
+          beschreibung="Kraftstoffverbrauch: Stammdaten-Satz als Vorgabe, von der Maschine "
+                       "überschrieben; ungebunden (0) bei Pauschalsätzen."),
+        P(name="kraftstoffpreis", einheit="€/l", standard=Decimal("0"),
+          beschreibung="Kraftstoffpreis (stammdaten.kraftstoffpreis_eur_pro_l)."),
+        P(name="anteil", einheit="-", standard=Decimal("1"),
+          beschreibung="Zeitanteil dieser Maschine an den Vorgangsstunden (0–1)."),
+    ],
+)
+_basis(
+    "F_KOSTEN_SATZ", "menge * satz", "€",
+    "Kosten aus Menge × Satz — die universelle Satzanwendung: Materialkosten (t × €/t, "
+    "m² × €/m², St × €/St), Entsorgung (t × €/t), Zulagen (m × €/m). Mengeneinheit und "
+    "Satz-Bezugseinheit müssen zueinander passen.",
+    [
+        P(name="menge", einheit=None,
+          beschreibung="Die abzurechnende Menge: gebuchte Geometrie oder Mengen-Instanz "
+                       "(formel.menge, formel.tonnage)."),
+        P(name="satz", einheit=None,
+          beschreibung="Der Satz je Bezugseinheit: Lieferantenpreis, Stammdaten-Satz oder "
+                       "eine Staffel-Instanz (formel.entsorgungssatz aus F_STAFFEL)."),
+    ],
+)
+_basis(
+    "F_TRANSPORT", "menge * satz * entfernung", "€",
+    "Transportkosten: Tonnage × Frachtsatz × Entfernung. Antransport rechnet mit der "
+    "Lieferanten-Entfernung, Abtransport mit der Deponie-Entfernung.",
+    [
+        P(name="menge", einheit="t",
+          beschreibung="Die transportierte Tonnage (formel.tonnage oder kontext.menge_t)."),
+        P(name="satz", einheit="€/(t·km)",
+          beschreibung="Frachtsatz (stammdaten.transport_eur_pro_t_km)."),
+        P(name="entfernung", einheit="km",
+          beschreibung="Entfernung: kontext.entfernung_lieferant_km (Antransport) bzw. "
+                       "kontext.entfernung_deponie_km (Abtransport/Entsorgung)."),
+    ],
+)
 
 # --------------------------------------------------------------------------- #
-# Grobkörniger Boden (Auffüllung unter Banketten): liefern/legen + profilieren
-# (Planum einbegriffen) + verdichten. Reuses the m³->area bridge and lifts, but
-# compaction uses a FIXED Übergangszahl (boden_verdicht_uebergaenge) because the
-# LV states no Ev2/DPr — NOT the Ev2-interpolated curve.
-formel("boden_legen_stunden", "volumen_m3 / boden_legen_leistung_m3_pro_h", "h")
-formel("boden_profil_stunden", "flaeche_m2 * anzahl_lagen / boden_profil_leistung_m2_pro_h", "h")
-formel("boden_verdicht_stunden",
-       "flaeche_m2 * anzahl_lagen * boden_verdicht_uebergaenge / boden_verdicht_leistung_m2_pro_h_uebergang", "h")
-
-formel("mk_boden_legen", "boden_legen_stunden * (radlader_stundensatz_eur + radlader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_boden_profil", "boden_profil_stunden * (grader_stundensatz_eur + grader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("mk_boden_verdicht", "boden_verdicht_stunden * (walze_stundensatz_eur + walze_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-
-formel("lohn_boden_legen", "boden_legen_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("lohn_boden_profil", "boden_profil_stunden * stundenlohn_eur", "€")
-formel("lohn_boden_verdicht", "boden_verdicht_stunden * stundenlohn_eur", "€")
-
-
+# Kurven und Selektionen — Parameter sind Firmenwissen
 # --------------------------------------------------------------------------- #
-# Oberboden andecken: liefern + profilgerecht andecken, KEINE Verdichtung.
-# Two methods (Hand-Kolonne vs Grader); area from volume / Andeckdicke (LV: bis 5 cm).
-# No lifts, no passes, no Ev2 — topsoil is spread for vegetation, not compacted.
-formel("oberboden_hand_stunden", "flaeche_m2 * erschwernisfaktor / oberboden_andeck_hand_m2_pro_h", "h")
-formel("oberboden_grader_stunden", "flaeche_m2 / oberboden_andeck_grader_m2_pro_h", "h")
-formel("lohn_oberboden_hand", "oberboden_hand_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("mk_oberboden_grader", "oberboden_grader_stunden * (grader_stundensatz_eur + grader_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_oberboden_grader", "oberboden_grader_stunden * stundenlohn_eur", "€")
-
-
-# --------------------------------------------------------------------------- #
-# Unterlage reinigen: area-only (machine + labour + Kehrgut/slurry). Two methods.
-formel("kehr_stunden", "flaeche_m2 / kehr_leistung_m2_pro_h", "h")
-formel("mk_kehren", "kehr_stunden * (kehrmaschine_stundensatz_eur + kehrmaschine_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_kehren", "kehr_stunden * stundenlohn_eur", "€")  # selbstaufnehmend: 1 Bediener
-formel("ent_kehrgut", "flaeche_m2 * ent_kehrgut_eur_pro_m2", "€")
-
-formel("hd_stunden", "flaeche_m2 / hd_reinigung_leistung_m2_pro_h", "h")
-formel("mk_hd_reinigung", "hd_stunden * (hd_waschsaug_stundensatz_eur + hd_waschsaug_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_hd_reinigung", "hd_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-formel("ent_waschschlamm", "flaeche_m2 * ent_waschschlamm_eur_pro_m2", "€")
-
-
-# --------------------------------------------------------------------------- #
-# Anspritzen (Schichtenverbund): binder-dominated. Material = Spritzmenge × Fläche
-# × Emulsionspreis; the spray pass itself is minor. (materialpreis_eur_pro_t = €/t Emulsion.)
-formel("bindemittel_menge_t", "bindemittelmenge_kg_pro_m2 * flaeche_m2 / 1000", "t")
-formel("mk_bindemittel", "bindemittel_menge_t * materialpreis_eur_pro_t", "€")
-formel("anspritzen_stunden", "flaeche_m2 / anspritz_leistung_m2_pro_h", "h")
-formel("mk_anspritzen", "anspritzen_stunden * (spritzgeraet_stundensatz_eur + spritzgeraet_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_anspritzen", "anspritzen_stunden * stundenlohn_eur", "€")  # 1 Bediener
-
-
-# --------------------------------------------------------------------------- #
-# Asphalt tonnage bridge: t-billed positions book menge_t directly (resolver
-# short-circuits); m²-billed courses derive it from area × thickness × density.
-formel("menge_t", "flaeche_m2 * (einbaudicke_cm / 100) * dichte_asphalt_t_pro_m3", "t")
-
-# Asphalteinlage (reinforcement grid): material per m² + specialist laying.
-formel("grid_materialkosten", "flaeche_m2 * grid_preis_eur_pro_m2", "€")
-formel("grid_stunden", "flaeche_m2 / grid_verlege_leistung_m2_pro_h", "h")
-formel("mk_grid", "grid_stunden * grid_geraet_stundensatz_eur", "€")
-formel("lohn_grid", "grid_stunden * stundenlohn_eur * grid_kolonne", "€")
-
-# Abstumpfung (gritting): chippings + machine spread/roll + pick up loose grit.
-formel("abstreu_menge_t", "abstreumenge_kg_pro_m2 * flaeche_m2 / 1000", "t")
-formel("mk_abstreu_material", "abstreu_menge_t * abstreukoernung_preis_eur_pro_t", "€")
-formel("abstreu_stunden", "flaeche_m2 / abstreuen_leistung_m2_pro_h", "h")
-formel("mk_abstreuen", "abstreu_stunden * (abstreuer_stundensatz_eur + abstreuer_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_abstreuen", "abstreu_stunden * stundenlohn_eur * 2", "€")
-formel("ent_abstreu", "flaeche_m2 * ent_abstreu_eur_pro_m2", "€")
-
-# Naht aufweiten (widen joint by cutting): cut + clean, by length.
-formel("naht_aufweiten_stunden", "laenge_m / naht_aufweiten_leistung_m_pro_h", "h")
-formel("mk_naht_aufweiten", "naht_aufweiten_stunden * (schneider_stundensatz_eur + schneider_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_naht_aufweiten", "naht_aufweiten_stunden * stundenlohn_eur * 2", "€")
-
-# Fugenfüllung (joint sealing): hot sealant by joint cross-section + labour.
-formel("fugen_menge_t", "fugenspalttiefe_mm * fugenspaltbreite_mm / 1000000 * laenge_m * fugenmasse_dichte_t_pro_m3", "t")
-formel("mk_fugenmasse", "fugen_menge_t * fugenmasse_preis_eur_pro_t", "€")
-formel("fugenfuellung_stunden", "laenge_m / fugenfuellung_leistung_m_pro_h", "h")
-formel("mk_fugenfuellung", "fugenfuellung_stunden * (fugen_geraet_stundensatz_eur + fugen_geraet_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_fugenfuellung", "fugenfuellung_stunden * stundenlohn_eur * 2", "€")
-
-
-# --------------------------------------------------------------------------- #
-# Feinfräsen: Kaltfräse, but a precision fine-mill is much slower than regelfräsen
-# at the same shallow depth -> a separate, capped productivity. Fräsgut disposal +
-# transport reuse the fräsen lines (scaled by the shallow tiefe_cm).
-formel("feinfraese_leistung_m2_pro_h", "min(250, 1000 / tiefe_cm) / erschwernisfaktor", "m²/h")
-formel("feinfraese_stunden", "flaeche_m2 / feinfraese_leistung_m2_pro_h", "h")
-formel("mk_feinfraese", "feinfraese_stunden * (kaltfraese_stundensatz_eur + kaltfraese_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_feinfraese", "feinfraese_stunden * stundenlohn_eur * anzahl_arbeiter", "€")
-
-
-# --------------------------------------------------------------------------- #
-# Asphalt-Handeinbau (Kleinflächen): manual crew + small Walze; material/tonnage and
-# transport reuse the asphalt lines (menge_t from flaeche × einbaudicke × Dichte).
-formel("handeinbau_stunden", "flaeche_m2 / handeinbau_leistung_m2_pro_h", "h")
-formel("mk_handeinbau", "handeinbau_stunden * (walze_stundensatz_eur + walze_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_handeinbau", "handeinbau_stunden * stundenlohn_eur * handeinbau_kolonne", "€")
-
-
-# --------------------------------------------------------------------------- #
-# Gussasphalt (MA 8/11 S): fließfähig, KEINE Walzverdichtung; Bohle/Kübel + Kocher.
-# Abstreuen wird separat als eigene Position abgerechnet (L_ABSTUMPFUNG).
-formel("gussasphalt_stunden", "flaeche_m2 / gussasphalt_leistung_m2_pro_h", "h")
-formel("mk_gussasphalt_material", "menge_t * gussasphalt_preis_eur_pro_t", "€")
-formel("mk_gussasphalt", "gussasphalt_stunden * (gussasphalt_geraet_stundensatz_eur + gussasphalt_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_gussasphalt", "gussasphalt_stunden * stundenlohn_eur * gussasphalt_kolonne", "€")
-
-
-# --------------------------------------------------------------------------- #
-# DSK (Dünnschichtbelag im Kalteinbau / Slurry): material priced per m², fast paver.
-formel("dsk_stunden", "flaeche_m2 / dsk_leistung_m2_pro_h", "h")
-formel("mk_dsk_material", "flaeche_m2 * dsk_material_eur_pro_m2", "€")
-formel("mk_dsk", "dsk_stunden * (dsk_geraet_stundensatz_eur + dsk_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_dsk", "dsk_stunden * stundenlohn_eur * dsk_kolonne", "€")
-
-
-# --------------------------------------------------------------------------- #
-# Randabdichtung/Nahtabdichtung: sealing tape/mass per m + clean/apply crew.
-formel("randabdichtung_stunden", "laenge_m / randabdichtung_leistung_m_pro_h", "h")
-formel("mk_randabdichtung_material", "laenge_m * randabdichtung_material_eur_pro_m", "€")
-formel("mk_randabdichtung", "randabdichtung_stunden * (randabdichtung_geraet_stundensatz_eur + randabdichtung_l_pro_h * kraftstoffpreis_eur_pro_l)", "€")
-formel("lohn_randabdichtung", "randabdichtung_stunden * stundenlohn_eur * 2", "€")
+_basis(
+    "F_LEISTUNG_TIEFE",
+    "max(untergrenze, min(obergrenze, tiefenkonstante / tiefe)) / erschwernisfaktor",
+    None,
+    "Tiefenabhängige Produktivität: hyperbolisch fallend mit der Arbeitstiefe, begrenzt "
+    "durch Unter-/Obergrenze, geteilt durch den Erschwernisfaktor. Die Parameter sind "
+    "empirisches Geräte-/Firmenwissen (Fräsen, Schneiden, Aufbrechen) — kalibrieren, "
+    "nicht kopieren.",
+    [
+        P(name="tiefenkonstante", einheit=None,
+          beschreibung="Die Tiefenkonstante k (Leistung × Tiefe): bei k=10 m·m²/h sind es "
+                       "250 m²/h bei 4 cm. Empirischer Geräteparameter."),
+        P(name="tiefe", einheit="m",
+          beschreibung="Arbeits-/Frästiefe in m (kontext.tiefe_cm; der Konverter skaliert cm→m)."),
+        P(name="untergrenze", einheit=None, standard=Decimal("0"),
+          beschreibung="Mindestleistung, unter die das Gerät auch bei großer Tiefe nicht "
+                       "fällt (Prozessminimum)."),
+        P(name="obergrenze", einheit=None, standard=Decimal("1000000000"),
+          beschreibung="Leistungsdeckel bei geringer Tiefe (Präzisionsarbeit, z. B. "
+                       "Feinfräsen); ungebunden = kein Deckel."),
+        P(name="erschwernisfaktor", einheit="-", standard=Decimal("1"),
+          beschreibung="Erschwernis der Baustelle (kontext.erschwernisfaktor): Kleinflächen, "
+                       "Handarbeit, beengte Verhältnisse."),
+    ],
+)
+_basis(
+    "F_LEISTUNG_ERSCHWERT", "basisleistung / erschwernisfaktor", None,
+    "Konstante Basisproduktivität, geteilt durch den Erschwernisfaktor — für Vorgänge ohne "
+    "Tiefenabhängigkeit, deren Tempo unter erschwerten Bedingungen sinkt (Handarbeit).",
+    [
+        P(name="basisleistung", einheit=None,
+          beschreibung="Basisleistung unter Normalbedingungen (Stammdaten-Ansatz)."),
+        P(name="erschwernisfaktor", einheit="-", standard=Decimal("1"),
+          beschreibung="Erschwernis der Baustelle (kontext.erschwernisfaktor)."),
+    ],
+)
+_basis(
+    "F_UEBERGAENGE",
+    "ceil(y0 + (max(x0, min(x1, x)) - x0) * (y1 - y0) / (x1 - x0))",
+    "-",
+    "Geklemmte lineare Interpolation, aufgerundet: Arbeitsgänge aus einem Zielwert zwischen "
+    "zwei Ankerpunkten (x0,y0)–(x1,y1). Der Standardfall sind Walzübergänge aus dem "
+    "Ev2-Verdichtungsziel; die Anker sind Verdichtungs-Firmenwissen.",
+    [
+        P(name="x", einheit=None,
+          beschreibung="Der Zielwert, z. B. das geforderte Ev2 (kontext.ev2_ziel)."),
+        P(name="x0", einheit=None, beschreibung="Unterer Anker-x (z. B. stammdaten.ev2_anker_min)."),
+        P(name="y0", einheit=None,
+          beschreibung="Arbeitsgänge am unteren Anker (z. B. stammdaten.verdicht_uebergaenge_ev45)."),
+        P(name="x1", einheit=None, beschreibung="Oberer Anker-x (z. B. stammdaten.ev2_anker_max)."),
+        P(name="y1", einheit=None,
+          beschreibung="Arbeitsgänge am oberen Anker (z. B. stammdaten.verdicht_uebergaenge_ev100)."),
+    ],
+)
+_basis(
+    "F_STAFFEL",
+    "satz1 if wert <= stufe1 else (satz2 if wert <= stufe2 else satz3)",
+    None,
+    "Dreistufige Satz-Staffel: wählt einen Satz nach einem Klassifikationswert. Der "
+    "Standardfall ist der Entsorgungssatz nach Fräsgut-Belastungsklasse (≤1 verwertbar, "
+    "≤2 belastet, sonst pech-/teerhaltig). Stufen und Sätze sind regulatorisches Wissen — "
+    "niemals eine Klasse annehmen, der Satzunterschied ist erheblich.",
+    [
+        P(name="wert", einheit=None,
+          beschreibung="Der Klassifikationswert (kontext.fraesgut_klasse)."),
+        P(name="stufe1", einheit=None, beschreibung="Obergrenze der ersten Stufe."),
+        P(name="satz1", einheit=None,
+          beschreibung="Satz der ersten Stufe (z. B. stammdaten.ent_fraesgut_verwertbar)."),
+        P(name="stufe2", einheit=None, beschreibung="Obergrenze der zweiten Stufe."),
+        P(name="satz2", einheit=None,
+          beschreibung="Satz der zweiten Stufe (z. B. stammdaten.ent_fraesgut_belastet)."),
+        P(name="satz3", einheit=None,
+          beschreibung="Satz oberhalb der zweiten Stufe (z. B. stammdaten.ent_fraesgut_pechhaltig)."),
+    ],
+)

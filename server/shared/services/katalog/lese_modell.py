@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.models.katalog import KatalogEntitaet, KatalogStatus
 from shared.repositories.katalog import KatalogRepository
+from shared.services.katalog import ontologie
 from shared.services.kalkulation_v2.formel_darstellung import VariablenLegende, stelle_formel_dar
 from shared.services.kalkulation_v2.model import (
     AufloesungsMethode,
@@ -42,9 +43,14 @@ from shared.services.kalkulation_v2.model import (
 LIMIT_STANDARD = 50
 LIMIT_MAX = 200
 
-# Precedence for a variable name shadowed across gruppen — mirrors the `{**stamm, **kontext, **formel}`
-# merge in store.py, where the FORMEL-gruppe definition wins the runtime KATALOG.
-_GRUPPE_RANG = {"stammdaten": 1, "kontext": 2, "formel": 3}
+# Precedence for a variable name shadowed across gruppen — mirrors the `{**stamm, **kontext}` merge
+# in store.py, where the KONTEXT-gruppe definition wins the runtime KATALOG. Formeln are no longer
+# variables (base formulas are instantiated per Vorgang), so the FORMEL gruppe is gone.
+_GRUPPE_RANG = {"stammdaten": 1, "kontext": 2}
+
+# The binding-path prefixes that name a catalog variable (vs. baustoff fields, sibling instanzen,
+# or literals) — the vocabulary of FormelInstanz.bindung values that reference `variablen`.
+_VAR_PRAEFIXE = ("kontext", "stammdaten")
 
 # T3 — the DSL vocabulary. Operators/comparisons are the AST the evaluator accepts; the function
 # whitelist is sourced from `_FUNKTIONEN` (extending it is an engineering change, §1.5), each with a
@@ -166,7 +172,7 @@ _SUCH_ENTITAETEN: dict[KatalogEntitaet, tuple[Any, tuple[str, ...]]] = {
     KatalogEntitaet.AUSFUEHRUNGSARTEN: (lambda p: p.get("name"), ("name", "geraetebezug")),
     KatalogEntitaet.BETRIEBSKATEGORIEN: (lambda p: p.get("bezeichnung"), ("bezeichnung", "beschreibung")),
     KatalogEntitaet.BETRIEBSARTEN: (lambda p: p.get("bezeichnung"), ("bezeichnung", "beschreibung")),
-    KatalogEntitaet.FORMELN: (lambda p: None, ("ergebnis_variable",)),
+    KatalogEntitaet.FORMELN: (lambda p: None, ("beschreibung", "ausdruck")),
     KatalogEntitaet.VARIABLEN: (lambda p: p.get("bezeichnung"), ("bezeichnung", "beschreibung")),
     KatalogEntitaet.GLOBALE_VARIABLEN: (lambda p: p.get("bezeichnung"), ("bezeichnung",)),
     KatalogEntitaet.BAUSTOFFE: (lambda p: p.get("name"), ("name", "kategorie", "koernung")),
@@ -205,10 +211,6 @@ class LeseModell:
                 for z in await self._zeilen(KatalogEntitaet.FORMELN)
             }
         return self._formeln_cache
-
-    async def _produzenten(self) -> dict[str, Formel]:
-        """variable name → the Formel that produces it (`ergebnis_variable`)."""
-        return {f.ergebnis_variable: f for f in (await self._formeln()).values()}
 
     async def _var_index(self) -> dict[str, Any]:
         """Variable definitions resolved by gruppe precedence, plus the gruppen and KONSTANTE-values
@@ -424,7 +426,7 @@ class LeseModell:
                     "code": vc,
                     "name": vp.get("name"),
                     "ausfuehrungsart": {"code": aa, "name": aa_namen.get(aa)} if aa else None,
-                    "kostenarten": sorted((vp.get("kostenvariablen") or {}).keys()),
+                    "kostenarten": _kostenarten(vp),
                 }
             )
         leistungen = [lc for lc, bvs in (await self._leistung_bv()).items() if code in bvs]
@@ -456,7 +458,7 @@ class LeseModell:
                 "name": z.payload.get("name"),
                 "ausfuehrungsart_code": z.payload.get("ausfuehrungsart_code"),
                 "betriebsart_code": z.payload.get("betriebsart_code"),
-                "kostenarten": sorted((z.payload.get("kostenvariablen") or {}).keys()),
+                "kostenarten": _kostenarten(z.payload),
             }
             for z in zeilen
             if _passt(filter_text, z.schluessel, z.payload.get("name"))
@@ -466,8 +468,13 @@ class LeseModell:
         return _env(_liste(eintraege, limit))
 
     async def zeige_vorgang(self, code: str) -> dict[str, Any]:
-        """T10: Ausführungsart, Betriebsart, leistung_variable, kosten_bindung, Kostenvariablen
-        (each with Bezeichnung + Einheit) + reverse: containing Bauverfahren."""
+        """T10: Ausführungsart, Betriebsart, leistung_instanz, kosten_bindung, and the Rechnung —
+        the named quantity/curve Instanzen and the cost lines per Kostenart (each: base formula +
+        bindings + the formula's Einheit) + reverse: containing Bauverfahren.
+
+        Each Instanz/Kostenzeile shows which base formula it instantiates and how its declared
+        parameters are bound (kontext./stammdaten. variables, baustoff fields, sibling formel.
+        instanzen, or literals). The formula's Einheit gives the produced unit."""
         payloads = await self._payloads(KatalogEntitaet.VORGAENGE)
         if code not in payloads:
             return _env({"fehler": f"kein aktiver Vorgang mit code {code}"})
@@ -476,15 +483,28 @@ class LeseModell:
         aa_namen = await self._namen(KatalogEntitaet.AUSFUEHRUNGSARTEN, "name")
         bt_namen = await self._namen(KatalogEntitaet.BETRIEBSARTEN, "bezeichnung")
         bt = p.get("betriebsart_code")
-        defs = (await self._var_index())["defs"]
-        kostenvariablen = [
-            {
-                "kostenart": ka,
-                "variable": varname,
-                "bezeichnung": defs[varname].bezeichnung if varname in defs else None,
-                "einheit": defs[varname].einheit if varname in defs else None,
+        formeln = await self._formeln()
+        rechnung = p.get("rechnung") or {}
+
+        def instanz_ansicht(name: str | None, inst: dict[str, Any]) -> dict[str, Any]:
+            fname = inst.get("formel")
+            return {
+                "instanz": name,
+                "bezeichnung": inst.get("bezeichnung"),
+                "formel": fname,
+                "formel_einheit": formeln[fname].einheit if fname in formeln else None,
+                "ergebnis_einheit": inst.get("ergebnis_einheit"),
+                "materialisiert_variable": inst.get("variable"),
+                "bindung": inst.get("bindung") or None,
             }
-            for ka, varname in (p.get("kostenvariablen") or {}).items()
+
+        instanzen = [
+            instanz_ansicht(name, inst) for name, inst in (rechnung.get("instanzen") or {}).items()
+        ]
+        kosten = [
+            {"kostenart": ka, **instanz_ansicht(None, inst)}
+            for ka, liste in (rechnung.get("kosten") or {}).items()
+            for inst in liste
         ]
         enthalten_in = [bv for bv, codes in (await self._bv_vorgaenge()).items() if code in codes]
         return _env(
@@ -493,9 +513,10 @@ class LeseModell:
                 "name": p.get("name"),
                 "ausfuehrungsart": {"code": aa, "name": aa_namen.get(aa)} if aa else None,
                 "betriebsart": {"code": bt, "bezeichnung": bt_namen.get(bt)} if bt else None,
-                "leistung_variable": p.get("leistung_variable"),
+                "leistung_instanz": p.get("leistung_instanz"),
                 "kosten_bindung": p.get("kosten_bindung") or None,
-                "kostenvariablen": kostenvariablen,
+                "instanzen": instanzen,
+                "kosten": kosten,
                 "enthalten_in_bauverfahren": enthalten_in,
             }
         )
@@ -839,77 +860,132 @@ class LeseModell:
         reihen.sort(key=lambda r: (r["lieferant_code"], r["baustoff_code"], r["gueltig_ab"]))
         return _env({"treffer_gesamt": len(reihen), "stichtag": tag, "mit_historie": mit_historie, "eintraege": reihen})
 
+    # --- Ontologie-Lookup (T34) ------------------------------------------ #
+    async def ontologie_lookup(self, query: str, limit: int | None = None) -> dict[str, Any]:
+        """T34: the recipe compiler's "where does this input live?" tool. Retrieves over the
+        Phase-3 prose (base-formula + variable beschreibungen) and returns, for a natural-language
+        need ("Dieselpreis", "Leistung für Fräsen bei Tiefe", "Dichte Asphalt"):
+
+        - `basisformeln`: matching base formulas to INSTANTIATE (name, einheit, beschreibung,
+          declared parameters) — the compiler binds these, never re-invents them;
+        - `variablen`: matching bindable sources (name, gruppe, einheit, beschreibung);
+        - `bindungsgrammatik`: the legal binding-path prefixes (how to reference a source);
+        - `mengengeruest`: the sanctioned dimension-CHANGING formulas (chain these instead of
+          inventing unit arithmetic).
+
+        Retrieval runs over real prose, so the answer is only as good as the beschreibungen — which
+        Phase 3 authored for every survivor."""
+        n = _limit(limit)
+        formel_docs: list[dict[str, Any]] = []
+        for name, f in (await self._formeln()).items():
+            prosa = " ".join(
+                [name, f.beschreibung or "", f.ausdruck]
+                + [f"{p.name} {p.beschreibung or ''}" for p in f.parameter]
+            )
+            formel_docs.append({"schluessel": name, "_text": prosa, "_formel": f})
+        var_docs: list[dict[str, Any]] = []
+        for name, p in (await self._payloads(KatalogEntitaet.VARIABLEN)).items():
+            prosa = " ".join([name, p.get("bezeichnung") or "", p.get("beschreibung") or ""])
+            var_docs.append({"schluessel": name, "_text": prosa, "_payload": p})
+
+        formel_treffer = _Suchindex(formel_docs).score(query)[:n]
+        var_treffer = _Suchindex(var_docs).score(query)[:n]
+        basisformeln = [
+            {
+                "name": d["schluessel"],
+                "einheit": d["_formel"].einheit,
+                "beschreibung": d["_formel"].beschreibung,
+                "parameter": [
+                    {"name": pp.name, "einheit": pp.einheit, "beschreibung": pp.beschreibung}
+                    for pp in d["_formel"].parameter
+                ],
+                "score": round(s, 4),
+            }
+            for d, s in formel_treffer
+        ]
+        variablen = [
+            {
+                "name": d["schluessel"],
+                "gruppe": d["_payload"].get("gruppe"),
+                "einheit": d["_payload"].get("einheit"),
+                "beschreibung": d["_payload"].get("beschreibung"),
+                "score": round(s, 4),
+            }
+            for d, s in var_treffer
+        ]
+        return _env(
+            {
+                "query": query,
+                "basisformeln": basisformeln,
+                "variablen": variablen,
+                "bindungsgrammatik": ontologie.BINDUNGS_PRAEFIXE,
+                "baustoff_felder": sorted(ontologie.BAUSTOFF_FELDER),
+                "mengengeruest": ontologie.MENGENGERUEST_FORMELN,
+            }
+        )
+
     # --- Formeln & Variablen (T25–T30) ----------------------------------- #
     async def liste_formeln(
-        self, filter_text: str | None = None, referenziert_variable: str | None = None,
+        self, filter_text: str | None = None,
         status: str = KatalogStatus.AKTIV.value, limit: int | None = None,
     ) -> dict[str, Any]:
-        """T25: name, ergebnis_variable, ausdruck, einheit; referenziert_variable = reverse dep filter."""
+        """T25: the base-formula catalog — name, einheit, beschreibung, declared parameter names,
+        ausdruck. `filter_text` matches name, ausdruck or beschreibung."""
         zeilen = await self._zeilen(KatalogEntitaet.FORMELN, KatalogStatus(status))
-        eintraege = []
-        for z in zeilen:
-            ausdruck = z.payload.get("ausdruck", "")
-            if referenziert_variable is not None and referenziert_variable not in _eingaben(ausdruck):
-                continue
-            if not _passt(filter_text, z.schluessel, ausdruck):
-                continue
-            eintraege.append(
-                {
-                    "name": z.schluessel,
-                    "ergebnis_variable": z.payload.get("ergebnis_variable"),
-                    "ausdruck": ausdruck,
-                    "einheit": z.payload.get("einheit"),
-                }
-            )
+        eintraege = [
+            {
+                "name": z.schluessel,
+                "einheit": z.payload.get("einheit"),
+                "beschreibung": z.payload.get("beschreibung"),
+                "parameter": [p.get("name") for p in (z.payload.get("parameter") or [])],
+                "ausdruck": z.payload.get("ausdruck", ""),
+            }
+            for z in zeilen
+            if _passt(filter_text, z.schluessel, z.payload.get("ausdruck"), z.payload.get("beschreibung"))
+        ]
         return _env(_liste(eintraege, limit))
 
     async def zeige_formel(self, name: str) -> dict[str, Any]:
-        """T26: ausdruck + LaTeX + symbol legend + inputs (gruppe/Bezeichnung/Einheit) + reverse edges."""
+        """T26: a base formula — ausdruck + LaTeX + legend over its DECLARED parameters (each with
+        Einheit, Beschreibung, Standard) + the reverse edge: every Vorgang that instantiates it.
+
+        Base formulas reference only their own formal parameters (never global variables), so the
+        legend and `parameter` list come from the declared signature, and the reverse edge is over
+        Vorgang Rechnungen (which base formula each Instanz/Kostenzeile binds), not a variable index."""
         formeln = await self._formeln()
         if name not in formeln:
             return _env({"fehler": f"keine aktive Formel mit name {name}"})
         f = formeln[name]
-        idx = await self._var_index()
-        defs, primaer = idx["defs"], idx["primaer"]
         info = {
-            v: VariablenLegende(
-                bezeichnung=defs[v].bezeichnung if v in defs else None,
-                einheit=defs[v].einheit if v in defs else None,
-            )
-            for v in f.eingaben()
+            p.name: VariablenLegende(bezeichnung=p.beschreibung, einheit=p.einheit)
+            for p in f.parameter
         }
         darstellung = stelle_formel_dar(f.ausdruck, info)
-        eingaben = [
+        parameter = [
             {
-                "variable": v,
-                "gruppe": primaer.get(v),
-                "bezeichnung": defs[v].bezeichnung if v in defs else None,
-                "einheit": defs[v].einheit if v in defs else None,
+                "name": p.name,
+                "einheit": p.einheit,
+                "beschreibung": p.beschreibung,
+                "standard": p.standard,
             }
-            for v in sorted(f.eingaben())
+            for p in f.parameter
         ]
-        # Reverse edge: every Vorgang that uses the formula's output in ANY of the three variable
-        # roles. The role definition is shared with verwendung_von_variable (T30) via
-        # _vorgang_rollen so the detail view and the impact analysis can never disagree.
+        # Reverse edge: every Vorgang whose Rechnung instantiates this base formula (any Instanz or
+        # Kostenzeile). Shared with verwendung analysis so detail and impact never disagree.
         gebunden_in = [
             vc for vc, vp in (await self._payloads(KatalogEntitaet.VORGAENGE)).items()
-            if _vorgang_rollen(vp, f.ergebnis_variable)
-        ]
-        referenziert_in = [
-            other.name for other in formeln.values()
-            if other.name != name and f.ergebnis_variable in _eingaben(other.ausdruck)
+            if name in _vorgang_formeln(vp)
         ]
         return _env(
             {
                 "name": name,
-                "ergebnis_variable": f.ergebnis_variable,
                 "ausdruck": f.ausdruck,
                 "einheit": f.einheit,
+                "beschreibung": f.beschreibung,
                 "latex": darstellung.latex,
                 "legende": [e.model_dump() for e in darstellung.legende],
-                "eingaben": eingaben,
-                "gebunden_in_vorgaengen": sorted(gebunden_in),
-                "referenziert_in_formeln": sorted(referenziert_in),
+                "parameter": parameter,
+                "instanziiert_in_vorgaengen": sorted(gebunden_in),
             }
         )
 
@@ -951,7 +1027,6 @@ class LeseModell:
                     "prompt": s.prompt,
                     "konfidenz_schwelle": s.konfidenz_schwelle,
                     "stammdaten_pfad": s.stammdaten_pfad,
-                    "formel_name": s.formel_name,
                     "konstante": s.konstante,
                 }
                 for s in vardef.aufloesung
@@ -973,43 +1048,34 @@ class LeseModell:
         return _env({"name": name, **haupt, "weitere_gruppen": weitere or None})
 
     async def erklaere_variable(self, name: str) -> dict[str, Any]:
-        """T29: the transitive derivation tree down to KONSTANTE / STAMMDATEN / kontext leaves."""
-        produzenten = await self._produzenten()
+        """T29: how a catalog variable resolves — its cascade leaf. A variable is no longer produced
+        by a formula (base formulas take local parameters), so a variable resolves directly:
+        `konstante` (a rate), `stammdaten` (a bridge to a Baustoff field), or `eingabe` (a
+        situational kontext value filled by the graph). The derivation of a COST from base formulas
+        lives on the Vorgang Rechnung (zeige_vorgang), not on a variable."""
         idx = await self._var_index()
         defs, primaer = idx["defs"], idx["primaer"]
-
-        def baum(var: str, pfad: frozenset[str]) -> dict[str, Any]:
-            if var in pfad:
-                return {"variable": var, "methode": "zyklus"}
-            if var in produzenten:
-                f = produzenten[var]
-                return {
-                    "variable": var,
-                    "methode": "formel",
-                    "formel": f.name,
-                    "ausdruck": f.ausdruck,
-                    "eingaben": [baum(e, pfad | {var}) for e in sorted(f.eingaben())],
-                }
-            vardef = defs.get(var)
-            if vardef is None:
-                return {"variable": var, "methode": "unbekannt"}
-            for s in vardef.aufloesung:
-                if s.methode == AufloesungsMethode.KONSTANTE and s.konstante is not None:
-                    return {"variable": var, "methode": "konstante", "wert": s.konstante}
-                if s.methode == AufloesungsMethode.STAMMDATEN:
-                    return {"variable": var, "methode": "stammdaten", "stammdaten_pfad": s.stammdaten_pfad}
-            return {"variable": var, "methode": "eingabe", "gruppe": primaer.get(var)}
-
-        if name not in defs and name not in produzenten:
+        vardef = defs.get(name)
+        if vardef is None:
             return _env({"fehler": f"keine aktive Variable mit name {name}"})
-        return _env(baum(name, frozenset()))
+        for s in vardef.aufloesung:
+            if s.methode == AufloesungsMethode.KONSTANTE and s.konstante is not None:
+                return _env({"variable": name, "methode": "konstante", "wert": s.konstante,
+                             "gruppe": primaer.get(name)})
+            if s.methode == AufloesungsMethode.STAMMDATEN:
+                return _env({"variable": name, "methode": "stammdaten",
+                             "stammdaten_pfad": s.stammdaten_pfad, "gruppe": primaer.get(name)})
+        return _env({
+            "variable": name,
+            "methode": "eingabe",
+            "gruppe": primaer.get(name),
+            "kaskade": [s.methode.value for s in vardef.aufloesung],
+        })
 
     async def verwendung_von_variable(self, name: str) -> dict[str, Any]:
-        """T30: full where-used — Formeln, Vorgänge (Kostenvariable/leistung_variable/kosten_bindung),
-        Globale mit ziel_variable. The impact-analysis primitive before a change."""
-        formeln = [
-            f.name for f in (await self._formeln()).values() if name in _eingaben(f.ausdruck)
-        ]
+        """T30: full where-used for a catalog variable — every Vorgang whose Rechnung binds it (as a
+        source path or as a machine-override key) with its roles, plus Globale with ziel_variable on
+        it. The impact-analysis primitive before a rate/definition change."""
         vorgaenge = []
         for vc, vp in (await self._payloads(KatalogEntitaet.VORGAENGE)).items():
             rollen = _vorgang_rollen(vp, name)
@@ -1022,7 +1088,6 @@ class LeseModell:
         return _env(
             {
                 "variable": name,
-                "formeln": sorted(formeln),
                 "vorgaenge": sorted(vorgaenge, key=lambda v: v["code"]),
                 "globale_variablen": sorted(globale),
             }
@@ -1088,44 +1153,52 @@ class LeseModell:
 # --------------------------------------------------------------------------- #
 # Module helpers
 # --------------------------------------------------------------------------- #
+def _instanzen(vorgang_payload: dict[str, Any]):
+    """Every FormelInstanz payload in a Vorgang's Rechnung — the named Instanzen and the cost lines."""
+    rechnung = vorgang_payload.get("rechnung") or {}
+    yield from (rechnung.get("instanzen") or {}).values()
+    for liste in (rechnung.get("kosten") or {}).values():
+        yield from liste
+
+
+def _kostenarten(vorgang_payload: dict[str, Any]) -> list[str]:
+    """The Kostenarten a Vorgang produces — the keys of its Rechnung's `kosten` map."""
+    rechnung = vorgang_payload.get("rechnung") or {}
+    return sorted((rechnung.get("kosten") or {}).keys())
+
+
+def _vorgang_formeln(vorgang_payload: dict[str, Any]) -> set[str]:
+    """Every base-formula name a Vorgang's Rechnung instantiates — the reverse edge for zeige_formel."""
+    return {inst["formel"] for inst in _instanzen(vorgang_payload) if inst.get("formel")}
+
+
 def _vorgang_rollen(vorgang_payload: dict[str, Any], variable: str) -> list[str]:
-    """The roles in which one Vorgang uses `variable` — THE single definition of "a Vorgang uses
-    a variable". Both reverse-edge tools resolve through it: `zeige_formel` (T26,
-    gebunden_in_vorgaengen) and `verwendung_von_variable` (T30, the impact analysis). Keeping it
-    in one place is load-bearing: when the two answers disagree, a Kalkulator edits a formula on
-    incomplete impact information.
+    """The roles in which one Vorgang uses `variable` — THE single definition of "a Vorgang uses a
+    variable", the impact-analysis primitive behind verwendung_von_variable (T30).
 
-    A Vorgang references variables in three distinct roles:
+    A Vorgang binds a variable in two distinct roles:
 
-    - "kostenvariable" — a VALUE of `kostenvariablen` (Kostenart → variable name). These are the
-      cost lines `Vorgang.kalkuliere` sums into the EKT.
-    - "leistung_variable" — the productivity slot. A machine bound at Gate 4 writes its
-      Leistungsprofil rate into this variable (binden.py).
-    - "kosten_bindung" — a KEY of `kosten_bindung` (cost variable ← machine property-bag key).
-      When a machine is bound, its property value is written into this variable and SHADOWS
-      whatever the catalog would otherwise supply — a Stammdaten KONSTANTE or a Formel. This is
-      the easily-missed role: for a formula-produced variable it means "in this Vorgang, a bound
-      machine can override the formula", which is precisely what an author must know before
-      editing that formula. No seeded Vorgang has this shape today (binding keys are currently
-      all Stammdaten rates), so only the synthetic-row regression test exercises it — do not
-      assume fixture coverage.
+    - "bindung" — a binding path (`kontext.<var>` / `stammdaten.<var>`) of some FormelInstanz in the
+      Rechnung: the value flows into a base formula's parameter. These are the sources the EKT is
+      computed from.
+    - "kosten_bindung" — a KEY of `kosten_bindung` (Stammdaten rate variable ← machine property-bag
+      key). When a machine is bound at Gate 4 its property value SHADOWS the Stammdaten rate this
+      variable would otherwise supply (binden.py) — the easily-missed role an author must know
+      before changing that rate.
     """
     rollen: list[str] = []
-    if variable in (vorgang_payload.get("kostenvariablen") or {}).values():
-        rollen.append("kostenvariable")
-    if vorgang_payload.get("leistung_variable") == variable:
-        rollen.append("leistung_variable")
+    gebunden = {
+        rest
+        for inst in _instanzen(vorgang_payload)
+        for pfad in (inst.get("bindung") or {}).values()
+        for praefix, _, rest in [str(pfad).partition(".")]
+        if praefix in _VAR_PRAEFIXE and rest
+    }
+    if variable in gebunden:
+        rollen.append("bindung")
     if variable in (vorgang_payload.get("kosten_bindung") or {}):
         rollen.append("kosten_bindung")
     return rollen
-
-
-def _eingaben(ausdruck: str) -> set[str]:
-    """The variable names a stored formula expression references (empty on a parse error)."""
-    try:
-        return Formel(name="_", ergebnis_variable="_", ausdruck=ausdruck).eingaben()
-    except SyntaxError:
-        return set()
 
 
 def _als_datum(stichtag: str | None) -> date:

@@ -11,6 +11,7 @@ import { ProjectsView } from '../../views/main/ProjectsView';
 import { ExecutionLogView } from '../../views/main/ExecutionLogView';
 import { UsageLogView } from '../../views/main/UsageLogView';
 import { IngestConsoleView } from '../../views/main/IngestConsoleView';
+import { KatalogView } from '../../views/main/KatalogView';
 
 const TITLES: Record<MainWindowView['kind'], string> = {
   prompts: 'Prompts',
@@ -18,6 +19,7 @@ const TITLES: Record<MainWindowView['kind'], string> = {
   prompt_execution_log: 'Prompt Execution Log',
   prompt_usage_log: 'Prompt Usage Log',
   ingest_console: 'Ingest Console',
+  katalog: 'Katalog',
 };
 
 export function MainWindow({ view }: { view: MainWindowView }) {
@@ -57,6 +59,8 @@ function MainWindowBody({ view }: { view: MainWindowView }) {
       return <UsageLogView />;
     case 'ingest_console':
       return <IngestConsoleView />;
+    case 'katalog':
+      return <KatalogView />;
     default: {
       const _exhaustive: never = view.kind;
       void _exhaustive;

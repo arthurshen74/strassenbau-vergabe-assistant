@@ -144,11 +144,13 @@ enhancement — the cost lines keep the engine's six Kostenarten today.
 
 The deterministic `kalkulation_v2` engine owns a four-level catalog spine — **Leistung** (the
 what; a leaf) fulfilled by a selected **Bauverfahren** (the recipe: ordered **Vorgänge**, each
-binding an **Ausführungsart** equipment slot) — plus the variable layer: each Vorgang maps every
-Kostenart to the *name of a variable*, and variables resolve through per-variable cascades
-(Langtext → RAG → HITL → Stammdaten → Formel → Konstante). The resolver checks already-supplied
-values first — that is the seam: the graph fills judgment values (`LANGTEXT`/`RAG`/`HITL`) into
-the context, and the engine computes the rest (`FORMEL`/`STAMMDATEN`/`KONSTANTE`) as pure
+binding an **Ausführungsart** equipment slot) — plus the variable layer: each Vorgang carries a
+**Rechnung** that *instantiates* ~16 parameterized base formulas (binding their parameters to
+`kontext`/`stammdaten`/`baustoff`/sibling-instance sources), and those bound variables resolve
+through per-variable cascades (Langtext → RAG → HITL → Stammdaten → Konstante). The resolver checks
+already-supplied values first — that is the seam: the graph fills judgment values
+(`LANGTEXT`/`RAG`/`HITL`) into the context, and the engine computes the rest (`STAMMDATEN`/`KONSTANTE`,
+and the Rechnung's formula instances) as pure
 `Decimal` functions with cycle detection. All catalog content lives in the DB-backed Katalog
 (loaded at startup, reloaded on activation); adding a Leistung or recipe is catalog data entry —
 the graph topology never changes.
@@ -176,7 +178,7 @@ stateDiagram-v2
     rank_lieferanten --> bind_resources : suppliers ranked by delivered price
     bind_resources --> bind_lieferant : machines right-sized per slot
     bind_lieferant --> derive_required_variables : supplier price + haul distance bound
-    derive_required_variables --> resolve_variables : walk recipe formula tree to all leaves
+    derive_required_variables --> resolve_variables : walk recipe Rechnung bindings to all leaves
     resolve_variables --> variable_review : propose value + provenance + tier per leaf
     variable_review --> compute : Gate 4 — full set confirmed
     compute --> render_output : deterministic engine run
@@ -198,7 +200,7 @@ stateDiagram-v2
   Langtext's norm designation to a catalog code — it can only return cataloged codes. High-scoring
   matches auto-apply; otherwise the top hit and alternates are surfaced for confirmation.
   Material-free recipes skip this gate.
-- **Gate 4 — variables.** Every leaf of the recipe's formula tree is proposed with value,
+- **Gate 4 — variables.** Every resolution leaf the recipe's Rechnung binds is proposed with value,
   provenance, and confidence: extracted inputs (chat/Langtext/RAG/default), rates, and master
   data. The review is tiered — low-confidence and high-stakes variables are surfaced for explicit
   decision; confident extractions, rates, and Stammdaten are pre-accepted in a collapsed tier,
@@ -218,30 +220,30 @@ cannot be found surfaces at Gate 4 as an open decision, never a silent guess.
 
 - **Machines** — candidates come from the Katalog fleet by Ausführungsart; the default is
   right-sized: the smallest machine that clears the job within the configured target hours. A
-  bound machine's rates and per-Betriebsart productivity feed the cost and `*_stunden` formulas
-  (the labour-hours basis) and stay overridable at Gate 4.
+  bound machine's rates and per-Betriebsart productivity feed the Maschine cost lines and the
+  `arbeitszeit` instance (the labour-hours basis) and stay overridable at Gate 4.
 - **Suppliers** — after material confirmation, Lieferanten with a valid ex-works price and known
   coordinates are pre-filtered by great-circle radius (default 100 km), route distances to the
   Baustelle are computed in one route-matrix call, corrected by an HGV detour factor, and offers
   are ranked by delivered price (Werkspreis + €/t·km transport). The chosen supplier's price
   overrides the material's base price through the standard master-data bridge, and the haul
-  distance feeds the Antransport formulas. Switching supplier at Gate 4 re-applies from the ranked
-  list without re-routing.
+  distance feeds the Antransport (F_TRANSPORT) instances. Switching supplier at Gate 4 re-applies
+  from the ranked list without re-routing.
 
 ## Katalog Chat Agent
 
 The maintenance agent for the reference data. Same ReAct/streaming machinery as project chat, with
-a code-defined system prompt (the Katalog-Handbuch) and three tool families: **33 read tools**
-(browse/search every entity, formula explanation with LaTeX and derivation trees, where-used
-impact analysis, SCD-2 history, price validity), **17 write tools** (draft new/changed Formeln,
-Variablen, Baustoffe, Lieferanten, Preise, Maschinen, taxonomy entries, Leistung–Bauverfahren
-mappings), and the **recipe compiler** (W18), which drafts one coherent bundle spanning any subset
-of entities.
+a seeded, versioned system prompt (the Katalog-Handbuch) and three tool families: **34 read tools**
+(browse/search every entity, base-formula explanation with LaTeX + declared parameters, the
+`ontologie_lookup` "where does this input live" tool, where-used impact analysis, SCD-2 history,
+price validity), **17 write tools** (draft new/changed base Formeln, Variablen, Baustoffe,
+Lieferanten, Preise, Maschinen, taxonomy entries, Leistung–Bauverfahren mappings), and the
+**recipe compiler** (W18), which drafts one coherent bundle spanning any subset of entities.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Turn : user message
-    Turn --> Read : read tools (T1–T33)
+    Turn --> Read : read tools (T1–T34)
     Read --> Turn : catalog facts
     Turn --> Write : write tool (W1–W17, W18)
     Write --> Validate : write facade — validate bundle
@@ -257,33 +259,39 @@ stateDiagram-v2
 The human-in-the-loop boundary is structural, not prompt-based: write tools go through a facade
 that exposes validate, save-draft, and discard — activation is deliberately absent from the
 agent's reach and exists only as an API endpoint behind the authenticated routes. Validation is a
-pure rule set over the draft plus the active catalog: formulas must parse, reference only known
-variables, and stay acyclic; every cost variable must be producible; every code reference must
-resolve; prices must name known suppliers and materials with ordered validity; same-key rows are
-reported as updates. Activation re-validates against the *current* catalog, activates atomically,
-closes superseded price validity windows, bumps the global Stand, and reloads the running engine.
+pure rule set over the draft plus the active catalog: a base formula must parse, close over its
+declared parameter signature, and carry mandatory prose (on the formula and each parameter); every
+Vorgang Rechnung must be evaluable — its instances bind known, producible variables with
+**dimension-compatible units** (a scalable cm→m is fine; a dimension change is a Mengengerüst
+formula's job, not a binding); a candidate formula **structurally isomorphic** to an existing base
+formula is rejected ("instantiate, don't mint"); every variable carries prose; every code reference
+resolves; prices name known parties with ordered validity; same-key rows are reported as updates.
+Activation re-validates against the *current* catalog, activates atomically, closes superseded
+price validity windows, bumps the global Stand, and reloads the running engine.
 
-Guard rules from the Handbuch (the load-bearing ones): never invent codes — search first, answer
-only from tool results; never self-activate; never invent a DSL function — a genuinely missing
-function becomes an engineering request in chat, not a formula; rates belong in Stammdaten
-variables, not constant formulas; the Leistung's unit fixes the booked geometry variable and
-formulas must derive from it.
+Guard rules from the Handbuch (the load-bearing ones): never invent codes — search first (the
+`ontologie_lookup` tool answers "where does this input live"), answer only from tool results; never
+self-activate; never invent a DSL function — a missing function is an engineering request, not a
+formula; **instantiate base formulas, don't mint** — a new base formula only for a genuinely new
+shape; rates belong in Stammdaten variables; the Leistung's unit fixes the booked geometry the
+Rechnung binds against.
 
-The recipe compiler composes with the same flow: it normalizes a whole-recipe bundle, runs the
-full rule set, enforces a coverage contract (every code defined or referenced must be justified as
-either reuse or new), and adds non-blocking warnings — BM25 duplicate probes against the active
-catalog and geometry-dependency checks — before saving one draft bundle for the same confirm card.
+The recipe compiler composes with the same flow: it looks up the ontology, normalizes a whole-recipe
+bundle of base-formula instantiations, runs the full rule set (incl. structural dedup + unit
+compatibility), enforces a coverage contract (every code defined or referenced must be justified as
+either reuse or new), and adds non-blocking warnings — BM25 duplicate probes and geometry-dependency
+checks — before saving one draft bundle for the same confirm card.
 
 ## Prompt Management
 
 Every persistent prompt is an immutable `PromptVersion` row pinning system text, model, and
 sampling parameters per `prompt_type`; creating a new version never disturbs the old, and call
 sites load the latest at runtime. Prompts are seeded from `.prompt` files (YAML frontmatter +
-system text) — currently eleven types: `project_chat`, `dispatcher`, `conversation_name`,
-`aggregate_lv_membership`, `multi_question_generator`, `project_context_resolve`, the calculator's
-four (`ekt_leistung_classify`, `ekt_chat_values`, `ekt_langtext_extract`, `ekt_output_narrate`),
-and `lv_extraction` (the retired PDF-parse harness). Seeding appends a new version per run by
-design — edit the file, re-seed, and the new version is live.
+system text) — currently twelve types: `project_chat`, `dispatcher`, `conversation_name`,
+`aggregate_lv_membership`, `multi_question_generator`, `project_context_resolve`, `katalog_handbuch`
+(the Katalog-Chat system prompt), the calculator's four (`ekt_leistung_classify`, `ekt_chat_values`,
+`ekt_langtext_extract`, `ekt_output_narrate`), and `lv_extraction` (the retired PDF-parse harness).
+Seeding appends a new version per run by design — edit the file, re-seed, and the new version is live.
 
 Structured outputs are schema-in-code: a registry maps a `prompt_type` to a Pydantic model, and
 the LLM client validates every response at the boundary, so malformed output raises instead of
@@ -291,9 +299,11 @@ propagating. Adding a prompt type touches the backend enum (single source of tru
 the load site, and the CHECK constraints that mirror the enum in `prompt_versions` and
 `conversations`.
 
-Two agents take their model from settings rather than a prompt row: the calculator
-(`CALCULATOR_MODEL`, plus reasoning effort and a full mock mode for offline runs) and the Katalog
-chat (`KATALOG_CHAT_MODEL`), whose system prompt is code, not data.
+The calculator takes its model from settings rather than a prompt row (`CALCULATOR_MODEL`, plus
+reasoning effort and a full mock mode for offline runs). The Katalog chat, by contrast, now loads
+its system prompt AND model from the seeded `katalog_handbuch` version (the frontmatter owns the
+model choice), so editing that prompt in the editor changes both — and the recipe-compiler eval
+measures the live version.
 
 ## Model Access, Logging, and Tracing
 

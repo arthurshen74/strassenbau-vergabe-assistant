@@ -1,11 +1,12 @@
 """
 worklist.py — derive the resolution worklist for a chosen Bauverfahren.
 
-`benoetigte_variablen` walks a recipe's Vorgaenge -> kostenvariablen -> formula
-tree down to every resolution leaf: extracted inputs (Eingabe), rate-book
-constants (Satz), and master-data lookups (Stammdaten). FORMEL intermediates are
-walked through, not returned. This is the data the StateGraph's variable-review
-gate consumes; the engine derives it so the graph topology stays position-agnostic.
+`benoetigte_variablen` walks a recipe's Vorgänge -> rechnung bindings down to every
+resolution leaf: extracted inputs (Eingabe), rate-book constants (Satz), and
+master-data lookups (Stammdaten). `formel.<instanz>` references are walked through,
+not returned; literals and `baustoff.*` fields are no variables. This is the data
+the StateGraph's variable-review gate consumes; the engine derives it so the graph
+topology stays position-agnostic.
 """
 
 from __future__ import annotations
@@ -17,8 +18,10 @@ from pydantic import BaseModel, ConfigDict
 from shared.services.kalkulation_v2.model import (
     AufloesungsMethode,
     Bauverfahren,
+    FormelInstanz,
     Kalkulator,
     VariableDefinition,
+    Vorgang,
 )
 
 
@@ -46,9 +49,7 @@ _EINGABE_METHODEN = {
     AufloesungsMethode.HITL,
 }
 
-
-def _ist_formel(defn: VariableDefinition) -> bool:
-    return any(s.methode == AufloesungsMethode.FORMEL for s in defn.aufloesung)
+_VARIABLEN_PRAEFIXE = ("kontext.", "stammdaten.")
 
 
 def _blatt(defn: VariableDefinition) -> VariablenBlatt:
@@ -79,31 +80,39 @@ def benoetigte_variablen(
 ) -> list[VariablenBlatt]:
     """All resolution leaves the recipe consumes, in first-seen order.
 
-    FORMEL intermediates are recursed through, not returned. Names in `gebucht`
-    (booked directly, e.g. the geometry variable filled from the LV Menge)
+    `formel.<instanz>` references are recursed through, not returned. Names in
+    `gebucht` (booked directly, e.g. the geometry variable filled from the LV Menge)
     terminate the walk and are excluded — they are already resolved.
     """
     blaetter: dict[str, VariablenBlatt] = {}
     besucht: set[str] = set()
 
-    def besuche(name: str) -> None:
+    def besuche_variable(name: str) -> None:
         if name in besucht or name in gebucht:
             return
         besucht.add(name)
         defn = kalk.katalog.get(name)
         if defn is None:
             raise KeyError(f"Variable nicht im Katalog: {name}")
-        if _ist_formel(defn):
-            schritt = next(s for s in defn.aufloesung if s.methode == AufloesungsMethode.FORMEL)
-            formel = kalk.formeln[schritt.formel_name or name]
-            for ref in sorted(formel.eingaben()):
-                besuche(ref)
-            return
         blaetter[name] = _blatt(defn)
 
+    def besuche_instanz(vorgang: Vorgang, inst: FormelInstanz) -> None:
+        # A booked materialized variable preempts the whole instanz at calc time, so its
+        # inputs are never consumed (a t-billed position must not ask for Einbaudicke).
+        if inst.variable and inst.variable in gebucht:
+            return
+        for pfad in inst.bindung.values():
+            praefix, _, rest = pfad.partition(".")
+            if f"{praefix}." in _VARIABLEN_PRAEFIXE and rest:
+                besuche_variable(rest)
+            elif praefix == "formel" and rest:
+                besuche_instanz(vorgang, vorgang.rechnung.instanzen[rest])
+            # baustoff.* fields and literals are not variables.
+
     for vorgang in bauverfahren.vorgaenge:
-        for varname in vorgang.kostenvariablen.values():
-            besuche(varname)
+        for instanzen in vorgang.rechnung.kosten.values():
+            for inst in instanzen:
+                besuche_instanz(vorgang, inst)
     return list(blaetter.values())
 
 

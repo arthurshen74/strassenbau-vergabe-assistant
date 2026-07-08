@@ -100,7 +100,12 @@ async def test_t9_liste_vorgaenge_facet_filter(lese: LeseModell) -> None:
 async def test_t10_zeige_vorgang(lese: LeseModell) -> None:
     v = await lese.zeige_vorgang("V_FRAESEN")
     assert v["ausfuehrungsart"]["code"] == "AA_KALTFRAESE"
-    assert v["kostenvariablen"] and all("variable" in k for k in v["kostenvariablen"])
+    assert v["leistung_instanz"] == "leistung"
+    # Each cost line names the base formula it instantiates (Maschine → F_MASCHINE).
+    assert v["kosten"] and all("formel" in k and "kostenart" in k for k in v["kosten"])
+    assert any(k["kostenart"] == "Maschine" and k["formel"] == "F_MASCHINE" for k in v["kosten"])
+    # The named quantity/curve Instanzen (Leistungskurve, Arbeitszeit) are surfaced too.
+    assert any(i["instanz"] == "arbeitszeit" and i["formel"] == "F_STUNDEN" for i in v["instanzen"])
     assert v["enthalten_in_bauverfahren"]
 
 
@@ -198,53 +203,33 @@ async def test_t24_zeige_preise(lese: LeseModell) -> None:
 
 
 # --- Formeln & Variablen ----------------------------------------------------- #
-async def test_t25_liste_formeln_reverse_dep(lese: LeseModell) -> None:
-    # "Welche Formeln hängen am Dieselpreis?"
-    liste = await lese.liste_formeln(referenziert_variable="kraftstoffpreis_eur_pro_l")
+async def test_t25_liste_formeln(lese: LeseModell) -> None:
+    # The base-formula catalog: 16 formulas, each with a declared parameter signature.
+    liste = await lese.liste_formeln()
     namen = {e["name"] for e in liste["eintraege"]}
-    assert "mk_fraese" in namen and liste["treffer_gesamt"] >= 5
+    assert {"F_MASCHINE", "F_STUNDEN", "F_LOHN", "F_KOSTEN_SATZ"} <= namen
+    maschine = next(e for e in liste["eintraege"] if e["name"] == "F_MASCHINE")
+    assert "kraftstoffpreis" in maschine["parameter"]
+    # Free-text filter matches the expression / beschreibung, not just the name.
+    treffer = {e["name"] for e in (await lese.liste_formeln(filter_text="stundensatz"))["eintraege"]}
+    assert "F_MASCHINE" in treffer
 
 
-async def test_t26_zeige_formel_latex_und_reverse(lese: LeseModell) -> None:
-    f = await lese.zeige_formel("mk_fraese")
+async def test_t26_zeige_formel_signatur_und_reverse(lese: LeseModell) -> None:
+    f = await lese.zeige_formel("F_MASCHINE")
     assert f["latex"] and f["legende"]
-    assert any(e["variable"] == "kraftstoffpreis_eur_pro_l" for e in f["eingaben"])
-    assert "V_FRAESEN" in f["gebunden_in_vorgaengen"]
+    # A base formula's inputs are its DECLARED parameters (with Einheit + Beschreibung).
+    assert any(p["name"] == "kraftstoffpreis" and p["einheit"] == "€/l" for p in f["parameter"])
+    # Reverse edge: every Vorgang whose Rechnung instantiates F_MASCHINE (V_FRAESEN's machine line).
+    assert "V_FRAESEN" in f["instanziiert_in_vorgaengen"]
 
 
-async def test_t26_gebunden_auch_ueber_kosten_bindung(lese: LeseModell, engine: AsyncEngine) -> None:
-    """A Vorgang whose kosten_bindung names the formula's output variable (a bound machine would
-    shadow the formula there) must appear in gebunden_in_vorgaengen — consistent with T30's roles.
-    No seeded Vorgang has this shape, so the test activates a synthetic one and removes it from
-    the active set again (via `verwirf` — end status is irrelevant, the fixture reseeds)."""
-    payload = {
-        "name": "Test: Bindung schattet Formel",
-        "ausfuehrungsart_code": "AA_KALTFRAESE",
-        "betriebsart_code": "regelfraesen",
-        "leistung_variable": None,
-        "kosten_bindung": {"mk_fraese": "betriebskosten_eur_pro_h"},
-        "kostenvariablen": {},
-    }
-    async with engine.begin() as conn:
-        repo = KatalogRepository(conn)
-        zeile = await repo.neue_version(
-            KatalogEntitaet.VORGAENGE, "V_TEST_BINDUNG", payload, benutzer="test", bundle_uuid=None
-        )
-        await repo.aktiviere(KatalogEntitaet.VORGAENGE, zeile.zeile_uuid)
-    try:
-        async with engine.connect() as conn:  # fresh LeseModell: the module-scoped one has cached rows
-            frisch = LeseModell(conn)
-            f = await frisch.zeige_formel("mk_fraese")
-            verwendung = await frisch.verwendung_von_variable("mk_fraese")
-        # T26 and T30 share the role definition (_vorgang_rollen) — both must list the Vorgang.
-        assert "V_TEST_BINDUNG" in f["gebunden_in_vorgaengen"]
-        assert any(
-            v["code"] == "V_TEST_BINDUNG" and "kosten_bindung" in v["rollen"]
-            for v in verwendung["vorgaenge"]
-        )
-    finally:
-        async with engine.begin() as conn:
-            await KatalogRepository(conn).verwirf(KatalogEntitaet.VORGAENGE, zeile.zeile_uuid)
+async def test_t30_bindung_und_kosten_bindung_rollen(lese: LeseModell) -> None:
+    """A seeded machine-rate variable is used by V_FRAESEN in BOTH roles: bound into the F_MASCHINE
+    cost line (`bindung`) and named as a kosten_bindung key a bound machine would shadow."""
+    nutzung = await lese.verwendung_von_variable("kaltfraese_stundensatz_eur")
+    fraesen = next(v for v in nutzung["vorgaenge"] if v["code"] == "V_FRAESEN")
+    assert "bindung" in fraesen["rollen"] and "kosten_bindung" in fraesen["rollen"]
 
 
 async def test_t27_liste_variablen_gruppe(lese: LeseModell) -> None:
@@ -260,18 +245,32 @@ async def test_t28_zeige_variable_konstante(lese: LeseModell) -> None:
     assert v["aufloesung"]
 
 
-async def test_t29_erklaere_variable_baum(lese: LeseModell) -> None:
-    baum = await lese.erklaere_variable("mk_fraese")
-    assert baum["methode"] == "formel" and baum["formel"] == "mk_fraese"
-    kinder = {k["variable"] for k in baum["eingaben"]}
-    assert "kraftstoffpreis_eur_pro_l" in kinder
-    diesel = next(k for k in baum["eingaben"] if k["variable"] == "kraftstoffpreis_eur_pro_l")
-    assert diesel["methode"] == "konstante"
+async def test_t29_erklaere_variable_kaskade(lese: LeseModell) -> None:
+    # A variable resolves to its cascade leaf (variables are no longer produced by formulas).
+    diesel = await lese.erklaere_variable("kraftstoffpreis_eur_pro_l")
+    assert diesel["methode"] == "konstante" and diesel["wert"] == "1.75"
+    # A Stammdaten bridge reads a Baustoff field.
+    dichte = await lese.erklaere_variable("dichte_t_pro_m3")
+    assert dichte["methode"] == "stammdaten" and dichte["stammdaten_pfad"].startswith("baustoff.")
 
 
 async def test_t30_verwendung_von_variable(lese: LeseModell) -> None:
+    # The Dieselpreis is bound into every F_MASCHINE cost line across the catalog's Vorgänge.
     nutzung = await lese.verwendung_von_variable("kraftstoffpreis_eur_pro_l")
-    assert "mk_fraese" in nutzung["formeln"] and len(nutzung["formeln"]) >= 5
+    codes = {v["code"] for v in nutzung["vorgaenge"]}
+    assert "V_FRAESEN" in codes and len(codes) >= 5
+    assert all("bindung" in v["rollen"] for v in nutzung["vorgaenge"] if v["code"] == "V_FRAESEN")
+
+
+# --- Ontologie-Lookup -------------------------------------------------------- #
+async def test_t34_ontologie_lookup(lese: LeseModell) -> None:
+    # "Wo lebt der Dieselpreis, und womit rechne ich Maschinenkosten?" — retrieval over the prose.
+    o = await lese.ontologie_lookup("Dieselpreis Maschinenkosten Kraftstoff")
+    assert any(f["name"] == "F_MASCHINE" for f in o["basisformeln"])
+    assert any(v["name"] == "kraftstoffpreis_eur_pro_l" for v in o["variablen"])
+    # The static structure the compiler binds against.
+    assert set(o["bindungsgrammatik"]) == {"kontext", "stammdaten", "baustoff", "formel"}
+    assert "F_MENGE_VOLUMEN" in o["mengengeruest"].values()
 
 
 # --- Globale Variablen ------------------------------------------------------- #

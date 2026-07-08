@@ -20,7 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.factory import TelemetrySinks
 from shared.clients.tracing import flow_span
-from shared.config import settings
 from shared.models.conversation import Conversation
 from shared.models.enums import MessageKind
 from shared.models.message import Message, NewMessage
@@ -47,7 +46,7 @@ from shared.models.sse_schema import (
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.messages import MessageRepository
 from shared.services.katalog.chat_agent import KatalogChatAgent
-from shared.services.katalog.handbuch import KATALOG_HANDBUCH
+from shared.services.katalog.prompts import load_katalog_handbuch_prompt
 from shared.services.messages import CONTENT, ROLE, to_user_assistant_messages
 from shared.services.project_chat_agent import AgentToken, AgentToolCall
 
@@ -86,11 +85,15 @@ class KatalogChatService:
         messages = [
             {ROLE: m.role, CONTENT: m.content} for m in to_user_assistant_messages(history)
         ]
+        # The Handbuch prompt owns the model choice (frontmatter) — load it per turn so an edit in
+        # the prompt editor takes effect on the next turn without a restart.
+        async with self._engine.connect() as conn:
+            handbuch = await load_katalog_handbuch_prompt(conn)
         agent = KatalogChatAgent(
             engine=self._engine,
-            system_prompt=KATALOG_HANDBUCH,
-            chat_model=settings.katalog_chat_model,
-            temperature=settings.katalog_chat_temperature,
+            system_prompt=handbuch.system_prompt,
+            chat_model=handbuch.model_name,
+            temperature=handbuch.temperature,
             conversation_uuid=conversation_id,
         )
 

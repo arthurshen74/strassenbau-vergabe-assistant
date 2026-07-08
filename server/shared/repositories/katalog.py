@@ -90,9 +90,9 @@ KATALOG_REGISTRY: dict[KatalogEntitaet, EntitaetSpec] = {
             "name",
             "ausfuehrungsart_code",
             "betriebsart_code",
-            "leistung_variable",
+            "leistung_instanz",
             "kosten_bindung",
-            "kostenvariablen",
+            "rechnung",
         ),
     ),
     KatalogEntitaet.AUSFUEHRUNGSARTEN: EntitaetSpec(
@@ -105,7 +105,7 @@ KATALOG_REGISTRY: dict[KatalogEntitaet, EntitaetSpec] = {
         katalog_betriebsarten, "code", ("bezeichnung", "kategorie_code", "einheit", "beschreibung")
     ),
     KatalogEntitaet.FORMELN: EntitaetSpec(
-        katalog_formeln, "name", ("ergebnis_variable", "ausdruck", "einheit")
+        katalog_formeln, "name", ("ausdruck", "einheit", "beschreibung", "parameter")
     ),
     KatalogEntitaet.VARIABLEN: EntitaetSpec(
         katalog_variablen,

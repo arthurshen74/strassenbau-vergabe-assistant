@@ -35,8 +35,6 @@ from shared.models.katalog import (
 )
 from shared.repositories.katalog import KATALOG_REGISTRY, KatalogRepository
 from shared.services.kalkulation_v2.model import (
-    AufloesungsMethode,
-    AufloesungsSchritt,
     Ausführungsart,
     Baustoff,
     Betriebsart,
@@ -67,16 +65,6 @@ class BundleNichtGefunden(Exception):
 
 def _payload(entitaet: KatalogEntitaet, record: dict) -> dict:
     return {c: record[c] for c in KATALOG_REGISTRY[entitaet].payload}
-
-
-def _formel_variable(name: str, einheit: str | None) -> VariableDefinition:
-    """The FORMEL-gruppe variable a Formel implies (mirrors the `formel()` fixture helper)."""
-    return VariableDefinition(
-        name=name,
-        bezeichnung=name,
-        einheit=einheit,
-        aufloesung=[AufloesungsSchritt(methode=AufloesungsMethode.FORMEL, formel_name=name)],
-    )
 
 
 class KatalogService:
@@ -148,6 +136,14 @@ class KatalogService:
     async def aktive(self, entitaet: KatalogEntitaet) -> list[KatalogZeile]:
         async with self.engine.connect() as conn:
             return await KatalogRepository(conn).aktive(entitaet)
+
+    async def versionen(
+        self, entitaet: KatalogEntitaet, schluessel: str
+    ) -> list[KatalogZeile]:
+        """Every version of one natural key (any status), oldest first — the SCD-2 timeline that
+        backs the Katalog UI's Versionshistorie (rate-change ledger)."""
+        async with self.engine.connect() as conn:
+            return await KatalogRepository(conn).alle_versionen(entitaet, schluessel)
 
     async def bundle_zustand(self, bundle_uuid: UUID) -> BundleZustandAnsicht:
         """The confirm card's state re-query: the bundle's rows (lifecycle + prices) plus the
@@ -234,17 +230,9 @@ class KatalogService:
         for lief in bundle.lieferanten:
             await draft(KatalogEntitaet.LIEFERANTEN, lief.code, _payload(KatalogEntitaet.LIEFERANTEN, lief.model_dump(mode="json")))
 
-        explizite_formel_vars = {
-            bv.definition.name for bv in bundle.variablen if bv.gruppe == VariablenGruppe.FORMEL
-        }
         for bv in bundle.variablen:
             record = bv.definition.model_dump(mode="json") | {"gruppe": bv.gruppe.value}
             await draft(KatalogEntitaet.VARIABLEN, bv.definition.name, _payload(KatalogEntitaet.VARIABLEN, record))
-        for f in bundle.formeln:
-            if f.name in explizite_formel_vars:
-                continue
-            record = _formel_variable(f.name, f.einheit).model_dump(mode="json") | {"gruppe": VariablenGruppe.FORMEL.value}
-            await draft(KatalogEntitaet.VARIABLEN, f.name, _payload(KatalogEntitaet.VARIABLEN, record))
 
         for v in bundle.vorgaenge:
             await draft(KatalogEntitaet.VORGAENGE, v.code, _payload(KatalogEntitaet.VORGAENGE, v.model_dump(mode="json")))

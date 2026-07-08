@@ -28,10 +28,11 @@ from shared.services.kalkulation_v2.model import (
     AufloesungsMethode,
     AufloesungsSchritt,
     D,
-    Formel,
+    FormelInstanz,
     Kostenart,
     Leistung,
     VariableDefinition,
+    VorgangRechnung,
 )
 from shared.services.kalkulation_v2.positionen import Position
 from shared.services.kalkulation_v2.store import kalkuliere
@@ -43,26 +44,39 @@ from scripts.seed.seed_katalog import seed_katalog
 
 
 def _e2e_rezept() -> KatalogBundle:
-    """A self-contained Leistung whose cost is `flaeche_m2 × e2e_rate_eur` — the rate is a
-    STAMMDATEN KONSTANTE the W11 tool later changes."""
+    """A self-contained Leistung whose Maschine cost line instantiates F_KOSTEN_SATZ as
+    `flaeche_m2 × e2e_rate_eur` — the satz is a STAMMDATEN KONSTANTE the W11 tool later changes."""
     return KatalogBundle(
         leistungen=[Leistung(code="L_E2E", name="E2E-Teststrecke", einheit="m2")],
         variablen=[
             BundleVariable(
                 gruppe=VariablenGruppe.STAMMDATEN,
                 definition=VariableDefinition(
-                    name="e2e_rate_eur", bezeichnung="E2E-Satz", einheit="€",
+                    name="e2e_rate_eur", bezeichnung="E2E-Satz",
+                    beschreibung="End-to-End-Testsatz je m²; speist den satz-Parameter der "
+                                 "F_KOSTEN_SATZ-Materialzeile des Testvorgangs.",
+                    einheit="€",
                     aufloesung=[
                         AufloesungsSchritt(methode=AufloesungsMethode.KONSTANTE, konstante=D("5"))
                     ],
                 ),
             )
         ],
-        formeln=[
-            Formel(name="mk_e2e", ergebnis_variable="mk_e2e", ausdruck="flaeche_m2 * e2e_rate_eur", einheit="€")
-        ],
         vorgaenge=[
-            BundleVorgang(code="V_E2E", name="E2E-Vorgang", kostenvariablen={Kostenart.MASCHINE: "mk_e2e"})
+            BundleVorgang(
+                code="V_E2E",
+                name="E2E-Vorgang",
+                rechnung=VorgangRechnung(
+                    kosten={
+                        Kostenart.MASCHINE: [
+                            FormelInstanz(
+                                formel="F_KOSTEN_SATZ",
+                                bindung={"menge": "kontext.flaeche_m2", "satz": "stammdaten.e2e_rate_eur"},
+                            )
+                        ]
+                    }
+                ),
+            )
         ],
         bauverfahren=[BundleBauverfahren(code="BV_E2E", name="E2E-Verfahren", vorgang_codes=["V_E2E"])],
         leistung_bauverfahren={"L_E2E": ["BV_E2E"]},

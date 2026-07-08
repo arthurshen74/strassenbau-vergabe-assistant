@@ -46,6 +46,7 @@ from shared.services.kalkulation_v2.model import (
     D,
     Datentyp,
     Formel,
+    FormelParameter,
     Leistungsprofil,
     Maschine,
     MaschinenWert,
@@ -158,14 +159,29 @@ def katalog_schreib_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
     # --- Formeln & Variablen (batch A, W8–W12) ----------------------------- #
     @tool(response_format="content_and_artifact")
     async def neue_formel(
-        name: str, ausdruck: str, einheit: str | None = None
+        name: str, ausdruck: str, beschreibung: str,
+        parameter: list[dict[str, Any]], einheit: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Neue Formel als Entwurf anlegen. `ausdruck` ist ein DSL-Ausdruck (nur vorhandenes
-        Vokabular; erfinde KEINE Funktion — siehe zeige_dsl_funktionen). Die erzeugte FORMEL-Variable
-        (gleicher Name) reitet automatisch mit. Nichts wird aktiviert — der Nutzer bestätigt auf der
-        Karte."""
-        formel = Formel(name=name, ergebnis_variable=name, ausdruck=ausdruck, einheit=einheit)
-        entwurf = {"name": name, "ausdruck": ausdruck, "einheit": einheit, **_formel_latex(ausdruck)}
+        """Neue BASISFORMEL als Entwurf anlegen — nur wenn keine vorhandene passt (erst
+        liste_formeln/zeige_formel prüfen; die Regel ist instanziieren, nicht münzen). `ausdruck`
+        ist ein DSL-Ausdruck über die DEKLARIERTEN Parameter (nur vorhandenes Vokabular; erfinde
+        KEINE Funktion — siehe zeige_dsl_funktionen). Jeder im Ausdruck genutzte Name MUSS ein
+        deklarierter Parameter sein, und jeder Parameter MUSS im Ausdruck vorkommen. `beschreibung`
+        (Formel und jeder Parameter) ist Pflicht — ohne Prosa findet der Compiler die Formel nicht
+        wieder. Kanonische Einheiten (m, m², m³, t, h, €, St, l, km); Umrechnung passiert bei der
+        Bindung, nicht im Ausdruck. Nichts wird aktiviert — der Nutzer bestätigt auf der Karte.
+
+        `parameter`: [{name, einheit?, beschreibung, standard?}] — die formale Signatur; `standard`
+        ist der Rückfallwert, wenn eine Instanz den Parameter ungebunden lässt."""
+        formel = Formel(
+            name=name, ausdruck=ausdruck, einheit=einheit, beschreibung=beschreibung,
+            parameter=[FormelParameter.model_validate(p) for p in parameter],
+        )
+        entwurf = {
+            "name": name, "ausdruck": ausdruck, "einheit": einheit, "beschreibung": beschreibung,
+            "parameter": [p.model_dump(mode="json") for p in formel.parameter],
+            **_formel_latex(ausdruck),
+        }
         return await _speichern(
             dienst, KatalogBundle(formeln=[formel]),
             aktion="neu", entitaet=KatalogEntitaet.FORMELN.value, schluessel=name, entwurf=entwurf,
@@ -173,10 +189,12 @@ def katalog_schreib_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
 
     @tool(response_format="content_and_artifact")
     async def aendere_formel(
-        name: str, ausdruck: str | None = None, einheit: str | None = None
+        name: str, ausdruck: str | None = None, einheit: str | None = None,
+        beschreibung: str | None = None, parameter: list[dict[str, Any]] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Bestehende Formel ändern (Supersede). Nur die angegebenen Felder (ausdruck/einheit) werden
-        ersetzt; der Diff zeigt alt/neu inkl. beider LaTeX-Darstellungen."""
+        """Bestehende Basisformel ändern (Supersede). Nur die angegebenen Felder werden ersetzt; der
+        Diff zeigt alt/neu inkl. beider LaTeX-Darstellungen. Ändert der Ausdruck die Signatur, muss
+        `parameter` mitgeliefert werden (jeder genutzte Name deklariert, jeder Parameter genutzt)."""
         e = KatalogEntitaet.FORMELN.value
         zeile = await dienst.aktive_zeile(KatalogEntitaet.FORMELN, name)
         if zeile is None:
@@ -185,17 +203,30 @@ def katalog_schreib_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
         alt = zeile.payload
         neuer_ausdruck = ausdruck if ausdruck is not None else alt["ausdruck"]
         neue_einheit = einheit if einheit is not None else alt.get("einheit")
+        neue_beschreibung = beschreibung if beschreibung is not None else alt.get("beschreibung")
+        neue_parameter = (
+            [FormelParameter.model_validate(p) for p in parameter]
+            if parameter is not None
+            else [FormelParameter.model_validate(p) for p in (alt.get("parameter") or [])]
+        )
         formel = Formel(
-            name=name, ergebnis_variable=alt["ergebnis_variable"],
-            ausdruck=neuer_ausdruck, einheit=neue_einheit,
+            name=name, ausdruck=neuer_ausdruck, einheit=neue_einheit,
+            beschreibung=neue_beschreibung, parameter=neue_parameter,
         )
         diff = []
         if ausdruck is not None:
             diff.append({"feld": "ausdruck", "alt": alt["ausdruck"], "neu": neuer_ausdruck})
         if einheit is not None:
             diff.append({"feld": "einheit", "alt": alt.get("einheit"), "neu": neue_einheit})
+        if beschreibung is not None:
+            diff.append({"feld": "beschreibung", "alt": alt.get("beschreibung"), "neu": neue_beschreibung})
+        if parameter is not None:
+            diff.append({"feld": "parameter", "alt": alt.get("parameter"),
+                         "neu": [p.model_dump(mode="json") for p in neue_parameter]})
         entwurf = {
             "name": name, "ausdruck": neuer_ausdruck, "einheit": neue_einheit,
+            "beschreibung": neue_beschreibung,
+            "parameter": [p.model_dump(mode="json") for p in neue_parameter],
             **_formel_latex(neuer_ausdruck),
             "latex_alt": _formel_latex(alt["ausdruck"]).get("latex"),
         }
@@ -206,11 +237,13 @@ def katalog_schreib_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
 
     @tool(response_format="content_and_artifact")
     async def neue_stammdaten_variable(
-        name: str, bezeichnung: str, wert: float, einheit: str | None = None,
-        beschreibung: str | None = None,
+        name: str, bezeichnung: str, wert: float, beschreibung: str,
+        einheit: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Neue Stammdaten-Variable (ein Satz/Konstante, KONSTANTE-Kaskade) als Entwurf anlegen —
-        z. B. ein Lohngruppen-Satz. Für laufende Änderungen eines Satzes: aendere_stammdaten_wert."""
+        z. B. ein Lohngruppen-Satz. `beschreibung` ist Pflicht (Bedeutung, welchen Basisformel-
+        Parameter der Satz speist, wie er gepflegt wird) — ohne Prosa wird nichts gespeichert. Für
+        laufende Änderungen eines Satzes: aendere_stammdaten_wert."""
         vardef = VariableDefinition(
             name=name, bezeichnung=bezeichnung, beschreibung=beschreibung, einheit=einheit,
             aufloesung=[AufloesungsSchritt(methode=AufloesungsMethode.KONSTANTE, konstante=D(wert))],
@@ -266,13 +299,13 @@ def katalog_schreib_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
 
     @tool(response_format="content_and_artifact")
     async def neue_kontext_variable(
-        name: str, bezeichnung: str, einheit: str | None = None,
-        datentyp: Datentyp | None = None,
-        beschreibung: str | None = None, llm_hinweis: str | None = None,
-        default_wert: float | None = None,
+        name: str, bezeichnung: str, beschreibung: str,
+        einheit: str | None = None, datentyp: Datentyp | None = None,
+        llm_hinweis: str | None = None, default_wert: float | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Neue Kontext-Variable (situativer Eingabewert) als Entwurf anlegen. Die Kaskade wird
-        serverseitig gebaut: mit `llm_hinweis` LANGTEXT+RAG, sonst nur HITL; `default_wert` hängt eine
+        """Neue Kontext-Variable (situativer Eingabewert) als Entwurf anlegen. `beschreibung` ist
+        Pflicht (Bedeutung, welchen Parameter sie speist, Fallen). Die Kaskade wird serverseitig
+        gebaut: mit `llm_hinweis` LANGTEXT+RAG, sonst nur HITL; `default_wert` hängt eine
         KONSTANTE-Rückfallstufe an. `datentyp` default: dezimal."""
         schritte: list[AufloesungsSchritt] = []
         if llm_hinweis:

@@ -48,9 +48,10 @@ class PromptType(StrEnum):
     # is the katalog_chat agent + rezept_entwurf_speichern); existing conversations with this
     # discriminator must stay parseable, but run_turn treats them as not continuable.
     REZEPT_AUTOR = "rezept_autor"
-    # katalog_chat is a conversation discriminator (a read-only catalog chat that owns a
-    # create_agent tool loop over the persisted Katalog); its system prompt (the Katalog-Handbuch)
-    # is hardcoded in the service, so it ships no seeded .prompt file — grouped below.
+    # katalog_chat is a conversation discriminator (a catalog chat that owns a create_agent tool
+    # loop over the persisted Katalog); grouped below. Its system prompt is the SEEDED
+    # katalog_handbuch prompt (below) — this mirrors the EKT_CALCULATOR discriminator + ekt_* seeded
+    # prompts pattern.
     KATALOG_CHAT = "katalog_chat"
     # kalkulation_v2 prompts (the live graph).
     EKT_LEISTUNG_CLASSIFY = "ekt_leistung_classify"
@@ -59,6 +60,9 @@ class PromptType(StrEnum):
     EKT_OUTPUT_NARRATE = "ekt_output_narrate"
     # Dedicated synthesis over hybrid-RAG chunks for one project context global at a time.
     PROJECT_CONTEXT_RESOLVE = "project_context_resolve"
+    # The katalog_chat agent's system prompt (the Katalog-Handbuch) — a seeded, editable/versioned
+    # prompt loaded via get_latest, so the recipe-compiler eval measures the live prompt version.
+    KATALOG_HANDBUCH = "katalog_handbuch"
 
 
 # PromptType members that only DISCRIMINATE which conversation / StateGraph agent owns a

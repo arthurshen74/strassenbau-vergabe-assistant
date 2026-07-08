@@ -1,14 +1,15 @@
 """
-binden.py — apply selected machines to a recipe's cost variables.
+binden.py — apply selected machines to a recipe's cost computation.
 
-Given a Vorgang's machine binding (betriebsart_code -> leistung_variable, and
-kosten_bindung: cost_variable -> machine property key) and a chosen Maschine, produce
-the VariablenWert entries the calc consumes: cost variables from the property bag
-(a profile-specific override wins) plus the productivity from the machine's
-Leistungsprofil for that Betriebsart. The StateGraph writes these into `ctx.werte`
+Given a Vorgang's machine binding (betriebsart_code, leistung_instanz, and
+kosten_bindung: stammdaten rate variable -> machine property key) and a chosen Maschine,
+produce the VariablenWert entries the calc consumes: the Stammdaten rate variables are
+overridden from the property bag (a profile-specific override wins; global ctx hit), and
+the productivity from the machine's Leistungsprofil overrides the Vorgang's leistung
+instanz (Vorgang-scoped ctx hit). The StateGraph writes these into `ctx.werte`
 (machine-sourced, shown collapsed in Gate B); a slot with no machine — or a machine
-missing the needed profile/property — leaves the variable unfilled, so it falls to the
-catalog default / Gate B HITL.
+missing the needed profile/property — leaves the entry unfilled, so the calc falls back
+to the Stammdaten default / the Kurven-Instanz.
 """
 
 from __future__ import annotations
@@ -35,9 +36,10 @@ def maschinen_werte(vorgang: Vorgang, maschine: Maschine) -> dict[str, Variablen
         if mw is not None and isinstance(mw.wert, Decimal):
             werte[cost_var] = VariablenWert(name=cost_var, wert=mw.wert, quelle=M.STAMMDATEN, beleg=beleg)
 
-    if vorgang.leistung_variable and profil is not None:
-        werte[vorgang.leistung_variable] = VariablenWert(
-            name=vorgang.leistung_variable, wert=profil.leistung, quelle=M.STAMMDATEN,
+    if vorgang.leistung_instanz and profil is not None:
+        scoped = vorgang.instanz_scope(vorgang.leistung_instanz)
+        werte[scoped] = VariablenWert(
+            name=scoped, wert=profil.leistung, quelle=M.STAMMDATEN,
             beleg=f"{beleg} ({vorgang.betriebsart_code})")
     return werte
 

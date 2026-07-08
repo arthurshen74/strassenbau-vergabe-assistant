@@ -219,7 +219,8 @@ export interface PromptVersionRead {
     | "ekt_chat_values"
     | "ekt_langtext_extract"
     | "ekt_output_narrate"
-    | "project_context_resolve";
+    | "project_context_resolve"
+    | "katalog_handbuch";
   version: number;
   model_name: string;
   system_prompt: string;
@@ -244,7 +245,8 @@ export interface PromptVersionCreate {
     | "ekt_chat_values"
     | "ekt_langtext_extract"
     | "ekt_output_narrate"
-    | "project_context_resolve";
+    | "project_context_resolve"
+    | "katalog_handbuch";
   model_name: string;
   system_prompt: string;
   temperature?: number | null;
@@ -270,7 +272,8 @@ export interface ConversationRead {
     | "ekt_chat_values"
     | "ekt_langtext_extract"
     | "ekt_output_narrate"
-    | "project_context_resolve";
+    | "project_context_resolve"
+    | "katalog_handbuch";
   calculation_status?: ("awaiting_start" | "running" | "awaiting_input" | "complete" | "failed") | null;
   lv_item_uuid?: string | null;
   title?: string | null;
@@ -293,7 +296,8 @@ export interface ConversationCreate {
     | "ekt_chat_values"
     | "ekt_langtext_extract"
     | "ekt_output_narrate"
-    | "project_context_resolve";
+    | "project_context_resolve"
+    | "katalog_handbuch";
   project_uuid?: string | null;
   title?: string | null;
 }
@@ -570,6 +574,26 @@ export interface BundleZustandAnsicht {
 export interface BundleBericht {
   fehler?: string[];
   aktualisierungen?: string[];
+}
+
+export interface KatalogZeile {
+  zeile_uuid: string;
+  schluessel: string;
+  version: number;
+  /**
+   * Lifecycle state of a catalog row. The single source for these values.
+   *
+   * `verworfen` and `archiviert` are distinct ends: a discarded draft was never in force, a
+   * superseded version was. Only activation writes `archiviert`.
+   */
+  status: "entwurf" | "aktiv" | "verworfen" | "archiviert";
+  bundle_uuid?: string | null;
+  benutzer?: string | null;
+  gueltig_ab: string;
+  gueltig_bis?: string | null;
+  payload: {
+    [k: string]: unknown;
+  };
 }
 
 export interface GoldVariable {

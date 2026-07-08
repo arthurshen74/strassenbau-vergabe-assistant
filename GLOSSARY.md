@@ -187,7 +187,7 @@ The calculator's reference data is a persisted catalog (`katalog_*` tables in Po
 
 **Bauverfahren** — Construction procedure. An ordered list of Vorgänge that fulfils a Leistung; the Leistung–Bauverfahren mapping records which procedures can fulfil which service.
 
-**Vorgang** (Pl. Vorgänge) — One operation within a Bauverfahren. Declares which cost variable yields each Kostenart cost line and, where a machine is involved, the Betriebsart plus the binding from machine properties to cost variables.
+**Vorgang** (Pl. Vorgänge) — One operation within a Bauverfahren. Carries a **Rechnung**: named quantity/curve Instanzen plus, per Kostenart, one or more cost-line Instanzen — each an instantiation of a Basisformel (see Instanz). Where a machine is involved it also names the Betriebsart and the binding from machine properties to the cost-rate variables.
 
 **Ausführungsart** — Equipment slot. The kind of machine a Vorgang requires; each Maschine declares which Ausführungsart slot it can fill.
 
@@ -199,9 +199,15 @@ The calculator's reference data is a persisted catalog (`katalog_*` tables in Po
 
 **Baustoff** (Pl. Baustoffe) — Material. Carries Rohdichte (density, t/m³), Verdichtungsfaktor (compaction factor), Körnung (grading), and base prices; supplier-specific dated prices live on the Lieferant.
 
-**Variable** (Pl. Variablen) — A managed calculation input with an ordered resolution cascade (Auflösung): each step is one method — `langtext` (extract from the Position text), `rag` (retrieve from project documents), `hitl` (ask the human), `stammdaten` (master-data lookup), `formel` (compute), `konstante` (fixed value) — tried top to bottom until one yields an accepted value. Resolved values carry provenance: Quelle (source), Konfidenz (confidence), Beleg (evidence).
+**Variable** (Pl. Variablen) — A managed calculation input with an ordered resolution cascade (Auflösung): each step is one method — `langtext` (extract from the Position text), `rag` (retrieve from project documents), `hitl` (ask the human), `stammdaten` (master-data lookup), `konstante` (fixed value) — tried top to bottom until one yields an accepted value. Two groups survive: `stammdaten` (rates + Baustoff bridges) and `kontext` (situational inputs incl. the geometry placeholders). Resolved values carry provenance: Quelle (source), Konfidenz (confidence), Beleg (evidence). (The `formel` method/group is retired — computation now lives on the Vorgang Rechnung, not on variables.)
 
-**Formel** (Pl. Formeln) — A formula in the calculator's expression DSL producing one result variable; validated against the known variables and the DSL function whitelist before saving.
+**Formel / Basisformel** (Pl. Formeln) — A **base formula**: one expression in the calculator's restricted DSL over **declared formal parameters** (`{name, einheit, beschreibung}`), written once in canonical units. About 16 cover the whole catalog (e.g. `F_STUNDEN = menge / leistung`, `F_MASCHINE`, `F_KOSTEN_SATZ`, the Mengengerüst formulas). Save-time validation requires closure over the signature, mandatory prose, and rejects a formula structurally identical to an existing base formula.
+
+**Instanz / FormelInstanz** — One application of a Basisformel inside a Vorgang's Rechnung: a dict binding the formula's parameters to source paths (`kontext.<var>`, `stammdaten.<var>`, `baustoff.<feld>`, `formel.<instanz>`, or a literal). Unit scaling (cm→m, kg→t) happens at the binding seam; a dimension change (m³→t) is a Mengengerüst formula, not a binding.
+
+**Mengengerüst** — The quantity-derivation formulas that bridge dimensions (`F_MENGE_VOLUMEN` m³→t, `F_VOLUMEN_FLAECHE` m²→m³, `F_MENGE_ANSATZ` Ansatz→t, …). A recipe chains these instead of doing unit arithmetic inside an expression.
+
+**Ontologie** (calculator) — The layer that tells the recipe compiler where each input lives: the static binding-path grammar + the retrieval-grade `beschreibung` prose on every formula, parameter and variable. Surfaced by the `ontologie_lookup` tool and enforced by bundle validation (mandatory prose, binding-path + unit compatibility, structural formula dedup).
 
 ## Standards and Regulatory References
 

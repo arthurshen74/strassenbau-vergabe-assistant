@@ -65,6 +65,17 @@ async def liste_aktive(
     return await service.aktive(entitaet)
 
 
+@router.get("/{entitaet}/{schluessel}/versionen", response_model=list[KatalogZeile])
+async def liste_versionen(
+    entitaet: KatalogEntitaet,
+    schluessel: str,
+    service: KatalogService = Depends(get_katalog_service),
+) -> list[KatalogZeile]:
+    """Every version of one entry (any status), oldest first — the SCD-2 timeline behind the
+    Katalog UI's Versionshistorie."""
+    return await service.versionen(entitaet, schluessel)
+
+
 @router.get("/bundle/{bundle_uuid}", response_model=BundleZustandAnsicht)
 async def bundle_ansicht(
     bundle_uuid: UUID,

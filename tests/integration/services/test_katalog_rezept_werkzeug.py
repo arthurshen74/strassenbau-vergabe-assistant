@@ -62,27 +62,39 @@ async def _offene_bundles(engine: AsyncEngine) -> int:
 
 
 def _kappen_rezept(aa_code: str) -> dict[str, Any]:
-    """An R2-style Stück recipe: hand work over `anzahl_st` (D4), reusing the seeded labour rate."""
+    """An R2-style Stück recipe: hand work over `anzahl_st` (D4). The redesign shape — the Vorgang's
+    Rechnung INSTANTIATES seeded base formulas (F_STUNDEN, F_LOHN, F_KOSTEN_SATZ); only the two
+    company-knowledge rates are minted. No recipe-specific formulas."""
     return {
         "leistungen": [{"code": "L_TEST_KAPPE", "name": "Schieberkappe regulieren", "einheit": "St"}],
         "bauverfahren": [{"code": "BV_TEST_KAPPE", "name": "Kappe von Hand regulieren",
                           "vorgang_codes": ["V_TEST_KAPPE"]}],
-        "vorgaenge": [{"code": "V_TEST_KAPPE", "name": "Schieberkappe freilegen und auf Höhe setzen",
-                       "ausfuehrungsart_code": aa_code,
-                       "kostenvariablen": {"Lohn": "test_kappe_lohn_eur",
-                                           "Material": "test_kappe_material_eur"}}],
-        "formeln": [
-            {"name": "test_kappe_stunden", "ausdruck": "anzahl_st / test_kappen_pro_h", "einheit": "h"},
-            {"name": "test_kappe_lohn_eur",
-             "ausdruck": "test_kappe_stunden * anzahl_arbeiter * stundenlohn_eur", "einheit": "€"},
-            {"name": "test_kappe_material_eur",
-             "ausdruck": "anzahl_st * test_kleinmaterial_eur_pro_st", "einheit": "€"},
-        ],
+        "vorgaenge": [{
+            "code": "V_TEST_KAPPE", "name": "Schieberkappe freilegen und auf Höhe setzen",
+            "ausfuehrungsart_code": aa_code,
+            "rechnung": {
+                "instanzen": {
+                    "arbeitszeit": {"formel": "F_STUNDEN", "bindung": {
+                        "menge": "kontext.anzahl_st", "leistung": "stammdaten.test_kappen_pro_h"}},
+                },
+                "kosten": {
+                    "Lohn": [{"formel": "F_LOHN", "bindung": {
+                        "stunden": "formel.arbeitszeit", "stundenlohn": "stammdaten.stundenlohn_eur",
+                        "kolonne": "kontext.anzahl_arbeiter"}}],
+                    "Material": [{"formel": "F_KOSTEN_SATZ", "bindung": {
+                        "menge": "kontext.anzahl_st", "satz": "stammdaten.test_kleinmaterial_eur_pro_st"}}],
+                },
+            },
+        }],
         "variablen": [
             {"name": "test_kappen_pro_h", "gruppe": "stammdaten",
-             "bezeichnung": "Regulier-Leistung Schieberkappen", "wert": 4, "einheit": "St/h"},
+             "bezeichnung": "Regulier-Leistung Schieberkappen", "wert": 4, "einheit": "St/h",
+             "beschreibung": "Anzahl regulierter Schieberkappen je Stunde; leistung-Parameter von "
+                             "F_STUNDEN für V_TEST_KAPPE."},
             {"name": "test_kleinmaterial_eur_pro_st", "gruppe": "stammdaten",
-             "bezeichnung": "Mörtel und Kleinmaterial je Kappe", "wert": 5, "einheit": "€/St"},
+             "bezeichnung": "Mörtel und Kleinmaterial je Kappe", "wert": 5, "einheit": "€/St",
+             "beschreibung": "Mörtel-/Kleinmaterialkosten je Kappe; satz-Parameter der "
+                             "F_KOSTEN_SATZ-Materialzeile."},
         ],
         "leistung_bauverfahren": {"L_TEST_KAPPE": ["BV_TEST_KAPPE"]},
     }
@@ -90,6 +102,9 @@ def _kappen_rezept(aa_code: str) -> dict[str, Any]:
 
 def _kappen_wiederverwendung(aa_code: str) -> list[dict[str, str]]:
     return [
+        {"code": "F_STUNDEN", "warum": "Basisformel Arbeitszeit = Menge / Leistung"},
+        {"code": "F_LOHN", "warum": "Basisformel Lohnkosten"},
+        {"code": "F_KOSTEN_SATZ", "warum": "Basisformel Menge × Satz"},
         {"code": "anzahl_st", "warum": "St-Geometrie aus der LV-Menge"},
         {"code": "anzahl_arbeiter", "warum": "Kolonnenstärke, Standard 2"},
         {"code": "stundenlohn_eur", "warum": "Stammdaten-Lohnsatz"},
@@ -101,9 +116,6 @@ _KAPPEN_NEU = [
     {"code": "L_TEST_KAPPE", "warum_nicht_vorhanden": "keine Leistung für Schieberkappen"},
     {"code": "BV_TEST_KAPPE", "warum_nicht_vorhanden": "neues Verfahren"},
     {"code": "V_TEST_KAPPE", "warum_nicht_vorhanden": "neuer Arbeitsschritt"},
-    {"code": "test_kappe_stunden", "warum_nicht_vorhanden": "rezeptspezifische Formel"},
-    {"code": "test_kappe_lohn_eur", "warum_nicht_vorhanden": "rezeptspezifische Formel"},
-    {"code": "test_kappe_material_eur", "warum_nicht_vorhanden": "rezeptspezifische Formel"},
     {"code": "test_kappen_pro_h", "warum_nicht_vorhanden": "neuer Leistungsansatz"},
     {"code": "test_kleinmaterial_eur_pro_st", "warum_nicht_vorhanden": "neuer Satz"},
 ]
@@ -119,21 +131,46 @@ async def test_w18_rezept_speichert_einen_bundle(rezept) -> None:
     )
     assert art["bericht"]["fehler"] == []
     assert art["bundle_uuid"] and art["aktion"] == "rezept" and art["schluessel"] == "L_TEST_KAPPE"
-    # The envelope is the card content: sections, per-Formel LaTeX, justification lists.
-    assert art["entwurf"]["formeln"][0]["latex"]
-    assert {e["code"] for e in art["wiederverwendung"]} == {"anzahl_st", "anzahl_arbeiter",
-                                                            "stundenlohn_eur", aa}
+    # Search-before-create: the recipe instantiates existing base formulas, mints none.
+    assert art["entwurf"]["formeln"] == []
+    assert {e["code"] for e in art["wiederverwendung"]} == {
+        "F_STUNDEN", "F_LOHN", "F_KOSTEN_SATZ", "anzahl_st", "anzahl_arbeiter", "stundenlohn_eur", aa
+    }
     assert len(art["neu"]) == len(_KAPPEN_NEU)
-    # One draft bundle: every row entwurf, FORMEL variables ride along automatically.
+    # One draft bundle: every row entwurf; only the two minted rates are new VARIABLEN
+    # (formulas are no longer variables, so none ride along), and no FORMELN row is minted.
     async with engine.connect() as conn:
         gruppen = await KatalogRepository(conn).nach_bundle(UUID(art["bundle_uuid"]))
     assert all(z.status == KatalogStatus.ENTWURF for zs in gruppen.values() for z in zs)
     assert {z.schluessel for z in gruppen[KatalogEntitaet.LEISTUNGEN]} == {"L_TEST_KAPPE"}
     assert {z.schluessel for z in gruppen[KatalogEntitaet.VARIABLEN]} == {
         "test_kappen_pro_h", "test_kleinmaterial_eur_pro_st",
-        "test_kappe_stunden", "test_kappe_lohn_eur", "test_kappe_material_eur",
     }
+    assert KatalogEntitaet.FORMELN not in gruppen
     # Clean up the draft so later tests count open bundles from a known state.
+    await KatalogService(engine).bundle_verwerfen(UUID(art["bundle_uuid"]))
+
+
+async def test_w18_neue_basisformel_wird_gemuenzt(rezept) -> None:
+    """Minting a genuinely new base formula: the declared parameter signature + prose ride the
+    bundle and the envelope renders its LaTeX + parameters."""
+    engine, werkzeug = rezept
+    bundle = {
+        "formeln": [{
+            "name": "F_TEST_GRUNDZUSCHLAG", "ausdruck": "grundpreis + zuschlag * menge", "einheit": "€",
+            "beschreibung": "Grundbetrag plus mengenabhängiger Zuschlag.",
+            "parameter": [
+                {"name": "grundpreis", "einheit": "€", "beschreibung": "Fixer Grundbetrag je Position."},
+                {"name": "zuschlag", "einheit": "€/t", "beschreibung": "Zuschlag je Tonne."},
+                {"name": "menge", "einheit": "t", "beschreibung": "Bezugsmenge."},
+            ],
+        }],
+    }
+    art = await _call(werkzeug, bundle=bundle, wiederverwendung=[],
+                      neu=[{"code": "F_TEST_GRUNDZUSCHLAG", "warum_nicht_vorhanden": "neue Preisform"}])
+    assert art["bericht"]["fehler"] == []
+    (f,) = art["entwurf"]["formeln"]
+    assert f["latex"] and {p["name"] for p in f["parameter"]} == {"grundpreis", "zuschlag", "menge"}
     await KatalogService(engine).bundle_verwerfen(UUID(art["bundle_uuid"]))
 
 
@@ -141,7 +178,8 @@ async def test_w18_kontext_variable_kaskade_serverseitig(rezept) -> None:
     engine, werkzeug = rezept
     bundle = {
         "variablen": [{"name": "test_ktx_tiefe", "gruppe": "kontext", "bezeichnung": "Testtiefe",
-                       "einheit": "cm", "llm_hinweis": "Aus dem Langtext.", "default_wert": 3}],
+                       "einheit": "cm", "llm_hinweis": "Aus dem Langtext.", "default_wert": 3,
+                       "beschreibung": "Test-Kontexttiefe in cm; situativer Eingabewert."}],
     }
     art = await _call(werkzeug, bundle=bundle, wiederverwendung=[],
                       neu=[{"code": "test_ktx_tiefe", "warum_nicht_vorhanden": "neu"}])
@@ -208,8 +246,8 @@ async def test_w18_fremde_geometrie_warnt_blockiert_nicht(rezept) -> None:
     engine, werkzeug = rezept
     aa = await _erste_aa(engine)
     bundle = _kappen_rezept(aa)
-    # A St-billed recipe whose hours formula runs over volumen_m3 instead of anzahl_st.
-    bundle["formeln"][0]["ausdruck"] = "volumen_m3 / test_kappen_pro_h"
+    # A St-billed recipe whose Arbeitszeit-Instanz binds volumen_m3 instead of the booked anzahl_st.
+    bundle["vorgaenge"][0]["rechnung"]["instanzen"]["arbeitszeit"]["bindung"]["menge"] = "kontext.volumen_m3"
     art = await _call(
         werkzeug, bundle=bundle,
         wiederverwendung=_kappen_wiederverwendung(aa)

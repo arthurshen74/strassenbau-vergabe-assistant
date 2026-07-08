@@ -1,0 +1,2553 @@
+{
+ "katalog_stand": 11,
+ "positionen": {
+  "01.00.0002": {
+   "ok": true,
+   "bauverfahren": "BV_BODENABTRAG",
+   "einheit": "m3",
+   "ekt_eur": "20204.78",
+   "ep_eur": "40.41",
+   "linien": [
+    {
+     "vorgang": "V_BODENABTRAG",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "1552.78"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "1400.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "15200.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "2052.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.00.0003": {
+   "ok": true,
+   "bauverfahren": "BV_BODEN_GROBK",
+   "einheit": "m3",
+   "ekt_eur": "3220.32",
+   "ep_eur": "32.20",
+   "linien": [
+    {
+     "vorgang": "V_BODEN_GROBK_LEGEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "1895.25"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "315.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "280.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "335.16"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BODEN_GROBK_PROFIL",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "159.33"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "56.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BODEN_GROBK_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "109.58"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "70.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.00.0004": {
+   "ok": true,
+   "bauverfahren": "BV_BANKETT_GRADER",
+   "einheit": "m3",
+   "ekt_eur": "34950.69",
+   "ep_eur": "61.32",
+   "linien": [
+    {
+     "vorgang": "V_BANKETT_LEGEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "24259.20"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "2154.60"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "2872.80"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "2145.02"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BANKETT_PROFIL",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "1135.25"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "399.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BANKETT_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "1129.82"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "855.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.00.0005": {
+   "ok": true,
+   "bauverfahren": "BV_OBERBODEN_GRADER",
+   "einheit": "m3",
+   "ekt_eur": "2401.80",
+   "ep_eur": "20.02",
+   "linien": [
+    {
+     "vorgang": "V_OBERBODEN_GRADER",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "1260.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "717.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "252.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "172.80"
+      }
+     ]
+    }
+   ]
+  },
+  "01.00.0008": {
+   "ok": true,
+   "bauverfahren": "BV_OBERBODEN_HAND",
+   "einheit": "m3",
+   "ekt_eur": "6803.40",
+   "ep_eur": "29.58",
+   "linien": [
+    {
+     "vorgang": "V_OBERBODEN_HAND",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2415.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "4057.20"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "331.20"
+      }
+     ]
+    }
+   ]
+  },
+  "01.01.0001": {
+   "ok": true,
+   "bauverfahren": "BV_ERSCHWERNIS",
+   "einheit": "m",
+   "ekt_eur": "340.00",
+   "ep_eur": "8.50",
+   "linien": [
+    {
+     "vorgang": "V_ERSCHWERNIS",
+     "positionen": [
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "340.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.01.0002": {
+   "ok": true,
+   "bauverfahren": "BV_ERSCHWERNIS",
+   "einheit": "m",
+   "ekt_eur": "340.00",
+   "ep_eur": "8.50",
+   "linien": [
+    {
+     "vorgang": "V_ERSCHWERNIS",
+     "positionen": [
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "340.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0001": {
+   "ok": true,
+   "bauverfahren": "BV_MARKIERUNG",
+   "einheit": "m",
+   "ekt_eur": "4830.75",
+   "ep_eur": "1.70",
+   "linien": [
+    {
+     "vorgang": "V_MARKIERUNG",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "2009.25"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "2394.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "427.50"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0002": {
+   "ok": true,
+   "bauverfahren": "BV_MARKIERUNG",
+   "einheit": "m",
+   "ekt_eur": "886.66",
+   "ep_eur": "1.87",
+   "linien": [
+    {
+     "vorgang": "V_MARKIERUNG",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "372.08"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "443.33"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "71.25"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0003": {
+   "ok": true,
+   "bauverfahren": "BV_SCHNEIDEN",
+   "einheit": "m",
+   "ekt_eur": "36.27",
+   "ep_eur": "2.42",
+   "linien": [
+    {
+     "vorgang": "V_SCHNEIDEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "13.36"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "22.91"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0004": {
+   "ok": true,
+   "bauverfahren": "BV_SCHNEIDEN",
+   "einheit": "m",
+   "ekt_eur": "63.48",
+   "ep_eur": "4.23",
+   "linien": [
+    {
+     "vorgang": "V_SCHNEIDEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "23.39"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "40.09"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0005": {
+   "ok": true,
+   "bauverfahren": "BV_FRAESEN",
+   "einheit": "m2",
+   "ekt_eur": "980.64",
+   "ep_eur": "2.45",
+   "linien": [
+    {
+     "vorgang": "V_FRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "756.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "201.60"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "23.04"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0006": {
+   "ok": true,
+   "bauverfahren": "BV_FRAESEN",
+   "einheit": "m2",
+   "ekt_eur": "13347.36",
+   "ep_eur": "1.71",
+   "linien": [
+    {
+     "vorgang": "V_FRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "9828.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "2620.80"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "898.56"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0007": {
+   "ok": true,
+   "bauverfahren": "BV_FRAESEN",
+   "einheit": "m2",
+   "ekt_eur": "23357.88",
+   "ep_eur": "2.99",
+   "linien": [
+    {
+     "vorgang": "V_FRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "17199.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "4586.40"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "1572.48"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0008": {
+   "ok": true,
+   "bauverfahren": "BV_FRAESEN",
+   "einheit": "m2",
+   "ekt_eur": "6271.68",
+   "ep_eur": "1.33",
+   "linien": [
+    {
+     "vorgang": "V_FRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "4737.60"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "1263.36"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "270.72"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0009": {
+   "ok": true,
+   "bauverfahren": "BV_SCHNEIDEN",
+   "einheit": "m",
+   "ekt_eur": "9068.18",
+   "ep_eur": "6.05",
+   "linien": [
+    {
+     "vorgang": "V_SCHNEIDEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "3340.91"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "5727.27"
+      }
+     ]
+    }
+   ]
+  },
+  "01.02.0010": {
+   "ok": true,
+   "bauverfahren": "BV_AUFBRECHEN",
+   "einheit": "m2",
+   "ekt_eur": "2370.60",
+   "ep_eur": "5.27",
+   "linien": [
+    {
+     "vorgang": "V_AUFBRECHEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "1485.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "756.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "129.60"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0001": {
+   "ok": true,
+   "bauverfahren": "BV_BODENABTRAG",
+   "einheit": "m3",
+   "ekt_eur": "8169.91",
+   "ep_eur": "40.85",
+   "linien": [
+    {
+     "vorgang": "V_BODENABTRAG",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "621.11"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "560.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "6240.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "748.80"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0002": {
+   "ok": true,
+   "bauverfahren": "BV_PLANUM",
+   "einheit": "m2",
+   "ekt_eur": "1023.15",
+   "ep_eur": "1.08",
+   "linien": [
+    {
+     "vorgang": "V_PLANUM",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "703.95"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "319.20"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0003": {
+   "ok": true,
+   "bauverfahren": "BV_VERDICHTEN",
+   "einheit": "m2",
+   "ekt_eur": "355.66",
+   "ep_eur": "0.37",
+   "linien": [
+    {
+     "vorgang": "V_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "156.16"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "199.50"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0004": {
+   "ok": true,
+   "bauverfahren": "BV_FSS_GRADER",
+   "einheit": "m3",
+   "ekt_eur": "5374.76",
+   "ep_eur": "53.75",
+   "linien": [
+    {
+     "vorgang": "V_FSS_LEGEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "4256.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "236.25"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "210.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "376.32"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_PROFIL",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "119.50"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "42.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "82.19"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "52.50"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0005": {
+   "ok": true,
+   "bauverfahren": "BV_ASPHALT_EINBAU",
+   "einheit": "t",
+   "ekt_eur": "33671.11",
+   "ep_eur": "84.18",
+   "linien": [
+    {
+     "vorgang": "V_ASPHALT_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "28800.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "2311.11"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "1120.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "1440.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0006": {
+   "ok": true,
+   "bauverfahren": "BV_NAHT",
+   "einheit": "m",
+   "ekt_eur": "2162.50",
+   "ep_eur": "1.44",
+   "linien": [
+    {
+     "vorgang": "V_NAHT",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "1020.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "302.50"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "840.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0007": {
+   "ok": true,
+   "bauverfahren": "BV_BODENABTRAG",
+   "einheit": "m3",
+   "ekt_eur": "2394.97",
+   "ep_eur": "39.92",
+   "linien": [
+    {
+     "vorgang": "V_BODENABTRAG",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "186.33"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "112.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "1872.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "224.64"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0008": {
+   "ok": true,
+   "bauverfahren": "BV_PLANUM",
+   "einheit": "m2",
+   "ekt_eur": "323.10",
+   "ep_eur": "1.08",
+   "linien": [
+    {
+     "vorgang": "V_PLANUM",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "222.30"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "100.80"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0009": {
+   "ok": true,
+   "bauverfahren": "BV_VERDICHTEN",
+   "einheit": "m2",
+   "ekt_eur": "112.31",
+   "ep_eur": "0.37",
+   "linien": [
+    {
+     "vorgang": "V_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "49.31"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "63.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.03.0010": {
+   "ok": true,
+   "bauverfahren": "BV_FSS_GRADER",
+   "einheit": "m3",
+   "ekt_eur": "3305.66",
+   "ep_eur": "55.09",
+   "linien": [
+    {
+     "vorgang": "V_FSS_LEGEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2553.60"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "141.75"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "126.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "225.79"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_PROFIL",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "71.70"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "25.20"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "98.62"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "63.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0001": {
+   "ok": true,
+   "bauverfahren": "BV_REINIGEN_KEHREN",
+   "einheit": "m2",
+   "ekt_eur": "1144.00",
+   "ep_eur": "0.15",
+   "linien": [
+    {
+     "vorgang": "V_REINIGEN_KEHREN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "481.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "273.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "390.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0002": {
+   "ok": true,
+   "bauverfahren": "BV_REINIGEN_HD",
+   "einheit": "m2",
+   "ekt_eur": "4414.80",
+   "ep_eur": "0.57",
+   "linien": [
+    {
+     "vorgang": "V_REINIGEN_HD",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "2028.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "436.80"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "1950.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0003": {
+   "ok": true,
+   "bauverfahren": "BV_ANSPRITZEN",
+   "einheit": "m2",
+   "ekt_eur": "2084.19",
+   "ep_eur": "1.44",
+   "linien": [
+    {
+     "vorgang": "V_ANSPRITZEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2030.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "38.97"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "15.22"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0005": {
+   "ok": true,
+   "bauverfahren": "BV_ANSPRITZEN",
+   "einheit": "m2",
+   "ekt_eur": "1695.52",
+   "ep_eur": "0.22",
+   "linien": [
+    {
+     "vorgang": "V_ANSPRITZEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "1404.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "209.62"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "81.90"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0007": {
+   "ok": true,
+   "bauverfahren": "BV_ANSPRITZEN",
+   "einheit": "m2",
+   "ekt_eur": "1695.52",
+   "ep_eur": "0.22",
+   "linien": [
+    {
+     "vorgang": "V_ANSPRITZEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "1404.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "209.62"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "81.90"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0004": {
+   "ok": true,
+   "bauverfahren": "BV_GRID",
+   "einheit": "m2",
+   "ekt_eur": "10179.00",
+   "ep_eur": "7.02",
+   "linien": [
+    {
+     "vorgang": "V_GRID_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "9425.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "145.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "609.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0006": {
+   "ok": true,
+   "bauverfahren": "BV_ASPHALT_EINBAU",
+   "einheit": "t",
+   "ekt_eur": "165637.78",
+   "ep_eur": "87.18",
+   "linien": [
+    {
+     "vorgang": "V_ASPHALT_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "142500.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "10977.78"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "5320.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "6840.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0008": {
+   "ok": true,
+   "bauverfahren": "BV_ASPHALT_EINBAU",
+   "einheit": "m2",
+   "ekt_eur": "132225.60",
+   "ep_eur": "16.95",
+   "linien": [
+    {
+     "vorgang": "V_ASPHALT_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "115128.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "8112.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "3931.20"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "5054.40"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0009": {
+   "ok": true,
+   "bauverfahren": "BV_ASPHALT_EINBAU",
+   "einheit": "m2",
+   "ekt_eur": "50159.20",
+   "ep_eur": "6.43",
+   "linien": [
+    {
+     "vorgang": "V_ASPHALT_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "44460.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "2704.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "1310.40"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "1684.80"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0010": {
+   "ok": true,
+   "bauverfahren": "BV_ABSTUMPFEN",
+   "einheit": "m2",
+   "ekt_eur": "1078.35",
+   "ep_eur": "0.14",
+   "linien": [
+    {
+     "vorgang": "V_ABSTUMPFEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "234.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "235.95"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "218.40"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "390.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0011": {
+   "ok": true,
+   "bauverfahren": "BV_REINIGEN_KEHREN",
+   "einheit": "m2",
+   "ekt_eur": "1144.00",
+   "ep_eur": "0.15",
+   "linien": [
+    {
+     "vorgang": "V_REINIGEN_KEHREN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "481.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "273.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "390.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0012": {
+   "ok": true,
+   "bauverfahren": "BV_NAHT",
+   "einheit": "m",
+   "ekt_eur": "23.73",
+   "ep_eur": "1.19",
+   "linien": [
+    {
+     "vorgang": "V_NAHT",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "8.50"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "4.03"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "11.20"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0013": {
+   "ok": true,
+   "bauverfahren": "BV_NAHT_AUFWEITEN",
+   "einheit": "m",
+   "ekt_eur": "44.33",
+   "ep_eur": "2.22",
+   "linien": [
+    {
+     "vorgang": "V_NAHT_AUFWEITEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "16.33"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "28.00"
+      }
+     ]
+    }
+   ]
+  },
+  "01.04.0014": {
+   "ok": true,
+   "bauverfahren": "BV_FUGENFUELLUNG",
+   "einheit": "m",
+   "ekt_eur": "39.71",
+   "ep_eur": "1.99",
+   "linien": [
+    {
+     "vorgang": "V_FUGENFUELLUNG",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "9.90"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "8.81"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "21.00"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "synthetisch": {
+  "SYN::L_ABSTUMPFUNG::BV_ABSTUMPFEN": {
+   "ok": true,
+   "bauverfahren": "BV_ABSTUMPFEN",
+   "einheit": "m2",
+   "ekt_eur": "13.82",
+   "ep_eur": "0.14",
+   "linien": [
+    {
+     "vorgang": "V_ABSTUMPFEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "3.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "3.02"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "2.80"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "5.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_ANSPRITZEN::BV_ANSPRITZEN": {
+   "ok": true,
+   "bauverfahren": "BV_ANSPRITZEN",
+   "einheit": "m2",
+   "ekt_eur": "4.34",
+   "ep_eur": "0.04",
+   "linien": [
+    {
+     "vorgang": "V_ANSPRITZEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "0.60"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "2.69"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "1.05"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_ASPHALTBINDER::BV_ASPHALT_EINBAU": {
+   "ok": true,
+   "bauverfahren": "BV_ASPHALT_EINBAU",
+   "einheit": "m2",
+   "ekt_eur": "387.63",
+   "ep_eur": "3.88",
+   "linien": [
+    {
+     "vorgang": "V_ASPHALT_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "288.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "55.47"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "26.88"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "17.28"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_ASPHALTDECK::BV_ASPHALT_EINBAU": {
+   "ok": true,
+   "bauverfahren": "BV_ASPHALT_EINBAU",
+   "einheit": "m2",
+   "ekt_eur": "387.63",
+   "ep_eur": "3.88",
+   "linien": [
+    {
+     "vorgang": "V_ASPHALT_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "288.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "55.47"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "26.88"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "17.28"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_ASPHALTEINLAGE::BV_GRID": {
+   "ok": true,
+   "bauverfahren": "BV_GRID",
+   "einheit": "m2",
+   "ekt_eur": "3052.00",
+   "ep_eur": "30.52",
+   "linien": [
+    {
+     "vorgang": "V_GRID_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "3000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "10.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "42.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_ASPHALTTRAGSCHICHT::BV_ASPHALT_EINBAU": {
+   "ok": true,
+   "bauverfahren": "BV_ASPHALT_EINBAU",
+   "einheit": "t",
+   "ekt_eur": "4037.78",
+   "ep_eur": "40.38",
+   "linien": [
+    {
+     "vorgang": "V_ASPHALT_EINBAU",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "3000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "577.78"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "280.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_ASPHALT_HAND::BV_ASPHALT_HAND": {
+   "ok": true,
+   "bauverfahren": "BV_ASPHALT_HAND",
+   "einheit": "m2",
+   "ekt_eur": "994.66",
+   "ep_eur": "9.95",
+   "linien": [
+    {
+     "vorgang": "V_ASPHALT_HAND",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "288.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "164.38"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "525.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "17.28"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_AUFBRECHEN::BV_AUFBRECHEN": {
+   "ok": true,
+   "bauverfahren": "BV_AUFBRECHEN",
+   "einheit": "m2",
+   "ekt_eur": "312.60",
+   "ep_eur": "3.13",
+   "linien": [
+    {
+     "vorgang": "V_AUFBRECHEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "165.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "126.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "21.60"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_AUFBRECHEN::BV_FRAESEN": {
+   "ok": true,
+   "bauverfahren": "BV_FRAESEN",
+   "einheit": "m2",
+   "ekt_eur": "242.10",
+   "ep_eur": "2.42",
+   "linien": [
+    {
+     "vorgang": "V_FRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "157.50"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "63.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "21.60"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_BANKETTBEF::BV_BANKETT_GRADER": {
+   "ok": true,
+   "bauverfahren": "BV_BANKETT_GRADER",
+   "einheit": "m3",
+   "ekt_eur": "3473.59",
+   "ep_eur": "34.74",
+   "linien": [
+    {
+     "vorgang": "V_BANKETT_LEGEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "378.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "504.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BANKETT_PROFIL",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "132.78"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "46.67"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BANKETT_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "132.14"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "100.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_BANKETTBEF::BV_BANKETT_FERTIGER": {
+   "ok": true,
+   "bauverfahren": "BV_BANKETT_FERTIGER",
+   "einheit": "m3",
+   "ekt_eur": "2669.76",
+   "ep_eur": "26.70",
+   "linien": [
+    {
+     "vorgang": "V_BANKETT_FERTIGER",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "137.62"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "120.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BANKETT_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "132.14"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "100.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_BANKETT_ABTRAGEN::BV_BODENABTRAG": {
+   "ok": true,
+   "bauverfahren": "BV_BODENABTRAG",
+   "einheit": "m3",
+   "ekt_eur": "2370.56",
+   "ep_eur": "23.71",
+   "linien": [
+    {
+     "vorgang": "V_BODENABTRAG",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "310.56"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "280.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "1600.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_BODEN_EINBAU_GROBK::BV_BODEN_GROBK": {
+   "ok": true,
+   "bauverfahren": "BV_BODEN_GROBK",
+   "einheit": "m3",
+   "ekt_eur": "3309.91",
+   "ep_eur": "33.10",
+   "linien": [
+    {
+     "vorgang": "V_BODEN_GROBK_LEGEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "315.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "420.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BODEN_GROBK_PROFIL",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "159.33"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "56.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_BODEN_GROBK_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "109.58"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "70.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_BODEN_LOESEN::BV_BODENABTRAG": {
+   "ok": true,
+   "bauverfahren": "BV_BODENABTRAG",
+   "einheit": "m3",
+   "ekt_eur": "2370.56",
+   "ep_eur": "23.71",
+   "linien": [
+    {
+     "vorgang": "V_BODENABTRAG",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "310.56"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "280.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "1600.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_BODEN_VERDICHTEN::BV_VERDICHTEN": {
+   "ok": true,
+   "bauverfahren": "BV_VERDICHTEN",
+   "einheit": "m2",
+   "ekt_eur": "47.94",
+   "ep_eur": "0.48",
+   "linien": [
+    {
+     "vorgang": "V_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "16.44"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "31.50"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_DSK::BV_DSK": {
+   "ok": true,
+   "bauverfahren": "BV_DSK",
+   "einheit": "m2",
+   "ekt_eur": "3019.15",
+   "ep_eur": "30.19",
+   "linien": [
+    {
+     "vorgang": "V_DSK",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "3000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "10.75"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "8.40"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_ERSCHWERNIS_ASPHALT::BV_ERSCHWERNIS": {
+   "ok": true,
+   "bauverfahren": "BV_ERSCHWERNIS",
+   "einheit": "m",
+   "ekt_eur": "850.00",
+   "ep_eur": "8.50",
+   "linien": [
+    {
+     "vorgang": "V_ERSCHWERNIS",
+     "positionen": [
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "850.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_ERSCHWERNIS_FRAESEN::BV_ERSCHWERNIS": {
+   "ok": true,
+   "bauverfahren": "BV_ERSCHWERNIS",
+   "einheit": "m",
+   "ekt_eur": "850.00",
+   "ep_eur": "8.50",
+   "linien": [
+    {
+     "vorgang": "V_ERSCHWERNIS",
+     "positionen": [
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "850.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_FEINFRAESEN::BV_FEINFRAESEN": {
+   "ok": true,
+   "bauverfahren": "BV_FEINFRAESEN",
+   "einheit": "m2",
+   "ekt_eur": "242.10",
+   "ep_eur": "2.42",
+   "linien": [
+    {
+     "vorgang": "V_FEINFRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "157.50"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "63.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "21.60"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_FRAESEN::BV_FRAESEN": {
+   "ok": true,
+   "bauverfahren": "BV_FRAESEN",
+   "einheit": "m2",
+   "ekt_eur": "242.10",
+   "ep_eur": "2.42",
+   "linien": [
+    {
+     "vorgang": "V_FRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "157.50"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "63.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "21.60"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_FSS::BV_FSS_GRADER": {
+   "ok": true,
+   "bauverfahren": "BV_FSS_GRADER",
+   "einheit": "m3",
+   "ekt_eur": "2988.57",
+   "ep_eur": "29.89",
+   "linien": [
+    {
+     "vorgang": "V_FSS_LEGEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "236.25"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "315.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_PROFIL",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "79.67"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "28.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "91.32"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "58.33"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_FSS::BV_FSS_FERTIGER": {
+   "ok": true,
+   "bauverfahren": "BV_FSS_FERTIGER",
+   "einheit": "m3",
+   "ekt_eur": "2523.96",
+   "ep_eur": "25.24",
+   "linien": [
+    {
+     "vorgang": "V_FSS_FERTIGER",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "124.31"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "70.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "91.32"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "58.33"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_FUGENFUELLUNG_N2::BV_FUGENFUELLUNG": {
+   "ok": true,
+   "bauverfahren": "BV_FUGENFUELLUNG",
+   "einheit": "m",
+   "ekt_eur": "149.88",
+   "ep_eur": "1.50",
+   "linien": [
+    {
+     "vorgang": "V_FUGENFUELLUNG",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "0.82"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "44.06"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "105.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_GUSSASPHALT_DECK::BV_GUSSASPHALT": {
+   "ok": true,
+   "bauverfahren": "BV_GUSSASPHALT",
+   "einheit": "m2",
+   "ekt_eur": "788.09",
+   "ep_eur": "7.88",
+   "linien": [
+    {
+     "vorgang": "V_GUSSASPHALT",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "288.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "220.31"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "262.50"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "17.28"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_KEHREN_VSM::BV_REINIGEN_KEHREN": {
+   "ok": true,
+   "bauverfahren": "BV_REINIGEN_KEHREN",
+   "einheit": "m2",
+   "ekt_eur": "14.67",
+   "ep_eur": "0.15",
+   "linien": [
+    {
+     "vorgang": "V_REINIGEN_KEHREN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "6.17"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "3.50"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "5.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_MARKIERUNG::BV_MARKIERUNG": {
+   "ok": true,
+   "bauverfahren": "BV_MARKIERUNG",
+   "einheit": "m",
+   "ekt_eur": "211.50",
+   "ep_eur": "2.12",
+   "linien": [
+    {
+     "vorgang": "V_MARKIERUNG",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "70.50"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "126.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "15.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_NAHT::BV_NAHT": {
+   "ok": true,
+   "bauverfahren": "BV_NAHT",
+   "einheit": "m",
+   "ekt_eur": "105.67",
+   "ep_eur": "1.06",
+   "linien": [
+    {
+     "vorgang": "V_NAHT",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "1.50"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "20.17"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "84.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_NAHT_AUFWEITEN::BV_NAHT_AUFWEITEN": {
+   "ok": true,
+   "bauverfahren": "BV_NAHT_AUFWEITEN",
+   "einheit": "m",
+   "ekt_eur": "221.67",
+   "ep_eur": "2.22",
+   "linien": [
+    {
+     "vorgang": "V_NAHT_AUFWEITEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "81.67"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "140.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_OBERBODEN::BV_OBERBODEN_GRADER": {
+   "ok": true,
+   "bauverfahren": "BV_OBERBODEN_GRADER",
+   "einheit": "m3",
+   "ekt_eur": "2314.58",
+   "ep_eur": "23.15",
+   "linien": [
+    {
+     "vorgang": "V_OBERBODEN_GRADER",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "99.58"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "35.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_OBERBODEN::BV_OBERBODEN_HAND": {
+   "ok": true,
+   "bauverfahren": "BV_OBERBODEN_HAND",
+   "einheit": "m3",
+   "ekt_eur": "2705.00",
+   "ep_eur": "27.05",
+   "linien": [
+    {
+     "vorgang": "V_OBERBODEN_HAND",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "525.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_PLANUM::BV_PLANUM": {
+   "ok": true,
+   "bauverfahren": "BV_PLANUM",
+   "einheit": "m2",
+   "ekt_eur": "124.50",
+   "ep_eur": "1.24",
+   "linien": [
+    {
+     "vorgang": "V_PLANUM",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "74.10"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "50.40"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_PLANUM::BV_PLANUM_VERDICHTEN": {
+   "ok": true,
+   "bauverfahren": "BV_PLANUM_VERDICHTEN",
+   "einheit": "m2",
+   "ekt_eur": "172.44",
+   "ep_eur": "1.72",
+   "linien": [
+    {
+     "vorgang": "V_PLANUM",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "74.10"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "50.40"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "16.44"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "31.50"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_RANDABDICHTUNG::BV_RANDABDICHTUNG": {
+   "ok": true,
+   "bauverfahren": "BV_RANDABDICHTUNG",
+   "einheit": "m",
+   "ekt_eur": "3179.17",
+   "ep_eur": "31.79",
+   "linien": [
+    {
+     "vorgang": "V_RANDABDICHTUNG",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "3000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "39.17"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "140.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_REINIGEN::BV_REINIGEN_KEHREN": {
+   "ok": true,
+   "bauverfahren": "BV_REINIGEN_KEHREN",
+   "einheit": "m2",
+   "ekt_eur": "14.67",
+   "ep_eur": "0.15",
+   "linien": [
+    {
+     "vorgang": "V_REINIGEN_KEHREN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "6.17"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "3.50"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "5.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_REINIGEN::BV_REINIGEN_HD": {
+   "ok": true,
+   "bauverfahren": "BV_REINIGEN_HD",
+   "einheit": "m2",
+   "ekt_eur": "59.40",
+   "ep_eur": "0.59",
+   "linien": [
+    {
+     "vorgang": "V_REINIGEN_HD",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "26.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "8.40"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "25.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_RISS_SAN_FRVG::BV_RISS_SAN_FRVG": {
+   "ok": true,
+   "bauverfahren": "BV_RISS_SAN_FRVG",
+   "einheit": "m",
+   "ekt_eur": "576.62",
+   "ep_eur": "5.77",
+   "linien": [
+    {
+     "vorgang": "V_RISS_AUFFRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "81.67"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "210.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_RISS_VERGUSS",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "16.20"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "58.75"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "210.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_SCHIEBERKAPPEN_REG::BV_SCHIEBERKAPPEN_REG": {
+   "ok": true,
+   "bauverfahren": "BV_SCHIEBERKAPPEN_REG",
+   "einheit": "St",
+   "ekt_eur": "292.00",
+   "ep_eur": "2.92",
+   "linien": [
+    {
+     "vorgang": "V_SCHIEBERKAPPEN_REG",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "40.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "252.00"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_STS::BV_FSS_GRADER": {
+   "ok": true,
+   "bauverfahren": "BV_FSS_GRADER",
+   "einheit": "m3",
+   "ekt_eur": "2988.57",
+   "ep_eur": "29.89",
+   "linien": [
+    {
+     "vorgang": "V_FSS_LEGEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "236.25"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "315.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_PROFIL",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "79.67"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "28.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "91.32"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "58.33"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_STS::BV_FSS_FERTIGER": {
+   "ok": true,
+   "bauverfahren": "BV_FSS_FERTIGER",
+   "einheit": "m3",
+   "ekt_eur": "2523.96",
+   "ep_eur": "25.24",
+   "linien": [
+    {
+     "vorgang": "V_FSS_FERTIGER",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "2000.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "124.31"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "70.00"
+      },
+      {
+       "kostenart": "Antransport",
+       "betrag_eur": "180.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_FSS_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "91.32"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "58.33"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_THERMO_SCHADSTELLE_T::BV_THERMO_SCHADSTELLE_T": {
+   "ok": true,
+   "bauverfahren": "BV_THERMO_SCHADSTELLE_T",
+   "einheit": "t",
+   "ekt_eur": "23308.33",
+   "ep_eur": "233.08",
+   "linien": [
+    {
+     "vorgang": "V_THERMO_AUSSCHNEIDEN_ODER_FRAESEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "653.33"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "1680.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "45.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_THERMO_SAEUBERN",
+     "positionen": [
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "840.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_THERMO_ANSPRITZEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "800.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "716.67"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "840.00"
+      }
+     ]
+    },
+    {
+     "vorgang": "V_THERMO_VERFUELLEN_VERDICHTEN",
+     "positionen": [
+      {
+       "kostenart": "Material",
+       "betrag_eur": "3000.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "8400.00"
+      },
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "6333.33"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_TIEFBORD_AUFN::BV_TIEFBORD_AUFN": {
+   "ok": true,
+   "bauverfahren": "BV_TIEFBORD_AUFN",
+   "einheit": "m",
+   "ekt_eur": "954.80",
+   "ep_eur": "9.55",
+   "linien": [
+    {
+     "vorgang": "V_TIEFBORD_AUFN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "440.00"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "504.00"
+      },
+      {
+       "kostenart": "Entsorgung",
+       "betrag_eur": "0.00"
+      },
+      {
+       "kostenart": "Abtransport",
+       "betrag_eur": "10.80"
+      }
+     ]
+    }
+   ]
+  },
+  "SYN::L_TRENNEN::BV_SCHNEIDEN": {
+   "ok": true,
+   "bauverfahren": "BV_SCHNEIDEN",
+   "einheit": "m",
+   "ekt_eur": "397.72",
+   "ep_eur": "3.98",
+   "linien": [
+    {
+     "vorgang": "V_SCHNEIDEN",
+     "positionen": [
+      {
+       "kostenart": "Maschine",
+       "betrag_eur": "111.36"
+      },
+      {
+       "kostenart": "Lohn",
+       "betrag_eur": "286.36"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

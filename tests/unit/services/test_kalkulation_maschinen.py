@@ -83,11 +83,13 @@ def test_catalog_addition_left_golden_unchanged() -> None:
 
 def test_maschinen_werte_fills_cost_and_productivity_vars() -> None:
     werte = maschinen_werte(VORGAENGE["FRAESEN"], MASCHINEN["WIRTGEN_W100CFI"])
-    # cost vars from the property bag + productivity from the regelfraesen profile.
+    # cost vars from the property bag + productivity from the regelfraesen profile,
+    # keyed Vorgang-scoped so it overrides the "leistung" instanz.
+    scoped = VORGAENGE["FRAESEN"].instanz_scope("leistung")
     assert werte["kaltfraese_stundensatz_eur"].wert == Decimal("240")
     assert werte["kaltfraese_l_pro_h"].wert == Decimal("55")
-    assert werte["fraese_leistung_m2_pro_h"].wert == Decimal("520")
-    assert werte["fraese_leistung_m2_pro_h"].quelle is M.STAMMDATEN
+    assert werte[scoped].wert == Decimal("520")
+    assert werte[scoped].quelle is M.STAMMDATEN
     assert "Wirtgen W 100 CFi" in werte["kaltfraese_stundensatz_eur"].beleg
 
 

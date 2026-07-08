@@ -25,10 +25,10 @@ from shared.services.kalkulation_v2.model import (
     Betriebsart,
     Betriebskategorie,
     Formel,
-    Kostenart,
     Leistung,
     Maschine,
     VariableDefinition,
+    VorgangRechnung,
 )
 
 
@@ -63,8 +63,10 @@ class KatalogEntitaet(StrEnum):
 
 
 class VariablenGruppe(StrEnum):
-    """The three fixture sources of `katalog_variablen`, preserved so the provider can rebuild
-    STAMMDATEN_VARIABLEN / KONTEXT_VARIABLEN / FORMEL_VARIABLEN and their KATALOG merge exactly."""
+    """The fixture sources of `katalog_variablen`, preserved so the provider can rebuild
+    STAMMDATEN_VARIABLEN / KONTEXT_VARIABLEN and their KATALOG merge exactly. FORMEL is
+    retired (Formeln are no variables any more) but still parses the pre-migration rows;
+    the provider refuses to load them."""
 
     STAMMDATEN = "stammdaten"
     KONTEXT = "kontext"
@@ -131,7 +133,8 @@ class KatalogStandZeile(BaseModel):
 # --------------------------------------------------------------------------- #
 class BundleVorgang(BaseModel):
     """A Vorgang in bundle transport: the Ausführungsart is referenced by code (embedded on load),
-    matching the table payload directly (the domain `Vorgang` embeds the object instead)."""
+    matching the table payload directly (the domain `Vorgang` embeds the object instead). The
+    cost computation travels as the `rechnung` instantiation dict (base formula bindings)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -139,9 +142,9 @@ class BundleVorgang(BaseModel):
     name: str
     ausfuehrungsart_code: str | None = None
     betriebsart_code: str | None = None
-    leistung_variable: str | None = None
+    leistung_instanz: str | None = None
     kosten_bindung: dict[str, str] = Field(default_factory=dict)
-    kostenvariablen: dict[Kostenart, str] = Field(default_factory=dict)
+    rechnung: VorgangRechnung = Field(default_factory=VorgangRechnung)
 
 
 class BundleBauverfahren(BaseModel):

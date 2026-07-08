@@ -29,14 +29,52 @@ the calculator _selects_ one based on machinery/access/context. This is why the
 model absorbed ~12 distinct cost-driver patterns across 5 trades without the
 engine or the spine changing once.
 
-Each Vorgang doesn't embed cost logic — it maps a **Kostenart** (Material,
-Maschine, Antransport, Abtransport, Entsorgung, Lohn) to the **name of a variable**
-that yields that cost line. Those variables resolve through the cascade. So the
-engine is the only compiled part; the catalog, rates, and formulas are **data**.
+Each Vorgang doesn't embed cost logic — it carries a **Rechnung**: named quantity/
+curve **Instanzen** plus, per **Kostenart** (Material, Maschine, Antransport,
+Abtransport, Entsorgung, Lohn), one or more cost lines. Every Instanz/cost line
+**instantiates a base formula** (§1a). So the engine is the only compiled part; the
+catalog, rates, and formula instantiations are **data**.
 
 **Determinism & money:** all quantity/money math is `Decimal`, pure functions,
 with cycle detection. The same inputs always produce the same EKT — essential
 for reproducible, auditable bids.
+
+---
+
+## 1a. The base-formula redesign (2026-07)
+
+The formula layer was reshaped from **174 recipe-specific formulas / 318 variables**
+into **~16 parameterized base formulas** (Appendix A of `REZEPT_REDESIGN_PLAN.md`)
+that every Vorgang instantiates. The model:
+
+- **Base formula (`Formel`)** — one DSL expression over **declared formal parameters**
+  (`FormelParameter`: `name`, canonical `einheit`, mandatory `beschreibung`, optional
+  `standard`), written once in canonical units (m, m², m³, t, h, €, St, l, km). The
+  16 cover the whole catalog: `F_STUNDEN`, `F_LOHN`, `F_MASCHINE`, `F_KOSTEN_SATZ`,
+  `F_TRANSPORT`, the Mengengerüst (`F_MENGE_VOLUMEN`, `F_VOLUMEN_FLAECHE`,
+  `F_FLAECHE_VOLUMEN`, `F_VOLUMEN_QUADER`, `F_MENGE_ANSATZ`, `F_ARBEITSMENGE`,
+  `F_LAGEN`), and the curves/selections (`F_LEISTUNG_TIEFE`, `F_LEISTUNG_ERSCHWERT`,
+  `F_UEBERGAENGE`, `F_STAFFEL`).
+- **Instantiation (`FormelInstanz`)** — a Vorgang applies a base formula by **binding**
+  its parameters to source paths: `kontext.<var>`, `stammdaten.<var>`,
+  `baustoff.<feld>`, `formel.<instanz>` (a sibling instance), or a numeric literal.
+  A polymorphic parameter (`einheit=None`) can be pinned with `einheiten`. Unit
+  scaling (cm→m, kg→t) happens **at the binding seam** (`einheiten.py`), never inside
+  an expression; a dimension change (m³→t) is a Mengengerüst formula, not a binding.
+- **`VorgangRechnung`** — `instanzen: {name → FormelInstanz}` (named quantities/curves)
+  plus `kosten: {Kostenart → [FormelInstanz]}` (the cost lines). `Vorgang.kalkuliere`
+  evaluates the cost lines, recording each Instanz Vorgang-scoped (`V_X::name`) with
+  provenance — the EKT audit trail is unchanged in shape.
+- **Formeln are no longer variables.** There is no `FORMEL` resolution method for a
+  variable and no `FORMEL_VARIABLEN`; the surviving variables are only `stammdaten`
+  (rates + Baustoff bridges) and `kontext` (situational inputs incl. the geometry
+  placeholders `flaeche_m2`/`menge_t`).
+- **Prose + enforcement (the ontology).** Every base formula, parameter and variable
+  carries retrieval-grade `beschreibung`; `katalog/ontologie.py` adds the binding-path
+  grammar and an AST canonicalization. Bundle validation (`katalog/validierung.py`)
+  makes prose mandatory, checks binding-path + **einheit compatibility**, and rejects a
+  candidate formula **structurally isomorphic** to a base formula ("instantiate, don't
+  mint"). The recipe compiler retrieves over the prose via the `ontologie_lookup` tool.
 
 ---
 
@@ -47,9 +85,10 @@ other module imports from it. Key contents:
 
 **Enums**
 
-- `AufloesungsMethode` — `LANGTEXT, RAG, HITL, STAMMDATEN, FORMEL, KONSTANTE`.
-  The vocabulary of how a variable gets its value. The first three are filled by
-  the agent/human **before** calc; the last three are computed **by** the calc.
+- `AufloesungsMethode` — `LANGTEXT, RAG, HITL, STAMMDATEN, KONSTANTE` (the `FORMEL`
+  member is retained only to parse pre-redesign archived rows — variables are no
+  longer produced by formulas). The first three are filled by the agent/human
+  **before** calc; `STAMMDATEN/KONSTANTE` are computed **by** the calc.
 - `Kostenart` — `MATERIAL, MASCHINE, ANTRANSPORT, ABTRANSPORT, ENTSORGUNG, LOHN`.
   The cost-line buckets a Vorgang produces.
 - `Datentyp` — dezimal/ganzzahl/text/bool (mostly informational).
@@ -58,12 +97,14 @@ other module imports from it. Key contents:
 
 - `AufloesungsSchritt` — one step in a cascade: `methode`, optional `prompt`
   (LLM instruction for LANGTEXT/RAG), `konfidenz_schwelle`, `stammdaten_pfad`
-  (e.g. `"baustoff.rohdichte_t_pro_m3"`), `formel_name`, `konstante`.
-- `VariableDefinition` — a managed variable: `name`, `bezeichnung`, `einheit`,
-  and an ordered `aufloesung: list[AufloesungsSchritt]`.
-- `Formel` — a formula: `ausdruck` (a restricted-Python expression string),
-  `eingaben()` (parses referenced variable names), `validieren()` (dry-check
-  against known variables).
+  (e.g. `"baustoff.rohdichte_t_pro_m3"`), `konstante`.
+- `VariableDefinition` — a managed variable: `name`, `bezeichnung`, `beschreibung`,
+  `einheit`, and an ordered `aufloesung: list[AufloesungsSchritt]`.
+- `Formel` / `FormelParameter` — a **base formula** (§1a): `ausdruck` over declared
+  `parameter`, `einheit`, `beschreibung`; `eingaben()` (parses referenced parameter
+  names), `validieren()` (closure over the declared signature).
+- `FormelInstanz` / `VorgangRechnung` — an instantiation (base formula + `bindung`)
+  and a Vorgang's set of them (§1a).
 - `VariablenWert` — a **resolved** value with provenance: `wert`, `quelle`
   (which AufloesungsMethode produced it), `konfidenz`, `beleg` (evidence snippet
   or master-data path). **This is the audit record.**
@@ -90,12 +131,16 @@ other module imports from it. Key contents:
   3. **`ctx.werte` — if the value is already there, return it.** This is the
      seam: the StateGraph pre-fills LANGTEXT/RAG/HITL values here.
   4. otherwise walk the variable's `aufloesung` steps and act on
-     `FORMEL` (recurse + eval), `STAMMDATEN` (lookup in `ctx.stammdaten`),
-     `KONSTANTE` (return the fixed value). **`LANGTEXT/RAG/HITL` steps are
-     skipped at calc time** — reaching one means the agent never supplied a
-     value → raises `"… nicht auflösbar → HITL"`.
-- `Vorgang.kalkuliere(kalk, ctx)` — resolves each Kostenart's variable, returns
-  the cost lines with provenance + the Vorgang EKT.
+     `STAMMDATEN` (lookup in `ctx.stammdaten`), `KONSTANTE` (return the fixed
+     value). **`LANGTEXT/RAG/HITL` steps are skipped at calc time** — reaching one
+     means the agent never supplied a value → raises `"… nicht auflösbar → HITL"`.
+     (Variables no longer resolve `FORMEL`; computation lives on the Vorgang
+     Rechnung, not the variable.)
+- `Vorgang.kalkuliere(kalk, ctx)` — evaluates the `rechnung` cost lines per
+  Kostenart (each a `FormelInstanz`: resolves its bindings through `Kalkulator`,
+  scales units at the seam, evaluates the base formula), returns the cost lines
+  with provenance + the Vorgang EKT. A named Instanz materializing a booked
+  variable (e.g. `menge_t`) is short-circuited by `ctx.werte`.
 
 **Legacy cruft to delete on integration:** the bottom of this file
 (`_input_var`, `baue_katalog`, `baue_kontext`, `drucke`, `demo`) is the
@@ -120,9 +165,9 @@ Rampenspritzgerät, HD-Wasch-Sauganlage, …). Depends only on `model`.
 ### `vorgaenge.py`
 
 Exports `VORGAENGE` (key → `Vorgang`). Each Vorgang binds an Ausführungsart and
-maps Kostenart → cost-variable-name. The atomic operations (fräsen, schneiden,
-FSS legen/profilieren/verdichten, asphalt einbau, anspritzen, naht, …). Depends
-on `model`, `ausfuehrungsarten`.
+carries a `rechnung` of base-formula instantiations (§1a). The atomic operations
+(fräsen, schneiden, FSS legen/profilieren/verdichten, asphalt einbau, anspritzen,
+naht, …). Depends on `model`, `ausfuehrungsarten`, `formel`, `einheiten`.
 
 ### `bauverfahren.py`
 
@@ -183,29 +228,23 @@ Helpers:
   `RAG → HITL` with **no** constant fallback and a high confidence threshold —
   see §7).
 
-Depends on `model`. Note: `flaeche_m2` and `menge_t` are deliberately **not**
-booked-geometry placeholders here — they are derived by formula when not booked
-directly (see `formel.py`), which is how a position booked in m³ or m² produces
-the area/tonnage the cost lines need.
+Depends on `model`. `flaeche_m2` and `menge_t` are ordinary geometry placeholders
+here: booked directly when the position bills in that unit, else materialized by a
+Vorgang Instanz (`F_FLAECHE_VOLUMEN` / the asphalt-tonnage chain in `vorgaenge.py`)
+whose `variable` seam a booked value short-circuits.
 
 ### `formel.py`
 
-Exports `FORMELN` (name → `Formel`) and `FORMEL_VARIABLEN` (each formula also
-registers a `VariableDefinition` whose single cascade step is `FORMEL`). The
-`formel(name, ausdruck, einheit, …)` helper does both. Contains every computed
-quantity and cost line: outputs/hours, tonnages, geometry bridges
-(`flaeche_m2 = volumen_m3 / schichtdicke_m`; `menge_t = flaeche_m2 ×
-einbaudicke_cm/100 × dichte_asphalt`), passes-from-Ev2, lifts, and the
-`mk_*/lohn_*/ent_*/trans_*` cost lines. Depends on `model`.
+Exports `FORMELN` (name → `Formel`) — the **~16 base formulas** (§1a), each declaring
+its parameters in canonical units, import-time validated. No `FORMEL_VARIABLEN`
+(formulas are not variables). The `_basis(name, ausdruck, einheit, beschreibung,
+parameter)` helper builds and validates one. Depends on `model`, `einheiten`.
 
-> **Catalog merge precedence (in `Store.py`):**
-> `KATALOG = {**STAMMDATEN_VARIABLEN, **KONTEXT_VARIABLEN, **FORMEL_VARIABLEN}`.
-> `FORMEL_VARIABLEN` wins on key collision. This is intentional: e.g.
-> `entsorgung_fraesasphalt_eur_pro_t` exists as a constant placeholder in
-> stammdaten but is **overridden** by a class-driven formula; `flaeche_m2`/
-> `menge_t` likewise become formula-resolved (yet still short-circuit when the
-> position books them directly, because `ctx.werte` is checked first in
-> `resolve`).
+> **Catalog merge (in `Store.py`):**
+> `KATALOG = {**STAMMDATEN_VARIABLEN, **KONTEXT_VARIABLEN}` — two sources, no key
+> overlaps. The old `FORMEL_VARIABLEN` layer is gone; computed quantities live as
+> Vorgang Instanzen, not variables. A booked geometry value still short-circuits its
+> derivation because `ctx.werte` is checked first in `resolve` / `_instanz_wert`.
 
 ---
 
@@ -328,10 +367,11 @@ will consume is presented for accept/override; the submit _is_ the final
 confirmation, after which compute proceeds.
 
 **What "every variable" means — and why rates are included.** The worklist is not
-just the extracted inputs. `derive_required_variables` walks the chosen recipe's
-Vorgänge → `kostenvariablen` → `Formel.eingaben()` transitively to **all leaves**
-of the formula tree. Those leaves fall into three kinds, all overridable in the
-review:
+just the extracted inputs. `benoetigte_variablen` (`worklist.py`) walks the chosen
+recipe's Vorgänge → `rechnung` instanzen → binding paths down to **every resolution
+leaf** (`kontext.*`/`stammdaten.*` variables; `formel.<instanz>` references are walked
+through, literals and `baustoff.*` fields are not variables). Those leaves fall into
+three kinds, all overridable in the review:
 
 - **Extrahierte Eingaben** (kontext inputs, source CHAT/LANGTEXT/RAG/DEFAULT) —
   carry extraction confidence.
@@ -340,8 +380,8 @@ review:
 - **Stammdaten** (`STAMMDATEN` lookups — densities, supplier prices) — master
   data.
 
-FORMEL intermediates are _not_ in the review (they are derived) but _are_ in the
-output transparency table.
+Vorgang Instanzen (the computed intermediates) are _not_ in the review (they are
+derived) but _are_ in the output transparency table.
 
 ### Confidence-tiered presentation (configurable)
 
@@ -439,10 +479,11 @@ holds _every_ variable touched — confirmed inputs, `STAMMDATEN` lookups,
 - **EKT row** — unit price + GP for the position list.
 - **Long-form description** — an LLM narration (prompt from the library) over the
   result + `ctx.werte`: which recipe, why, the cost-line story.
-- **Nachweistabelle (the important one)** — render `ctx.werte`: per variable
-  `name · wert · einheit · quelle · beleg`, and for `FORMEL` variables also the
-  `ausdruck` from `FORMELN[name]` and the inputs it consumed. The full derivation
-  tree — the estimator sees exactly how the EKT was built, input by input,
+- **Nachweistabelle (the important one)** — render `ctx.werte`: per entry
+  `name · wert · einheit · quelle · beleg`, and for a Vorgang Instanz
+  (`V_X::name`, `quelle=FORMEL`) also the base formula (`beleg`) and its bindings.
+  The full derivation tree — the estimator sees exactly how the EKT was built,
+  input by input,
   formula by formula, source by source.
 
 ### Integration touchpoints (existing systems)
@@ -465,14 +506,15 @@ holds _every_ variable touched — confirmed inputs, `STAMMDATEN` lookups,
 
 ```
 model.py                      (no project deps)
+  ├── einheiten.py             → the binding-seam unit converter
   ├── lieferanten.py
   │     └── materialien.py
   ├── lieferanten_preise.py
   ├── stammdaten.py            → STAMMDATEN_VARIABLEN
   ├── kontext_variablen.py     → KONTEXT_VARIABLEN
-  ├── formel.py                → FORMELN, FORMEL_VARIABLEN
+  ├── formel.py                → FORMELN (~16 base formulas)
   ├── ausfuehrungsarten.py     → AUSFUEHRUNGSARTEN
-  │     └── vorgaenge.py       → VORGAENGE
+  │     └── vorgaenge.py       → VORGAENGE (instantiate base formulas)
   │           └── bauverfahren.py → BAUVERFAHREN
   ├── leistungen.py            → LEISTUNGEN
   │     └── leistung_bauverfahren.py (+ bauverfahren) → waehle_bauverfahren

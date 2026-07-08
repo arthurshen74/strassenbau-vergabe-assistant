@@ -54,7 +54,6 @@ _MODEL_DICTS: list[tuple[str, dict, Callable[[Any], str]]] = [
     ("FORMELN", m_formel.FORMELN, lambda m: m.name),
     ("STAMMDATEN_VARIABLEN", m_stamm.STAMMDATEN_VARIABLEN, lambda m: m.name),
     ("KONTEXT_VARIABLEN", m_kontext.KONTEXT_VARIABLEN, lambda m: m.name),
-    ("FORMEL_VARIABLEN", m_formel.FORMEL_VARIABLEN, lambda m: m.name),
     ("BAUSTOFFE", m_mat.BAUSTOFFE, lambda m: m.code),
     ("MASCHINEN", m_masch.MASCHINEN, lambda m: m.code),
     ("VORGAENGE", m_vorg.VORGAENGE, lambda m: m.code),

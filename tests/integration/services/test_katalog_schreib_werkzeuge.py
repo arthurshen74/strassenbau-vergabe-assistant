@@ -57,21 +57,46 @@ async def _nach_bundle(engine: AsyncEngine, bundle_uuid: str) -> dict:
 
 
 # --- Formeln & Variablen (W8–W12) ------------------------------------------------------------- #
-async def test_w8_neue_formel(schreib) -> None:
+async def test_w8_neue_basisformel(schreib) -> None:
     engine, tools = schreib
-    art = await _call(tools, "neue_formel", name="bankett_test_m2", ausdruck="laenge_m * 3", einheit="m2")
+    # A genuinely NEW shape (Grundbetrag + mengenabhängiger Zuschlag) — not isomorphic to any base.
+    art = await _call(
+        tools, "neue_formel", name="F_TEST_GRUNDZUSCHLAG",
+        ausdruck="grundbetrag + zuschlag * menge", einheit="€",
+        beschreibung="Grundbetrag plus mengenabhängiger Zuschlag.",
+        parameter=[{"name": "grundbetrag", "einheit": "€", "beschreibung": "Fixer Grundbetrag."},
+                   {"name": "zuschlag", "einheit": "€/t", "beschreibung": "Zuschlag je Tonne."},
+                   {"name": "menge", "einheit": "t", "beschreibung": "Bezugsmenge."}],
+    )
     assert art["bundle_uuid"] and art["aktion"] == "neu"
     assert art["entwurf"]["latex"]  # real math on the card
+    assert {p["name"] for p in art["entwurf"]["parameter"]} == {"grundbetrag", "zuschlag", "menge"}
     gruppen = await _nach_bundle(engine, art["bundle_uuid"])
-    formel = gruppen[KatalogEntitaet.FORMELN][0]
-    assert formel.status == KatalogStatus.ENTWURF
-    # The derived FORMEL-gruppe variable rides the same bundle.
-    assert any(z.schluessel == "bankett_test_m2" for z in gruppen[KatalogEntitaet.VARIABLEN])
+    assert gruppen[KatalogEntitaet.FORMELN][0].status == KatalogStatus.ENTWURF
+    # Formulas are no longer variables — no FORMEL-gruppe variable rides along.
+    assert KatalogEntitaet.VARIABLEN not in gruppen
+
+
+async def test_w8_isomorphe_formel_abgelehnt(schreib) -> None:
+    """Structural dedup (§4): a candidate formula isomorphic to a base formula (here `a·b` ≡
+    F_KOSTEN_SATZ / F_VOLUMEN_FLAECHE / F_MENGE_ANSATZ) is rejected — instantiate, don't mint."""
+    _, tools = schreib
+    art = await _call(
+        tools, "neue_formel", name="F_TEST_FLAECHE", ausdruck="laenge * breite", einheit="m2",
+        beschreibung="Rechteckfläche.",
+        parameter=[{"name": "laenge", "einheit": "m", "beschreibung": "Länge."},
+                   {"name": "breite", "einheit": "m", "beschreibung": "Breite."}],
+    )
+    assert art.get("bundle_uuid") is None
+    assert any("strukturell identisch" in f and "instanziieren" in f for f in art["bericht"]["fehler"])
 
 
 async def test_w8_unbekannte_funktion_persistiert_nichts(schreib) -> None:
     _, tools = schreib
-    art = await _call(tools, "neue_formel", name="bad_formel", ausdruck="interpoliere(laenge_m)")
+    art = await _call(
+        tools, "neue_formel", name="F_BAD", ausdruck="interpoliere(x)", einheit="€",
+        beschreibung="Kaputt.", parameter=[{"name": "x", "beschreibung": "irgendwas"}],
+    )
     assert art.get("bundle_uuid") is None
     assert any("unbekannte Funktion" in f and "round" in f for f in art["bericht"]["fehler"])
 
@@ -79,8 +104,8 @@ async def test_w8_unbekannte_funktion_persistiert_nichts(schreib) -> None:
 async def test_w9_aendere_formel_diff(schreib) -> None:
     engine, tools = schreib
     formeln = await _aktive(engine, KatalogEntitaet.FORMELN)
-    ziel = next(f for f in formeln if f.schluessel == "mk_fraese")
-    art = await _call(tools, "aendere_formel", name="mk_fraese", ausdruck=ziel.payload["ausdruck"] + " * 1")
+    ziel = next(f for f in formeln if f.schluessel == "F_KOSTEN_SATZ")
+    art = await _call(tools, "aendere_formel", name="F_KOSTEN_SATZ", ausdruck=ziel.payload["ausdruck"] + " * 1")
     assert art["bundle_uuid"] and art["aktion"] == "aenderung"
     d = next(x for x in art["diff"] if x["feld"] == "ausdruck")
     assert d["alt"] == ziel.payload["ausdruck"] and d["neu"].endswith("* 1")
@@ -90,12 +115,24 @@ async def test_w10_neue_stammdaten_variable(schreib) -> None:
     engine, tools = schreib
     art = await _call(
         tools, "neue_stammdaten_variable", name="lohn_lg4_eur", bezeichnung="Lohngruppe 4",
-        wert=24.80, einheit="€/h",
+        wert=24.80, einheit="€/h", beschreibung="Mittellohn Lohngruppe 4 je Stunde; speist den "
+        "stundenlohn-Parameter von F_LOHN.",
     )
     assert art["bundle_uuid"] and art["entwurf"]["wert"] == "24.8"
     gruppen = await _nach_bundle(engine, art["bundle_uuid"])
     var = gruppen[KatalogEntitaet.VARIABLEN][0]
     assert var.status == KatalogStatus.ENTWURF and var.payload["gruppe"] == "stammdaten"
+
+
+async def test_w10_ohne_beschreibung_persistiert_nichts(schreib) -> None:
+    """Mandatory-prose enforcement (§2.6): a stammdaten variable without beschreibung is rejected."""
+    _, tools = schreib
+    art = await _call(
+        tools, "neue_stammdaten_variable", name="lohn_ohne_prosa", bezeichnung="Ohne Prosa",
+        wert=1.0, einheit="€/h", beschreibung="   ",
+    )
+    assert art.get("bundle_uuid") is None
+    assert any("lohn_ohne_prosa" in f and "beschreibung fehlt" in f for f in art["bericht"]["fehler"])
 
 
 async def test_w11_aendere_stammdaten_wert(schreib) -> None:
@@ -104,8 +141,8 @@ async def test_w11_aendere_stammdaten_wert(schreib) -> None:
     assert art["bundle_uuid"]
     d = art["diff"][0]
     assert d["feld"] == "wert" and d["neu"] == "1.89"
-    # The where-used blast radius rides the envelope (many formulas depend on the fuel price).
-    assert art["entwurf"]["verwendung"]["formeln"]
+    # The where-used blast radius rides the envelope (many Vorgänge bind the fuel price).
+    assert art["entwurf"]["verwendung"]["vorgaenge"]
     gruppen = await _nach_bundle(engine, art["bundle_uuid"])
     assert gruppen[KatalogEntitaet.VARIABLEN][0].status == KatalogStatus.ENTWURF
 
@@ -114,6 +151,7 @@ async def test_w12_neue_kontext_variable_kaskade(schreib) -> None:
     _, tools = schreib
     art = await _call(
         tools, "neue_kontext_variable", name="test_kontext_x", bezeichnung="Test-Kontext",
+        beschreibung="Test-Kontextwert in cm; situativer Eingabewert.",
         einheit="cm", llm_hinweis="Aus dem Gutachten bestimmen.", default_wert=5.0,
     )
     assert art["bundle_uuid"]

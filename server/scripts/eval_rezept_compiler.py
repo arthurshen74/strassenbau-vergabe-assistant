@@ -39,7 +39,7 @@ from shared.services.kalkulation_v2.positionen import Position
 from shared.services.kalkulation_v2.provider import lade_katalog
 from shared.services.kalkulation_v2.store import kalkuliere
 from shared.services.katalog.chat_agent import KatalogChatAgent
-from shared.services.katalog.handbuch import KATALOG_HANDBUCH
+from shared.services.katalog.prompts import load_katalog_handbuch_prompt
 from shared.services.katalog.service import KatalogService
 
 from scripts.check_katalog_parity import zustand_sichern
@@ -213,14 +213,24 @@ class RezeptErgebnis:
     def reparaturen(self) -> int:
         return max(0, len(self.versuche) - 1)
 
+    @property
+    def geminzte_formeln(self) -> int:
+        """New BASE formulas the recipe minted (§4 gate: 0 for a standard recipe — every step should
+        instantiate an existing base formula)."""
+        env = self.letzter or {}
+        return len((env.get("entwurf") or {}).get("formeln") or [])
 
-def baue_agent(engine: AsyncEngine) -> KatalogChatAgent:
-    """The katalog_chat agent exactly as the app constructs it (same model/prompt/tools)."""
+
+async def baue_agent(engine: AsyncEngine) -> KatalogChatAgent:
+    """The katalog_chat agent exactly as the app constructs it (same model/prompt/tools). Loads the
+    LIVE Katalog-Handbuch prompt version, so the eval measures whatever is currently seeded/edited."""
+    async with engine.connect() as conn:
+        handbuch = await load_katalog_handbuch_prompt(conn)
     return KatalogChatAgent(
         engine=engine,
-        system_prompt=KATALOG_HANDBUCH,
-        chat_model=settings.katalog_chat_model,
-        temperature=settings.katalog_chat_temperature,
+        system_prompt=handbuch.system_prompt,
+        chat_model=handbuch.model_name,
+        temperature=handbuch.temperature,
     )
 
 
@@ -241,7 +251,7 @@ def _kurz(args: dict[str, Any]) -> str:
 async def fahre_rezept(engine: AsyncEngine, rezept: EvalRezept) -> RezeptErgebnis:
     """One compile run: user prompt = the Kalkulator description (§7)."""
     ergebnis = RezeptErgebnis(rezept=rezept)
-    agent = baue_agent(engine)
+    agent = await baue_agent(engine)
     # One-shot harness: there is no follow-up turn, so the prompt authorises assumptions the
     # production chat would clarify conversationally.
     prompt = (
@@ -344,11 +354,12 @@ def schreibe_bericht(ergebnisse: list[RezeptErgebnis], pfad: Path) -> None:
     z: list[str] = [
         "# Rezept-Compiler Eval",
         "",
-        f"Lauf: {datetime.now().isoformat(timespec='seconds')} · Modell: `{settings.katalog_chat_model}` · "
-        f"Reparaturbudget: {REPARATUR_BUDGET}",
+        f"Lauf: {datetime.now().isoformat(timespec='seconds')} · Modell: laut seeder "
+        f"`katalog_handbuch`-Prompt (Frontmatter) · Reparaturbudget: {REPARATUR_BUDGET}",
         "",
-        "| Rezept | gültig | Reparaturen | Wiederverwendungsquote | erwartete Treffer | EP | Hinweisband | Dauer |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Rezept | gültig | Reparaturen | Wiederverwendungsquote | erwartete Treffer | "
+        "geminzte Formeln | EP | Hinweisband | Dauer |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for e in ergebnisse:
         env = e.letzter or {}
@@ -359,12 +370,21 @@ def schreibe_bericht(ergebnisse: list[RezeptErgebnis], pfad: Path) -> None:
         treffer = len(e.rezept.erwartete_wiederverwendung & codes)
         ep = e.kalkulation["ep_eur"] if e.kalkulation else "—"
         lo, hi = e.rezept.ep_hinweis
+        # §4 gate: 0 minted formulas for a standard recipe (flag any as ⚠).
+        formeln = f"⚠ {e.geminzte_formeln}" if e.geminzte_formeln else "0"
         z.append(
             f"| {e.rezept.kennung} {e.rezept.titel} | {'ja' if e.bundle_uuid else 'NEIN'} "
             f"| {e.reparaturen} | {quote} | {treffer}/{len(e.rezept.erwartete_wiederverwendung)} "
-            f"| {ep} €/{e.rezept.einheit} | {lo}–{hi} | {e.dauer_s:.0f}s |"
+            f"| {formeln} | {ep} €/{e.rezept.einheit} | {lo}–{hi} | {e.dauer_s:.0f}s |"
         )
     z.append("")
+    gesamt_geminzt = sum(e.geminzte_formeln for e in ergebnisse)
+    gueltig = sum(1 for e in ergebnisse if e.bundle_uuid)
+    z += [
+        f"**Gate (§4):** {gueltig}/{len(ergebnisse)} Rezepte gültig · "
+        f"{gesamt_geminzt} geminzte Basisformeln (Ziel 0 für Standardrezepte).",
+        "",
+    ]
 
     for e in ergebnisse:
         env = e.letzter or {}

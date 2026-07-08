@@ -33,10 +33,12 @@ from shared.models.sse_schema import (
 from shared.repositories.conversations import ConversationRepository
 from shared.repositories.katalog import KatalogRepository
 from shared.repositories.messages import MessageRepository
+from shared.repositories.prompt_versions import PromptVersionRepository
 from shared.services.katalog.chat_service import KatalogChatService
 from shared.services.katalog.werkzeuge import katalog_werkzeuge
 from shared.services.project_chat_agent import AgentToken, AgentToolCall, AgentToolResult
 
+from scripts.seed.prompts import load_prompt_versions
 from scripts.seed.seed_katalog import seed_katalog
 
 
@@ -46,6 +48,11 @@ async def katalog_engine(engine: AsyncEngine) -> AsyncIterator[AsyncEngine]:
         repo = KatalogRepository(conn)
         await repo.alles_leeren()
         await seed_katalog(repo)
+        # The chat service loads the katalog_handbuch prompt per turn (frontmatter owns the model).
+        pv_repo = PromptVersionRepository(conn)
+        for npv in load_prompt_versions():
+            if npv.prompt_type == PromptType.KATALOG_HANDBUCH:
+                await pv_repo.add(npv)
     try:
         yield engine
     finally:
@@ -117,16 +124,16 @@ async def test_frage_preis_historie(werkzeuge: dict[str, BaseTool]) -> None:
     assert preise["eintraege"]
 
 
-async def test_frage_formeln_am_dieselpreis(werkzeuge: dict[str, BaseTool]) -> None:
-    # „Welche Formeln hängen am Dieselpreis?"
-    liste = await _art(werkzeuge, "liste_formeln", referenziert_variable="kraftstoffpreis_eur_pro_l")
-    assert liste["treffer_gesamt"] >= 5 and any(e["name"] == "mk_fraese" for e in liste["eintraege"])
+async def test_frage_welche_formel_nutzt_dieselpreis(werkzeuge: dict[str, BaseTool]) -> None:
+    # „Welche Basisformel rechnet mit dem Dieselpreis?" — the machine-cost formula.
+    liste = await _art(werkzeuge, "liste_formeln", filter_text="kraftstoffpreis")
+    assert any(e["name"] == "F_MASCHINE" for e in liste["eintraege"])
 
 
-async def test_frage_wie_berechnet_sich_mk_fraese(werkzeuge: dict[str, BaseTool]) -> None:
-    # „Wie berechnet sich mk_fraese?"
-    baum = await _art(werkzeuge, "erklaere_variable", name="mk_fraese")
-    assert baum["methode"] == "formel"
+async def test_frage_wie_berechnen_sich_maschinenkosten(werkzeuge: dict[str, BaseTool]) -> None:
+    # „Wie berechnen sich die Maschinenkosten?" — the base formula over its declared parameters.
+    f = await _art(werkzeuge, "zeige_formel", name="F_MASCHINE")
+    assert f["latex"] and any(p["name"] == "kraftstoffpreis" for p in f["parameter"])
 
 
 # --- Part 2: the service maps a scripted agent stream to SSE + persists ----------------------- #

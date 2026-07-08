@@ -32,6 +32,7 @@ const COMMANDS: { label: string; kind: MainWindowKind; Icon: CommandIcon }[] = [
     Icon: CommandLineIcon,
   },
   { label: 'View Prompts', kind: 'prompts', Icon: DocumentTextIcon },
+  { label: 'View Katalog', kind: 'katalog', Icon: BookOpenIcon },
   {
     label: 'View Prompt Execution Log',
     kind: 'prompt_execution_log',

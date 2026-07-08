@@ -39,6 +39,7 @@ def test_enum_values() -> None:
         "ekt_langtext_extract",
         "ekt_output_narrate",
         "project_context_resolve",
+        "katalog_handbuch",
     }
 
 

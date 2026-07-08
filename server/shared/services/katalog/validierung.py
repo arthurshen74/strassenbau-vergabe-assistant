@@ -1,31 +1,51 @@
 """Bundle validation (§7) — pure rules over the active catalog + the bundle's own keys.
 
 `lade_stand` reads the active catalog into a `KatalogStand` (the only I/O); `pruefe_bundle` is a
-pure function of (bundle, stand) returning a `BundleBericht`. The six rules mirror §7:
+pure function of (bundle, stand) returning a `BundleBericht`. The rules:
 
-1. every bundle Formel parses and references only known variables;
-2. the formula dependency graph (active ∪ bundle) is acyclic;
-3. every Vorgang cost variable is producible (has a FORMEL/KONSTANTE/STAMMDATEN step, or is a
-   kontext-gruppe variable, or is a formula output);
+1. every bundle Formel parses, is closed over its declared parameter signature, and carries
+   prose (beschreibung on the formula and on every parameter — the retrieval corpus must not
+   rot back to empty);
+2. every Vorgang rechnung is evaluable: known base formulas, every non-default parameter bound,
+   binding paths resolve (kontext./stammdaten. variables known AND producible, formel.<instanz>
+   defined on the Vorgang, baustoff.<feld> addressable, literals numeric), the instanz graph is
+   acyclic, and leistung_instanz names an existing instanz;
+3. (retired — formula-level dependency cycles are impossible: base formulas reference only their
+   own parameters);
 4. every code reference resolves (Ausführungsart/Betriebsart/Kategorie/Vorgang/Leistung/Bauverfahren);
 5. a bundle variable does not introduce a new cross-gruppe shadowing — updating an existing
    (name, gruppe) pairing is allowed; only a new pairing creates a collision the KATALOG merge
    would resolve silently;
-6. a bundle key equal to an active key is reported as a supersede (an update, not an error).
+6. a bundle key equal to an active key is reported as a supersede (an update, not an error);
+7./8. prices reference known parties and carry an ordered validity + a positive rate;
+9. an `aendere_*` delta only touches registry payload columns (`pruefe_aenderungsfelder`).
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 
-from shared.models.katalog import BundleBericht, KatalogBundle, KatalogEntitaet, VariablenGruppe
+from shared.models.katalog import (
+    BundleBericht,
+    BundleVorgang,
+    KatalogBundle,
+    KatalogEntitaet,
+    VariablenGruppe,
+)
 from shared.repositories.katalog import KATALOG_REGISTRY, KatalogRepository
-from shared.services.kalkulation_v2.model import AufloesungsMethode, Formel, VariableDefinition
+from shared.services.kalkulation_v2 import einheiten
+from shared.services.kalkulation_v2.model import (
+    AufloesungsMethode,
+    BAUSTOFF_PFAD_EINHEITEN,
+    Formel,
+    VariableDefinition,
+)
+from shared.services.katalog.ontologie import basis_kanonformen, isomorphe_basis
 
 # Resolution methods that let the Kalkulator produce a value deterministically (no StateGraph).
 _PRODUZIERENDE_METHODEN = {
-    AufloesungsMethode.FORMEL,
     AufloesungsMethode.KONSTANTE,
     AufloesungsMethode.STAMMDATEN,
 }
@@ -38,6 +58,7 @@ class KatalogStand:
     known_var_namen: set[str] = field(default_factory=set)
     produzierbare_namen: set[str] = field(default_factory=set)
     var_gruppen: dict[str, set[VariablenGruppe]] = field(default_factory=lambda: defaultdict(set))
+    var_einheiten: dict[str, str | None] = field(default_factory=dict)
     formeln: dict[str, Formel] = field(default_factory=dict)
     globale_namen: set[str] = field(default_factory=set)
     leistung_codes: set[str] = field(default_factory=set)
@@ -68,6 +89,7 @@ async def lade_stand(repo: KatalogRepository) -> KatalogStand:
         stand.var_gruppen[name].add(gruppe)
         rest = {k: v for k, v in z.payload.items() if k != "gruppe"}
         definition = VariableDefinition.model_validate({"name": name, **rest})
+        stand.var_einheiten[name] = definition.einheit
         if _ist_produzierbar(gruppe, definition):
             stand.produzierbare_namen.add(name)
 
@@ -90,35 +112,44 @@ async def lade_stand(repo: KatalogRepository) -> KatalogStand:
     return stand
 
 
-def _hat_zyklus(formeln: dict[str, Formel]) -> list[str]:
-    """Return one cycle of formula names if the dependency graph has one, else []."""
+def _ist_literal(pfad: str) -> bool:
+    try:
+        Decimal(pfad)
+        return True
+    except InvalidOperation:
+        return False
+
+
+def _instanz_zyklus(v: BundleVorgang) -> list[str]:
+    """Return one cycle of instanz names within the Vorgang's rechnung, else []."""
     kanten: dict[str, set[str]] = {}
-    for name, formel in formeln.items():
-        try:
-            eingaben = formel.eingaben()
-        except SyntaxError:
-            eingaben = set()
-        kanten[name] = {e for e in eingaben if e in formeln}
+    for name, inst in v.rechnung.instanzen.items():
+        refs = set()
+        for pfad in inst.bindung.values():
+            praefix, _, rest = pfad.partition(".")
+            if praefix == "formel" and rest in v.rechnung.instanzen:
+                refs.add(rest)
+        kanten[name] = refs
 
     WEISS, GRAU, SCHWARZ = 0, 1, 2
-    farbe = dict.fromkeys(formeln, WEISS)
-    pfad: list[str] = []
+    farbe = dict.fromkeys(kanten, WEISS)
+    pfad_liste: list[str] = []
 
     def besuche(n: str) -> list[str] | None:
         farbe[n] = GRAU
-        pfad.append(n)
+        pfad_liste.append(n)
         for m in kanten[n]:
             if farbe[m] == GRAU:
-                return pfad[pfad.index(m):] + [m]
+                return pfad_liste[pfad_liste.index(m):] + [m]
             if farbe[m] == WEISS:
                 gefunden = besuche(m)
                 if gefunden is not None:
                     return gefunden
         farbe[n] = SCHWARZ
-        pfad.pop()
+        pfad_liste.pop()
         return None
 
-    for n in formeln:
+    for n in kanten:
         if farbe[n] == WEISS:
             zyklus = besuche(n)
             if zyklus is not None:
@@ -126,12 +157,109 @@ def _hat_zyklus(formeln: dict[str, Formel]) -> list[str]:
     return []
 
 
+def _quell_einheit(
+    pfad: str, instanzen: dict, formeln: dict[str, Formel], var_einheiten: dict[str, str | None]
+) -> str | None:
+    """The einheit a binding source carries, or None when it is unit-free / unknown (a literal, or a
+    variable/field without a declared einheit) — such sources are not unit-checked."""
+    praefix, _, rest = pfad.partition(".")
+    if praefix in ("kontext", "stammdaten") and rest:
+        return var_einheiten.get(rest)
+    if praefix == "baustoff" and rest:
+        return BAUSTOFF_PFAD_EINHEITEN.get(rest)
+    if praefix == "formel" and rest and rest in instanzen:
+        inst = instanzen[rest]
+        formel = formeln.get(inst.formel)
+        return inst.ergebnis_einheit or (formel.einheit if formel else None)
+    return None
+
+
+def _pruefe_rechnung(
+    v: BundleVorgang,
+    formeln: dict[str, Formel],
+    known_vars: set[str],
+    produzierbar: set[str],
+    var_einheiten: dict[str, str | None],
+) -> list[str]:
+    """Rule 2 — the Vorgang's rechnung is evaluable (see module docstring)."""
+    fehler: list[str] = []
+    instanzen = v.rechnung.instanzen
+
+    if v.leistung_instanz and v.leistung_instanz not in instanzen:
+        fehler.append(
+            f"Vorgang '{v.code}': leistung_instanz '{v.leistung_instanz}' ist keine Instanz."
+        )
+
+    alle: list[tuple[str, object]] = list(instanzen.items())
+    for kostenart, liste in v.rechnung.kosten.items():
+        alle.extend((f"{kostenart.value}[{i}]", inst) for i, inst in enumerate(liste))
+
+    for label, inst in alle:
+        stelle = f"Vorgang '{v.code}', Instanz '{label}'"
+        formel = formeln.get(inst.formel)
+        if formel is None:
+            fehler.append(f"{stelle}: unbekannte Basisformel '{inst.formel}'.")
+            continue
+        params = formel.parameter_namen()
+        for p in set(inst.bindung) - params:
+            fehler.append(f"{stelle}: Bindung für undeklarierten Parameter '{p}'.")
+        for p in set(inst.einheiten) - params:
+            fehler.append(f"{stelle}: Einheiten-Angabe für undeklarierten Parameter '{p}'.")
+        for param in formel.parameter:
+            if param.name not in inst.bindung and param.standard is None:
+                fehler.append(
+                    f"{stelle}: Parameter '{param.name}' ist ungebunden und hat keinen Standard."
+                )
+        for param_name, pfad in inst.bindung.items():
+            praefix, _, rest = pfad.partition(".")
+            if praefix in ("kontext", "stammdaten") and rest:
+                if rest not in known_vars:
+                    fehler.append(f"{stelle}: unbekannte Variable '{pfad}'.")
+                elif rest not in produzierbar:
+                    fehler.append(
+                        f"{stelle}: Variable '{pfad}' ist nicht produzierbar "
+                        f"(kein KONSTANTE/STAMMDATEN-Schritt, keine kontext-Variable)."
+                    )
+            elif praefix == "formel" and rest:
+                if rest not in instanzen:
+                    fehler.append(f"{stelle}: unbekannte Instanz-Referenz '{pfad}'.")
+            elif praefix == "baustoff" and rest:
+                if rest not in BAUSTOFF_PFAD_EINHEITEN:
+                    adressierbar = ", ".join(sorted(BAUSTOFF_PFAD_EINHEITEN))
+                    fehler.append(
+                        f"{stelle}: Baustoff-Feld '{rest}' nicht adressierbar — "
+                        f"verfügbar: {adressierbar}."
+                    )
+            elif not _ist_literal(pfad):
+                fehler.append(f"{stelle}: unbekannter Bindungspfad '{pfad}'.")
+
+            # Einheit compatibility (§2.5): a bound source's einheit must be dimension-compatible
+            # with the parameter's canonical einheit — the converter scales cm→m but never m³→t (a
+            # dimension change is a Mengengerüst formula, not a binding). A polymorphic parameter
+            # (einheit None) is pinned via `einheiten`; either side unit-free skips the check.
+            param = formel.parameter_von(param_name)
+            ziel = inst.einheiten.get(param_name) or (param.einheit if param else None)
+            quelle = _quell_einheit(pfad, instanzen, formeln, var_einheiten)
+            try:
+                einheiten.faktor(quelle, ziel)
+            except ValueError:
+                fehler.append(
+                    f"{stelle}: Einheit '{quelle}' der Quelle '{pfad}' passt nicht zum Parameter "
+                    f"'{param_name}' ({ziel}) — Dimensionswechsel braucht eine Mengengerüst-Formel, "
+                    f"keine Bindung."
+                )
+
+    zyklus = _instanz_zyklus(v)
+    if zyklus:
+        fehler.append(f"Vorgang '{v.code}': Instanz-Zyklus: " + " -> ".join(zyklus))
+    return fehler
+
+
 def pruefe_bundle(bundle: KatalogBundle, stand: KatalogStand) -> BundleBericht:
     """Validate a bundle against the active catalog. Pure; no I/O."""
     fehler: list[str] = []
     aktualisierungen: list[str] = []
 
-    # Bundle-defined variables (incl. FORMEL variables derived from the bundle's Formeln).
     bundle_var_gruppen: dict[str, set[VariablenGruppe]] = defaultdict(set)
     bundle_produzierbar: set[str] = set()
     for bv in bundle.variablen:
@@ -139,32 +267,54 @@ def pruefe_bundle(bundle: KatalogBundle, stand: KatalogStand) -> BundleBericht:
         bundle_var_gruppen[name].add(bv.gruppe)
         if _ist_produzierbar(bv.gruppe, bv.definition):
             bundle_produzierbar.add(name)
-    for f in bundle.formeln:
-        bundle_var_gruppen[f.name].add(VariablenGruppe.FORMEL)
-        bundle_produzierbar.add(f.name)
 
     known_vars = stand.known_var_namen | set(bundle_var_gruppen)
     produzierbar = stand.produzierbare_namen | bundle_produzierbar
+    var_einheiten = {**stand.var_einheiten, **{bv.definition.name: bv.definition.einheit for bv in bundle.variablen}}
     alle_formeln = {**stand.formeln, **{f.name: f for f in bundle.formeln}}
+    # Structural dedup baseline: the active base formulas' canonical shapes (a bundle formula that
+    # UPDATES an active one is excluded — an author may edit F_X itself).
+    basis_formen = basis_kanonformen(
+        {n: f for n, f in stand.formeln.items() if n not in {b.name for b in bundle.formeln}}
+    )
 
-    # Rule 1 — every bundle Formel parses and references only known variables.
+    # Rule 1 — every bundle Formel parses, closes over its signature, carries prose, AND is not a
+    # structural re-invention of an existing base formula (§4 dedup — instantiate, don't mint).
     for f in bundle.formeln:
-        for problem in f.validieren(known_vars):
+        for problem in f.validieren():
             fehler.append(f"Formel '{f.name}': {problem}")
-
-    # Rule 2 — the formula dependency graph is acyclic.
-    zyklus = _hat_zyklus(alle_formeln)
-    if zyklus:
-        fehler.append("Formelzyklus: " + " -> ".join(zyklus))
-
-    # Rule 3 — every Vorgang cost variable is producible.
-    for v in bundle.vorgaenge:
-        for kostenart, varname in v.kostenvariablen.items():
-            if varname not in produzierbar:
+        if not (f.beschreibung or "").strip():
+            fehler.append(
+                f"Formel '{f.name}': beschreibung fehlt — ohne Prosa findet der Compiler "
+                f"die Formel nicht wieder."
+            )
+        for param in f.parameter:
+            if not (param.beschreibung or "").strip():
                 fehler.append(
-                    f"Vorgang '{v.code}': Kostenvariable '{varname}' ({kostenart.value}) ist nicht "
-                    f"produzierbar (kein FORMEL/KONSTANTE/STAMMDATEN-Schritt, keine kontext-Variable)."
+                    f"Formel '{f.name}': Parameter '{param.name}' ohne beschreibung "
+                    f"(Bedeutung + Fundort gehören zur Signatur)."
                 )
+        isomorph = isomorphe_basis(f.ausdruck, basis_formen)
+        if isomorph:
+            fehler.append(
+                f"Formel '{f.name}': strukturell identisch zu {' / '.join(isomorph)} — "
+                f"instanziieren statt neu münzen (nur die Bindung/Einheiten unterscheiden sich)."
+            )
+
+    # Rule 1b — every bundle Variable carries retrieval-grade prose (§2.6). The corpus cannot rot
+    # back to empty beschreibungen: the compiler retrieves over this prose to find an existing
+    # variable instead of minting one.
+    for bv in bundle.variablen:
+        if not (bv.definition.beschreibung or "").strip():
+            fehler.append(
+                f"Variable '{bv.definition.name}': beschreibung fehlt — ohne Prosa "
+                f"(Bedeutung, welchen Parameter sie speist, Fundort) findet der Compiler sie "
+                f"nicht wieder."
+            )
+
+    # Rule 2 — every Vorgang rechnung is evaluable.
+    for v in bundle.vorgaenge:
+        fehler.extend(_pruefe_rechnung(v, alle_formeln, known_vars, produzierbar, var_einheiten))
 
     # Rule 4 — every code reference resolves (active ∪ bundle).
     aa_codes = stand.ausfuehrungsart_codes | {a.code for a in bundle.ausfuehrungsarten}
@@ -212,8 +362,8 @@ def pruefe_bundle(bundle: KatalogBundle, stand: KatalogStand) -> BundleBericht:
 
     # Rule 5 — a bundle variable must not introduce a NEW cross-gruppe shadowing. Updating an
     # existing (name, gruppe) pairing is allowed even when the name is deliberately shadowed
-    # already (the fixtures' KONSTANTE + Formel pair); only a pairing the active catalog does not
-    # have yet creates a collision the KATALOG merge would resolve silently.
+    # already; only a pairing the active catalog does not have yet creates a collision the
+    # KATALOG merge would resolve silently.
     for name, gruppen in bundle_var_gruppen.items():
         aktive_gruppen = stand.var_gruppen.get(name, set())
         alle = aktive_gruppen | gruppen

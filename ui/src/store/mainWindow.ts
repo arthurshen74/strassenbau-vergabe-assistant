@@ -14,7 +14,8 @@ export type MainWindowKind =
   | 'projects'
   | 'prompt_execution_log'
   | 'prompt_usage_log'
-  | 'ingest_console';
+  | 'ingest_console'
+  | 'katalog';
 
 export interface MainWindowView {
   kind: MainWindowKind;

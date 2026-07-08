@@ -61,6 +61,7 @@ from shared.services.kalkulation_v2.model import (
     Maschine,
     VariableDefinition,
     Vorgang,
+    VorgangRechnung,
 )
 
 logger = logging.getLogger(__name__)
@@ -130,26 +131,26 @@ async def lade_katalog(conn: AsyncConnection) -> dict[str, int] | None:
         {z.schluessel: _validate(z, Ausführungsart, "code") for z in await aktive(KatalogEntitaet.AUSFUEHRUNGSARTEN)},
     )
 
-    # 3) Formeln + Variablen (split by gruppe into the three fixture dicts).
+    # 3) Basisformeln + Variablen (split by gruppe into the two fixture dicts).
     _refill(
         m_formel.FORMELN,
         {z.schluessel: _validate(z, Formel, "name") for z in await aktive(KatalogEntitaet.FORMELN)},
     )
     stammdaten_var: dict[str, VariableDefinition] = {}
     kontext_var: dict[str, VariableDefinition] = {}
-    formel_var: dict[str, VariableDefinition] = {}
     ziel = {
         VariablenGruppe.STAMMDATEN: stammdaten_var,
         VariablenGruppe.KONTEXT: kontext_var,
-        VariablenGruppe.FORMEL: formel_var,
     }
     for z in await aktive(KatalogEntitaet.VARIABLEN):
+        gruppe = VariablenGruppe(z.payload["gruppe"])
+        if gruppe not in ziel:
+            raise ValueError(f"katalog_variablen: Gruppe '{gruppe}' wird nicht mehr geladen "
+                             f"(Variable {z.schluessel}) — Formeln sind keine Variablen mehr.")
         rest = {k: v for k, v in z.payload.items() if k != "gruppe"}
-        vardef = VariableDefinition.model_validate({"name": z.schluessel, **rest})
-        ziel[VariablenGruppe(z.payload["gruppe"])][z.schluessel] = vardef
+        ziel[gruppe][z.schluessel] = VariableDefinition.model_validate({"name": z.schluessel, **rest})
     _refill(m_stamm.STAMMDATEN_VARIABLEN, stammdaten_var)
     _refill(m_kontext.KONTEXT_VARIABLEN, kontext_var)
-    _refill(m_formel.FORMEL_VARIABLEN, formel_var)
 
     # 4) Baustoffe
     _refill(
@@ -191,9 +192,9 @@ async def lade_katalog(conn: AsyncConnection) -> dict[str, int] | None:
             name=p["name"],
             ausfuehrungsart=m_aa.AUSFUEHRUNGSARTEN.get(aa_code) if aa_code else None,
             betriebsart_code=p["betriebsart_code"],
-            leistung_variable=p["leistung_variable"],
+            leistung_instanz=p["leistung_instanz"],
             kosten_bindung=p["kosten_bindung"],
-            kostenvariablen=p["kostenvariablen"],
+            rechnung=VorgangRechnung.model_validate(p["rechnung"]),
         )
     _refill(m_vorg.VORGAENGE, vorgaenge)
 
@@ -225,7 +226,7 @@ async def lade_katalog(conn: AsyncConnection) -> dict[str, int] | None:
     )
 
     # Derived state rebuilt from the refilled dicts (mirrors the fixtures' import-time derivation).
-    _refill(m_store.KATALOG, {**m_stamm.STAMMDATEN_VARIABLEN, **m_kontext.KONTEXT_VARIABLEN, **m_formel.FORMEL_VARIABLEN})
+    _refill(m_store.KATALOG, {**m_stamm.STAMMDATEN_VARIABLEN, **m_kontext.KONTEXT_VARIABLEN})
     m_bs.baue_index()
     m_glob.GLOBAL_VAR_NAMES.clear()
     m_glob.GLOBAL_VAR_NAMES.update(m_glob.GLOBALE_VARIABLEN)

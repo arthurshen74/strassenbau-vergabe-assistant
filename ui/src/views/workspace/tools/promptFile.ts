@@ -39,6 +39,7 @@ export const PROMPT_TYPES: readonly PromptType[] = [
   'ekt_langtext_extract',
   'ekt_output_narrate',
   'project_context_resolve',
+  'katalog_handbuch',
 ];
 
 type Scalar = string | number | null;

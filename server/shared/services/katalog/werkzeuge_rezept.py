@@ -6,10 +6,11 @@ full recipe as a `KatalogBundle` transport dict plus a justification envelope �
 nothing existing fits). The tool
 
 1. normalises the transport dict into a `KatalogBundle` (variables arrive in the simplified W10/W12
-   shape and get their cascade built server-side; Formeln mirror W8: `ergebnis_variable` = name),
+   shape and get their cascade built server-side; a Vorgang carries its `rechnung` of base-formula
+   instantiations; a minted Formel is a base formula with a declared parameter signature),
 2. validates with the full store rule set via `KatalogEntwurfDienst.pruefen` — nothing weakened,
-3. checks the justification lists for coverage (every code defined or referenced by the bundle
-   appears in exactly one list — a mechanical check, not LLM trust),
+3. checks the justification lists for coverage (every code defined or referenced by the bundle —
+   including each instantiated base formula and each bound variable — appears in exactly one list),
 4. BM25-probes every minted Vorgang/Ausführungsart/Betriebsart/Stammdaten-Variable against the
    active catalog and warns on a near-duplicate (soft reuse pressure, §4 — warnings never block),
 5. persists the drafts sharing one bundle_uuid on success; on any error nothing persists and the
@@ -64,11 +65,65 @@ DUBLETTEN_SCHWELLE = 3.5
 
 _KOSTENARTEN = {k.value.lower(): k.value for k in Kostenart}
 
+# The binding-path prefixes that name a catalog variable (vs. baustoff fields, sibling instanzen,
+# or literals) — mirrors einheiten/model binding grammar. Used by coverage + the geometry walk.
+_VAR_PRAEFIXE = ("kontext", "stammdaten")
 
-def _kostenarten_normalisieren(kostenvariablen: dict[str, str]) -> dict[str, str]:
-    """Accept case-insensitive Kostenart keys ("lohn" → "Lohn"); unknown keys pass through so the
-    Pydantic error names them."""
-    return {_KOSTENARTEN.get(k.lower(), k): v for k, v in kostenvariablen.items()}
+
+def _vorgang_normalisieren(v: dict[str, Any]) -> dict[str, Any]:
+    """Case-insensitive Kostenart keys inside `rechnung.kosten` ("lohn" → "Lohn"); unknown keys
+    pass through so the Pydantic error names them. Non-dict rechnung passes through untouched."""
+    rechnung = v.get("rechnung")
+    if not isinstance(rechnung, dict) or not isinstance(rechnung.get("kosten"), dict):
+        return v
+    kosten = {_KOSTENARTEN.get(str(k).lower(), k): val for k, val in rechnung["kosten"].items()}
+    return {**v, "rechnung": {**rechnung, "kosten": kosten}}
+
+
+def _instanz_bindungen(inst: Any) -> dict[str, str]:
+    """The bindung dict of a FormelInstanz whether it arrived as a model or a raw dict."""
+    if isinstance(inst, dict):
+        return inst.get("bindung") or {}
+    return inst.bindung
+
+
+def _vorgang_instanzen(v: Any):
+    """Every FormelInstanz in a (bundle or payload) Vorgang's Rechnung — named + cost lines."""
+    rechnung = v.get("rechnung") if isinstance(v, dict) else v.rechnung
+    if rechnung is None:
+        return
+    instanzen = rechnung.get("instanzen") if isinstance(rechnung, dict) else rechnung.instanzen
+    kosten = rechnung.get("kosten") if isinstance(rechnung, dict) else rechnung.kosten
+    yield from (instanzen or {}).values()
+    for liste in (kosten or {}).values():
+        yield from liste
+
+
+def _instanz_formel(inst: Any) -> str | None:
+    return inst.get("formel") if isinstance(inst, dict) else inst.formel
+
+
+def _gebundene_variablen(v: Any) -> set[str]:
+    """The kontext./stammdaten. variables a Vorgang's Rechnung binds (across all instanzen)."""
+    return {
+        rest
+        for inst in _vorgang_instanzen(v)
+        for pfad in _instanz_bindungen(inst).values()
+        for praefix, _, rest in [str(pfad).partition(".")]
+        if praefix in _VAR_PRAEFIXE and rest
+    }
+
+
+def _gebundene_geometrie(v: Any) -> set[str]:
+    """The kontext-geometry variables a Vorgang's Rechnung binds (a subset of GEOM values)."""
+    geom = set(GEOM.values())
+    return {
+        rest
+        for inst in _vorgang_instanzen(v)
+        for pfad in _instanz_bindungen(inst).values()
+        for praefix, _, rest in [str(pfad).partition(".")]
+        if praefix == "kontext" and rest in geom
+    }
 
 
 def _variable_bauen(roh: dict[str, Any]) -> BundleVariable:
@@ -131,15 +186,11 @@ def bundle_bauen(roh: dict[str, Any]) -> tuple[KatalogBundle | None, list[str]]:
 
     leistungen = sektion("leistungen", Leistung.model_validate)
     bauverfahren = sektion("bauverfahren", BundleBauverfahren.model_validate)
-    vorgaenge = sektion("vorgaenge", lambda v: BundleVorgang.model_validate(
-        {**v, "kostenvariablen": _kostenarten_normalisieren(v.get("kostenvariablen") or {})}
-    ))
+    vorgaenge = sektion("vorgaenge", lambda v: BundleVorgang.model_validate(_vorgang_normalisieren(v)))
     ausfuehrungsarten = sektion("ausfuehrungsarten", Ausführungsart.model_validate)
     betriebskategorien = sektion("betriebskategorien", Betriebskategorie.model_validate)
     betriebsarten = sektion("betriebsarten", Betriebsart.model_validate)
-    formeln = sektion("formeln", lambda f: Formel(
-        name=f["name"], ergebnis_variable=f["name"], ausdruck=f["ausdruck"], einheit=f.get("einheit")
-    ))
+    formeln = sektion("formeln", Formel.model_validate)
     variablen = sektion("variablen", _variable_bauen)
     baustoffe = sektion("baustoffe", Baustoff.model_validate)
     maschinen = sektion("maschinen", Maschine.model_validate)
@@ -187,13 +238,17 @@ def _definierte_codes(bundle: KatalogBundle) -> set[str]:
 
 
 def _referenzierte_codes(bundle: KatalogBundle) -> set[str]:
-    """Every code/name a bundle entity binds: taxonomy references, chain members, mapping entries,
-    price parties, and the variable names formulas and Vorgänge consume."""
+    """Every EXISTING code/name a bundle entity binds and must justify: taxonomy references, chain
+    members, mapping entries, price parties, and — per Vorgang Rechnung — each instantiated base
+    formula plus each kontext./stammdaten. variable and machine-override rate key. Base formulas
+    reference only their own local parameters, so a minted formula adds no external references;
+    `formel.<instanz>` binding paths are internal (sibling instanzen), not codes."""
     codes: set[str] = set()
     for v in bundle.vorgaenge:
-        codes.update(c for c in (v.ausfuehrungsart_code, v.betriebsart_code, v.leistung_variable) if c)
+        codes.update(c for c in (v.ausfuehrungsart_code, v.betriebsart_code) if c)
         codes.update(v.kosten_bindung)
-        codes.update(v.kostenvariablen.values())
+        codes.update(_gebundene_variablen(v))
+        codes.update(fn for inst in _vorgang_instanzen(v) if (fn := _instanz_formel(inst)))
     for b in bundle.betriebsarten:
         codes.add(b.kategorie_code)
     for m in bundle.maschinen:
@@ -204,11 +259,6 @@ def _referenzierte_codes(bundle: KatalogBundle) -> set[str]:
     for lk, bcs in bundle.leistung_bauverfahren.items():
         codes.add(lk)
         codes.update(bcs)
-    for f in bundle.formeln:
-        try:
-            codes.update(f.eingaben())
-        except SyntaxError:
-            pass  # Rule 1 reports the syntax error; coverage skips the unparseable formula.
     for p in bundle.preise:
         codes.update((p.lieferant_code, p.baustoff_code))
     return codes
@@ -255,67 +305,36 @@ def pruefe_abdeckung(
 
 
 async def geometrie_warnungen(dienst: KatalogEntwurfDienst, bundle: KatalogBundle) -> list[str]:
-    """A recipe whose cost variables depend — directly or transitively through active formulas —
-    on a geometry variable other than the billed one (the Leistung's GEOM[einheit]) validates but
-    is not deterministically calculable: only the billed unit's variable is booked from the menge.
-    The trap hides in REUSED chain members (an m²-based Vorgang in a t-billed recipe). Warn, never
-    block: the calculator graph can still resolve the foreign geometry via HITL."""
+    """A recipe whose Rechnung binds a geometry variable other than the billed one (the Leistung's
+    GEOM[einheit]) validates but is not deterministically calculable: only the billed unit's
+    variable is booked from the menge. The trap hides in REUSED chain members (an m²-based Vorgang
+    in a t-billed recipe). Warn, never block: the calculator graph can still resolve the foreign
+    geometry via HITL. All Instanzen of a Vorgang live in one Rechnung, so scanning their kontext
+    bindings catches the transitive case without a formula graph walk."""
     gebucht = {
         GEOM[lg.einheit] for lg in bundle.leistungen if lg.einheit and lg.einheit in GEOM
     }
     if not gebucht:
         return []
-    fremd = set(GEOM.values()) - gebucht
 
-    aktive_formeln, aktive_vorgaenge = await dienst.aktive_formeln_und_vorgaenge()
-    formeln: dict[str, Formel] = {
-        name: Formel.model_validate({"name": name, **p}) for name, p in aktive_formeln.items()
-    }
-    formeln.update({f.name: f for f in bundle.formeln})
-    produzenten = {f.ergebnis_variable: f for f in formeln.values()}
+    _, aktive_vorgaenge = await dienst.aktive_formeln_und_vorgaenge()
 
-    def fremde_wurzeln(var: str, gesehen: frozenset[str]) -> set[str]:
-        if var in fremd:
-            return {var}
-        formel = produzenten.get(var)
-        if formel is None or var in gesehen:
-            return set()
-        try:
-            eingaben = formel.eingaben()
-        except SyntaxError:
-            return set()
-        naechste = gesehen | {var}
-        return {w for e in eingaben for w in fremde_wurzeln(e, naechste)}
-
-    # Seeds: every cost/productivity variable of every Vorgang in the recipe's chains — the
-    # bundle's own Vorgänge AND reused active chain members — plus the bundle formulas themselves.
-    def vorgang_seeds(kostenvariablen: dict, leistung_variable: str | None) -> list[str]:
-        return [str(v) for v in kostenvariablen.values()] + (
-            [leistung_variable] if leistung_variable else []
-        )
-
-    seeds: dict[str, list[str]] = {}
+    # Every Vorgang in the recipe's chains — the bundle's own AND reused active chain members.
+    stellen: dict[str, Any] = {f"Vorgang '{v.code}'": v for v in bundle.vorgaenge}
     bundle_vorgang_codes = {v.code for v in bundle.vorgaenge}
-    for v in bundle.vorgaenge:
-        seeds[f"Vorgang '{v.code}'"] = vorgang_seeds(v.kostenvariablen, v.leistung_variable)
     for b in bundle.bauverfahren:
         for code in b.vorgang_codes:
             if code in bundle_vorgang_codes:
                 continue
             p = aktive_vorgaenge.get(code)
             if p is not None:
-                seeds[f"wiederverwendeter Vorgang '{code}'"] = vorgang_seeds(
-                    p.get("kostenvariablen") or {}, p.get("leistung_variable")
-                )
-    for f in bundle.formeln:
-        seeds.setdefault(f"Formel '{f.name}'", []).append(f.ergebnis_variable)
+                stellen[f"wiederverwendeter Vorgang '{code}'"] = p
 
     warnungen: list[str] = []
-    for stelle, variablen in seeds.items():
-        treffer = {w for var in variablen for w in fremde_wurzeln(var, frozenset())}
-        for var in sorted(treffer):
+    for stelle, v in stellen.items():
+        for var in sorted(_gebundene_geometrie(v) - gebucht):
             warnungen.append(
-                f"Geometrie: {stelle} hängt (ggf. transitiv) an '{var}', gebucht wird aber "
+                f"Geometrie: {stelle} bindet '{var}', gebucht wird aber "
                 f"{'/'.join(sorted(gebucht))} — '{var}' ist bei der Kalkulation nicht gefüllt "
                 "(nur per Rückfrage auflösbar). Direkt von der gebuchten Größe rechnen."
             )
@@ -363,7 +382,12 @@ def _entwurf_ansicht(bundle: KatalogBundle) -> dict[str, Any]:
     Variablen show their cascade methods."""
     ansicht = bundle.model_dump(mode="json", exclude={"formeln", "variablen"}, exclude_defaults=True)
     ansicht["formeln"] = [
-        {"name": f.name, "ausdruck": f.ausdruck, "einheit": f.einheit, **_formel_latex(f.ausdruck)}
+        {
+            "name": f.name, "ausdruck": f.ausdruck, "einheit": f.einheit,
+            "beschreibung": f.beschreibung,
+            "parameter": [p.model_dump(mode="json") for p in f.parameter],
+            **_formel_latex(f.ausdruck),
+        }
         for f in bundle.formeln
     ]
     ansicht["variablen"] = [
@@ -443,14 +467,21 @@ def katalog_rezept_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
         `bundle`-Form (alle Felder optional, nur was das Rezept braucht):
         - leistungen: [{code, name, einheit, beschreibung?, standard_kennung?}]
         - bauverfahren: [{code, name, vorgang_codes: [geordnet, erster zuerst]}]
-        - vorgaenge: [{code, name, ausfuehrungsart_code?, betriebsart_code?, leistung_variable?,
-          kosten_bindung?: {kostenvariable: maschinen_eigenschaft}, kostenvariablen:
-          {Material|Maschine|Antransport|Abtransport|Entsorgung|Lohn: variablen_name}}]
+        - vorgaenge: [{code, name, ausfuehrungsart_code?, betriebsart_code?, leistung_instanz?,
+          kosten_bindung?: {stammdaten_satz: maschinen_eigenschaft}, rechnung: {
+            instanzen?: {name: INSTANZ},   # benannte Mengen/Kurven, referenzierbar als formel.<name>
+            kosten: {Material|Maschine|Antransport|Abtransport|Entsorgung|Lohn: [INSTANZ, ...]}}}]
+          INSTANZ = {formel: BASISFORMEL, bindung: {parameter: quelle}, einheiten?: {parameter:
+            einheit}, ergebnis_einheit?, variable?: gebuchte_variable, bezeichnung?}. `quelle` ist
+            `kontext.<var>` / `stammdaten.<var>` (Kaskaden-Auflösung), `baustoff.<feld>`,
+            `formel.<instanz>` (Geschwister-Instanz) oder eine Zahl (Literal). ERST vorhandene
+            Basisformeln instanziieren (liste_formeln/zeige_formel), nur bei echt neuer Form münzen.
         - ausfuehrungsarten: [{code, name, geraetebezug?}]  (Geräteklassen)
         - betriebskategorien: [{code, bezeichnung, beschreibung?}]
         - betriebsarten: [{code, bezeichnung, kategorie_code, einheit?, beschreibung?}]
-        - formeln: [{name, ausdruck, einheit?}] — DSL wie bei neue_formel; die FORMEL-Variable
-          (gleicher Name) entsteht automatisch
+        - formeln: [{name, ausdruck, einheit?, beschreibung, parameter: [{name, einheit?,
+          beschreibung, standard?}]}] — eine neue BASISFORMEL über deklarierte Parameter
+          (kanonische Einheiten; Umrechnung bei der Bindung). Formeln sind KEINE Variablen mehr.
         - variablen: [{name, gruppe: "stammdaten"|"kontext", bezeichnung, einheit?, wert?,
           llm_hinweis?, default_wert?, beschreibung?}] — Kaskade wird serverseitig gebaut
           (stammdaten braucht `wert`; kontext: llm_hinweis → LV/RAG-Stufen, default_wert → Rückfall)

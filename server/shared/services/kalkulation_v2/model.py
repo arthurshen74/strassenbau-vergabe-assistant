@@ -11,20 +11,29 @@ classes/methods any more. They become *data*:
                           resolution step can carry an LLM prompt. The cascade
                           encodes your StateGraph order directly:
                               [LANGTEXT(prompt), RAG(prompt), HITL]
-  * Formel              – a calculation written as a string expression, evaluated
-                          through a restricted Python AST (the "DSL"). Editable
-                          as text; referenced inputs are discovered by parsing.
-  * Kalkulator          – the ONLY compiled part: resolves variables (deterministically
-                          for FORMEL/STAMMDATEN/KONSTANTE; the LLM/HITL steps are
-                          filled by the StateGraph before calc) and evaluates formulas.
+  * Formel              – a BASE formula: a string expression over DECLARED formal
+                          parameters (name + einheit + prose), written once in
+                          canonical units and evaluated through a restricted
+                          Python AST (the "DSL"). ~16 of them cover the catalog.
+  * FormelInstanz       – one application of a base formula: a dict binding of its
+                          parameters to source paths (kontext.x, stammdaten.x,
+                          baustoff.x, formel.other_instanz, or a literal). The
+                          unit converter scales a bound value at the seam.
+  * Vorgang.rechnung    – the per-Vorgang set of instantiations: named quantity/
+                          curve instanzen plus the cost lines per Kostenart.
+  * Kalkulator          – the ONLY compiled part: resolves variables through their
+                          cascade (STAMMDATEN/KONSTANTE deterministically; the
+                          LLM/HITL steps are filled by the StateGraph before calc).
 
 Every resolved value is a VariablenWert carrying its provenance (quelle) and, for
-extracted inputs, confidence + evidence → the EKT stays auditable.
+extracted inputs, confidence + evidence → the EKT stays auditable. Instanz results
+are recorded Vorgang-scoped ("V_FRAESEN::arbeitszeit") with the same provenance.
 
 Determinism note: arithmetic is Decimal; the evaluator is pure (no I/O, now(),
-random); cycles are detected. The price of runtime-editable formulas is that
-correctness moves from compile-time to runtime — see `Formel.validieren` and the
-note about formula versioning at the bottom.
+random); cycles are detected. Machine binding keeps its two override seams: a bound
+machine's Leistungsprofil replaces the Vorgang's leistung instanz (scoped ctx hit),
+and its property bag replaces the Stammdaten rate variables (global ctx hit) — the
+Stammdaten rates remain the no-machine defaults.
 """
 
 from __future__ import annotations
@@ -32,10 +41,12 @@ from __future__ import annotations
 import ast
 import operator
 from datetime import date
-from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
+from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from shared.services.kalkulation_v2 import einheiten
 
 
 def D(v: str | int | float) -> Decimal:
@@ -81,7 +92,6 @@ class AufloesungsSchritt(BaseModel):
     prompt: str | None = None                 # LLM instruction for LANGTEXT / RAG
     konfidenz_schwelle: Decimal | None = None  # min confidence to accept this step
     stammdaten_pfad: str | None = None        # for STAMMDATEN, e.g. "baustoff.rohdichte_t_pro_m3"
-    formel_name: str | None = None            # for FORMEL (defaults to the variable name)
     konstante: Decimal | None = None          # for KONSTANTE
 
 
@@ -99,16 +109,35 @@ class VariableDefinition(BaseModel):
     aufloesung: list[AufloesungsSchritt] = Field(default_factory=list)
 
 
-class Formel(BaseModel):
+class FormelParameter(BaseModel):
+    """One declared formal parameter of a base formula: canonical einheit + sourcing prose."""
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    ergebnis_variable: str                    # which variable this formula produces
-    ausdruck: str                             # the DSL expression
-    einheit: str | None = None
+    einheit: str | None = None                # canonical unit; None = polymorphic (e.g. "menge")
+    beschreibung: str | None = None           # meaning + where to find the value (ontology prose)
+    standard: Decimal | None = None           # default when an instanz leaves the parameter unbound
+
+
+class Formel(BaseModel):
+    """A base formula: one DSL expression over its declared parameters, written once in
+    canonical units. Applied via FormelInstanz bindings — never by copying the expression."""
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    ausdruck: str                             # the DSL expression over parameter names
+    einheit: str | None = None                # unit of the result
+    beschreibung: str | None = None           # what it computes and when to use it
+    parameter: list[FormelParameter] = Field(default_factory=list)
+
+    def parameter_namen(self) -> set[str]:
+        return {p.name for p in self.parameter}
+
+    def parameter_von(self, name: str) -> FormelParameter | None:
+        return next((p for p in self.parameter if p.name == name), None)
 
     def eingaben(self) -> set[str]:
-        """Discover referenced variable names by parsing the AST."""
+        """Discover referenced names by parsing the AST."""
         baum = ast.parse(self.ausdruck, mode="eval")
         return {n.id for n in ast.walk(baum) if isinstance(n, ast.Name)} - set(_FUNKTIONEN)
 
@@ -121,11 +150,11 @@ class Formel(BaseModel):
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
         }
 
-    def validieren(self, bekannte_variablen: set[str]) -> list[str]:
-        """Dry-check before saving: parseable + every referenced name is known. An unknown *function*
-        (a Call target outside the DSL whitelist) and an unknown *variable* (a value name) get
-        distinct messages — the function message names the whitelist so the author can express the
-        math with existing vocabulary or formulate an engineering request (never invent a function)."""
+    def validieren(self) -> list[str]:
+        """Dry-check before saving: parseable, closed over the declared signature, and every
+        declared parameter used. An unknown *function* (a Call target outside the DSL whitelist)
+        gets a distinct message naming the whitelist so the author can express the math with
+        existing vocabulary or formulate an engineering request (never invent a function)."""
         try:
             eingaben = self.eingaben()
         except SyntaxError as e:
@@ -137,10 +166,11 @@ class Formel(BaseModel):
                 f"unbekannte Funktion '{fn}' — keine DSL-Funktion. Verfügbar: {verfuegbar}. "
                 "Mit vorhandenem Vokabular ausdrücken oder als Entwicklerauftrag formulieren."
             )
-        # A Call target that is not a DSL function is a function error, not a phantom variable.
-        for ref in sorted(eingaben - self.funktionen()):
-            if ref not in bekannte_variablen:
-                probleme.append(f"unbekannte Variable referenziert: {ref}")
+        deklariert = self.parameter_namen()
+        for ref in sorted((eingaben - self.funktionen()) - deklariert):
+            probleme.append(f"Ausdruck referenziert undeklarierten Parameter: {ref}")
+        for unbenutzt in sorted(deklariert - eingaben):
+            probleme.append(f"deklarierter Parameter wird im Ausdruck nicht verwendet: {unbenutzt}")
         return probleme
 
 
@@ -287,15 +317,6 @@ class Kalkulator:
             raise KeyError(f"unbekannte Variable: {name}")
         for schritt in defn.aufloesung:
             m = schritt.methode
-            if m == AufloesungsMethode.FORMEL:
-                formel = self.formeln[schritt.formel_name or name]
-                wert = eval_ausdruck(
-                    formel.ausdruck,
-                    lambda n: self.resolve(n, ctx, memo, pfad | {name}),
-                )
-                ctx.werte[name] = VariablenWert(name=name, wert=wert, quelle=m)
-                memo[name] = wert
-                return wert
             if m == AufloesungsMethode.STAMMDATEN:
                 wert = self._stammdaten(schritt.stammdaten_pfad, ctx)
                 if wert is not None:
@@ -396,28 +417,146 @@ class Ausführungsart(BaseModel):
     geraetebezug: str | None = None
 
 
+class FormelInstanz(BaseModel):
+    """One application of a base formula: parameters bound to source paths or literals.
+
+    Path grammar: `kontext.<var>` / `stammdaten.<var>` (cascade resolution via Kalkulator),
+    `baustoff.<feld>` (the bound Baustoff), `formel.<instanz>` (another instanz of the same
+    Vorgang), or a numeric literal. An unbound parameter falls back to its declared default.
+    `variable` names the kontext variable this instanz materializes — a booked/extracted
+    value for it wins over computing (the t-billed vs m²-billed geometry seam).
+
+    `einheiten` pins a concrete unit onto a POLYMORPHIC formula parameter (einheit None,
+    e.g. F_MENGE_ANSATZ.ansatz) so the converter can scale the bound source (kg/m² -> t/m²);
+    `ergebnis_einheit` does the same for a polymorphic result consumed by another instanz.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    formel: str
+    bindung: dict[str, str] = Field(default_factory=dict)
+    einheiten: dict[str, str] = Field(default_factory=dict)
+    ergebnis_einheit: str | None = None
+    variable: str | None = None
+    bezeichnung: str | None = None            # display label for Nachweis / EKT lines
+
+
+class VorgangRechnung(BaseModel):
+    """A Vorgang's cost computation: named quantity/curve instanzen plus the cost lines
+    per Kostenart (a list — Material may carry several lines). Kostenart order drives the
+    Nachweis cost-line order."""
+    model_config = ConfigDict(extra="forbid")
+
+    instanzen: dict[str, FormelInstanz] = Field(default_factory=dict)
+    kosten: dict[Kostenart, list[FormelInstanz]] = Field(default_factory=dict)
+
+
+# Einheiten of the Decimal-typed Baustoff fields addressable as `baustoff.<feld>`.
+BAUSTOFF_PFAD_EINHEITEN: dict[str, str | None] = {
+    "rohdichte_t_pro_m3": "t/m3",
+    "verdichtungsfaktor": "-",
+    "basispreis_eur_pro_t": "€/t",
+    "basispreis_eur": None,
+}
+
+
 class Vorgang(BaseModel):
     model_config = ConfigDict(extra="forbid")
     code: str
     name: str
     ausfuehrungsart: Ausführungsart | None = None
-    # Machine-selection seam: the operation's productivity profile (betriebsart_code) +
-    # which cost variables a bound machine fills (leistung_variable for the productivity,
-    # kosten_bindung: cost_variable_name -> machine property-bag key).
+    # Machine-selection seam: the operation's productivity profile (betriebsart_code);
+    # a bound machine overrides the named leistung instanz (scoped) and the Stammdaten
+    # rate variables named in kosten_bindung (rate variable -> property-bag key).
     betriebsart_code: str | None = None
-    leistung_variable: str | None = None
+    leistung_instanz: str | None = None
     kosten_bindung: dict[str, str] = Field(default_factory=dict)
-    # Kostenart -> name of the variable that yields that cost line
-    kostenvariablen: dict[Kostenart, str] = Field(default_factory=dict)
+    rechnung: VorgangRechnung = Field(default_factory=VorgangRechnung)
+
+    def instanz_scope(self, instanz_name: str) -> str:
+        return f"{self.code}::{instanz_name}"
+
+    def _wert_fuer(self, pfad: str, ziel_einheit: str | None, kalk: Kalkulator,
+                   ctx: Kalkulationskontext, cache: dict[str, Decimal],
+                   kette: frozenset[str]) -> Decimal:
+        """Resolve one bound source path to a Decimal in the target einheit."""
+        praefix, _, rest = pfad.partition(".")
+        if praefix in ("kontext", "stammdaten") and rest:
+            wert = kalk.resolve(rest, ctx)
+            defn = kalk.katalog.get(rest)
+            return einheiten.konvertiere(wert, defn.einheit if defn else None, ziel_einheit)
+        if praefix == "baustoff" and rest:
+            baustoff = ctx.stammdaten.get("baustoff")
+            wert = getattr(baustoff, rest, None)
+            if not isinstance(wert, Decimal):
+                raise ValueError(f"{self.code}: Baustoff-Feld nicht auflösbar: {pfad}")
+            return einheiten.konvertiere(wert, BAUSTOFF_PFAD_EINHEITEN.get(rest), ziel_einheit)
+        if praefix == "formel" and rest:
+            wert = self._instanz_wert(rest, kalk, ctx, cache, kette)
+            inst = self.rechnung.instanzen[rest]
+            quell_einheit = inst.ergebnis_einheit or kalk.formeln[inst.formel].einheit
+            return einheiten.konvertiere(wert, quell_einheit, ziel_einheit)
+        try:
+            return Decimal(pfad)  # literal — assumed to be in the parameter's einheit
+        except InvalidOperation:
+            raise ValueError(f"{self.code}: unbekannter Bindungspfad: {pfad!r}") from None
+
+    def _auswerten(self, inst: FormelInstanz, kalk: Kalkulator, ctx: Kalkulationskontext,
+                   cache: dict[str, Decimal], kette: frozenset[str]) -> Decimal:
+        formel = kalk.formeln[inst.formel]
+
+        def resolver(param_name: str) -> Decimal:
+            param = formel.parameter_von(param_name)
+            pfad = inst.bindung.get(param_name)
+            if pfad is not None:
+                ziel_einheit = inst.einheiten.get(param_name) or (
+                    param.einheit if param is not None else None
+                )
+                return self._wert_fuer(pfad, ziel_einheit, kalk, ctx, cache, kette)
+            if param is not None and param.standard is not None:
+                return param.standard
+            raise ValueError(
+                f"{self.code}: Parameter '{param_name}' von {inst.formel} ist ungebunden"
+            )
+
+        return eval_ausdruck(formel.ausdruck, resolver)
+
+    def _instanz_wert(self, name: str, kalk: Kalkulator, ctx: Kalkulationskontext,
+                      cache: dict[str, Decimal], kette: frozenset[str]) -> Decimal:
+        """A named quantity/curve instanz: machine override wins, then a booked value for
+        the variable it materializes, then compute-and-record (Vorgang-scoped provenance)."""
+        if name in cache:
+            return cache[name]
+        if name in kette:
+            raise ValueError(f"{self.code}: Instanz-Zyklus: {' -> '.join([*kette, name])}")
+        scoped = self.instanz_scope(name)
+        if scoped in ctx.werte:
+            cache[name] = ctx.werte[scoped].wert
+            return cache[name]
+        inst = self.rechnung.instanzen.get(name)
+        if inst is None:
+            raise KeyError(f"{self.code}: unbekannte Instanz: formel.{name}")
+        if inst.variable and inst.variable in ctx.werte:
+            cache[name] = ctx.werte[inst.variable].wert
+            return cache[name]
+        wert = self._auswerten(inst, kalk, ctx, cache, kette | {name})
+        ctx.werte[scoped] = VariablenWert(
+            name=scoped, wert=wert, quelle=AufloesungsMethode.FORMEL, beleg=inst.formel
+        )
+        cache[name] = wert
+        return wert
 
     def kalkuliere(self, kalk: Kalkulator, ctx: Kalkulationskontext) -> dict:
         positionen = []
         summe = Decimal("0")
-        for kostenart, varname in self.kostenvariablen.items():
-            betrag = kalk.resolve(varname, ctx).quantize(Decimal("0.01"))
-            quelle = ctx.werte[varname].quelle.value
-            positionen.append({"kostenart": kostenart.value, "variable": varname,
-                               "betrag_eur": betrag, "quelle": quelle})
+        cache: dict[str, Decimal] = {}
+        for kostenart, instanzen in self.rechnung.kosten.items():
+            betrag = sum(
+                (self._auswerten(i, kalk, ctx, cache, frozenset()) for i in instanzen),
+                start=Decimal("0"),
+            ).quantize(Decimal("0.01"))
+            label = " + ".join(i.bezeichnung or i.formel for i in instanzen)
+            positionen.append({"kostenart": kostenart.value, "variable": label,
+                               "betrag_eur": betrag, "quelle": AufloesungsMethode.FORMEL.value})
             summe += betrag
         return {"vorgang": self.code, "positionen": positionen,
                 "ekt_eur": summe.quantize(Decimal("0.01"))}

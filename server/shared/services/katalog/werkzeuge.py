@@ -1,4 +1,4 @@
-"""The katalog_chat agent's tool surface — the 33 read tools T1–T33 (§3).
+"""The katalog_chat agent's tool surface — the read tools T1–T34 (§3, incl. the ontology lookup).
 
 Each tool is a thin `@tool` wrapper: it opens a short-lived connection, delegates to `LeseModell`
 (all query logic lives there, §1.3), and returns a `content_and_artifact` pair — a compact JSON
@@ -104,9 +104,9 @@ def katalog_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
 
     @tool(response_format="content_and_artifact")
     async def zeige_vorgang(code: str) -> tuple[str, dict[str, Any]]:
-        """Ein Vorgang im Detail: Geräteklasse, Betriebsart, leistung_variable, kosten_bindung und
-        die Kostenvariablen je Kostenart (mit Bezeichnung + Einheit) plus die enthaltenden
-        Bauverfahren."""
+        """Ein Vorgang im Detail: Geräteklasse, Betriebsart, leistung_instanz, kosten_bindung und
+        die Rechnung — die benannten Mengen-/Kurven-Instanzen sowie die Kostenzeilen je Kostenart
+        (je mit instanziierter Basisformel + Bindungen) plus die enthaltenden Bauverfahren."""
         return await ausfuehren("zeige_vorgang", code=code)
 
     # --- Geräteklassen / Betriebsarten / -kategorien ----------------------- #
@@ -237,21 +237,20 @@ def katalog_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
     # --- Formeln & Variablen ----------------------------------------------- #
     @tool(response_format="content_and_artifact")
     async def liste_formeln(
-        filter_text: str | None = None, referenziert_variable: str | None = None,
+        filter_text: str | None = None,
         status: str = "aktiv", limit: int | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Formeln auflisten: Name, Ergebnis-Variable, Ausdruck, Einheit. `referenziert_variable`
-        filtert auf Formeln, die diese Variable verwenden (umgekehrte Abhängigkeit)."""
+        """Die Basisformeln auflisten: Name, Einheit, Beschreibung, deklarierte Parameter, Ausdruck.
+        `filter_text` matcht Name, Ausdruck oder Beschreibung."""
         return await ausfuehren(
-            "liste_formeln", filter_text=filter_text, referenziert_variable=referenziert_variable,
-            status=status, limit=limit,
+            "liste_formeln", filter_text=filter_text, status=status, limit=limit,
         )
 
     @tool(response_format="content_and_artifact")
     async def zeige_formel(name: str) -> tuple[str, dict[str, Any]]:
-        """Eine Formel im Detail: roher Ausdruck + LaTeX-Darstellung + Symbol-Legende, die Eingaben
-        (mit Gruppe/Bezeichnung/Einheit) und rückwärts die Vorgänge, die ihr Ergebnis binden, sowie
-        die Formeln, die es referenzieren."""
+        """Eine Basisformel im Detail: roher Ausdruck + LaTeX-Darstellung + Legende über ihre
+        DEKLARIERTEN Parameter (je mit Einheit, Beschreibung, Standard) und rückwärts die Vorgänge,
+        die sie instanziieren."""
         return await ausfuehren("zeige_formel", name=name)
 
     @tool(response_format="content_and_artifact")
@@ -260,7 +259,7 @@ def katalog_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
         status: str = "aktiv", limit: int | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Variablen auflisten: Name, Gruppe, Bezeichnung, Einheit, Datentyp. `gruppe` ∈
-        stammdaten | kontext | formel."""
+        stammdaten | kontext."""
         return await ausfuehren(
             "liste_variablen", gruppe=gruppe, filter_text=filter_text, status=status, limit=limit
         )
@@ -273,15 +272,16 @@ def katalog_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
 
     @tool(response_format="content_and_artifact")
     async def erklaere_variable(name: str) -> tuple[str, dict[str, Any]]:
-        """Der transitive Herleitungsbaum: erzeugende Formel → ihre Eingaben → deren Erzeuger, bis zu
-        den Blättern KONSTANTE / STAMMDATEN / kontext. „Wie kommt diese Zahl zustande?"."""
+        """Wie sich eine Variable auflöst — ihr Kaskaden-Blatt: KONSTANTE (ein Satz), STAMMDATEN
+        (Brücke auf ein Baustoff-Feld) oder eingabe (situativer kontext-Wert). Die Herleitung einer
+        Kostenzeile aus Basisformeln steht auf der Vorgang-Rechnung (zeige_vorgang)."""
         return await ausfuehren("erklaere_variable", name=name)
 
     @tool(response_format="content_and_artifact")
     async def verwendung_von_variable(name: str) -> tuple[str, dict[str, Any]]:
-        """Vollständige Verwendung (where-used): Formeln, die sie referenzieren, Vorgänge (als
-        Kostenvariable / leistung_variable / kosten_bindung) und Globale mit ziel_variable darauf.
-        Das Impact-Analyse-Primitiv vor einer Änderung."""
+        """Vollständige Verwendung (where-used): Vorgänge, deren Rechnung sie binden (als Quelle
+        einer Instanz oder als Maschinen-Override-Satz in kosten_bindung), samt Rollen, und Globale
+        mit ziel_variable darauf. Das Impact-Analyse-Primitiv vor einer Änderung."""
         return await ausfuehren("verwendung_von_variable", name=name)
 
     # --- Globale Variablen ------------------------------------------------- #
@@ -290,6 +290,17 @@ def katalog_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
         """Die projektweiten Globalen Variablen: Name, Bezeichnung, erforderlich, ist_standort,
         ziel_variable, RAG-Prompt."""
         return await ausfuehren("liste_globale_variablen", limit=limit)
+
+    # --- Ontologie-Lookup (Rezept-Compiler) -------------------------------- #
+    @tool(response_format="content_and_artifact")
+    async def ontologie_lookup(query: str, limit: int | None = None) -> tuple[str, dict[str, Any]]:
+        """„Wo lebt dieser Eingang?" — der Kern des Rezept-Kompilierens. Für einen Bedarf in
+        natürlicher Sprache („Dieselpreis", „Leistung Fräsen bei Tiefe", „Dichte Asphalt") liefert
+        das Werkzeug die passenden **Basisformeln** (zum Instanziieren, mit Parametern), die passenden
+        **Variablen** (bindbare Quellen), die **Bindungsgrammatik** (kontext./stammdaten./baustoff./
+        formel.) und das **Mengengerüst** (dimensionsändernde Formeln zum Verketten). Erst hiermit
+        suchen, dann binden — statt eine Formel oder Variable neu zu münzen."""
+        return await ausfuehren("ontologie_lookup", query=query, limit=limit)
 
     # --- Lifecycle & Audit ------------------------------------------------- #
     @tool(response_format="content_and_artifact")
@@ -335,6 +346,7 @@ def katalog_werkzeuge(engine: AsyncEngine) -> list[BaseTool]:
         erklaere_variable,
         verwendung_von_variable,
         liste_globale_variablen,
+        ontologie_lookup,
         zeige_historie,
         liste_entwuerfe,
     ]

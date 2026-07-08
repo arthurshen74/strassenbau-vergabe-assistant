@@ -52,6 +52,7 @@ from shared.models.katalog import (
     BundleBericht,
     BundleZeileAnsicht,
     BundleZustandAnsicht,
+    KatalogZeile,
 )
 from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
@@ -171,6 +172,9 @@ BODY_MODELS: list[type[BaseModel]] = [
     BundleZeileAnsicht,
     BundleZustandAnsicht,
     BundleBericht,
+    # Katalog workspace view: the active rows + version history (payload stays untyped JSON,
+    # rendered generically by entity kind).
+    KatalogZeile,
     # Eval curation: gold rows with staleness info (GoldVariable is nested), the PUT body, and
     # the read-only corrections list + error-analysis summary.
     GoldVariable,

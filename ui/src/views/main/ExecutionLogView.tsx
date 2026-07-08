@@ -39,6 +39,7 @@ const PROMPT_TYPES = [
   "ekt_resolve_driver",
   "ekt_select_method",
   "ekt_seed_drivers",
+  "katalog_handbuch",
 ];
 const PAGE_SIZE = 100;
 

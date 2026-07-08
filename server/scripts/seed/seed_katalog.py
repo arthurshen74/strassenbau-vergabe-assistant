@@ -26,7 +26,7 @@ from shared.services.kalkulation_v2 import store  # noqa: F401  -- side effect: 
 from shared.services.kalkulation_v2.ausfuehrungsarten import AUSFUEHRUNGSARTEN
 from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
 from shared.services.kalkulation_v2.betriebsarten import BETRIEBSARTEN, BETRIEBSKATEGORIEN
-from shared.services.kalkulation_v2.formel import FORMELN, FORMEL_VARIABLEN
+from shared.services.kalkulation_v2.formel import FORMELN
 from shared.services.kalkulation_v2.globale_variablen import GLOBALE_VARIABLEN
 from shared.services.kalkulation_v2.kontext_variablen import KONTEXT_VARIABLEN
 from shared.services.kalkulation_v2.leistung_bauverfahren import LEISTUNG_BAUVERFAHREN
@@ -70,12 +70,11 @@ async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
     await plain(KatalogEntitaet.MASCHINEN, list(MASCHINEN.values()), "code")
     await plain(KatalogEntitaet.LEISTUNGEN, list(LEISTUNGEN.values()), "code")
 
-    # Variablen: three fixture sources, each carrying its gruppe discriminator.
+    # Variablen: two fixture sources, each carrying its gruppe discriminator.
     n_var = 0
     for gruppe, quelle in (
         (VariablenGruppe.STAMMDATEN, STAMMDATEN_VARIABLEN),
         (VariablenGruppe.KONTEXT, KONTEXT_VARIABLEN),
-        (VariablenGruppe.FORMEL, FORMEL_VARIABLEN),
     ):
         for vardef in quelle.values():
             record = vardef.model_dump(mode="json") | {"gruppe": gruppe.value}

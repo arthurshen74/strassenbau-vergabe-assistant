@@ -30,10 +30,11 @@ from shared.services.kalkulation_v2.model import (
     AufloesungsMethode,
     AufloesungsSchritt,
     Baustoff,
-    Formel,
+    FormelInstanz,
     Kostenart,
     Leistung,
     VariableDefinition,
+    VorgangRechnung,
 )
 from shared.services.kalkulation_v2.positionen import Position
 from shared.services.kalkulation_v2.store import kalkuliere
@@ -44,22 +45,25 @@ from scripts.seed.seed_katalog import seed_katalog
 
 
 def _neues_rezept() -> KatalogBundle:
-    """A self-contained new Leistung: one Vorgang whose cost is a bundle Formel over booked area."""
+    """A self-contained new Leistung whose Maschine cost line INSTANTIATES the seeded base formula
+    F_KOSTEN_SATZ over the booked area: menge = kontext.flaeche_m2, satz = 5 €/m² (a literal). No
+    minted formula — search-before-create reuse of a base formula."""
     return KatalogBundle(
         leistungen=[Leistung(code="L_KATALOG_TEST", name="Katalog-Teststrecke", einheit="m2")],
-        formeln=[
-            Formel(
-                name="mk_katalog_test",
-                ergebnis_variable="mk_katalog_test",
-                ausdruck="flaeche_m2 * 5",
-                einheit="€",
-            )
-        ],
         vorgaenge=[
             BundleVorgang(
                 code="V_KATALOG_TEST",
                 name="Katalog-Testvorgang",
-                kostenvariablen={Kostenart.MASCHINE: "mk_katalog_test"},
+                rechnung=VorgangRechnung(
+                    kosten={
+                        Kostenart.MASCHINE: [
+                            FormelInstanz(
+                                formel="F_KOSTEN_SATZ",
+                                bindung={"menge": "kontext.flaeche_m2", "satz": "5"},
+                            )
+                        ]
+                    }
+                ),
             )
         ],
         bauverfahren=[
@@ -105,6 +109,7 @@ def _rate_entwurf() -> KatalogBundle:
                 definition=VariableDefinition(
                     name="test_discard_rate_eur",
                     bezeichnung="Discard-Test-Satz",
+                    beschreibung="Wegwerf-Testsatz für den Verwerfen-Pfad; ohne Kalkulationsbezug.",
                     einheit="€",
                     aufloesung=[
                         AufloesungsSchritt(
@@ -315,6 +320,32 @@ async def test_bundle_zustand_uebergaenge(engine: AsyncEngine) -> None:
             geschlossen = await service.bundle_zustand(buid)
             assert geschlossen.zustand == BundleZustand.GESCHLOSSEN
             assert all(z.status == KatalogStatus.ARCHIVIERT for z in geschlossen.zeilen)
+        finally:
+            async with engine.begin() as conn:
+                await KatalogRepository(conn).alles_leeren()
+
+
+async def test_versionen_liefert_scd2_zeitachse(engine: AsyncEngine) -> None:
+    """The history endpoint's backing method: after activating a recipe and then superseding it,
+    `versionen` returns every version of the key oldest-first (the Katalog UI's Versionshistorie)."""
+    with zustand_sichern():
+        async with engine.begin() as conn:
+            repo = KatalogRepository(conn)
+            await repo.alles_leeren()
+            await seed_katalog(repo)
+        try:
+            service = KatalogService(engine)
+            # A seeded key has exactly one active version.
+            eine = await service.versionen(KatalogEntitaet.FORMELN, "F_STUNDEN")
+            assert [z.version for z in eine] == [1]
+            assert eine[0].status == KatalogStatus.AKTIV
+
+            # Activate, then supersede the same Leistung → two versions, the first archived.
+            await service.bundle_aktivieren(await service.entwurf_speichern(_neues_rezept(), benutzer="t"))
+            await service.bundle_aktivieren(await service.entwurf_speichern(_neues_rezept(), benutzer="t"))
+            zwei = await service.versionen(KatalogEntitaet.LEISTUNGEN, "L_KATALOG_TEST")
+            assert [z.version for z in zwei] == [1, 2]
+            assert zwei[0].status == KatalogStatus.ARCHIVIERT and zwei[1].status == KatalogStatus.AKTIV
         finally:
             async with engine.begin() as conn:
                 await KatalogRepository(conn).alles_leeren()

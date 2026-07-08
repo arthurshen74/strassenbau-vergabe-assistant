@@ -21,7 +21,7 @@ from shared.services.kalkulation_v2.lieferanten import LIEFERANTEN
 from shared.services.kalkulation_v2.lieferanten_preise import lade_preise
 from shared.services.kalkulation_v2.stammdaten import STAMMDATEN_VARIABLEN
 from shared.services.kalkulation_v2.kontext_variablen import KONTEXT_VARIABLEN
-from shared.services.kalkulation_v2.formel import FORMELN, FORMEL_VARIABLEN
+from shared.services.kalkulation_v2.formel import FORMELN
 from shared.services.kalkulation_v2.ausfuehrungsarten import AUSFUEHRUNGSARTEN
 from shared.services.kalkulation_v2.vorgaenge import VORGAENGE
 from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
@@ -36,8 +36,9 @@ STICHTAG = date(2026, 6, 22)
 # running agent's supplier ranking sees prices (lade_preise is otherwise only called in __main__).
 lade_preise(BAUSTOFFE, LIEFERANTEN)
 
-# Merge the variable catalog from its three sources (no key overlaps by design).
-KATALOG = {**STAMMDATEN_VARIABLEN, **KONTEXT_VARIABLEN, **FORMEL_VARIABLEN}
+# Merge the variable catalog from its two sources (no key overlaps by design).
+# Formeln are no variables any more — instanzen live on the Vorgang (rechnung).
+KATALOG = {**STAMMDATEN_VARIABLEN, **KONTEXT_VARIABLEN}
 
 GEOM = {"m2": "flaeche_m2", "m": "laenge_m", "m3": "volumen_m3", "t": "menge_t", "St": "anzahl_st"}
 
