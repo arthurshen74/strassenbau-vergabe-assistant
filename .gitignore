@@ -169,3 +169,5 @@ eval/generator/.cache/
 tasks/
 
 diagrams/
+.pi
+.github
