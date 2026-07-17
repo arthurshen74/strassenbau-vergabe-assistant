@@ -1,16 +1,9 @@
 # nlp-analysis-api Specification
 
 ## Purpose
-HTTP surface for the NLP analysis feature: lists analyzable documents, serves reflowed text with block metadata, runs sentence/POS analysis with block-type inclusion parameters, and generates and caches displacy renders.
+HTTP surface for the NLP analysis feature: serves reflowed text with block metadata, runs sentence/POS analysis with block-type inclusion parameters, and generates and caches displacy renders.
 
 ## Requirements
-
-### Requirement: Analyzable documents can be listed
-The API SHALL expose the PROSE_DOCUMENTs that have extracted source lines, with document uuid, file name, project name, and page count, so the modal can offer a document picker.
-
-#### Scenario: Listing
-- **WHEN** `GET /nlp/documents` is called
-- **THEN** it returns every PROSE_DOCUMENT that has at least one source line, with its project name
 
 ### Requirement: Reflowed text is served with block metadata
 The API SHALL return a document's reflowed content as an ordered list of blocks (type, text, page range, line_id range, furniture excluded) plus the original lines on request, so the UI can render both views and dim excluded content.
