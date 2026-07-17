@@ -759,13 +759,6 @@ export interface EvalResult {
   created_at: string;
 }
 
-export interface NlpDocumentRead {
-  document_uuid: string;
-  file_name: string;
-  project_name: string;
-  number_of_pages: number;
-}
-
 export interface ReflowedBlock {
   block_id: number;
   /**
@@ -856,6 +849,7 @@ export interface AnalyzeResponse {
   sentences: SentenceInfo[];
   pos: PosStats;
   entities: EntityStats;
+  ent_html: string;
 }
 
 export interface RenderRequest {

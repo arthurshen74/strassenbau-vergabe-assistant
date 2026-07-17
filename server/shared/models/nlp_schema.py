@@ -19,17 +19,6 @@ from shared.models.nlp import (
 )
 
 
-class NlpDocumentRead(BaseModel):
-    """One analyzable document in the modal's picker."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    document_uuid: UUID
-    file_name: str
-    project_name: str
-    number_of_pages: int
-
-
 class SourceLineRead(BaseModel):
     """Original extracted line, annotated with its reflow classification."""
 
@@ -101,3 +90,4 @@ class AnalyzeResponse(BaseModel):
     sentences: list[SentenceInfo]
     pos: PosStats
     entities: EntityStats
+    ent_html: str

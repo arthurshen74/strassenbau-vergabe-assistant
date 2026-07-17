@@ -11,7 +11,6 @@ from shared.models.nlp_schema import (
     AnalyzeRequest,
     AnalyzeResponse,
     DocumentTextRead,
-    NlpDocumentRead,
     RenderRequest,
     RenderResponse,
 )
@@ -30,13 +29,6 @@ def get_nlp_service(
 
 def get_render_service(engine: AsyncEngine = Depends(get_engine)) -> RenderService:
     return RenderService(engine)
-
-
-@router.get("/documents", response_model=list[NlpDocumentRead])
-async def list_documents(
-    service: NlpService = Depends(get_nlp_service),
-) -> list[NlpDocumentRead]:
-    return await service.list_documents()
 
 
 @router.get("/documents/{document_uuid}/text", response_model=DocumentTextRead)

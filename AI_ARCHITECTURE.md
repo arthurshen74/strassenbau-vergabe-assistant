@@ -307,10 +307,12 @@ measures the live version.
 
 ## Document Reflow and NLP Analysis
 
-The NLP analysis modal (sidebar → Werkzeuge) turns a Baubeschreibung's raw `source_lines` into
-linguistically usable text and lets you inspect every intermediate step: reflowed blocks vs
-original lines, sentence segmentation with displacy renders, POS distribution, and a domain-aware
-named-entity view.
+The NLP analysis modal turns a Baubeschreibung's raw `source_lines` into linguistically usable text
+and lets you inspect every intermediate step: reflowed blocks vs original lines, sentence
+segmentation with displacy renders, POS distribution, and a domain-aware named-entity view. Its
+source is fixed at open — there is no in-modal picker or free-text input: it launches either from an
+ingested Baubeschreibung's "NLP-Analyse" action in the Project Documents tab (a document source) or
+from an LV item's "NLP-Analyse" action (that item's Langtext + Hinweis as ad-hoc text).
 
 `source_lines` are visual layout lines (`pdftotext -bbox-layout`), not linguistic units: German
 justification hyphenates words across lines, letterheads repeat on every page, sentences span
@@ -363,11 +365,14 @@ Key decisions (full rationale in `openspec/changes/nlp-analysis-modal/design.md`
   dirty flag (the API is single-process — no version table needed) so the next `analyze`/`render`
   rebuilds the pipe from the current enabled set. No restart, no redeploy to change a pattern.
 - **Entities are computed in the same pass** as sentences and POS: `AnalyzeResponse.entities`
-  groups every hit by label with per-occurrence text, sentence, and `pattern_id` provenance. The
-  modal's Entities tab ranks labels by frequency and marks each occurrence as a rule hit (its
-  `pattern_id`) or a stock-model guess (none) — making wrongly-predicted entities visible rather
-  than silently "fixed". The per-sentence `ent` displacy render uses manual mode, so it reflects
-  the ruler automatically. Generating patterns from Katalog rows is a natural, separately-scoped
+  groups every hit by label with per-occurrence text, sentence, and `pattern_id` provenance, and
+  the same pass renders `AnalyzeResponse.ent_html` — a displacy `style=ent` highlight over the whole
+  included text, so the highlight view and the breakdown are computed from one set of Docs under one
+  ruler state and one block filter and can never disagree. The modal's Entities tab shows that
+  full-text render (capped at 25vh, scrollable) above a label breakdown that ranks labels by
+  frequency and marks each occurrence as a rule hit (its `pattern_id`) or a stock-model guess (none)
+  — making wrongly-predicted entities visible rather than silently "fixed". `ent_html` is never
+  cached server-side. Generating patterns from Katalog rows is a natural, separately-scoped
   follow-up.
 
 ### NER Error Investigation
@@ -381,7 +386,6 @@ news-trained NER degrades most) can be analyzed at all, and flagging.
 ```mermaid
 flowchart TD
     LV[LV item Langtext + Hinweis] -->|NLP-Analyse action| MODAL[NLP modal, ad-hoc text source]
-    FREE[free text paste] --> MODAL
     MODAL -->|POST /nlp/analyze with text| SPLIT[blank-line split -> PROSE blocks, no reflow]
     SPLIT --> TABS[Sentences / Entities tabs]
     TABS -->|flag occurrence: wrong label / not an entity| FLAG[flag + prose comment]

@@ -1,7 +1,7 @@
 """NlpService: composition root for the /nlp/* routes.
 
-Wires document listing, reflow (source_lines + cached layout), spaCy analysis,
-and the reflowed-text view together. Route handlers stay thin wrappers.
+Wires reflow (source_lines + cached layout), spaCy analysis, and the
+reflowed-text view together. Route handlers stay thin wrappers.
 """
 
 from __future__ import annotations
@@ -10,20 +10,15 @@ import asyncio
 import re
 from uuid import UUID
 
-from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.clients.storage.client import StorageClient
-from shared.db.tables.documents import documents
-from shared.db.tables.projects import projects
-from shared.db.tables.source_lines import source_lines
 from shared.db.unit_of_work import unit_of_work
-from shared.models.enums import BlockType, DocumentType
+from shared.models.enums import BlockType
 from shared.models.nlp import ReflowedBlock, ReflowResult
 from shared.models.nlp_schema import (
     AnalyzeResponse,
     DocumentTextRead,
-    NlpDocumentRead,
     SourceLineRead,
 )
 from shared.models.source_line import SourceLine
@@ -37,29 +32,6 @@ class NlpService:
     def __init__(self, engine: AsyncEngine, storage: StorageClient) -> None:
         self._engine = engine
         self._layout = LayoutService(engine, storage)
-
-    async def list_documents(self) -> list[NlpDocumentRead]:
-        stmt = (
-            select(
-                documents.c.document_uuid,
-                documents.c.file_name,
-                documents.c.number_of_pages,
-                projects.c.project_name,
-            )
-            .join(projects, projects.c.project_uuid == documents.c.project_uuid)
-            .where(
-                documents.c.document_type == DocumentType.PROSE_DOCUMENT.value,
-                exists(
-                    select(source_lines.c.source_line_uuid).where(
-                        source_lines.c.document_uuid == documents.c.document_uuid
-                    )
-                ),
-            )
-            .order_by(projects.c.project_name, documents.c.file_name)
-        )
-        async with self._engine.connect() as conn:
-            rows = (await conn.execute(stmt)).mappings().all()
-        return [NlpDocumentRead.model_validate(dict(r)) for r in rows]
 
     async def get_reflow(self, document_uuid: UUID) -> tuple[list[SourceLine], ReflowResult]:
         """Load lines, ensure layout regions exist, and reflow (CPU-bound part off-loop)."""
@@ -97,7 +69,7 @@ class NlpService:
             _, result = await self.get_reflow(document_uuid)
             blocks = result.blocks
         await ensure_ruler_current(get_nlp(), self._engine)
-        sentences, pos, entities = await asyncio.to_thread(
+        sentences, pos, entities, ent_html = await asyncio.to_thread(
             analyze_blocks, blocks, include_blocks
         )
         return AnalyzeResponse(
@@ -106,6 +78,7 @@ class NlpService:
             sentences=sentences,
             pos=pos,
             entities=entities,
+            ent_html=ent_html,
         )
 
 

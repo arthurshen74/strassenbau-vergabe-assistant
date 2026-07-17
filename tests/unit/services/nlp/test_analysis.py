@@ -38,7 +38,7 @@ BLOCKS = [
 
 
 def test_include_list_filters_blocks() -> None:
-    sentences, pos, _ = analyze_blocks(BLOCKS, [BlockType.PROSE, BlockType.HEADING])
+    sentences, pos, _, _ = analyze_blocks(BLOCKS, [BlockType.PROSE, BlockType.HEADING])
 
     block_ids = {s.block_id for s in sentences}
     assert block_ids == {0, 1}
@@ -47,13 +47,13 @@ def test_include_list_filters_blocks() -> None:
 
 
 def test_tables_opt_in() -> None:
-    sentences, _, _ = analyze_blocks(BLOCKS, [BlockType.TABLE])
+    sentences, _, _, _ = analyze_blocks(BLOCKS, [BlockType.TABLE])
 
     assert {s.block_id for s in sentences} == {2}
 
 
 def test_pos_aggregation_sums_and_drill_down() -> None:
-    _, pos, _ = analyze_blocks(BLOCKS, [BlockType.PROSE])
+    _, pos, _, _ = analyze_blocks(BLOCKS, [BlockType.PROSE])
 
     assert sum(t.count for t in pos.ud) == pos.token_count
     assert sum(t.count for t in pos.stts) == pos.token_count
@@ -63,7 +63,7 @@ def test_pos_aggregation_sums_and_drill_down() -> None:
 
 
 def test_percentages_normalized() -> None:
-    _, pos, _ = analyze_blocks(BLOCKS, [BlockType.PROSE, BlockType.HEADING])
+    _, pos, _, _ = analyze_blocks(BLOCKS, [BlockType.PROSE, BlockType.HEADING])
 
     assert sum(t.percentage for t in pos.ud) == pytest.approx(100.0, abs=1.0)
 

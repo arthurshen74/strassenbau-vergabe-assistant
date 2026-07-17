@@ -1,5 +1,5 @@
-"""The /nlp/* API: document listing, reflowed text with line classification,
-analysis with include-list validation, and dep-render caching.
+"""The /nlp/* API: reflowed text with line classification, analysis with
+include-list validation, and dep-render caching.
 
 Layout regions are pre-seeded for the current docling version, so no Docling
 inference (and no storage access — the stub trips on any call) happens in tests.
@@ -131,16 +131,6 @@ async def client(engine: AsyncEngine) -> AsyncIterator[AsyncClient]:
         app.dependency_overrides.clear()
 
 
-async def test_list_documents(client: AsyncClient, seeded_document: UUID) -> None:
-    response = await client.get("/nlp/documents")
-
-    assert response.status_code == 200
-    entries = [d for d in response.json() if d["document_uuid"] == str(seeded_document)]
-    assert len(entries) == 1
-    assert entries[0]["project_name"] == "NLP Testprojekt"
-    assert entries[0]["file_name"] == "bb_nlp_test.pdf"
-
-
 async def test_document_text_classifies_lines(
     client: AsyncClient, seeded_document: UUID
 ) -> None:
@@ -176,6 +166,7 @@ async def test_analyze_default_include_blocks(
     assert not any("Seite" in t for t in sentence_texts)
     assert body["pos"]["token_count"] > 0
     assert sum(t["count"] for t in body["pos"]["ud"]) == body["pos"]["token_count"]
+    assert isinstance(body["ent_html"], str)
 
 
 async def test_analyze_rejects_furniture(client: AsyncClient, seeded_document: UUID) -> None:

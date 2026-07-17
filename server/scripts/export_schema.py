@@ -84,7 +84,6 @@ from shared.models.nlp_schema import (
     AnalyzeRequest,
     AnalyzeResponse,
     DocumentTextRead,
-    NlpDocumentRead,
     RenderRequest,
     RenderResponse,
     SourceLineRead,
@@ -224,9 +223,8 @@ BODY_MODELS: list[type[BaseModel]] = [
     EvalRun,
     EvalRunEvent,
     EvalResult,
-    # NLP analysis modal: document picker rows, reflowed text (blocks + classified lines),
-    # the analyze request/response with nested sentence/POS shapes, and displacy renders.
-    NlpDocumentRead,
+    # NLP analysis modal: reflowed text (blocks + classified lines), the analyze
+    # request/response with nested sentence/POS shapes, and displacy renders.
     ReflowedBlock,
     SourceLineRead,
     DocumentTextRead,

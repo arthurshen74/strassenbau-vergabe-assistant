@@ -16,7 +16,7 @@ import hashlib
 import threading
 from collections import defaultdict
 
-from shared.models.enums import BlockType
+from shared.models.enums import BlockType, RenderStyle
 from shared.models.nlp import (
     EntityLabelStats,
     EntityOccurrence,
@@ -59,12 +59,15 @@ def sentence_hash(text: str) -> str:
 
 def analyze_blocks(
     blocks: list[ReflowedBlock], include_blocks: list[BlockType]
-) -> tuple[list[SentenceInfo], PosStats, EntityStats]:
-    """Sentences, POS distribution, and entities over the included blocks.
+) -> tuple[list[SentenceInfo], PosStats, EntityStats, str]:
+    """Sentences, POS distribution, entities, and a full-text ent render over the included blocks.
 
     Entities come from the same pass: `sent.ents` is spaCy's char-range containment,
     so each entity is attributed to the sentence it falls in. A rule-derived entity's
     spaCy `ent_id_` (empty for stock-model guesses) becomes its `pattern_id`.
+
+    `ent_html` is displacy's `style=ent` render over the same Docs, so the highlight
+    view and the entity breakdown are computed from one pass and can never disagree.
     """
     nlp = get_nlp()
     included = [b for b in blocks if b.block_type in include_blocks]
@@ -75,7 +78,7 @@ def analyze_blocks(
     occurrences_by_label: dict[str, list[EntityOccurrence]] = defaultdict(list)
     token_count = 0
 
-    docs = nlp.pipe([b.text for b in included])  # type: ignore[attr-defined]
+    docs = list(nlp.pipe([b.text for b in included]))  # type: ignore[attr-defined]
     for block, doc in zip(included, docs):
         for sent in doc.sents:
             text = sent.text.strip()
@@ -106,7 +109,16 @@ def analyze_blocks(
         ud=_tag_stats(ud_tokens, token_count),
         stts=_tag_stats(stts_tokens, token_count),
     )
-    return sentences, pos, _entity_stats(occurrences_by_label)
+    return sentences, pos, _entity_stats(occurrences_by_label), _render_ent_html(docs)
+
+
+def _render_ent_html(docs: list[object]) -> str:
+    """Displacy ent render over the analyzed Docs; empty when nothing was included."""
+    if not docs:
+        return ""
+    from spacy import displacy
+
+    return displacy.render(docs, style=RenderStyle.ENT.value, jupyter=False, page=False)
 
 
 def _entity_stats(

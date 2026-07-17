@@ -3,14 +3,18 @@
 // LV_ITEM chunks and re-orders the table by relevance; clearing it restores the full list.
 // Clicking a row opens the full position in a detail dialog.
 
-import { useState } from 'react';
-import { BeakerIcon, CalculatorIcon, MagnifyingGlassIcon } from '@heroicons/react/16/solid';
+import { useState } from "react";
+import {
+  BeakerIcon,
+  CalculatorIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/16/solid";
 
-import { useLvItemSearch, useProjectLvItems } from '../../api/projects';
-import { nlpPresetForLvItem } from './lvNlpPreset';
-import { useNlpModalStore } from '../../store/nlpModal';
-import { Button } from '../../components/ui/button';
-import { Input, InputGroup } from '../../components/ui/input';
+import { useLvItemSearch, useProjectLvItems } from "../../api/projects";
+import { nlpSourceForLvItem } from "./lvNlpPreset";
+import { useNlpModalStore } from "../../store/nlpModal";
+import { Button } from "../../components/ui/button";
+import { Input, InputGroup } from "../../components/ui/input";
 import {
   Table,
   TableBody,
@@ -18,27 +22,30 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../../components/ui/table';
-import { Text } from '../../components/ui/text';
-import { LoadingState } from '../../components/feedback/LoadingState';
-import { ErrorState } from '../../components/feedback/ErrorState';
-import type { LVItem } from '../../types/generated';
-import { LVItemDetailDialog } from './LVItemDetailDialog';
-import { useRunCalculation } from './useRunCalculation';
+} from "../../components/ui/table";
+import { Text } from "../../components/ui/text";
+import { LoadingState } from "../../components/feedback/LoadingState";
+import { ErrorState } from "../../components/feedback/ErrorState";
+import type { LVItem } from "../../types/generated";
+import { LVItemDetailDialog } from "./LVItemDetailDialog";
+import { useRunCalculation } from "./useRunCalculation";
 
 export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
   const lvItems = useProjectLvItems(projectUuid);
   const { runCalculation, starting } = useRunCalculation(projectUuid);
   const openNlpAnalysis = useNlpModalStore((s) => s.openNlpAnalysis);
   const [selected, setSelected] = useState<LVItem | null>(null);
-  const [draft, setDraft] = useState('');
-  const [query, setQuery] = useState('');
+  const [draft, setDraft] = useState("");
+  const [query, setQuery] = useState("");
   const search = useLvItemSearch(projectUuid, query);
 
   if (lvItems.isPending) return <LoadingState label="Loading LV positions…" />;
   if (lvItems.isError) {
     return (
-      <ErrorState message={(lvItems.error as Error).message} onRetry={() => lvItems.refetch()} />
+      <ErrorState
+        message={(lvItems.error as Error).message}
+        onRetry={() => lvItems.refetch()}
+      />
     );
   }
 
@@ -54,15 +61,17 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
     : -1;
   const prevItem = selectedIndex > 0 ? items[selectedIndex - 1] : undefined;
   const nextItem =
-    selectedIndex >= 0 && selectedIndex < items.length - 1 ? items[selectedIndex + 1] : undefined;
+    selectedIndex >= 0 && selectedIndex < items.length - 1
+      ? items[selectedIndex + 1]
+      : undefined;
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setQuery(draft.trim());
   };
   const clearSearch = () => {
-    setDraft('');
-    setQuery('');
+    setDraft("");
+    setQuery("");
   };
 
   return (
@@ -91,7 +100,10 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
       {searching && search.isPending ? (
         <LoadingState label="Searching…" />
       ) : searching && search.isError ? (
-        <ErrorState message={(search.error as Error).message} onRetry={() => search.refetch()} />
+        <ErrorState
+          message={(search.error as Error).message}
+          onRetry={() => search.refetch()}
+        />
       ) : items.length === 0 ? (
         <Text>No positions match “{query}”.</Text>
       ) : (
@@ -113,7 +125,9 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
                 onClick={() => setSelected(item)}
                 className="cursor-pointer hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5"
               >
-                <TableCell className="font-medium whitespace-nowrap">{item.oz}</TableCell>
+                <TableCell className="font-medium whitespace-nowrap">
+                  {item.oz}
+                </TableCell>
                 <TableCell>
                   <div className="max-w-[150px] truncate" title={item.kurztext}>
                     {item.kurztext}
@@ -124,15 +138,19 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
                     {item.langtext}
                   </div>
                 </TableCell>
-                <TableCell className="text-right whitespace-nowrap">{String(item.menge)}</TableCell>
-                <TableCell className="whitespace-nowrap">{item.einheit}</TableCell>
+                <TableCell className="text-right whitespace-nowrap">
+                  {String(item.menge)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {item.einheit}
+                </TableCell>
                 <TableCell className="whitespace-nowrap text-right">
                   <div className="flex justify-end gap-2">
                     <Button
                       outline
                       onClick={(e) => {
                         e.stopPropagation();
-                        openNlpAnalysis(nlpPresetForLvItem(item));
+                        openNlpAnalysis(nlpSourceForLvItem(item));
                       }}
                     >
                       <BeakerIcon data-slot="icon" />
@@ -147,7 +165,7 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
                       }}
                     >
                       <CalculatorIcon data-slot="icon" />
-                      {starting === item.oz ? 'Opening…' : 'Position Chat'}
+                      {starting === item.oz ? "Opening…" : "Position Chat"}
                     </Button>
                   </div>
                 </TableCell>

@@ -3,9 +3,8 @@
 //   - Commands: open a component into the global main window
 //   - Project Conversations: project-chat threads (the only persistent conversations)
 
-import { Link } from 'react-router-dom';
+import { Link } from "react-router-dom";
 import {
-  BeakerIcon,
   BookOpenIcon,
   ChartBarIcon,
   ClipboardDocumentListIcon,
@@ -14,51 +13,56 @@ import {
   ExclamationTriangleIcon,
   FolderIcon,
   TagIcon,
-} from '@heroicons/react/20/solid';
+} from "@heroicons/react/20/solid";
 import {
   PROMPT_TYPE_EKT_CALCULATOR,
   PROMPT_TYPE_KATALOG_CHAT,
   PROMPT_TYPE_PROJECT_CHAT,
   useConversationList,
-} from '../../api/conversations';
-import { useStartKatalogChat } from '../../views/main/useStartKatalogChat';
-import { NlpAnalysisDialog } from '../../views/nlp/NlpAnalysisDialog';
-import { useMainWindowStore, type MainWindowKind } from '../../store/mainWindow';
-import { useNlpModalStore } from '../../store/nlpModal';
-import { ConversationList } from './ConversationList';
+} from "../../api/conversations";
+import { useStartKatalogChat } from "../../views/main/useStartKatalogChat";
+import { NlpAnalysisDialog } from "../../views/nlp/NlpAnalysisDialog";
+import {
+  useMainWindowStore,
+  type MainWindowKind,
+} from "../../store/mainWindow";
+import { ConversationList } from "./ConversationList";
 
 type CommandIcon = typeof DocumentTextIcon;
 
 const COMMANDS: { label: string; kind: MainWindowKind; Icon: CommandIcon }[] = [
-  { label: 'View Project', kind: 'projects', Icon: FolderIcon },
+  { label: "View Project", kind: "projects", Icon: FolderIcon },
   {
-    label: 'Ingest Console',
-    kind: 'ingest_console',
+    label: "Ingest Console",
+    kind: "ingest_console",
     Icon: CommandLineIcon,
   },
-  { label: 'View Prompts', kind: 'prompts', Icon: DocumentTextIcon },
-  { label: 'View Katalog', kind: 'katalog', Icon: BookOpenIcon },
-  { label: 'View Entity Rules', kind: 'entity_rules', Icon: TagIcon },
-  { label: 'NER Analysis', kind: 'ner_analysis', Icon: ExclamationTriangleIcon },
+  { label: "View Prompts", kind: "prompts", Icon: DocumentTextIcon },
+  { label: "View Katalog", kind: "katalog", Icon: BookOpenIcon },
+  { label: "View Entity Rules", kind: "entity_rules", Icon: TagIcon },
   {
-    label: 'View Prompt Execution Log',
-    kind: 'prompt_execution_log',
+    label: "NER Analysis",
+    kind: "ner_analysis",
+    Icon: ExclamationTriangleIcon,
+  },
+  {
+    label: "View Prompt Execution Log",
+    kind: "prompt_execution_log",
     Icon: ClipboardDocumentListIcon,
   },
   {
-    label: 'View Prompt Usage Log',
-    kind: 'prompt_usage_log',
+    label: "View Prompt Usage Log",
+    kind: "prompt_usage_log",
     Icon: ChartBarIcon,
   },
 ];
 
 const SECTION_LABEL =
-  'px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400';
+  "px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400";
 
 export function Sidebar() {
   const { data, isLoading, isError } = useConversationList();
   const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
-  const openNlpAnalysis = useNlpModalStore((s) => s.openNlpAnalysis);
   const startKatalogChat = useStartKatalogChat();
 
   const all = data ?? [];
@@ -98,18 +102,8 @@ export function Sidebar() {
           ))}
         </div>
 
-        <div className="flex flex-col gap-1">
-          <div className={SECTION_LABEL}>Werkzeuge</div>
-          <button
-            type="button"
-            onClick={() => openNlpAnalysis()}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            <BeakerIcon className="h-4 w-4 shrink-0 text-zinc-400" />
-            NLP Analysis
-          </button>
-          <NlpAnalysisDialog />
-        </div>
+        {/* Mounted once so both launch points (Documents tab, LV item) share one instance. */}
+        <NlpAnalysisDialog />
 
         <div className="flex flex-col gap-1">
           <div className={SECTION_LABEL}>Katalog</div>
