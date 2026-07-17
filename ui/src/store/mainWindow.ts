@@ -16,7 +16,8 @@ export type MainWindowKind =
   | 'prompt_usage_log'
   | 'ingest_console'
   | 'katalog'
-  | 'entity_rules';
+  | 'entity_rules'
+  | 'ner_analysis';
 
 export interface MainWindowView {
   kind: MainWindowKind;

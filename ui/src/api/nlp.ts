@@ -21,9 +21,21 @@ export const nlpKeys = {
   text: (documentUuid: string) => [...nlpKeys.all, 'text', documentUuid] as const,
   analysis: (documentUuid: string, includeBlocks: BlockType[]) =>
     [...nlpKeys.all, 'analysis', documentUuid, includeBlocks] as const,
+  textAnalysis: (textHash: string, includeBlocks: BlockType[]) =>
+    [...nlpKeys.all, 'text-analysis', textHash, includeBlocks] as const,
   render: (sentenceHash: string, style: RenderStyle) =>
     [...nlpKeys.all, 'render', sentenceHash, style] as const,
 };
+
+// Stable short key for an ad-hoc text (djb2), so the analysis query key doesn't
+// carry the full text but still changes when the text does.
+function hashText(text: string): string {
+  let hash = 5381;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
 
 export function useNlpDocuments(enabled = true) {
   return useQuery({
@@ -53,6 +65,21 @@ export function useNlpAnalysis(documentUuid: string | null, includeBlocks: Block
         include_blocks: includeBlocks,
       }),
     enabled: documentUuid !== null,
+    staleTime: Infinity,
+  });
+}
+
+// Ad-hoc text analysis (LV Langtext/Hinweis, pasted text): same response shape,
+// keyed by a hash of the text so distinct texts cache separately.
+export function useNlpTextAnalysis(text: string | null, includeBlocks: BlockType[]) {
+  return useQuery({
+    queryKey: nlpKeys.textAnalysis(text ? hashText(text) : '', includeBlocks),
+    queryFn: () =>
+      api.post<AnalyzeResponse>('/nlp/analyze', {
+        text,
+        include_blocks: includeBlocks,
+      }),
+    enabled: text !== null && text.trim() !== '',
     staleTime: Infinity,
   });
 }

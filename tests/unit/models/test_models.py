@@ -40,6 +40,7 @@ def test_enum_values() -> None:
         "ekt_output_narrate",
         "project_context_resolve",
         "katalog_handbuch",
+        "ner_fehleranalyse",
     }
 
 

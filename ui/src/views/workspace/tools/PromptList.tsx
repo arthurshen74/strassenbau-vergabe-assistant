@@ -35,6 +35,7 @@ const TYPE_COLOR: Record<PromptVersionRead['prompt_type'], BadgeColor> = {
   ekt_output_narrate: 'amber',
   project_context_resolve: 'sky',
   katalog_handbuch: 'green',
+  ner_fehleranalyse: 'rose',
 };
 
 // The route returns a bare array; the dispatcher tool returns `{prompts: [...]}`.

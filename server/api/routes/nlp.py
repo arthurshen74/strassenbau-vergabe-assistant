@@ -52,7 +52,9 @@ async def analyze(
     request: AnalyzeRequest,
     service: NlpService = Depends(get_nlp_service),
 ) -> AnalyzeResponse:
-    return await service.analyze(request.document_uuid, request.include_blocks)
+    return await service.analyze(
+        request.document_uuid, request.text, request.include_blocks
+    )
 
 
 @router.post("/render", response_model=RenderResponse)

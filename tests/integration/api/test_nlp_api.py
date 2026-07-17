@@ -190,6 +190,40 @@ async def test_analyze_rejects_furniture(client: AsyncClient, seeded_document: U
     assert response.status_code == 422
 
 
+async def test_analyze_ad_hoc_text(client: AsyncClient) -> None:
+    text = (
+        "Asphaltbefestigung geradlinig trennen. Im Anbaubereich quer zur "
+        "Fahrbahnachse aufnehmen.\n\nBordstein liefern und versetzen."
+    )
+    response = await client.post("/nlp/analyze", json={"text": text})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["document_uuid"] is None
+    sentence_texts = [s["text"] for s in body["sentences"]]
+    assert any("Bordstein" in t for t in sentence_texts)
+    # blank line split -> two blocks
+    assert len({s["block_id"] for s in body["sentences"]}) == 2
+    assert body["pos"]["token_count"] > 0
+
+
+async def test_analyze_rejects_both_sources(
+    client: AsyncClient, seeded_document: UUID
+) -> None:
+    response = await client.post(
+        "/nlp/analyze",
+        json={"document_uuid": str(seeded_document), "text": "Bordstein versetzen."},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_analyze_rejects_no_source(client: AsyncClient) -> None:
+    response = await client.post("/nlp/analyze", json={})
+
+    assert response.status_code == 422
+
+
 async def test_dep_render_cached(client: AsyncClient, engine: AsyncEngine) -> None:
     sentence = "Der Bieter kalkuliert seine Einheitspreise sorgfältig."
 

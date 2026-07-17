@@ -7,6 +7,7 @@ and the reflowed-text view together. Route handlers stay thin wrappers.
 from __future__ import annotations
 
 import asyncio
+import re
 from uuid import UUID
 
 from sqlalchemy import exists, select
@@ -18,7 +19,7 @@ from shared.db.tables.projects import projects
 from shared.db.tables.source_lines import source_lines
 from shared.db.unit_of_work import unit_of_work
 from shared.models.enums import BlockType, DocumentType
-from shared.models.nlp import ReflowResult
+from shared.models.nlp import ReflowedBlock, ReflowResult
 from shared.models.nlp_schema import (
     AnalyzeResponse,
     DocumentTextRead,
@@ -85,12 +86,19 @@ class NlpService:
         )
 
     async def analyze(
-        self, document_uuid: UUID, include_blocks: list[BlockType]
+        self,
+        document_uuid: UUID | None,
+        text: str | None,
+        include_blocks: list[BlockType],
     ) -> AnalyzeResponse:
-        _, result = await self.get_reflow(document_uuid)
+        if text is not None:
+            blocks = _blocks_from_text(text)
+        else:
+            _, result = await self.get_reflow(document_uuid)
+            blocks = result.blocks
         await ensure_ruler_current(get_nlp(), self._engine)
         sentences, pos, entities = await asyncio.to_thread(
-            analyze_blocks, result.blocks, include_blocks
+            analyze_blocks, blocks, include_blocks
         )
         return AnalyzeResponse(
             document_uuid=document_uuid,
@@ -99,3 +107,19 @@ class NlpService:
             pos=pos,
             entities=entities,
         )
+
+
+def _blocks_from_text(text: str) -> list[ReflowedBlock]:
+    """Split ad-hoc text on blank lines into PROSE blocks — no layout, no reflow."""
+    chunks = [c.strip() for c in re.split(r"\n[ \t]*\n", text)]
+    return [
+        ReflowedBlock(
+            block_id=index,
+            block_type=BlockType.PROSE,
+            text=chunk,
+            page_start=1,
+            page_end=1,
+            line_ids=[],
+        )
+        for index, chunk in enumerate(c for c in chunks if c)
+    ]

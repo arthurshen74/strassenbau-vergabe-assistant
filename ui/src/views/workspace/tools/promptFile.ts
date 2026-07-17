@@ -40,6 +40,7 @@ export const PROMPT_TYPES: readonly PromptType[] = [
   'ekt_output_narrate',
   'project_context_resolve',
   'katalog_handbuch',
+  'ner_fehleranalyse',
 ];
 
 type Scalar = string | number | null;

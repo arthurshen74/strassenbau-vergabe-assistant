@@ -13,6 +13,7 @@ import { UsageLogView } from '../../views/main/UsageLogView';
 import { IngestConsoleView } from '../../views/main/IngestConsoleView';
 import { KatalogView } from '../../views/main/KatalogView';
 import { EntityRulesView } from '../../views/main/EntityRulesView';
+import { NerAnalysisView } from '../../views/main/NerAnalysisView';
 
 const TITLES: Record<MainWindowView['kind'], string> = {
   prompts: 'Prompts',
@@ -22,6 +23,7 @@ const TITLES: Record<MainWindowView['kind'], string> = {
   ingest_console: 'Ingest Console',
   katalog: 'Katalog',
   entity_rules: 'Entity Rules',
+  ner_analysis: 'NER Analysis',
 };
 
 export function MainWindow({ view }: { view: MainWindowView }) {
@@ -65,6 +67,8 @@ function MainWindowBody({ view }: { view: MainWindowView }) {
       return <KatalogView />;
     case 'entity_rules':
       return <EntityRulesView />;
+    case 'ner_analysis':
+      return <NerAnalysisView />;
     default: {
       const _exhaustive: never = view.kind;
       void _exhaustive;

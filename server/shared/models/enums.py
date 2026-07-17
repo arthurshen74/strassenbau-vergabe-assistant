@@ -63,6 +63,9 @@ class PromptType(StrEnum):
     # The katalog_chat agent's system prompt (the Katalog-Handbuch) — a seeded, editable/versioned
     # prompt loaded via get_latest, so the recipe-compiler eval measures the live prompt version.
     KATALOG_HANDBUCH = "katalog_handbuch"
+    # One-shot NER misprediction error analysis: categorizes a flag against the closed failure
+    # taxonomy and optionally suggests an entity rule. Loaded via get_latest per flag.
+    NER_FEHLERANALYSE = "ner_fehleranalyse"
 
 
 # PromptType members that only DISCRIMINATE which conversation / StateGraph agent owns a
@@ -187,3 +190,29 @@ class BlockType(StrEnum):
     CAPTION = "caption"
     FOOTNOTE = "footnote"
     FURNITURE = "furniture"
+
+
+class NerFlagKind(StrEnum):
+    """The shape of an observed NER misprediction being flagged."""
+
+    WRONG_LABEL = "wrong_label"  # extracted entity carries the wrong label
+    NOT_AN_ENTITY = "not_an_entity"  # extracted span should not be an entity
+    MISSED_ENTITY = "missed_entity"  # a span that should have been extracted was not
+
+
+class NerFailureCategory(StrEnum):
+    """Closed taxonomy of why an NER misprediction happened, assigned by the LLM
+    error analysis and overridable by the user. The dashboard aggregates on this."""
+
+    REGISTER_MISMATCH = "register_mismatch"  # news-trained model vs telegram/technical register
+    MISSING_RULE = "missing_rule"  # no entity rule covers the vocabulary
+    RULE_ERROR = "rule_error"  # an existing rule fired wrongly or too broadly
+    TOKENIZATION = "tokenization"  # tokenizer artifact
+    MODEL_LIMITATION = "model_limitation"  # statistical NER wrong guess
+    AMBIGUITY = "ambiguity"  # genuinely ambiguous even for a domain expert
+    OTHER = "other"
+
+
+class NerFlagStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"

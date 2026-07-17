@@ -4,9 +4,11 @@
 // Clicking a row opens the full position in a detail dialog.
 
 import { useState } from 'react';
-import { CalculatorIcon, MagnifyingGlassIcon } from '@heroicons/react/16/solid';
+import { BeakerIcon, CalculatorIcon, MagnifyingGlassIcon } from '@heroicons/react/16/solid';
 
 import { useLvItemSearch, useProjectLvItems } from '../../api/projects';
+import { nlpPresetForLvItem } from './lvNlpPreset';
+import { useNlpModalStore } from '../../store/nlpModal';
 import { Button } from '../../components/ui/button';
 import { Input, InputGroup } from '../../components/ui/input';
 import {
@@ -27,6 +29,7 @@ import { useRunCalculation } from './useRunCalculation';
 export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
   const lvItems = useProjectLvItems(projectUuid);
   const { runCalculation, starting } = useRunCalculation(projectUuid);
+  const openNlpAnalysis = useNlpModalStore((s) => s.openNlpAnalysis);
   const [selected, setSelected] = useState<LVItem | null>(null);
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState('');
@@ -124,17 +127,29 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
                 <TableCell className="text-right whitespace-nowrap">{String(item.menge)}</TableCell>
                 <TableCell className="whitespace-nowrap">{item.einheit}</TableCell>
                 <TableCell className="whitespace-nowrap text-right">
-                  <Button
-                    color="green"
-                    disabled={starting === item.oz}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void runCalculation(item.oz);
-                    }}
-                  >
-                    <CalculatorIcon data-slot="icon" />
-                    {starting === item.oz ? 'Opening…' : 'Position Chat'}
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      outline
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openNlpAnalysis(nlpPresetForLvItem(item));
+                      }}
+                    >
+                      <BeakerIcon data-slot="icon" />
+                      NLP-Analyse
+                    </Button>
+                    <Button
+                      color="green"
+                      disabled={starting === item.oz}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void runCalculation(item.oz);
+                      }}
+                    >
+                      <CalculatorIcon data-slot="icon" />
+                      {starting === item.oz ? 'Opening…' : 'Position Chat'}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

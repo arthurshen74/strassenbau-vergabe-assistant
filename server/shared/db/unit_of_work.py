@@ -32,6 +32,7 @@ from shared.repositories.ingestion_activity import IngestionActivityLogRepositor
 from shared.repositories.katalog import KatalogRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.messages import MessageRepository
+from shared.repositories.ner_flags import NerFlagRepository
 from shared.repositories.nlp_render_cache import NlpRenderCacheRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.repositories.project_context_values import ProjectContextValueRepository
@@ -69,6 +70,7 @@ class UnitOfWork:
         self.document_layout_regions = DocumentLayoutRegionRepository(conn)
         self.nlp_render_cache = NlpRenderCacheRepository(conn)
         self.entity_rules = EntityRuleRepository(conn)
+        self.ner_flags = NerFlagRepository(conn)
         # Registered for read/report composition; the Database*Sinks write independently.
         self.openrouter_usage = OpenRouterUsageRepository(conn)
         self.prompt_execution_log = PromptExecutionLogRepository(conn)

@@ -220,7 +220,8 @@ export interface PromptVersionRead {
     | "ekt_langtext_extract"
     | "ekt_output_narrate"
     | "project_context_resolve"
-    | "katalog_handbuch";
+    | "katalog_handbuch"
+    | "ner_fehleranalyse";
   version: number;
   model_name: string;
   system_prompt: string;
@@ -246,7 +247,8 @@ export interface PromptVersionCreate {
     | "ekt_langtext_extract"
     | "ekt_output_narrate"
     | "project_context_resolve"
-    | "katalog_handbuch";
+    | "katalog_handbuch"
+    | "ner_fehleranalyse";
   model_name: string;
   system_prompt: string;
   temperature?: number | null;
@@ -273,7 +275,8 @@ export interface ConversationRead {
     | "ekt_langtext_extract"
     | "ekt_output_narrate"
     | "project_context_resolve"
-    | "katalog_handbuch";
+    | "katalog_handbuch"
+    | "ner_fehleranalyse";
   calculation_status?: ("awaiting_start" | "running" | "awaiting_input" | "complete" | "failed") | null;
   lv_item_uuid?: string | null;
   title?: string | null;
@@ -297,7 +300,8 @@ export interface ConversationCreate {
     | "ekt_langtext_extract"
     | "ekt_output_narrate"
     | "project_context_resolve"
-    | "katalog_handbuch";
+    | "katalog_handbuch"
+    | "ner_fehleranalyse";
   project_uuid?: string | null;
   title?: string | null;
 }
@@ -841,12 +845,13 @@ export interface EntityStats {
 }
 
 export interface AnalyzeRequest {
-  document_uuid: string;
+  document_uuid?: string | null;
+  text?: string | null;
   include_blocks?: ("prose" | "heading" | "list_item" | "table" | "caption" | "footnote" | "furniture")[];
 }
 
 export interface AnalyzeResponse {
-  document_uuid: string;
+  document_uuid?: string | null;
   include_blocks: ("prose" | "heading" | "list_item" | "table" | "caption" | "footnote" | "furniture")[];
   sentences: SentenceInfo[];
   pos: PosStats;
@@ -904,6 +909,130 @@ export interface EntityRuleUpdate {
     | null;
   pattern_id?: string | null;
   enabled?: boolean | null;
+}
+
+export interface SnapshotEntity {
+  text: string;
+  label: string;
+  pattern_id?: string | null;
+}
+
+export interface SuggestedRule {
+  label: string;
+  pattern?:
+    | string
+    | {
+        [k: string]: unknown;
+      }[]
+    | null;
+  pattern_id?: string | null;
+}
+
+export interface NewNerFlag {
+  /**
+   * The shape of an observed NER misprediction being flagged.
+   */
+  kind: "wrong_label" | "not_an_entity" | "missed_entity";
+  span_text: string;
+  span_start: number;
+  span_end: number;
+  sentence_text: string;
+  label: string;
+  expected_label?: string | null;
+  user_comment: string;
+  source_text: string;
+  entity_snapshot: SnapshotEntity[];
+  lv_item_uuid?: string | null;
+  document_uuid?: string | null;
+}
+
+export interface NerFlag {
+  /**
+   * The shape of an observed NER misprediction being flagged.
+   */
+  kind: "wrong_label" | "not_an_entity" | "missed_entity";
+  span_text: string;
+  span_start: number;
+  span_end: number;
+  sentence_text: string;
+  label: string;
+  expected_label?: string | null;
+  user_comment: string;
+  source_text: string;
+  entity_snapshot: SnapshotEntity[];
+  lv_item_uuid?: string | null;
+  document_uuid?: string | null;
+  ner_flag_uuid: string;
+  category?:
+    | (
+        | "register_mismatch"
+        | "missing_rule"
+        | "rule_error"
+        | "tokenization"
+        | "model_limitation"
+        | "ambiguity"
+        | "other"
+      )
+    | null;
+  category_override?:
+    | (
+        | "register_mismatch"
+        | "missing_rule"
+        | "rule_error"
+        | "tokenization"
+        | "model_limitation"
+        | "ambiguity"
+        | "other"
+      )
+    | null;
+  llm_analysis?: string | null;
+  suggested_rule?: SuggestedRule | null;
+  llm_model?: string | null;
+  prompt_version?: number | null;
+  spacy_model_version?: string | null;
+  analyzed_at?: string | null;
+  status: "open" | "resolved";
+  resolved_note?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NerFlagUpdate {
+  category_override?:
+    | (
+        | "register_mismatch"
+        | "missing_rule"
+        | "rule_error"
+        | "tokenization"
+        | "model_limitation"
+        | "ambiguity"
+        | "other"
+      )
+    | null;
+  status?: ("open" | "resolved") | null;
+  resolved_note?: string | null;
+}
+
+export interface NerCategoryCount {
+  category?:
+    | (
+        | "register_mismatch"
+        | "missing_rule"
+        | "rule_error"
+        | "tokenization"
+        | "model_limitation"
+        | "ambiguity"
+        | "other"
+      )
+    | null;
+  open_count: number;
+  resolved_count: number;
+  total: number;
+}
+
+export interface NerFlagSummary {
+  total: number;
+  by_category: NerCategoryCount[];
 }
 
 // ---- Types pinned by scripts/export_schema.py ----

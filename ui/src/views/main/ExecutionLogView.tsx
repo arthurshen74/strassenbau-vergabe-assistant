@@ -40,6 +40,7 @@ const PROMPT_TYPES = [
   "ekt_select_method",
   "ekt_seed_drivers",
   "katalog_handbuch",
+  "ner_fehleranalyse",
 ];
 const PAGE_SIZE = 100;
 

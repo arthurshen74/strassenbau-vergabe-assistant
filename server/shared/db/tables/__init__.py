@@ -37,6 +37,7 @@ from shared.db.tables.katalog_variablen import katalog_variablen
 from shared.db.tables.katalog_vorgaenge import katalog_vorgaenge
 from shared.db.tables.lv_items import lv_items
 from shared.db.tables.messages import messages
+from shared.db.tables.ner_flags import ner_flags
 from shared.db.tables.nlp_render_cache import nlp_render_cache
 from shared.db.tables.openrouter_usage import openrouter_usage
 from shared.db.tables.project_context_values import project_context_values
@@ -80,6 +81,7 @@ __all__ = [
     "katalog_vorgaenge",
     "lv_items",
     "messages",
+    "ner_flags",
     "nlp_render_cache",
     "openrouter_usage",
     "project_context_values",

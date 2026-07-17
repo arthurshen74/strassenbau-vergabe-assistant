@@ -3,7 +3,6 @@
 //   - Commands: open a component into the global main window
 //   - Project Conversations: project-chat threads (the only persistent conversations)
 
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BeakerIcon,
@@ -12,6 +11,7 @@ import {
   ClipboardDocumentListIcon,
   CommandLineIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
   FolderIcon,
   TagIcon,
 } from '@heroicons/react/20/solid';
@@ -24,6 +24,7 @@ import {
 import { useStartKatalogChat } from '../../views/main/useStartKatalogChat';
 import { NlpAnalysisDialog } from '../../views/nlp/NlpAnalysisDialog';
 import { useMainWindowStore, type MainWindowKind } from '../../store/mainWindow';
+import { useNlpModalStore } from '../../store/nlpModal';
 import { ConversationList } from './ConversationList';
 
 type CommandIcon = typeof DocumentTextIcon;
@@ -38,6 +39,7 @@ const COMMANDS: { label: string; kind: MainWindowKind; Icon: CommandIcon }[] = [
   { label: 'View Prompts', kind: 'prompts', Icon: DocumentTextIcon },
   { label: 'View Katalog', kind: 'katalog', Icon: BookOpenIcon },
   { label: 'View Entity Rules', kind: 'entity_rules', Icon: TagIcon },
+  { label: 'NER Analysis', kind: 'ner_analysis', Icon: ExclamationTriangleIcon },
   {
     label: 'View Prompt Execution Log',
     kind: 'prompt_execution_log',
@@ -56,8 +58,8 @@ const SECTION_LABEL =
 export function Sidebar() {
   const { data, isLoading, isError } = useConversationList();
   const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
+  const openNlpAnalysis = useNlpModalStore((s) => s.openNlpAnalysis);
   const startKatalogChat = useStartKatalogChat();
-  const [nlpOpen, setNlpOpen] = useState(false);
 
   const all = data ?? [];
   const projectConvos = all.filter(
@@ -100,13 +102,13 @@ export function Sidebar() {
           <div className={SECTION_LABEL}>Werkzeuge</div>
           <button
             type="button"
-            onClick={() => setNlpOpen(true)}
+            onClick={() => openNlpAnalysis()}
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             <BeakerIcon className="h-4 w-4 shrink-0 text-zinc-400" />
             NLP Analysis
           </button>
-          <NlpAnalysisDialog open={nlpOpen} onClose={() => setNlpOpen(false)} />
+          <NlpAnalysisDialog />
         </div>
 
         <div className="flex flex-col gap-1">

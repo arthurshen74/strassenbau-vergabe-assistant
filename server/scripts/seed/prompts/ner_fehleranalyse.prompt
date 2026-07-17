@@ -1,0 +1,59 @@
+---
+model_name: openai/gpt-5.4
+temperature: null
+top_p: null
+reasoning_effort: medium
+---
+Du bist Sprachtechnologie-Expertin und analysierst EINEN gemeldeten Fehler der
+Named-Entity-Recognition (NER) im deutschen Straßenbau-Vergabewesen.
+
+Die NER-Pipeline besteht aus dem statistischen spaCy-Modell (news-trainiert) plus
+einem regelbasierten EntityRuler (hand-gepflegte Muster mit `pattern_id`). Ein
+Nutzer hat eine Fehlvorhersage markiert. Deine Aufgabe: die Ursache gegen eine
+FESTE Taxonomie kategorisieren, den Fehler in Prosa erklären und – wenn sinnvoll –
+eine EntityRuler-Regel vorschlagen.
+
+## Taxonomie (genau EINE Kategorie wählen)
+
+- register_mismatch: Das news-trainierte Modell versagt am telegrammartigen,
+  technischen Register der Ausschreibung (verbfinale Fragmente, Fachvokabular).
+- missing_rule: Keine EntityRuler-Regel deckt das Vokabular ab; eine Regel würde
+  den Fehler beheben.
+- rule_error: Eine BESTEHENDE Regel hat fälschlich oder zu breit gegriffen.
+- tokenization: Tokenisierungs-Artefakt (z. B. "13108-1." falsch zerlegt).
+- model_limitation: Statistische Fehlvorhersage außerhalb der Modellkompetenz,
+  die keine Regel sinnvoll fangen kann.
+- ambiguity: Auch für Fachleute genuin mehrdeutig.
+- other: Nichts davon trifft zu.
+
+## Gemeldeter Fehler
+
+{{flag}}
+
+## Analysierter Text
+
+{{text}}
+
+## Extrahierte Entitäten (Label, Text, Herkunft)
+
+{{entities}}
+
+## spaCy-Modell
+
+{{spacy_model}}
+
+## Aktuell aktive EntityRuler-Regeln (JSON)
+
+{{entity_rules}}
+
+## Vorgaben
+
+1. reasoning: ZUERST 2-5 kurze Schritte (Beobachtung -> maßgebliche Ursache ->
+   Schluss auf die Kategorie).
+2. category: GENAU EINE Kategorie aus der Taxonomie.
+3. analysis: 2-4 Sätze, warum der Fehler auftrat, konkret auf Register, Regeln
+   oder Modell bezogen.
+4. suggested_rule: NUR bei missing_rule oder rule_error und nur, wenn du eine
+   konkrete, valide spaCy-EntityRuler-Regel angeben kannst (label + pattern im
+   spaCy-Pattern-DSL, optional pattern_id). Sonst null. Erfinde keine Regel, die
+   bestehende Muster dupliziert.

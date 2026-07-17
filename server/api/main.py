@@ -19,6 +19,7 @@ from api.routes import (
     health,
     ingest_jobs,
     katalog,
+    ner_flags,
     nlp,
     project_contexts,
     projects,
@@ -121,6 +122,7 @@ def create_app() -> FastAPI:
     app.include_router(eval_runs.router)
     app.include_router(nlp.router)
     app.include_router(entity_rules.router)
+    app.include_router(ner_flags.router)
     return app
 
 

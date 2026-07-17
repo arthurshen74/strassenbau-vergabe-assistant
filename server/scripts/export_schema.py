@@ -61,6 +61,15 @@ from shared.models.katalog import (
 )
 from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
+from shared.models.ner_flag import (
+    NerCategoryCount,
+    NerFlag,
+    NerFlagSummary,
+    NerFlagUpdate,
+    NewNerFlag,
+    SnapshotEntity,
+    SuggestedRule,
+)
 from shared.models.nlp import (
     EntityLabelStats,
     EntityOccurrence,
@@ -238,6 +247,15 @@ BODY_MODELS: list[type[BaseModel]] = [
     EntityRuleRead,
     EntityRuleCreate,
     EntityRuleUpdate,
+    # NER error flags: nested snapshot/rule shapes, the create body, the persisted flag
+    # (with effective_category), the patch body, and the dashboard summary.
+    SnapshotEntity,
+    SuggestedRule,
+    NewNerFlag,
+    NerFlag,
+    NerFlagUpdate,
+    NerCategoryCount,
+    NerFlagSummary,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

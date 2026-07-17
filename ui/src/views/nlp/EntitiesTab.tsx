@@ -1,24 +1,61 @@
 // Entities tab: labels ranked by frequency (left), the selected label's
 // occurrences (right) — each row showing the matched text, its sentence, and
 // either the rule that produced it (pattern id) or a "model guess" badge when no
-// rule matched. This is where wrongly-predicted entities become visible.
+// rule matched. Each occurrence can be flagged (wrong label / not an entity).
 
 import { useState } from 'react';
 
 import type { AnalyzeResponse } from '../../types/generated';
 import { Badge } from '../../components/ui/badge';
+import { FlagDialog } from './FlagDialog';
+import type { FlagContext, FlagTarget } from './flagTypes';
 
-export function EntitiesTab({ analysis }: { analysis: AnalyzeResponse }) {
+// Key an occurrence for the flagged-indicator set (sentence + text + label).
+function occKey(label: string, sentenceHash: string, index: number): string {
+  return `${label}:${sentenceHash}:${index}`;
+}
+
+export function EntitiesTab({
+  analysis,
+  context,
+  labelOptions,
+}: {
+  analysis: AnalyzeResponse;
+  context: FlagContext;
+  labelOptions: string[];
+}) {
   const { labels, total_count } = analysis.entities;
   const [selectedLabel, setSelectedLabel] = useState<string | null>(
     labels[0]?.label ?? null,
   );
+  const [target, setTarget] = useState<FlagTarget | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   const sentencesByHash = new Map(
     analysis.sentences.map((s) => [s.sentence_hash, s.text]),
   );
   const selected = labels.find((l) => l.label === selectedLabel) ?? null;
   const maxCount = Math.max(...labels.map((l) => l.count), 1);
+
+  const openFlag = (key: string, occText: string, sentence: string, label: string) => {
+    const start = Math.max(sentence.indexOf(occText), 0);
+    setPendingKey(key);
+    setTarget({
+      spanText: occText,
+      spanStart: start,
+      spanEnd: start + occText.length,
+      sentenceText: sentence,
+      label,
+      allowedKinds: ['wrong_label', 'not_an_entity'],
+    });
+    setDialogOpen(true);
+  };
+
+  const onFlagged = () => {
+    if (pendingKey) setFlagged((prev) => new Set(prev).add(pendingKey));
+  };
 
   if (labels.length === 0) {
     return (
@@ -72,38 +109,68 @@ export function EntitiesTab({ analysis }: { analysis: AnalyzeResponse }) {
                   <tr className="text-left text-zinc-400">
                     <th className="py-0.5 pr-4 font-normal">Text</th>
                     <th className="py-0.5 pr-4 font-normal">Sentence</th>
-                    <th className="py-0.5 font-normal">Source</th>
+                    <th className="py-0.5 pr-4 font-normal">Source</th>
+                    <th className="py-0.5 font-normal"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selected.occurrences.map((occ, index) => (
-                    <tr
-                      key={`${occ.sentence_hash}-${index}`}
-                      className="border-t border-zinc-100 dark:border-zinc-800"
-                    >
-                      <td className="py-0.5 pr-4 font-mono text-zinc-800 dark:text-zinc-200">
-                        {occ.text}
-                      </td>
-                      <td className="max-w-md truncate py-0.5 pr-4 text-zinc-500">
-                        {sentencesByHash.get(occ.sentence_hash) ?? ''}
-                      </td>
-                      <td className="py-0.5">
-                        {occ.pattern_id ? (
-                          <span className="font-mono text-zinc-500">
-                            {occ.pattern_id}
-                          </span>
-                        ) : (
-                          <Badge color="amber">model guess</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {selected.occurrences.map((occ, index) => {
+                    const sentence = sentencesByHash.get(occ.sentence_hash) ?? '';
+                    const key = occKey(selected.label, occ.sentence_hash, index);
+                    const isFlagged = flagged.has(key);
+                    return (
+                      <tr
+                        key={key}
+                        className="border-t border-zinc-100 dark:border-zinc-800"
+                      >
+                        <td className="py-0.5 pr-4 font-mono text-zinc-800 dark:text-zinc-200">
+                          {occ.text}
+                        </td>
+                        <td className="max-w-md truncate py-0.5 pr-4 text-zinc-500">
+                          {sentence}
+                        </td>
+                        <td className="py-0.5 pr-4">
+                          {occ.pattern_id ? (
+                            <span className="font-mono text-zinc-500">
+                              {occ.pattern_id}
+                            </span>
+                          ) : (
+                            <Badge color="amber">model guess</Badge>
+                          )}
+                        </td>
+                        <td className="py-0.5 text-right">
+                          {isFlagged ? (
+                            <Badge color="red">flagged</Badge>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openFlag(key, occ.text, sentence, selected.label)
+                              }
+                              className="rounded px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                            >
+                              flag
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
       </div>
+
+      <FlagDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        target={target}
+        context={context}
+        labelOptions={labelOptions}
+        onFlagged={onFlagged}
+      />
     </div>
   );
 }

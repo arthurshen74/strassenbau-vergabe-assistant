@@ -4,11 +4,18 @@
 // card, which caps the Langtext height via constrainLangtext.
 
 import clsx from 'clsx';
-import { CalculatorIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/16/solid';
+import {
+  BeakerIcon,
+  CalculatorIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from '@heroicons/react/16/solid';
 
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '../../components/ui/dialog';
 import type { LVItem } from '../../types/generated';
+import { nlpPresetForLvItem } from './lvNlpPreset';
+import { useNlpModalStore } from '../../store/nlpModal';
 
 function Field({
   label,
@@ -82,6 +89,7 @@ export function LVItemDetailDialog({
   onNext?: () => void;
 }) {
   const navigable = onPrev !== undefined || onNext !== undefined;
+  const openNlpAnalysis = useNlpModalStore((s) => s.openNlpAnalysis);
   return (
     <Dialog open={open} onClose={onClose} size="2xl">
       <div className="flex items-center justify-between gap-4">
@@ -104,12 +112,18 @@ export function LVItemDetailDialog({
           <LVItemDetailContent item={item} showOz={false} />
         </DialogBody>
       )}
-      {item && onRunCalculation && (
+      {item && (
         <DialogActions>
-          <Button color="green" disabled={starting} onClick={() => onRunCalculation(item.oz)}>
-            <CalculatorIcon data-slot="icon" />
-            {starting ? 'Opening…' : 'Position Chat'}
+          <Button outline onClick={() => openNlpAnalysis(nlpPresetForLvItem(item))}>
+            <BeakerIcon data-slot="icon" />
+            NLP-Analyse
           </Button>
+          {onRunCalculation && (
+            <Button color="green" disabled={starting} onClick={() => onRunCalculation(item.oz)}>
+              <CalculatorIcon data-slot="icon" />
+              {starting ? 'Opening…' : 'Position Chat'}
+            </Button>
+          )}
         </DialogActions>
       )}
     </Dialog>

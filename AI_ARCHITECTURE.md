@@ -370,6 +370,55 @@ Key decisions (full rationale in `openspec/changes/nlp-analysis-modal/design.md`
   the ruler automatically. Generating patterns from Katalog rows is a natural, separately-scoped
   follow-up.
 
+### NER Error Investigation
+
+The Entities/Sentences tabs make mispredictions visible; the error-investigation flow turns each
+observed error into a persisted, LLM-analyzed, categorized record — the summary of which *is* the
+requirement-3 deliverable ("25 flags: 9 register mismatch, 7 missing rules, 4 tokenization, …").
+Two ingredients feed it: ad-hoc text analysis, so LV-register text (telegraphic, verb-final — where
+news-trained NER degrades most) can be analyzed at all, and flagging.
+
+```mermaid
+flowchart TD
+    LV[LV item Langtext + Hinweis] -->|NLP-Analyse action| MODAL[NLP modal, ad-hoc text source]
+    FREE[free text paste] --> MODAL
+    MODAL -->|POST /nlp/analyze with text| SPLIT[blank-line split -> PROSE blocks, no reflow]
+    SPLIT --> TABS[Sentences / Entities tabs]
+    TABS -->|flag occurrence: wrong label / not an entity| FLAG[flag + prose comment]
+    TABS -->|select text in sentence: missed entity| FLAG
+    FLAG -->|POST /ner-flags| PERSIST[(ner_flags row, analysis pending)]
+    PROMPT[(PromptLibrary: ner_fehleranalyse)] --> ANALYZE
+    RULES[(entity_rules JSON)] --> ANALYZE
+    PERSIST --> ANALYZE[assemble prompt + LLMClient structured call]
+    ANALYZE -->|NerFailureCategory + analysis + optional rule| UPDATE[(update row: category, provenance)]
+    UPDATE --> DASH[NER Analysis page: category dashboard + list + detail + resolve]
+    DASH -.->|suggested rule applied by hand| ADMIN2[Entity Rules admin page]
+    ADMIN2 -.->|resolve flag with note| DASH
+```
+
+- **Ad-hoc analysis reuses `AnalyzeRequest`**: it now accepts either a `document_uuid` or raw
+  `text` (exactly one, model-validated). Text is split on blank lines into PROSE blocks — no Docling,
+  no reflow (LV text has no layout geometry) — and flows through the same sentence/POS/entity pass,
+  returning the same shape. The modal gains a Document/Free-text source switch; an LV item's
+  "NLP-Analyse" action preloads its Langtext + Hinweis.
+- **Flags snapshot their context.** A `ner_flags` row stores the full analyzed `source_text`, the
+  flagged span (text + offsets) and its sentence, the involved label, the flag-time entity list as
+  JSONB, and a nullable LV-item/document link. Flags are point-in-time records — later ruleset edits
+  never rewrite them; provenance columns (spaCy model, prompt version, LLM model, timestamp) make the
+  vintage explicit.
+- **One synchronous LLM analysis per flag.** `POST /ner-flags` persists the flag, then calls the LLM
+  via `error_analysis.py`: the seeded, versioned `ner_fehleranalyse` PromptLibrary prompt is rendered
+  with the analyzed text, entities with `pattern_id`-or-statistical-model provenance, the flag +
+  comment, the spaCy model version, and the full enabled `entity_rules` as JSON. Structured output
+  returns a closed-enum `NerFailureCategory` (register_mismatch / missing_rule / rule_error /
+  tokenization / model_limitation / ambiguity / other), a prose analysis, and an optional advisory
+  rule suggestion. An LLM failure leaves the flag with a null analysis, retriable via
+  `POST /ner-flags/{uuid}/analyze` — the human observation is never lost.
+- **The dashboard aggregates on the effective category** (a user `category_override` wins over the
+  LLM assignment), splits counts by open/resolved, and highlights AMBIGUITY. Closing the loop is a
+  status flip with a note ("added rule baustoff_bordstein"); applying a suggested rule goes through
+  the Entity Rules admin page by hand — no LLM write-path into the curated ruleset.
+
 ## Model Access, Logging, and Tracing
 
 All model traffic — chat completions, embeddings, rerank — goes through one OpenRouter transport

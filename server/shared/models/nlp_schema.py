@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from shared.models.enums import BlockType, RenderStyle
 from shared.models.nlp import (
@@ -50,9 +50,13 @@ class DocumentTextRead(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
+    """Analyze either a document (by uuid) or ad-hoc text — exactly one source.
+    Ad-hoc text is split into PROSE blocks on blank lines, no layout/reflow."""
+
     model_config = ConfigDict(extra="forbid")
 
-    document_uuid: UUID
+    document_uuid: UUID | None = None
+    text: str | None = None
     include_blocks: list[BlockType] = list(DEFAULT_INCLUDE_BLOCKS)
 
     @field_validator("include_blocks")
@@ -63,6 +67,13 @@ class AnalyzeRequest(BaseModel):
         if not value:
             raise ValueError("include_blocks must not be empty")
         return value
+
+    @model_validator(mode="after")
+    def exactly_one_source(self) -> AnalyzeRequest:
+        has_text = self.text is not None and self.text.strip() != ""
+        if (self.document_uuid is not None) == has_text:
+            raise ValueError("provide exactly one of document_uuid or text")
+        return self
 
 
 class RenderRequest(BaseModel):
@@ -85,7 +96,7 @@ class RenderResponse(BaseModel):
 class AnalyzeResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    document_uuid: UUID
+    document_uuid: UUID | None = None
     include_blocks: list[BlockType]
     sentences: list[SentenceInfo]
     pos: PosStats

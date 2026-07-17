@@ -128,7 +128,8 @@ All logic sits behind these route groups (SSE = streaming endpoint):
 | `/projects/.../ground-truth`, `/projects/.../rag-ground-truth` | Curated calculation gold and RAG reference questions; Gate-B variable-correction views.                                                                                                                         |
 | `/ingest-jobs`                                                 | Ops console: list jobs, requeue, **SSE** granular activity stream.                                                                                                                                              |
 | `/prompts`, `/prompt-execution-logs`, `/usage`                 | Prompt Library (append-only versions), full LLM call log, OpenRouter cost log.                                                                                                                                  |
-| `/nlp`                                                         | NLP analysis modal: analyzable-document list, reflowed document text (typed blocks + classified lines), sentence/POS analysis with a block-type include list, displacy renders (see AI_ARCHITECTURE.md "Document Reflow and NLP Analysis").  |
+| `/nlp`                                                         | NLP analysis modal: analyzable-document list, reflowed document text (typed blocks + classified lines), sentence/POS analysis with a block-type include list (or ad-hoc `text`), displacy renders (see AI_ARCHITECTURE.md "Document Reflow and NLP Analysis").  |
+| `/entity-rules`, `/ner-flags`                                  | Domain NER: EntityRuler rule CRUD (spaCy-validated); NER error flags — create-with-synchronous-LLM-analysis, list/filter, category summary, resolve/override, re-analyze, delete (see AI_ARCHITECTURE.md "NER Error Investigation").  |
 
 FastAPI serves the generated OpenAPI documentation at `/docs`. CORS is restricted to the Vite dev
 origin. Authentication is a development stub: `get_current_user()` returns a fixed administrator
@@ -161,6 +162,11 @@ The domain DB groups into six clusters:
 - **NLP analysis caches** — `document_layout_regions` (Docling layout output per document and
   model version; PDFs are immutable so inference runs once) and `nlp_render_cache` (displacy
   dep-SVGs keyed by sha256 of spaCy model + version + style + sentence text).
+- **Domain NER** — `entity_rules` (EntityRuler patterns: label + spaCy pattern JSONB + optional
+  `pattern_id` + enabled) and `ner_flags` (persisted mispredictions: kind, snapshotted span /
+  sentence / source text / flag-time entity list, nullable LV-item/document link, plus the one-shot
+  LLM analysis — `category`, `category_override`, prose, advisory `suggested_rule`, and provenance
+  columns — with an open/resolved status). Both are read for the `ner_fehleranalyse` prompt.
 - **Context** — `project_context_values`, the SCD-2 history of project-scoped globals (Baustelle,
   Deponie, strip dimensions, …).
 
