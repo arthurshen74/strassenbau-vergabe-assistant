@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from shared.db.tables.calculation_ground_truth import calculation_ground_truth
 from shared.db.tables.conversations import conversations
+from shared.db.tables.document_layout_regions import document_layout_regions
 from shared.db.tables.documents import documents
 from shared.db.tables.embedding_cache import embedding_cache
 from shared.db.tables.eval_results import eval_results
@@ -35,6 +36,7 @@ from shared.db.tables.katalog_variablen import katalog_variablen
 from shared.db.tables.katalog_vorgaenge import katalog_vorgaenge
 from shared.db.tables.lv_items import lv_items
 from shared.db.tables.messages import messages
+from shared.db.tables.nlp_render_cache import nlp_render_cache
 from shared.db.tables.openrouter_usage import openrouter_usage
 from shared.db.tables.project_context_values import project_context_values
 from shared.db.tables.projects import projects
@@ -48,6 +50,7 @@ from shared.db.tables.variable_corrections import variable_corrections
 __all__ = [
     "calculation_ground_truth",
     "conversations",
+    "document_layout_regions",
     "documents",
     "embedding_cache",
     "eval_results",
@@ -75,6 +78,7 @@ __all__ = [
     "katalog_vorgaenge",
     "lv_items",
     "messages",
+    "nlp_render_cache",
     "openrouter_usage",
     "project_context_values",
     "projects",

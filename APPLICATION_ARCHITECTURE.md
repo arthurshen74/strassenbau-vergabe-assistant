@@ -128,6 +128,7 @@ All logic sits behind these route groups (SSE = streaming endpoint):
 | `/projects/.../ground-truth`, `/projects/.../rag-ground-truth` | Curated calculation gold and RAG reference questions; Gate-B variable-correction views.                                                                                                                         |
 | `/ingest-jobs`                                                 | Ops console: list jobs, requeue, **SSE** granular activity stream.                                                                                                                                              |
 | `/prompts`, `/prompt-execution-logs`, `/usage`                 | Prompt Library (append-only versions), full LLM call log, OpenRouter cost log.                                                                                                                                  |
+| `/nlp`                                                         | NLP analysis modal: analyzable-document list, reflowed document text (typed blocks + classified lines), sentence/POS analysis with a block-type include list, displacy renders (see AI_ARCHITECTURE.md "Document Reflow and NLP Analysis").  |
 
 FastAPI serves the generated OpenAPI documentation at `/docs`. CORS is restricted to the Vite dev
 origin. Authentication is a development stub: `get_current_user()` returns a fixed administrator
@@ -157,6 +158,9 @@ The domain DB groups into six clusters:
   `calculation_ground_truth`, `rag_ground_truth`, and the append-only `variable_corrections`.
 - **Prompt / usage / observability** — append-only `prompt_versions`, the full-fidelity
   `prompt_execution_log`, `openrouter_usage`, `embedding_cache`.
+- **NLP analysis caches** — `document_layout_regions` (Docling layout output per document and
+  model version; PDFs are immutable so inference runs once) and `nlp_render_cache` (displacy
+  dep-SVGs keyed by sha256 of spaCy model + version + style + sentence text).
 - **Context** — `project_context_values`, the SCD-2 history of project-scoped globals (Baustelle,
   Deponie, strip dimensions, …).
 

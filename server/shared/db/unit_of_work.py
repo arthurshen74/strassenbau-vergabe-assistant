@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from shared.repositories.conversations import ConversationRepository
+from shared.repositories.document_layout_regions import DocumentLayoutRegionRepository
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.eval_results import EvalResultRepository
 from shared.repositories.eval_run_events import EvalRunEventRepository
@@ -30,6 +31,7 @@ from shared.repositories.ingestion_activity import IngestionActivityLogRepositor
 from shared.repositories.katalog import KatalogRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.messages import MessageRepository
+from shared.repositories.nlp_render_cache import NlpRenderCacheRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.repositories.project_context_values import ProjectContextValueRepository
 from shared.repositories.projects import ProjectRepository
@@ -63,6 +65,8 @@ class UnitOfWork:
         self.eval_results = EvalResultRepository(conn)
         self.project_context_values = ProjectContextValueRepository(conn)
         self.katalog = KatalogRepository(conn)
+        self.document_layout_regions = DocumentLayoutRegionRepository(conn)
+        self.nlp_render_cache = NlpRenderCacheRepository(conn)
         # Registered for read/report composition; the Database*Sinks write independently.
         self.openrouter_usage = OpenRouterUsageRepository(conn)
         self.prompt_execution_log = PromptExecutionLogRepository(conn)

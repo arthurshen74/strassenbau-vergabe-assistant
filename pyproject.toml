@@ -34,6 +34,9 @@ dependencies = [
     "openinference-instrumentation-langchain",
     "langgraph-checkpoint-postgres>=3.1.0",
     "psycopg[binary,pool]>=3.3.4",
+    "spacy>=3.8.14",
+    "docling>=2.113.0",
+    "de-core-news-lg",
 ]
 
 [dependency-groups]
@@ -46,6 +49,14 @@ dev = [
 # Deps-only project: server/, tests/ and eval/ share one environment.
 # Nothing here is built or installed as a package.
 package = false
+
+[tool.uv.workspace]
+members = [
+    "nlp-playground/layout-spike",
+]
+
+[tool.uv.sources]
+de-core-news-lg = { url = "https://github.com/explosion/spacy-models/releases/download/de_core_news_lg-3.8.0/de_core_news_lg-3.8.0-py3-none-any.whl" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

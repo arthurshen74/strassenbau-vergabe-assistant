@@ -56,6 +56,22 @@ from shared.models.katalog import (
 )
 from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
+from shared.models.nlp import (
+    PosStats,
+    PosTagStats,
+    ReflowedBlock,
+    SentenceInfo,
+    TokenInfo,
+)
+from shared.models.nlp_schema import (
+    AnalyzeRequest,
+    AnalyzeResponse,
+    DocumentTextRead,
+    NlpDocumentRead,
+    RenderRequest,
+    RenderResponse,
+    SourceLineRead,
+)
 from shared.models.openrouter_usage_schema import OpenRouterUsageRead
 from shared.models.project_context import ProjectContextValue
 from shared.models.project_context_schema import (
@@ -191,6 +207,20 @@ BODY_MODELS: list[type[BaseModel]] = [
     EvalRun,
     EvalRunEvent,
     EvalResult,
+    # NLP analysis modal: document picker rows, reflowed text (blocks + classified lines),
+    # the analyze request/response with nested sentence/POS shapes, and displacy renders.
+    NlpDocumentRead,
+    ReflowedBlock,
+    SourceLineRead,
+    DocumentTextRead,
+    SentenceInfo,
+    TokenInfo,
+    PosTagStats,
+    PosStats,
+    AnalyzeRequest,
+    AnalyzeResponse,
+    RenderRequest,
+    RenderResponse,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

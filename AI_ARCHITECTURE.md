@@ -305,6 +305,52 @@ its system prompt AND model from the seeded `katalog_handbuch` version (the fron
 model choice), so editing that prompt in the editor changes both — and the recipe-compiler eval
 measures the live version.
 
+## Document Reflow and NLP Analysis
+
+The NLP analysis modal (sidebar → Werkzeuge) turns a Baubeschreibung's raw `source_lines` into
+linguistically usable text and lets you inspect every intermediate step: reflowed blocks vs
+original lines, sentence segmentation with displacy renders, and POS distribution.
+
+`source_lines` are visual layout lines (`pdftotext -bbox-layout`), not linguistic units: German
+justification hyphenates words across lines, letterheads repeat on every page, sentences span
+pages, and tables shred into cell fragments. The reflow pipeline fixes this with a hybrid of the
+existing poppler extraction (authoritative *text*, AcroForm-capable) and the Docling layout model
+(*structure*), validated in the layout spike (`nlp-playground/layout-spike/`):
+
+```mermaid
+flowchart TD
+    PDF[(MinIO raw PDF)] -->|pdf bytes, rendered internally| DOCLING[Docling layout model]
+    DOCLING -->|label + bbox per region| REGCACHE[(document_layout_regions)]
+    DB[(source_lines)] --> JOIN
+    REGCACHE --> JOIN{{bbox join: line center in region}}
+    DB --> HEUR[repetition heuristic]
+    HEUR --> FURN[furniture = heuristic UNION model]
+    JOIN --> FURN
+    FURN --> BLOCKS[typed blocks: PROSE / HEADING / LIST_ITEM / TABLE / CAPTION / FOOTNOTE]
+    BLOCKS --> REFLOW[dehyphenate, join lines, merge cross-page]
+    REFLOW -->|include-list filter| SPACY[spaCy de_core_news_lg]
+    SPACY --> OUT[sentences + POS stats + displacy renders]
+```
+
+Key decisions (full rationale in `openspec/changes/nlp-analysis-modal/design.md`):
+
+- **Furniture is the union** of a repetition heuristic (digit-run-normalized text + y-bucket on
+  ≥50% of pages) and Docling `page_header`/`page_footer` regions — the spike showed the heuristic
+  wins on repeated letterheads, the model wins on roman-numeral front matter.
+- **German dehyphenation**: a line-end hyphen joins the next line dropping the hyphen when it
+  starts lowercase (`gekom-`/`menen`), keeping it when uppercase (`SRT-`/`Pendel`). Cross-page
+  merges require no lowercase test — German capitalizes nouns mid-sentence.
+- **Block-type inclusion is per-request config** (`include_blocks`, default PROSE + HEADING +
+  LIST_ITEM); tables are excluded by default so cell fragments never reach the sentence splitter,
+  but can be toggled on in the modal to observe the degradation.
+- **Models load lazily** (spaCy and Docling are module singletons, never loaded at API boot) and
+  both expensive artifacts are cached: layout regions per document + Docling version, dep-SVGs
+  by content hash including the spaCy model version.
+- Every block records its `line_id` range, so any sentence, token, or (future) entity resolves
+  back to page + bbox in the original PDF. The planned EntityRuler NER (fed from the Katalog
+  store) plugs into the same `ent` render path, which uses displacy manual mode precisely so the
+  entity source is swappable.
+
 ## Model Access, Logging, and Tracing
 
 All model traffic — chat completions, embeddings, rerank — goes through one OpenRouter transport

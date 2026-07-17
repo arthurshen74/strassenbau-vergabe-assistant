@@ -163,3 +163,27 @@ class EvalRunStatus(StrEnum):
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
+
+
+class RenderStyle(StrEnum):
+    """displacy render styles served by /nlp/render."""
+
+    DEP = "dep"  # dependency parse, SVG, cached
+    ENT = "ent"  # entity highlighting, HTML, uncached
+
+
+class BlockType(StrEnum):
+    """Classification of a reflowed document block (document-reflow spec).
+
+    FURNITURE (letterheads, page numbers) is excluded from reflowed text and is never
+    accepted in an analysis include-list; the others are content types selectable per
+    analysis request.
+    """
+
+    PROSE = "prose"
+    HEADING = "heading"
+    LIST_ITEM = "list_item"
+    TABLE = "table"
+    CAPTION = "caption"
+    FOOTNOTE = "footnote"
+    FURNITURE = "furniture"

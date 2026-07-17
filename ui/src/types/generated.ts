@@ -755,6 +755,102 @@ export interface EvalResult {
   created_at: string;
 }
 
+export interface NlpDocumentRead {
+  document_uuid: string;
+  file_name: string;
+  project_name: string;
+  number_of_pages: number;
+}
+
+export interface ReflowedBlock {
+  block_id: number;
+  /**
+   * Classification of a reflowed document block (document-reflow spec).
+   *
+   * FURNITURE (letterheads, page numbers) is excluded from reflowed text and is never
+   * accepted in an analysis include-list; the others are content types selectable per
+   * analysis request.
+   */
+  block_type: "prose" | "heading" | "list_item" | "table" | "caption" | "footnote" | "furniture";
+  text: string;
+  page_start: number;
+  page_end: number;
+  line_ids: number[];
+}
+
+export interface SourceLineRead {
+  line_id: number;
+  page: number;
+  text: string;
+  /**
+   * Classification of a reflowed document block (document-reflow spec).
+   *
+   * FURNITURE (letterheads, page numbers) is excluded from reflowed text and is never
+   * accepted in an analysis include-list; the others are content types selectable per
+   * analysis request.
+   */
+  block_type: "prose" | "heading" | "list_item" | "table" | "caption" | "footnote" | "furniture";
+}
+
+export interface DocumentTextRead {
+  document_uuid: string;
+  blocks: ReflowedBlock[];
+  lines: SourceLineRead[];
+}
+
+export interface SentenceInfo {
+  sentence_hash: string;
+  block_id: number;
+  text: string;
+}
+
+export interface TokenInfo {
+  text: string;
+  lemma: string;
+  sentence_hash: string;
+}
+
+export interface PosTagStats {
+  tag: string;
+  count: number;
+  percentage: number;
+  tokens: TokenInfo[];
+}
+
+export interface PosStats {
+  token_count: number;
+  ud: PosTagStats[];
+  stts: PosTagStats[];
+}
+
+export interface AnalyzeRequest {
+  document_uuid: string;
+  include_blocks?: ("prose" | "heading" | "list_item" | "table" | "caption" | "footnote" | "furniture")[];
+}
+
+export interface AnalyzeResponse {
+  document_uuid: string;
+  include_blocks: ("prose" | "heading" | "list_item" | "table" | "caption" | "footnote" | "furniture")[];
+  sentences: SentenceInfo[];
+  pos: PosStats;
+}
+
+export interface RenderRequest {
+  /**
+   * displacy render styles served by /nlp/render.
+   */
+  style: "dep" | "ent";
+  text: string;
+}
+
+export interface RenderResponse {
+  /**
+   * displacy render styles served by /nlp/render.
+   */
+  style: "dep" | "ent";
+  markup: string;
+}
+
 // ---- Types pinned by scripts/export_schema.py ----
 
 export interface IngestQueued {

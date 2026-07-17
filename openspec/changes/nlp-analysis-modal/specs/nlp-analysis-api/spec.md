@@ -1,0 +1,50 @@
+# Spec: nlp-analysis-api
+
+## ADDED Requirements
+
+### Requirement: Analyzable documents can be listed
+The API SHALL expose the PROSE_DOCUMENTs that have extracted source lines, with document uuid, file name, project name, and page count, so the modal can offer a document picker.
+
+#### Scenario: Listing
+- **WHEN** `GET /nlp/documents` is called
+- **THEN** it returns every PROSE_DOCUMENT that has at least one source line, with its project name
+
+### Requirement: Reflowed text is served with block metadata
+The API SHALL return a document's reflowed content as an ordered list of blocks (type, text, page range, line_id range, furniture excluded) plus the original lines on request, so the UI can render both views and dim excluded content.
+
+#### Scenario: Reflowed view
+- **WHEN** `GET /nlp/documents/{uuid}/text` is called
+- **THEN** it returns ordered typed blocks with reflowed text and provenance ranges
+
+### Requirement: Sentence and POS analysis respects a block-type include list
+The API SHALL run spaCy analysis (`de_core_news_lg`) over the reflowed blocks whose type is in the request's `include_blocks` list, defaulting to PROSE, HEADING, and LIST_ITEM. The response SHALL contain per-sentence entries (text, block reference, sentence hash) and aggregate POS statistics: counts and percentages per coarse UD tag and per fine STTS tag, with the token list retrievable per tag. FURNITURE SHALL NOT be accepted in `include_blocks`.
+
+#### Scenario: Default analysis
+- **WHEN** `POST /nlp/analyze` is called with only a document uuid
+- **THEN** sentences come exclusively from PROSE, HEADING, and LIST_ITEM blocks
+
+#### Scenario: Tables opted in
+- **WHEN** `POST /nlp/analyze` includes TABLE in `include_blocks`
+- **THEN** table block text is segmented and analyzed like any other included block
+
+#### Scenario: POS drill-down
+- **WHEN** the analysis response reports 312 NOUN tokens
+- **THEN** the tokens (text, lemma, sentence reference) behind that count are available to the client
+
+### Requirement: Displacy renders are served per sentence
+The API SHALL render a sentence's dependency parse as displacy SVG (`style=dep`) and its entities as displacy HTML (`style=ent`). Dep SVGs SHALL be cached keyed by sha256 of spaCy model name, model version, style, and sentence text; ent HTML SHALL be generated per request from the Doc's entities (never cached, so a future entity source change shows immediately).
+
+#### Scenario: Dep render cached
+- **WHEN** the same sentence's dep render is requested twice
+- **THEN** the second response is served from `nlp_render_cache` without re-parsing
+
+#### Scenario: Model upgrade invalidates cache
+- **WHEN** the spaCy model version changes
+- **THEN** previously cached renders are not served for new requests
+
+### Requirement: NLP models load lazily
+spaCy and Docling models SHALL NOT load at API startup; they SHALL load on first use and stay resident.
+
+#### Scenario: API boots without models
+- **WHEN** the API process starts
+- **THEN** no spaCy or Docling weights are loaded until the first `/nlp/*` request needing them

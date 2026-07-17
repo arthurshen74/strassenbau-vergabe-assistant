@@ -3,8 +3,10 @@
 //   - Commands: open a component into the global main window
 //   - Project Conversations: project-chat threads (the only persistent conversations)
 
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  BeakerIcon,
   BookOpenIcon,
   ChartBarIcon,
   ClipboardDocumentListIcon,
@@ -19,6 +21,7 @@ import {
   useConversationList,
 } from '../../api/conversations';
 import { useStartKatalogChat } from '../../views/main/useStartKatalogChat';
+import { NlpAnalysisDialog } from '../../views/nlp/NlpAnalysisDialog';
 import { useMainWindowStore, type MainWindowKind } from '../../store/mainWindow';
 import { ConversationList } from './ConversationList';
 
@@ -52,6 +55,7 @@ export function Sidebar() {
   const { data, isLoading, isError } = useConversationList();
   const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
   const startKatalogChat = useStartKatalogChat();
+  const [nlpOpen, setNlpOpen] = useState(false);
 
   const all = data ?? [];
   const projectConvos = all.filter(
@@ -88,6 +92,19 @@ export function Sidebar() {
               {label}
             </button>
           ))}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className={SECTION_LABEL}>Werkzeuge</div>
+          <button
+            type="button"
+            onClick={() => setNlpOpen(true)}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <BeakerIcon className="h-4 w-4 shrink-0 text-zinc-400" />
+            NLP Analysis
+          </button>
+          <NlpAnalysisDialog open={nlpOpen} onClose={() => setNlpOpen(false)} />
         </div>
 
         <div className="flex flex-col gap-1">

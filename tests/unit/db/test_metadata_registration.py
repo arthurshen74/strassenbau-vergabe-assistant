@@ -19,6 +19,8 @@ EXPECTED_TABLES = {
     "conversations",
     "messages",
     "embedding_cache",
+    "document_layout_regions",
+    "nlp_render_cache",
     "calculation_ground_truth",
     "variable_corrections",
     "rag_ground_truth",
