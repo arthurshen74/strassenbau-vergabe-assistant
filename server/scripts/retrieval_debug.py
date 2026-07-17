@@ -1,8 +1,8 @@
 """Run a scoped RAG retrieval from the command line and trace every stage to STDOUT.
 
 A thin harness over RetrievalService: it parses a project_uuid and the stage toggles,
-bootstraps the clients once, runs the pipeline, and prints the trace. All the logic lives
-in shared/services/retrieval; this module only prints.
+bootstraps the clients once, runs the pipeline, and prints the trace. All the logic
+lives in shared/services/retrieval; this module only prints.
 
 One-shot (pass --question):
 
@@ -10,8 +10,9 @@ One-shot (pass --question):
       --project <uuid> --question "Welche Anforderungen gelten fuer die Tragschicht?" \
       --modality plus --multi-query --bm25 --cross-encoder
 
-Interactive (omit --question): bootstraps once with the given options, then loops reading
-questions from stdin, running each with the same options and printing the trace. Ctrl-D or
+Interactive (omit --question): bootstraps once with the given options, then loops
+reading questions from stdin, running each with the same options and printing the trace.
+Ctrl-D or
 'quit' exits. Needs a TTY, so under Docker run without -T:
 
     docker compose exec worker python -m scripts.retrieval_debug \
@@ -54,10 +55,15 @@ UUID_ABBREV_LENGTH = 8
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Debug a scoped RAG retrieval, tracing to STDOUT.")
-    parser.add_argument("--project", type=UUID, required=True, help="project_uuid to scope to")
+    parser = argparse.ArgumentParser(
+        description="Debug a scoped RAG retrieval, tracing to STDOUT."
+    )
     parser.add_argument(
-        "--question", help="the user question; omit to enter an interactive question loop"
+        "--project", type=UUID, required=True, help="project_uuid to scope to"
+    )
+    parser.add_argument(
+        "--question",
+        help="the user question; omit to enter an interactive question loop",
     )
     parser.add_argument(
         "--modality",
@@ -71,15 +77,23 @@ def _parse_args() -> argparse.Namespace:
         default=False,
         help="expand the query into variants before searching",
     )
-    parser.add_argument("--bm25", action="store_true", help="add a BM25 lexical list per query")
     parser.add_argument(
-        "--cross-encoder", action="store_true", help="rerank the fused pool with the cross-encoder"
+        "--bm25", action="store_true", help="add a BM25 lexical list per query"
+    )
+    parser.add_argument(
+        "--cross-encoder",
+        action="store_true",
+        help="rerank the fused pool with the cross-encoder",
     )
     parser.add_argument("--top-k", type=int, default=settings.retriever_top_k)
-    parser.add_argument("--candidate-k", type=int, default=settings.retriever_candidate_k)
+    parser.add_argument(
+        "--candidate-k", type=int, default=settings.retriever_candidate_k
+    )
     parser.add_argument("--multi-query-n", type=int, default=settings.multi_query_n)
     parser.add_argument(
-        "--json", action="store_true", help="dump the full result as JSON instead of a trace"
+        "--json",
+        action="store_true",
+        help="dump the full result as JSON instead of a trace",
     )
     return parser.parse_args()
 
@@ -158,7 +172,8 @@ async def _repl(
             continue
         if question.lower() in {"quit", "exit"}:
             return
-        # Keep the session alive: a bad question (or a transient API error) shouldn't end it.
+        # Keep the session alive: a bad question (or a transient API error) shouldn't
+        # end it.
         try:
             await _run_once(service, question, project, config, as_json)
         except RetrievalError as exc:
@@ -192,7 +207,8 @@ def _print_trace(result: RetrievalResult) -> None:
         print(f"  lv_document  : {result.scope.lv_document_uuid}")
     print(
         f"  config       : multi_query={cfg.multi_query} bm25={cfg.use_bm25} "
-        f"cross_encoder={cfg.use_cross_encoder} candidate_k={cfg.candidate_k} top_k={cfg.top_k}"
+        f"cross_encoder={cfg.use_cross_encoder} candidate_k={cfg.candidate_k} "
+        f"top_k={cfg.top_k}"
     )
 
     print(_banner("QUERIES"))
@@ -211,9 +227,15 @@ def _print_trace(result: RetrievalResult) -> None:
             for rank, hit in enumerate(query.lexical_hits, start=1):
                 _print_hit(rank, hit)
 
-    print(_banner(f"FUSED POOL (rrf_applied={result.rrf_applied}, {len(result.fused)} chunks)"))
+    print(
+        _banner(
+            f"FUSED POOL (rrf_applied={result.rrf_applied}, {len(result.fused)} chunks)"
+        )
+    )
     for rank, fused in enumerate(result.fused, start=1):
-        contributors = ", ".join(f"{label}#{r}" for label, r in fused.contributing_ranks.items())
+        contributors = ", ".join(
+            f"{label}#{r}" for label, r in fused.contributing_ranks.items()
+        )
         oz = f" OZ {fused.oz}" if fused.oz else ""
         print(
             f"  {rank:>3}. rrf={fused.rrf_score:.5f} [{contributors}] "

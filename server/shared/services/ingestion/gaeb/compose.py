@@ -1,4 +1,5 @@
-"""Compose raw GAEB LV items into the LVParseResult shape shared with the rest of ingestion.
+"""Compose raw GAEB LV items into the LVParseResult shape shared with the rest of
+ingestion.
 
 Takes the format readers' (D83, X83) `RawLVItem`s in document order, detects textual
 back-references ("wie in voriger Position", "desgl.", "wie Pos. 01.02.0030", ...) into
@@ -48,7 +49,8 @@ class GaebParseError(Exception):
 
 @dataclass(frozen=True)
 class RawLVItem:
-    """One LV-Gruppe title or Teilleistung as a format reader emitted it, texts finalised."""
+    """One LV-Gruppe title or Teilleistung as a format reader emitted it, texts
+    finalised."""
 
     oz: str
     is_title: bool
@@ -118,12 +120,15 @@ def _linked_oz(
     if SIBLING_BACKREF_RE.search(text) is not None:
         if prev_priced_oz is not None:
             return prev_priced_oz
-        warnings.append(f"position {item.oz}: prior-sibling back-reference has no predecessor")
+        warnings.append(
+            f"position {item.oz}: prior-sibling back-reference has no predecessor"
+        )
     return None
 
 
 def _canonical_oz(oz: str) -> tuple[str, ...]:
-    """OZ key insensitive to zero-padding, so '01.02.0030' matches a printed '1.2.30'."""
+    """OZ key insensitive to zero-padding, so '01.02.0030' matches a printed
+    '1.2.30'."""
     return tuple(
         str(int(segment)) if segment.isdigit() else segment.lower()
         for segment in oz.split(OZ_SEGMENT_SEP)

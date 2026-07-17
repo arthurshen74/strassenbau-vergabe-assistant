@@ -1,12 +1,14 @@
-"""Bundle service (§7): validate → persist drafts → activate atomically → reload the provider.
+"""Bundle service (§7): validate → persist drafts → activate atomically → reload the
+provider.
 
-Each write is one Unit-of-Work transaction. `entwurf_speichern` validates and inserts every row as
-`entwurf` sharing one `bundle_uuid`; `bundle_aktivieren` re-validates against the *current* active
-catalog, activates every draft row atomically, then reloads the provider on a fresh connection so
-the running engine sees the new recipe; `bundle_verwerfen` discards the drafts (`verworfen`).
+Each write is one Unit-of-Work transaction. `entwurf_speichern` validates and inserts
+every row as `entwurf` sharing one `bundle_uuid`; `bundle_aktivieren` re-validates
+against the *current* active catalog, activates every draft row atomically, then reloads
+the provider on a fresh connection so the running engine sees the new recipe;
+`bundle_verwerfen` discards the drafts (`verworfen`).
 
-The service owns the engine (not a single connection) because activation must reload the provider
-on a connection opened *after* the activation commits.
+The service owns the engine (not a single connection) because activation must reload the
+provider on a connection opened *after* the activation commits.
 """
 
 from __future__ import annotations
@@ -47,7 +49,8 @@ from shared.services.kalkulation_v2.model import (
 from shared.services.kalkulation_v2.provider import lade_katalog
 from shared.services.katalog.validierung import lade_stand, pruefe_bundle
 
-# Author recorded on catalog writes until real auth lands (mirrors the API route's dev principal).
+# Author recorded on catalog writes until real auth lands (mirrors the API route's dev
+# principal).
 DEFAULT_AUTOR = "kalkulator"
 
 
@@ -78,7 +81,8 @@ class KatalogService:
         return pruefe_bundle(bundle, stand)
 
     async def entwurf_speichern(self, bundle: KatalogBundle, benutzer: str) -> UUID:
-        """Validate, then insert every bundle row as `entwurf` sharing one bundle_uuid."""
+        """Validate, then insert every bundle row as `entwurf` sharing one
+        bundle_uuid."""
         bundle_uuid = uuid4()
         async with unit_of_work(self.engine) as uow:
             repo = uow.katalog
@@ -86,30 +90,35 @@ class KatalogService:
             if not bericht.gueltig:
                 raise BundleUngueltig(bericht)
             await self._schreibe_bundle(repo, bundle, benutzer, bundle_uuid)
-            # Draft save touches the "last write" audit but does NOT bump the version (D4).
+            # Draft save touches the "last write" audit but does NOT bump the version
+            # (D4).
             await repo.stand_beruehren(benutzer, aktivierung=False)
         return bundle_uuid
 
     async def bundle_aktivieren(
         self, bundle_uuid: UUID, benutzer: str = DEFAULT_AUTOR
     ) -> BundleBericht:
-        """Re-validate against the current active catalog, activate every draft row atomically,
-        then reload the provider on a fresh connection."""
+        """Re-validate against the current active catalog, activate every draft row
+        atomically, then reload the provider on a fresh connection."""
         async with unit_of_work(self.engine) as uow:
             repo = uow.katalog
             entwuerfe = await self._entwuerfe(repo, bundle_uuid)
-            preis_entwuerfe = await repo.preise_nach_bundle(bundle_uuid, KatalogStatus.ENTWURF)
+            preis_entwuerfe = await repo.preise_nach_bundle(
+                bundle_uuid, KatalogStatus.ENTWURF
+            )
             if not entwuerfe and not preis_entwuerfe:
                 raise BundleNichtGefunden(str(bundle_uuid))
-            rekonstruiert = await self._bundle_aus_zeilen(repo, entwuerfe, preis_entwuerfe)
+            rekonstruiert = await self._bundle_aus_zeilen(
+                repo, entwuerfe, preis_entwuerfe
+            )
             bericht = pruefe_bundle(rekonstruiert, await lade_stand(repo))
             if not bericht.gueltig:
                 raise BundleUngueltig(bericht)
             for entitaet, zeilen in entwuerfe.items():
                 for z in zeilen:
                     await repo.aktiviere(entitaet, z.zeile_uuid)
-            # Prices ride the same activation: each draft closes out an overlapping open-ended
-            # active predecessor (D5) before it goes active.
+            # Prices ride the same activation: each draft closes out an overlapping
+            # open-ended active predecessor (D5) before it goes active.
             await repo.preise_aktivieren(bundle_uuid)
             # Activation is the ONLY write that bumps the version (D4).
             await repo.stand_beruehren(benutzer, aktivierung=True)
@@ -117,12 +126,17 @@ class KatalogService:
             await lade_katalog(conn)
         return bericht
 
-    async def bundle_verwerfen(self, bundle_uuid: UUID, benutzer: str = DEFAULT_AUTOR) -> None:
-        """Discard every draft row of the bundle (lifecycle rows + price drafts) as `verworfen`."""
+    async def bundle_verwerfen(
+        self, bundle_uuid: UUID, benutzer: str = DEFAULT_AUTOR
+    ) -> None:
+        """Discard every draft row of the bundle (lifecycle rows + price drafts) as
+        `verworfen`."""
         async with unit_of_work(self.engine) as uow:
             repo = uow.katalog
             entwuerfe = await self._entwuerfe(repo, bundle_uuid)
-            preis_entwuerfe = await repo.preise_nach_bundle(bundle_uuid, KatalogStatus.ENTWURF)
+            preis_entwuerfe = await repo.preise_nach_bundle(
+                bundle_uuid, KatalogStatus.ENTWURF
+            )
             if not entwuerfe and not preis_entwuerfe:
                 raise BundleNichtGefunden(str(bundle_uuid))
             for entitaet, zeilen in entwuerfe.items():
@@ -131,7 +145,8 @@ class KatalogService:
             await repo.preise_verwerfen(bundle_uuid)
             await repo.stand_beruehren(benutzer, aktivierung=False)
 
-    # --- reads -------------------------------------------------------------------------------- #
+    # --- reads
+    # -------------------------------------------------------------------------------- #
 
     async def aktive(self, entitaet: KatalogEntitaet) -> list[KatalogZeile]:
         async with self.engine.connect() as conn:
@@ -140,21 +155,23 @@ class KatalogService:
     async def versionen(
         self, entitaet: KatalogEntitaet, schluessel: str
     ) -> list[KatalogZeile]:
-        """Every version of one natural key (any status), oldest first — the SCD-2 timeline that
-        backs the Katalog UI's Versionshistorie (rate-change ledger)."""
+        """Every version of one natural key (any status), oldest first — the SCD-2
+        timeline that backs the Katalog UI's Versionshistorie (rate-change ledger)."""
         async with self.engine.connect() as conn:
             return await KatalogRepository(conn).alle_versionen(entitaet, schluessel)
 
     async def bundle_zustand(self, bundle_uuid: UUID) -> BundleZustandAnsicht:
-        """The confirm card's state re-query: the bundle's rows (lifecycle + prices) plus the
-        derived zustand — any entwurf → offen; else any aktiv → aktiviert; else any verworfen →
-        verworfen; else geschlossen (activated, later superseded)."""
+        """The confirm card's state re-query: the bundle's rows (lifecycle + prices)
+        plus the derived zustand — any entwurf → offen; else any aktiv → aktiviert; else
+        any verworfen → verworfen; else geschlossen (activated, later superseded)."""
         async with self.engine.connect() as conn:
             repo = KatalogRepository(conn)
             gruppen = await repo.nach_bundle(bundle_uuid)
             preise = await repo.preise_nach_bundle(bundle_uuid)
         zeilen = [
-            BundleZeileAnsicht(entitaet=entitaet.value, schluessel=z.schluessel, status=z.status)
+            BundleZeileAnsicht(
+                entitaet=entitaet.value, schluessel=z.schluessel, status=z.status
+            )
             for entitaet, zs in gruppen.items()
             for z in zs
         ]
@@ -177,7 +194,9 @@ class KatalogService:
             zustand = BundleZustand.GESCHLOSSEN
         return BundleZustandAnsicht(zustand=zustand, zeilen=zeilen)
 
-    async def entwuerfe_nach_bundle(self) -> dict[UUID, dict[KatalogEntitaet, list[KatalogZeile]]]:
+    async def entwuerfe_nach_bundle(
+        self,
+    ) -> dict[UUID, dict[KatalogEntitaet, list[KatalogZeile]]]:
         """All open draft bundles, grouped by bundle_uuid then entity."""
         async with self.engine.connect() as conn:
             repo = KatalogRepository(conn)
@@ -187,14 +206,15 @@ class KatalogService:
             return gruppen
 
     async def neu_laden(self) -> dict[str, int] | None:
-        """Re-read the persisted catalog into the running engine's module dicts, so edits that did
-        not go through a bundle activation (external tools, manual fixes) become visible without a
-        restart. Returns the per-entity counts, or None when the katalog tables are empty (the
-        provider keeps the fixture data)."""
+        """Re-read the persisted catalog into the running engine's module dicts, so
+        edits that did not go through a bundle activation (external tools, manual fixes)
+        become visible without a restart. Returns the per-entity counts, or None when
+        the katalog tables are empty (the provider keeps the fixture data)."""
         async with self.engine.connect() as conn:
             return await lade_katalog(conn)
 
-    # --- helpers ------------------------------------------------------------------------------ #
+    # --- helpers
+    # ------------------------------------------------------------------------------ #
 
     @staticmethod
     async def _entwuerfe(
@@ -208,42 +228,94 @@ class KatalogService:
         return {entitaet: zeilen for entitaet, zeilen in entwuerfe.items() if zeilen}
 
     async def _schreibe_bundle(
-        self, repo: KatalogRepository, bundle: KatalogBundle, benutzer: str, bundle_uuid: UUID
+        self,
+        repo: KatalogRepository,
+        bundle: KatalogBundle,
+        benutzer: str,
+        bundle_uuid: UUID,
     ) -> None:
-        async def draft(entitaet: KatalogEntitaet, schluessel: str, payload: dict) -> KatalogZeile:
-            return await repo.neue_version(entitaet, schluessel, payload, benutzer, bundle_uuid)
+        async def draft(
+            entitaet: KatalogEntitaet, schluessel: str, payload: dict
+        ) -> KatalogZeile:
+            return await repo.neue_version(
+                entitaet, schluessel, payload, benutzer, bundle_uuid
+            )
 
         for lg in bundle.leistungen:
-            await draft(KatalogEntitaet.LEISTUNGEN, lg.code, _payload(KatalogEntitaet.LEISTUNGEN, lg.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.LEISTUNGEN,
+                lg.code,
+                _payload(KatalogEntitaet.LEISTUNGEN, lg.model_dump(mode="json")),
+            )
         for a in bundle.ausfuehrungsarten:
-            await draft(KatalogEntitaet.AUSFUEHRUNGSARTEN, a.code, _payload(KatalogEntitaet.AUSFUEHRUNGSARTEN, a.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.AUSFUEHRUNGSARTEN,
+                a.code,
+                _payload(KatalogEntitaet.AUSFUEHRUNGSARTEN, a.model_dump(mode="json")),
+            )
         for k in bundle.betriebskategorien:
-            await draft(KatalogEntitaet.BETRIEBSKATEGORIEN, k.code, _payload(KatalogEntitaet.BETRIEBSKATEGORIEN, k.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.BETRIEBSKATEGORIEN,
+                k.code,
+                _payload(KatalogEntitaet.BETRIEBSKATEGORIEN, k.model_dump(mode="json")),
+            )
         for b in bundle.betriebsarten:
-            await draft(KatalogEntitaet.BETRIEBSARTEN, b.code, _payload(KatalogEntitaet.BETRIEBSARTEN, b.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.BETRIEBSARTEN,
+                b.code,
+                _payload(KatalogEntitaet.BETRIEBSARTEN, b.model_dump(mode="json")),
+            )
         for f in bundle.formeln:
-            await draft(KatalogEntitaet.FORMELN, f.name, _payload(KatalogEntitaet.FORMELN, f.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.FORMELN,
+                f.name,
+                _payload(KatalogEntitaet.FORMELN, f.model_dump(mode="json")),
+            )
         for bst in bundle.baustoffe:
-            await draft(KatalogEntitaet.BAUSTOFFE, bst.code, _payload(KatalogEntitaet.BAUSTOFFE, bst.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.BAUSTOFFE,
+                bst.code,
+                _payload(KatalogEntitaet.BAUSTOFFE, bst.model_dump(mode="json")),
+            )
         for m in bundle.maschinen:
-            await draft(KatalogEntitaet.MASCHINEN, m.code, _payload(KatalogEntitaet.MASCHINEN, m.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.MASCHINEN,
+                m.code,
+                _payload(KatalogEntitaet.MASCHINEN, m.model_dump(mode="json")),
+            )
         for lief in bundle.lieferanten:
-            await draft(KatalogEntitaet.LIEFERANTEN, lief.code, _payload(KatalogEntitaet.LIEFERANTEN, lief.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.LIEFERANTEN,
+                lief.code,
+                _payload(KatalogEntitaet.LIEFERANTEN, lief.model_dump(mode="json")),
+            )
 
         for bv in bundle.variablen:
             record = bv.definition.model_dump(mode="json") | {"gruppe": bv.gruppe.value}
-            await draft(KatalogEntitaet.VARIABLEN, bv.definition.name, _payload(KatalogEntitaet.VARIABLEN, record))
+            await draft(
+                KatalogEntitaet.VARIABLEN,
+                bv.definition.name,
+                _payload(KatalogEntitaet.VARIABLEN, record),
+            )
 
         for v in bundle.vorgaenge:
-            await draft(KatalogEntitaet.VORGAENGE, v.code, _payload(KatalogEntitaet.VORGAENGE, v.model_dump(mode="json")))
+            await draft(
+                KatalogEntitaet.VORGAENGE,
+                v.code,
+                _payload(KatalogEntitaet.VORGAENGE, v.model_dump(mode="json")),
+            )
         for b in bundle.bauverfahren:
             z = await draft(KatalogEntitaet.BAUVERFAHREN, b.code, {"name": b.name})
             await repo.vorgaenge_schreiben(z.zeile_uuid, b.vorgang_codes)
         for leistung_code, bauverfahren_codes in bundle.leistung_bauverfahren.items():
-            await draft(KatalogEntitaet.LEISTUNG_BAUVERFAHREN, leistung_code, {"bauverfahren_codes": bauverfahren_codes})
+            await draft(
+                KatalogEntitaet.LEISTUNG_BAUVERFAHREN,
+                leistung_code,
+                {"bauverfahren_codes": bauverfahren_codes},
+            )
 
-        # Prices are immutable value rows, not lifecycle entities: written as draft price rows
-        # carrying the bundle_uuid so they activate/discard with the bundle.
+        # Prices are immutable value rows, not lifecycle entities: written as draft
+        # price rows carrying the bundle_uuid so they activate/discard with the bundle.
         preise = [
             KatalogPreis(
                 lieferant_code=p.lieferant_code,
@@ -265,7 +337,8 @@ class KatalogService:
         entwuerfe: dict[KatalogEntitaet, list[KatalogZeile]],
         preis_entwuerfe: list[KatalogPreis],
     ) -> KatalogBundle:
-        """Reconstruct a KatalogBundle from its draft rows, for re-validation on activation."""
+        """Reconstruct a KatalogBundle from its draft rows, for re-validation on
+        activation."""
 
         def modelle(entitaet: KatalogEntitaet, cls, schluessel_feld: str):
             return [
@@ -277,7 +350,10 @@ class KatalogService:
             BundleVariable(
                 gruppe=VariablenGruppe(z.payload["gruppe"]),
                 definition=VariableDefinition.model_validate(
-                    {"name": z.schluessel, **{k: v for k, v in z.payload.items() if k != "gruppe"}}
+                    {
+                        "name": z.schluessel,
+                        **{k: v for k, v in z.payload.items() if k != "gruppe"},
+                    }
                 ),
             )
             for z in entwuerfe.get(KatalogEntitaet.VARIABLEN, [])
@@ -298,8 +374,12 @@ class KatalogService:
             leistungen=modelle(KatalogEntitaet.LEISTUNGEN, Leistung, "code"),
             bauverfahren=bauverfahren,
             vorgaenge=vorgaenge,
-            ausfuehrungsarten=modelle(KatalogEntitaet.AUSFUEHRUNGSARTEN, Ausführungsart, "code"),
-            betriebskategorien=modelle(KatalogEntitaet.BETRIEBSKATEGORIEN, Betriebskategorie, "code"),
+            ausfuehrungsarten=modelle(
+                KatalogEntitaet.AUSFUEHRUNGSARTEN, Ausführungsart, "code"
+            ),
+            betriebskategorien=modelle(
+                KatalogEntitaet.BETRIEBSKATEGORIEN, Betriebskategorie, "code"
+            ),
             betriebsarten=modelle(KatalogEntitaet.BETRIEBSARTEN, Betriebsart, "code"),
             formeln=modelle(KatalogEntitaet.FORMELN, Formel, "name"),
             variablen=variablen,

@@ -1,8 +1,8 @@
 """Business logic for prompt versions.
 
-PromptVersions are immutable and append-only: each create appends the next version
-for its prompt_type (the repository assigns the number). The service translates
-between the API DTOs and the repository's domain create-model.
+PromptVersions are immutable and append-only: each create appends the next version for
+its prompt_type (the repository assigns the number). The service translates between the
+API DTOs and the repository's domain create-model.
 """
 
 from __future__ import annotations
@@ -41,5 +41,7 @@ class PromptService:
         return PromptVersionRead.model_validate(found) if found else None
 
     async def create_version(self, payload: PromptVersionCreate) -> PromptVersionRead:
-        created = await self.prompt_versions.add(NewPromptVersion(**payload.model_dump()))
+        created = await self.prompt_versions.add(
+            NewPromptVersion(**payload.model_dump())
+        )
         return PromptVersionRead.model_validate(created)

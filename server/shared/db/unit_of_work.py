@@ -1,14 +1,14 @@
 """Unit of Work: one connection and transaction shared by every repository.
 
-A write that spans aggregates (e.g. create a document, its ingest job, and the
-first job event) goes through a single `UnitOfWork` so the repositories enlist in
-the same transaction and commit or roll back together.
+A write that spans aggregates (e.g. create a document, its ingest job, and the first job
+event) goes through a single `UnitOfWork` so the repositories enlist in the same
+transaction and commit or roll back together.
 
-Commit and rollback are automatic, driven by how control leaves the
-`async with unit_of_work(engine) as uow:` block: a clean exit commits, and any
-exception escaping the block rolls back and then propagates. This is handled by
-`engine.begin()`; callers never call commit or rollback themselves. An exception
-caught and swallowed inside the block does not roll back.
+Commit and rollback are automatic, driven by how control leaves the `async with
+unit_of_work(engine) as uow:` block: a clean exit commits, and any exception escaping
+the block rolls back and then propagates. This is handled by `engine.begin()`; callers
+never call commit or rollback themselves. An exception caught and swallowed inside the
+block does not roll back.
 """
 
 from __future__ import annotations
@@ -71,13 +71,15 @@ class UnitOfWork:
         self.nlp_render_cache = NlpRenderCacheRepository(conn)
         self.entity_rules = EntityRuleRepository(conn)
         self.ner_flags = NerFlagRepository(conn)
-        # Registered for read/report composition; the Database*Sinks write independently.
+        # Registered for read/report composition; the Database*Sinks write
+        # independently.
         self.openrouter_usage = OpenRouterUsageRepository(conn)
         self.prompt_execution_log = PromptExecutionLogRepository(conn)
 
 
 @asynccontextmanager
 async def unit_of_work(engine: AsyncEngine) -> AsyncIterator[UnitOfWork]:
-    """Open a transaction and yield a UnitOfWork; commit on success, roll back on error."""
+    """Open a transaction and yield a UnitOfWork; commit on success, roll back on
+    error."""
     async with engine.begin() as conn:
         yield UnitOfWork(conn)

@@ -3,10 +3,10 @@
 `BoQCtgy` elements become Titel items, `Itemlist/Item` elements become priced positions,
 and `Remark` elements act like D83 Hinweistexte: they govern every following priced
 position until the enclosing category closes. Text bodies keep only the markup that
-matters -- `span` text concatenates verbatim, `br` breaks a line, each `p` is a line of its
-own -- while whitespace-only text nodes between elements are pretty-printing noise. OZ
-segments are zero-padded to the BoQBkdn lengths so OZ strings sort and link exactly like
-their D83 counterparts (e.g. '01.02.0030').
+matters -- `span` text concatenates verbatim, `br` breaks a line, each `p` is a line of
+its own -- while whitespace-only text nodes between elements are pretty-printing noise.
+OZ segments are zero-padded to the BoQBkdn lengths so OZ strings sort and link exactly
+like their D83 counterparts (e.g. '01.02.0030').
 """
 
 from __future__ import annotations
@@ -76,7 +76,8 @@ def is_x83_file(file_name: str) -> bool:
 
 
 def parse_x83(data: bytes) -> LVParseResult:
-    """Parse X83 bytes into the LVParseResult shape shared with the LV ingestion path."""
+    """Parse X83 bytes into the LVParseResult shape shared with the LV ingestion
+    path."""
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
@@ -176,11 +177,15 @@ class _Reader:
             oz_segments += (index,)
         oz = OZ_SEGMENT_SEP.join(oz_segments)
 
-        complete = item.find(f"{self._tag(TAG_DESCRIPTION)}/{self._tag(TAG_COMPLETE_TEXT)}")
+        complete = item.find(
+            f"{self._tag(TAG_DESCRIPTION)}/{self._tag(TAG_COMPLETE_TEXT)}"
+        )
         kurztext = ""
         langtext = ""
         if complete is not None:
-            kurztext = _single_line(_block_text(complete.find(self._tag(TAG_OUTLINE_TEXT))))
+            kurztext = _single_line(
+                _block_text(complete.find(self._tag(TAG_OUTLINE_TEXT)))
+            )
             langtext = _block_text(complete.find(self._tag(TAG_DETAIL_TEXT)))
         stl_nr = (item.findtext(f".//{self._tag(TAG_STL_NO)}") or "").strip() or None
         blocks = [block for scope in scopes for block in scope]
@@ -217,7 +222,9 @@ class _Reader:
         if level is None:
             length = self._item_length
         else:
-            length = self._level_lengths[level] if level < len(self._level_lengths) else None
+            length = (
+                self._level_lengths[level] if level < len(self._level_lengths) else None
+            )
         if length and rno.isdigit():
             return rno.zfill(length)
         return rno
@@ -237,7 +244,11 @@ class _Reader:
             return POSITIONSTYP_BEDARF
         if item.find(self._tag(TAG_ALN_GROUP_NO)) is not None:
             serial = (item.findtext(self._tag(TAG_ALN_SER_NO)) or "").strip()
-            return POSITIONSTYP_GRUND if serial in ("", "0", "1") else POSITIONSTYP_ALTERNATIV
+            return (
+                POSITIONSTYP_GRUND
+                if serial in ("", "0", "1")
+                else POSITIONSTYP_ALTERNATIV
+            )
         return POSITIONSTYP_NORMAL
 
 
@@ -255,7 +266,8 @@ def _local(tag: str) -> str:
 
 
 def _block_text(container: ET.Element | None) -> str:
-    """The text of a GAEB rich-text container, one line per `p` (plus explicit `br` breaks)."""
+    """The text of a GAEB rich-text container, one line per `p` (plus explicit `br`
+    breaks)."""
     if container is None:
         return ""
     paragraphs = [el for el in container.iter() if _local(el.tag) == TAG_P]
@@ -267,9 +279,9 @@ def _block_text(container: ET.Element | None) -> str:
 def _inline_text(element: ET.Element) -> str:
     """Concatenate the meaningful inline content: span text verbatim, `br` as a newline.
 
-    Whitespace-only text nodes are the writer's pretty-printing, not content (spans split
-    words mid-character, e.g. 'Bearbeitete/' + 'ü' + 'berarbeitete'), so they are dropped
-    while any non-blank text keeps its original spacing."""
+    Whitespace-only text nodes are the writer's pretty-printing, not content (spans
+    split words mid-character, e.g. 'Bearbeitete/' + 'ü' + 'berarbeitete'), so they are
+    dropped while any non-blank text keeps its original spacing."""
     if _local(element.tag) == TAG_BR:
         return "\n"
     parts: list[str] = []
@@ -287,4 +299,6 @@ def _clean_lines(text: str) -> str:
 
 
 def _single_line(text: str) -> str:
-    return KURZTEXT_JOIN.join(line.strip() for line in text.splitlines() if line.strip())
+    return KURZTEXT_JOIN.join(
+        line.strip() for line in text.splitlines() if line.strip()
+    )

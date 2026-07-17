@@ -2,11 +2,11 @@
 worklist.py — derive the resolution worklist for a chosen Bauverfahren.
 
 `benoetigte_variablen` walks a recipe's Vorgänge -> rechnung bindings down to every
-resolution leaf: extracted inputs (Eingabe), rate-book constants (Satz), and
-master-data lookups (Stammdaten). `formel.<instanz>` references are walked through,
-not returned; literals and `baustoff.*` fields are no variables. This is the data
-the StateGraph's variable-review gate consumes; the engine derives it so the graph
-topology stays position-agnostic.
+resolution leaf: extracted inputs (Eingabe), rate-book constants (Satz), and master-data
+lookups (Stammdaten). `formel.<instanz>` references are walked through, not returned;
+literals and `baustoff.*` fields are no variables. This is the data the StateGraph's
+variable-review gate consumes; the engine derives it so the graph topology stays
+position-agnostic.
 """
 
 from __future__ import annotations
@@ -26,13 +26,14 @@ from shared.services.kalkulation_v2.model import (
 
 
 class BlattArt(str, Enum):
-    EINGABE = "eingabe"          # extracted input (LANGTEXT/RAG/HITL, maybe + default)
-    SATZ = "satz"                # KONSTANTE rate book
-    STAMMDATEN = "stammdaten"    # master-data lookup
+    EINGABE = "eingabe"  # extracted input (LANGTEXT/RAG/HITL, maybe + default)
+    SATZ = "satz"  # KONSTANTE rate book
+    STAMMDATEN = "stammdaten"  # master-data lookup
 
 
 class VariablenBlatt(BaseModel):
     """One resolution leaf the calc will consume, with what the review needs to show."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str
@@ -80,9 +81,9 @@ def benoetigte_variablen(
 ) -> list[VariablenBlatt]:
     """All resolution leaves the recipe consumes, in first-seen order.
 
-    `formel.<instanz>` references are recursed through, not returned. Names in
-    `gebucht` (booked directly, e.g. the geometry variable filled from the LV Menge)
-    terminate the walk and are excluded — they are already resolved.
+    `formel.<instanz>` references are recursed through, not returned. Names in `gebucht`
+    (booked directly, e.g. the geometry variable filled from the LV Menge) terminate the
+    walk and are excluded — they are already resolved.
     """
     blaetter: dict[str, VariablenBlatt] = {}
     besucht: set[str] = set()
@@ -118,14 +119,15 @@ def benoetigte_variablen(
 
 def braucht_baustoff(bauverfahren: Bauverfahren, kalk: Kalkulator) -> bool:
     """True if the recipe consumes a graded Baustoff — i.e. a leaf reads a `baustoff.*`
-    master-data field (density/compaction for tonnage). Recipes that price material directly
-    per m²/t (DSK, Gussasphalt) or use no material (Fräsen) return False, so no Baustoff is
-    offered for them."""
+    master-data field (density/compaction for tonnage). Recipes that price material
+    directly per m²/t (DSK, Gussasphalt) or use no material (Fräsen) return False, so no
+    Baustoff is offered for them."""
     for blatt in benoetigte_variablen(bauverfahren, kalk):
         if blatt.art != BlattArt.STAMMDATEN:
             continue
         for schritt in kalk.katalog[blatt.name].aufloesung:
-            if (schritt.methode == AufloesungsMethode.STAMMDATEN
-                    and (schritt.stammdaten_pfad or "").startswith("baustoff.")):
+            if schritt.methode == AufloesungsMethode.STAMMDATEN and (
+                schritt.stammdaten_pfad or ""
+            ).startswith("baustoff."):
                 return True
     return False

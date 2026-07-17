@@ -10,7 +10,8 @@ DATA = "data"
 
 SSE_MEDIA_TYPE = "text/event-stream"
 
-# A comment line keeps the connection alive without emitting an event (ignored by clients).
+# A comment line keeps the connection alive without emitting an event (ignored by
+# clients).
 SSE_HEARTBEAT = ": ping\n\n"
 
 

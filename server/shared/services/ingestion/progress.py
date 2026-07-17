@@ -1,9 +1,9 @@
 """Ingest-job progress.
 
-Two complementary emitters for one pipeline milestone: `log_progress` writes a line to the
-module logger (which a harness routes to stdout), and `record_event` persists an
-IngestJobEvent. Logging always happens; persistence is a no-op when the pipeline runs jobless
-(no job_uuid, e.g. in isolated tests or the dev script)."""
+Two complementary emitters for one pipeline milestone: `log_progress` writes a line to
+the module logger (which a harness routes to stdout), and `record_event` persists an
+IngestJobEvent. Logging always happens; persistence is a no-op when the pipeline runs
+jobless (no job_uuid, e.g. in isolated tests or the dev script)."""
 
 from __future__ import annotations
 
@@ -38,7 +38,8 @@ class IngestEvent(StrEnum):
 
 
 def log_progress(*, event: IngestEvent, phase: IngestPhase, message: str) -> None:
-    """Emit a progress line to the module logger; a harness routes this logger to stdout."""
+    """Emit a progress line to the module logger; a harness routes this logger to
+    stdout."""
     logger.info("[ingest:%s] %s - %s", phase.value, event.value, message)
 
 

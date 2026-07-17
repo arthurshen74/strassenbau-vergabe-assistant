@@ -1,13 +1,13 @@
 """spaCy analysis over reflowed blocks: sentences and POS statistics.
 
-The pipeline (de_core_news_lg) is a lazy module singleton — loaded on first use,
-never at API boot (design D5). Each included block runs as its own Doc via
-nlp.pipe: sentences never legitimately cross block boundaries, and per-block Docs
-keep sentence hashes stable for the render cache.
+The pipeline (de_core_news_lg) is a lazy module singleton — loaded on first use, never
+at API boot (design D5). Each included block runs as its own Doc via nlp.pipe: sentences
+never legitimately cross block boundaries, and per-block Docs keep sentence hashes
+stable for the render cache.
 
 A sentence hash is sha256(model name, model version, sentence text) — the same key
-prefix the render cache uses, so the render endpoint can re-derive everything it
-needs from the hash owner (the analyze response holds hash -> text).
+prefix the render cache uses, so the render endpoint can re-derive everything it needs
+from the hash owner (the analyze response holds hash -> text).
 """
 
 from __future__ import annotations
@@ -60,11 +60,12 @@ def sentence_hash(text: str) -> str:
 def analyze_blocks(
     blocks: list[ReflowedBlock], include_blocks: list[BlockType]
 ) -> tuple[list[SentenceInfo], PosStats, EntityStats, str]:
-    """Sentences, POS distribution, entities, and a full-text ent render over the included blocks.
+    """Sentences, POS distribution, entities, and a full-text ent render over the
+    included blocks.
 
-    Entities come from the same pass: `sent.ents` is spaCy's char-range containment,
-    so each entity is attributed to the sentence it falls in. A rule-derived entity's
-    spaCy `ent_id_` (empty for stock-model guesses) becomes its `pattern_id`.
+    Entities come from the same pass: `sent.ents` is spaCy's char-range containment, so
+    each entity is attributed to the sentence it falls in. A rule-derived entity's spaCy
+    `ent_id_` (empty for stock-model guesses) becomes its `pattern_id`.
 
     `ent_html` is displacy's `style=ent` render over the same Docs, so the highlight
     view and the entity breakdown are computed from one pass and can never disagree.
@@ -92,7 +93,9 @@ def analyze_blocks(
                 if token.pos_ in _EXCLUDED_POS:
                     continue
                 token_count += 1
-                info = TokenInfo(text=token.text, lemma=token.lemma_, sentence_hash=s_hash)
+                info = TokenInfo(
+                    text=token.text, lemma=token.lemma_, sentence_hash=s_hash
+                )
                 ud_tokens[token.pos_].append(info)
                 stts_tokens[token.tag_].append(info)
             for ent in sent.ents:
@@ -129,12 +132,12 @@ def _entity_stats(
         for label, occs in occurrences_by_label.items()
     ]
     labels.sort(key=lambda stats: stats.count, reverse=True)
-    return EntityStats(
-        total_count=sum(stats.count for stats in labels), labels=labels
-    )
+    return EntityStats(total_count=sum(stats.count for stats in labels), labels=labels)
 
 
-def _tag_stats(tokens_by_tag: dict[str, list[TokenInfo]], total: int) -> list[PosTagStats]:
+def _tag_stats(
+    tokens_by_tag: dict[str, list[TokenInfo]], total: int
+) -> list[PosTagStats]:
     stats = [
         PosTagStats(
             tag=tag,

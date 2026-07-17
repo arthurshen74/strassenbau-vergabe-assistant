@@ -1,9 +1,9 @@
-"""API schemas for ingestion: job/event reads, a status snapshot, and the SSE
-event payloads.
+"""API schemas for ingestion: job/event reads, a status snapshot, and the SSE event
+payloads.
 
 The `Read` DTOs mirror models/ingest_job.py and models/ingest_job_event.py.
-`IngestStatusRead` is a derived snapshot with no single domain model behind it.
-The SSE payloads form the `IngestEvent` discriminated union streamed to the UI;
+`IngestStatusRead` is a derived snapshot with no single domain model behind it. The SSE
+payloads form the `IngestEvent` discriminated union streamed to the UI;
 scripts/export_schema.py emits the union from the pinned members.
 """
 
@@ -48,7 +48,8 @@ class IngestStatusRead(BaseModel):
 
 
 class IngestJobConsoleRead(BaseModel):
-    """A console job row: document/project labels, status, and lease + retry bookkeeping."""
+    """A console job row: document/project labels, status, and lease + retry
+    bookkeeping."""
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

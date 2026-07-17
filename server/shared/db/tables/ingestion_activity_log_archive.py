@@ -13,10 +13,10 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from shared.db.metadata import metadata
 
-# Cold archive for ingestion_activity_log: the worker moves aged-out rows here so the active table
-# stays small while the full per-document history is preserved (read as active UNION archive). id
-# mirrors the original active-table id (plain bigint, not identity) so it survives the move and
-# orders the union.
+# Cold archive for ingestion_activity_log: the worker moves aged-out rows here so the
+# active table stays small while the full per-document history is preserved (read as
+# active UNION archive). id mirrors the original active-table id (plain bigint, not
+# identity) so it survives the move and orders the union.
 ingestion_activity_log_archive = Table(
     "ingestion_activity_log_archive",
     metadata,

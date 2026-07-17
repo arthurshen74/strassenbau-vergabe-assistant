@@ -51,7 +51,8 @@ class PromptExecutionLogRepository:
         limit: int = 100,
         offset: int = 0,
     ) -> list[PromptExecutionLog]:
-        """Most-recent-first execution logs, optionally filtered by prompt type and date range."""
+        """Most-recent-first execution logs, optionally filtered by prompt type and date
+        range."""
         stmt = select(prompt_execution_log)
         if prompt_type is not None:
             stmt = stmt.where(prompt_execution_log.c.prompt_type == prompt_type)

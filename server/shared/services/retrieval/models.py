@@ -70,9 +70,10 @@ class RerankTrace(BaseModel):
 
 
 class ThumbnailRef(BaseModel):
-    """Points a context source at the page thumbnail it came from. For a DOCUMENT chunk the
-    document is the chunk's own source; for an LV_ITEM chunk it is the project's LV document
-    (the item's pages live there). Absent when the chunk has no page or no thumbnail applies."""
+    """Points a context source at the page thumbnail it came from. For a DOCUMENT chunk
+    the document is the chunk's own source; for an LV_ITEM chunk it is the project's LV
+    document (the item's pages live there). Absent when the chunk has no page or no
+    thumbnail applies."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -97,9 +98,10 @@ class ContextChunk(BaseModel):
 
 
 class RetrievalContext(BaseModel):
-    """Every retrieval stage except the answer: the scope, query set, per-query hits, the fused
-    pool, the rerank order, and the final numbered context. ProjectChatService streams the answer
-    itself, so it consumes this; `retrieve()` wraps it with the answer into a RetrievalResult."""
+    """Every retrieval stage except the answer: the scope, query set, per-query hits,
+    the fused pool, the rerank order, and the final numbered context. ProjectChatService
+    streams the answer itself, so it consumes this; `retrieve()` wraps it with the
+    answer into a RetrievalResult."""
 
     model_config = ConfigDict(extra="forbid")
 

@@ -1,8 +1,8 @@
 """Derive the OZ hierarchy and ordering links.
 
 `level` is the OZ depth; `parent_oz` is the nearest enclosing OZ that actually exists;
-`prev_oz`/`next_oz` chain the priced positions in document order (titles are not part of the
-prev/next chain) (LV_PARSE.md step 9)."""
+`prev_oz`/`next_oz` chain the priced positions in document order (titles are not part of
+the prev/next chain) (LV_PARSE.md step 9)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,8 @@ def _level(oz: str) -> int:
 
 
 def _parent_oz(oz: str, oz_set: set[str]) -> str | None:
-    """The nearest ancestor OZ that exists: drop trailing segments until one is found."""
+    """The nearest ancestor OZ that exists: drop trailing segments until one is
+    found."""
     segments = oz.split(OZ_SEP)
     for cut in range(len(segments) - 1, 0, -1):
         candidate = OZ_SEP.join(segments[:cut])

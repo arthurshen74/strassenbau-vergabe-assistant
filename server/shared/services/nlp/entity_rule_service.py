@@ -1,10 +1,10 @@
 """EntityRuleService: CRUD for entity rules with spaCy-validated writes.
 
-Owns the two cross-cutting concerns the routes must not: validating a candidate
-pattern against spaCy before it is persisted (raising ValueError on a bad pattern,
-which the route maps to 422), and flipping the in-process ruler dirty flag *after*
-a successful commit so the next analyze/render recompiles. Each mutation runs in its
-own Unit of Work, so `mark_dirty` is reached only once the transaction has committed.
+Owns the two cross-cutting concerns the routes must not: validating a candidate pattern
+against spaCy before it is persisted (raising ValueError on a bad pattern, which the
+route maps to 422), and flipping the in-process ruler dirty flag *after* a successful
+commit so the next analyze/render recompiles. Each mutation runs in its own Unit of
+Work, so `mark_dirty` is reached only once the transaction has committed.
 """
 
 from __future__ import annotations

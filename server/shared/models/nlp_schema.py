@@ -39,8 +39,8 @@ class DocumentTextRead(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
-    """Analyze either a document (by uuid) or ad-hoc text — exactly one source.
-    Ad-hoc text is split into PROSE blocks on blank lines, no layout/reflow."""
+    """Analyze either a document (by uuid) or ad-hoc text — exactly one source. Ad-hoc
+    text is split into PROSE blocks on blank lines, no layout/reflow."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -66,8 +66,8 @@ class AnalyzeRequest(BaseModel):
 
 
 class RenderRequest(BaseModel):
-    """One sentence to render. Text travels in the body (hashes are not reversible);
-    the client keys its own cache on the sentence_hash from the analyze response."""
+    """One sentence to render. Text travels in the body (hashes are not reversible); the
+    client keys its own cache on the sentence_hash from the analyze response."""
 
     model_config = ConfigDict(extra="forbid")
 

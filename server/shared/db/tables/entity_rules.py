@@ -1,10 +1,10 @@
 """EntityRuler rules: one spaCy pattern per row, live-editable and DB-backed.
 
 `pattern` is the raw spaCy token-pattern DSL (a phrase string or a list of
-token-attribute objects) stored as JSONB — spaCy is the validator at the write
-boundary, so it is not modeled further (design D1). `pattern_id` is spaCy's
-optional pattern grouping id (the fixture's `id`), carried onto every matched
-entity for provenance; it is free text, not an enum (design D2).
+token-attribute objects) stored as JSONB — spaCy is the validator at the write boundary,
+so it is not modeled further (design D1). `pattern_id` is spaCy's optional pattern
+grouping id (the fixture's `id`), carried onto every matched entity for provenance; it
+is free text, not an enum (design D2).
 """
 
 from __future__ import annotations

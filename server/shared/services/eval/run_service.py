@@ -1,6 +1,7 @@
 """Read/enqueue side of the eval-run queue (the worker's claim/execute side lives in
-worker.eval_loop). Enqueue validates the kind is implemented and that project-bound kinds
-carry an existing project; reads serve the runs UI (list, detail, events, results)."""
+worker.eval_loop). Enqueue validates the kind is implemented and that project-bound
+kinds carry an existing project; reads serve the runs UI (list, detail, events,
+results)."""
 
 from __future__ import annotations
 
@@ -9,7 +10,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.models.enums import EvalRunKind
-from shared.models.eval_run import EvalRun, EvalRunCreate, EvalRunEvent, EvalResult, NewEvalRun
+from shared.models.eval_run import (
+    EvalRun,
+    EvalRunCreate,
+    EvalRunEvent,
+    EvalResult,
+    NewEvalRun,
+)
 from shared.repositories.eval_results import EvalResultRepository
 from shared.repositories.eval_run_events import EvalRunEventRepository
 from shared.repositories.eval_runs import EvalRunRepository
@@ -32,12 +39,15 @@ class EvalRunService:
         self._results = EvalResultRepository(conn)
 
     async def enqueue(self, payload: EvalRunCreate, *, user_id: UUID) -> EvalRun:
-        """Raises ValueError on an unsupported kind or a missing/unknown project scope."""
+        """Raises ValueError on an unsupported kind or a missing/unknown project
+        scope."""
         if payload.kind not in SUPPORTED_KINDS:
             raise ValueError(f"eval kind {payload.kind.value!r} is not implemented yet")
         if payload.kind in PROJECT_BOUND_KINDS:
             if payload.project_uuid is None:
-                raise ValueError(f"eval kind {payload.kind.value!r} requires a project_uuid")
+                raise ValueError(
+                    f"eval kind {payload.kind.value!r} requires a project_uuid"
+                )
             if await ProjectRepository(self._conn).get(payload.project_uuid) is None:
                 raise ValueError("project not found")
         return await self._runs.add(

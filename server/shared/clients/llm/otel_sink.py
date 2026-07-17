@@ -1,12 +1,13 @@
 """An execution-log sink that emits each LLM call as an OpenInference span for Phoenix.
 
-The custom httpx `LLMClient` is invisible to the LangChain auto-instrumentor (it is neither a
-LangChain model nor the openai SDK), so dispatch and the calculator's in-node model calls would
-otherwise produce no LLM spans. This sink converts the `ExecutionLogEvent` the client already
-emits into an OpenInference `LLM` span -- model, input/output messages, token counts -- carrying
-the original wall-clock timing (`sent_at`/`returned_at`). Created with the ambient context as
-parent, so when the call ran inside a `flow_span` root (dispatch, calculator) the span nests into
-that trace; otherwise it stands alone. It is teed alongside the DB sink (see factory), never used
+The custom httpx `LLMClient` is invisible to the LangChain auto-instrumentor (it is
+neither a LangChain model nor the openai SDK), so dispatch and the calculator's in-node
+model calls would otherwise produce no LLM spans. This sink converts the
+`ExecutionLogEvent` the client already emits into an OpenInference `LLM` span -- model,
+input/output messages, token counts -- carrying the original wall-clock timing
+(`sent_at`/`returned_at`). Created with the ambient context as parent, so when the call
+ran inside a `flow_span` root (dispatch, calculator) the span nests into that trace;
+otherwise it stands alone. It is teed alongside the DB sink (see factory), never used
 for project chat -- that path is traced by the LangChain instrumentor instead.
 """
 
@@ -39,7 +40,8 @@ _NS_PER_SECOND = 1_000_000_000
 
 
 class OTelExecutionLogSink:
-    """Emits one OpenInference LLM span per execution-log event; see module docstring."""
+    """Emits one OpenInference LLM span per execution-log event; see module
+    docstring."""
 
     async def emit(self, event: ExecutionLogEvent) -> None:
         span = _tracer.start_span(
@@ -51,7 +53,9 @@ class OTelExecutionLogSink:
             if event.success:
                 span.set_status(Status(StatusCode.OK))
             else:
-                span.set_status(Status(StatusCode.ERROR, event.error_message or "llm call failed"))
+                span.set_status(
+                    Status(StatusCode.ERROR, event.error_message or "llm call failed")
+                )
         finally:
             span.end(end_time=_epoch_ns(event.returned_at))
 
@@ -76,7 +80,9 @@ def _llm_span_attributes(event: ExecutionLogEvent) -> dict[str, Any]:
     if output_value is not None:
         attrs[SpanAttributes.OUTPUT_VALUE] = output_value
         attrs[SpanAttributes.OUTPUT_MIME_TYPE] = (
-            OpenInferenceMimeTypeValues.JSON if output_is_json else OpenInferenceMimeTypeValues.TEXT
+            OpenInferenceMimeTypeValues.JSON
+            if output_is_json
+            else OpenInferenceMimeTypeValues.TEXT
         ).value
         out = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{{}}"
         attrs[out.format(MessageAttributes.MESSAGE_ROLE)] = _ROLE_ASSISTANT
@@ -90,7 +96,9 @@ def _llm_span_attributes(event: ExecutionLogEvent) -> dict[str, Any]:
         attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = event.tokens_in + event.tokens_out
 
     for i, tool in enumerate(event.tools or []):
-        attrs[f"{SpanAttributes.LLM_TOOLS}.{i}.{ToolAttributes.TOOL_JSON_SCHEMA}"] = _json(tool)
+        attrs[f"{SpanAttributes.LLM_TOOLS}.{i}.{ToolAttributes.TOOL_JSON_SCHEMA}"] = (
+            _json(tool)
+        )
     if event.response_format is not None:
         attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS] = _json(
             {"response_format": event.response_format}
@@ -107,16 +115,20 @@ def _llm_span_attributes(event: ExecutionLogEvent) -> dict[str, Any]:
             "finish_reason": event.finish_reason,
             "latency_ms": event.latency_ms,
             "project_uuid": str(event.project_uuid) if event.project_uuid else None,
-            "conversation_uuid": str(event.conversation_uuid) if event.conversation_uuid else None,
-            "ingest_job_uuid": str(event.ingest_job_uuid) if event.ingest_job_uuid else None,
+            "conversation_uuid": str(event.conversation_uuid)
+            if event.conversation_uuid
+            else None,
+            "ingest_job_uuid": str(event.ingest_job_uuid)
+            if event.ingest_job_uuid
+            else None,
         }
     )
     return attrs
 
 
 def _output(event: ExecutionLogEvent) -> tuple[str | None, bool]:
-    """The single output value and whether it is JSON: plain text, else structured output, else
-    the assistant's tool calls."""
+    """The single output value and whether it is JSON: plain text, else structured
+    output, else the assistant's tool calls."""
     if event.response_text is not None:
         return event.response_text, False
     if event.response_structured is not None:

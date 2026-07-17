@@ -1,5 +1,5 @@
-"""API schema for reading messages. Messages are created by the dispatcher, not via a request
-body, so there is no MessageCreate DTO."""
+"""API schema for reading messages. Messages are created by the dispatcher, not via a
+request body, so there is no MessageCreate DTO."""
 
 from __future__ import annotations
 

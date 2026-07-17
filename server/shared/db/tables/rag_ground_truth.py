@@ -18,10 +18,10 @@ from shared.models.enums import RagQuestionCategory, RagQuestionType
 _QUESTION_TYPES_SQL = ", ".join(f"'{t.value}'" for t in RagQuestionType)
 _CATEGORIES_SQL = ", ".join(f"'{c.value}'" for c in RagQuestionCategory)
 
-# One curated RAG reference question for a project: the question, the expert's gold answer, and
-# the Fundstellen (document + page) the answer comes from. The refs drive deterministic retrieval
-# metrics (recall@k, MRR); the answer drives answer grading. A row without refs is legal — it
-# counts only toward answer grading.
+# One curated RAG reference question for a project: the question, the expert's gold
+# answer, and the Fundstellen (document + page) the answer comes from. The refs drive
+# deterministic retrieval metrics (recall@k, MRR); the answer drives answer grading. A
+# row without refs is legal — it counts only toward answer grading.
 rag_ground_truth = Table(
     "rag_ground_truth",
     metadata,
@@ -44,7 +44,8 @@ rag_ground_truth = Table(
     Column("refs", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
     Column("question_type", Text, nullable=False),
     Column("category", Text, nullable=False),
-    # Owner lives in the auth DB; stored here as a plain UUID (the domain DB never joins to auth).
+    # Owner lives in the auth DB; stored here as a plain UUID (the domain DB never joins
+    # to auth).
     Column("created_by_user_id", UUID(as_uuid=True), nullable=False),
     Column(
         "created_at",

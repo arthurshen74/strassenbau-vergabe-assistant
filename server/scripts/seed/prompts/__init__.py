@@ -20,8 +20,8 @@ from shared.models.prompt_version import NewPromptVersion
 PROMPT_FILE_SUFFIX = ".prompt"
 FRONTMATTER_FENCE = "---"
 
-# Fields a `.prompt` file must not set: the type is the filename and the system
-# prompt is the body, so authoring either in frontmatter is a mistake.
+# Fields a `.prompt` file must not set: the type is the filename and the system prompt
+# is the body, so authoring either in frontmatter is a mistake.
 _DERIVED_KEYS = ("prompt_type", "system_prompt")
 
 
@@ -30,7 +30,8 @@ class PromptFileError(Exception):
 
 
 def load_prompt_versions(directory: Path | None = None) -> list[NewPromptVersion]:
-    """Parse every `.prompt` file in `directory` (default: this package), sorted by name."""
+    """Parse every `.prompt` file in `directory` (default: this package), sorted by
+    name."""
     directory = directory or Path(__file__).parent
     paths = sorted(directory.glob(f"*{PROMPT_FILE_SUFFIX}"))
     if not paths:
@@ -69,7 +70,9 @@ def _split_frontmatter(path: Path) -> tuple[dict[str, object], str]:
             f"{path.name}: must open with a '{FRONTMATTER_FENCE}' frontmatter fence"
         )
     try:
-        end = next(i for i in range(1, len(lines)) if lines[i].strip() == FRONTMATTER_FENCE)
+        end = next(
+            i for i in range(1, len(lines)) if lines[i].strip() == FRONTMATTER_FENCE
+        )
     except StopIteration:
         raise PromptFileError(
             f"{path.name}: missing closing '{FRONTMATTER_FENCE}' frontmatter fence"

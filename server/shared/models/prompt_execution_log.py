@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class PromptExecutionLog(BaseModel):
@@ -38,7 +38,8 @@ class PromptExecutionLog(BaseModel):
 
 
 class NewPromptExecutionLog(BaseModel):
-    """Shape required to record an execution-log row. PK and created_at assigned by the DB."""
+    """Shape required to record an execution-log row. PK and created_at assigned by the
+    DB."""
 
     model_config = ConfigDict(extra="forbid")
 

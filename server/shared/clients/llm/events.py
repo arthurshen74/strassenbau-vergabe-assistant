@@ -1,8 +1,9 @@
 """Events yielded by `LLMClient.stream_chat`.
 
-A stream yields zero or more `TextDelta` as content arrives, then (if the model called tools)
-one `ToolCallsReady` with the fully-assembled calls, then a final `Done` with the finish reason.
-Tool-call fragments are assembled inside the client so consumers receive whole calls.
+A stream yields zero or more `TextDelta` as content arrives, then (if the model called
+tools) one `ToolCallsReady` with the fully-assembled calls, then a final `Done` with the
+finish reason. Tool-call fragments are assembled inside the client so consumers receive
+whole calls.
 """
 
 from __future__ import annotations

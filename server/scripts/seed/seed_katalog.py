@@ -1,9 +1,13 @@
 """Seed the persisted catalog from the `kalkulation_v2` fixture modules.
 
-Writes every catalog entity as `version=1, status=aktiv, benutzer="seed", bundle_uuid=NULL`,
-plus the Bauverfahren→Vorgang junction (from each recipe's Vorgang order) and the supplier price
-history (from `lade_preise`). The write is one Unit-of-Work transaction. Idempotent guard: aborts
-if any `katalog_*` table already holds rows; `--reset` truncates them all first and reseeds.
+Writes every catalog entity as `version=1, status=aktiv, benutzer="seed",
+bundle_uuid=NULL`,
+plus the Bauverfahren→Vorgang junction (from each recipe's Vorgang order) and the
+supplier price
+history (from `lade_preise`). The write is one Unit-of-Work transaction. Idempotent
+guard: aborts
+if any `katalog_*` table already holds rows; `--reset` truncates them all first and
+reseeds.
 
     uv run python -m scripts.seed.seed_katalog [--reset]
 """
@@ -20,12 +24,16 @@ from shared.db.unit_of_work import unit_of_work
 from shared.models.katalog import KatalogEntitaet, KatalogPreis, VariablenGruppe
 from shared.repositories.katalog import KATALOG_REGISTRY, KatalogRepository
 
-# Importing store runs `lade_preise(BAUSTOFFE, LIEFERANTEN)` at import, so the supplier price
+# Importing store runs `lade_preise(BAUSTOFFE, LIEFERANTEN)` at import, so the supplier
+# price
 # lists are populated exactly as the running app sees them before we read them below.
 from shared.services.kalkulation_v2 import store  # noqa: F401  -- side effect: lade_preise
 from shared.services.kalkulation_v2.ausfuehrungsarten import AUSFUEHRUNGSARTEN
 from shared.services.kalkulation_v2.bauverfahren import BAUVERFAHREN
-from shared.services.kalkulation_v2.betriebsarten import BETRIEBSARTEN, BETRIEBSKATEGORIEN
+from shared.services.kalkulation_v2.betriebsarten import (
+    BETRIEBSARTEN,
+    BETRIEBSKATEGORIEN,
+)
 from shared.services.kalkulation_v2.formel import FORMELN
 from shared.services.kalkulation_v2.globale_variablen import GLOBALE_VARIABLEN
 from shared.services.kalkulation_v2.kontext_variablen import KONTEXT_VARIABLEN
@@ -46,26 +54,38 @@ def _payload(entitaet: KatalogEntitaet, record: dict) -> dict:
 async def _schreibe_aktiv(
     repo: KatalogRepository, entitaet: KatalogEntitaet, schluessel: str, payload: dict
 ) -> None:
-    z = await repo.neue_version(entitaet, schluessel, payload, benutzer="seed", bundle_uuid=None)
+    z = await repo.neue_version(
+        entitaet, schluessel, payload, benutzer="seed", bundle_uuid=None
+    )
     await repo.aktiviere(entitaet, z.zeile_uuid)
 
 
 async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
-    """Write the full fixture catalog as version-1 active rows. Assumes empty katalog tables."""
+    """Write the full fixture catalog as version-1 active rows. Assumes empty katalog
+    tables."""
     zaehler: dict[str, int] = {}
 
     async def plain(entitaet: KatalogEntitaet, modelle, schluessel_attr: str) -> None:
         for m in modelle:
             record = m.model_dump(mode="json")
-            await _schreibe_aktiv(repo, entitaet, getattr(m, schluessel_attr), _payload(entitaet, record))
+            await _schreibe_aktiv(
+                repo, entitaet, getattr(m, schluessel_attr), _payload(entitaet, record)
+            )
         zaehler[entitaet.value] = len(list(modelle))
 
-    # Order is free for the seed (no cross-entity FK except the junction, written with its parent).
-    await plain(KatalogEntitaet.BETRIEBSKATEGORIEN, list(BETRIEBSKATEGORIEN.values()), "code")
+    # Order is free for the seed (no cross-entity FK except the junction, written with
+    # its parent).
+    await plain(
+        KatalogEntitaet.BETRIEBSKATEGORIEN, list(BETRIEBSKATEGORIEN.values()), "code"
+    )
     await plain(KatalogEntitaet.BETRIEBSARTEN, list(BETRIEBSARTEN.values()), "code")
-    await plain(KatalogEntitaet.AUSFUEHRUNGSARTEN, list(AUSFUEHRUNGSARTEN.values()), "code")
+    await plain(
+        KatalogEntitaet.AUSFUEHRUNGSARTEN, list(AUSFUEHRUNGSARTEN.values()), "code"
+    )
     await plain(KatalogEntitaet.FORMELN, list(FORMELN.values()), "name")
-    await plain(KatalogEntitaet.GLOBALE_VARIABLEN, list(GLOBALE_VARIABLEN.values()), "name")
+    await plain(
+        KatalogEntitaet.GLOBALE_VARIABLEN, list(GLOBALE_VARIABLEN.values()), "name"
+    )
     await plain(KatalogEntitaet.BAUSTOFFE, list(BAUSTOFFE.values()), "code")
     await plain(KatalogEntitaet.MASCHINEN, list(MASCHINEN.values()), "code")
     await plain(KatalogEntitaet.LEISTUNGEN, list(LEISTUNGEN.values()), "code")
@@ -79,7 +99,10 @@ async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
         for vardef in quelle.values():
             record = vardef.model_dump(mode="json") | {"gruppe": gruppe.value}
             await _schreibe_aktiv(
-                repo, KatalogEntitaet.VARIABLEN, vardef.name, _payload(KatalogEntitaet.VARIABLEN, record)
+                repo,
+                KatalogEntitaet.VARIABLEN,
+                vardef.name,
+                _payload(KatalogEntitaet.VARIABLEN, record),
             )
             n_var += 1
     zaehler[KatalogEntitaet.VARIABLEN.value] = n_var
@@ -87,10 +110,15 @@ async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
     # Vorgänge: the embedded Ausführungsart is stored by code (re-embedded on load).
     for v in VORGAENGE.values():
         record = v.model_dump(mode="json") | {
-            "ausfuehrungsart_code": v.ausfuehrungsart.code if v.ausfuehrungsart else None
+            "ausfuehrungsart_code": v.ausfuehrungsart.code
+            if v.ausfuehrungsart
+            else None
         }
         await _schreibe_aktiv(
-            repo, KatalogEntitaet.VORGAENGE, v.code, _payload(KatalogEntitaet.VORGAENGE, record)
+            repo,
+            KatalogEntitaet.VORGAENGE,
+            v.code,
+            _payload(KatalogEntitaet.VORGAENGE, record),
         )
     zaehler[KatalogEntitaet.VORGAENGE.value] = len(VORGAENGE)
 
@@ -98,7 +126,11 @@ async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
     n_junction = 0
     for bv in BAUVERFAHREN.values():
         z = await repo.neue_version(
-            KatalogEntitaet.BAUVERFAHREN, bv.code, {"name": bv.name}, benutzer="seed", bundle_uuid=None
+            KatalogEntitaet.BAUVERFAHREN,
+            bv.code,
+            {"name": bv.name},
+            benutzer="seed",
+            bundle_uuid=None,
         )
         await repo.aktiviere(KatalogEntitaet.BAUVERFAHREN, z.zeile_uuid)
         vorgang_codes = [vg.code for vg in bv.vorgaenge]
@@ -112,7 +144,10 @@ async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
     for lief in LIEFERANTEN.values():
         record = lief.model_dump(mode="json")
         await _schreibe_aktiv(
-            repo, KatalogEntitaet.LIEFERANTEN, lief.code, _payload(KatalogEntitaet.LIEFERANTEN, record)
+            repo,
+            KatalogEntitaet.LIEFERANTEN,
+            lief.code,
+            _payload(KatalogEntitaet.LIEFERANTEN, record),
         )
         for p in lief.preise:
             preise.append(
@@ -138,7 +173,8 @@ async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
         )
     zaehler[KatalogEntitaet.LEISTUNG_BAUVERFAHREN.value] = len(LEISTUNG_BAUVERFAHREN)
 
-    # The global catalog version starts at 1 (seed is not an activation, so no bump — the insert
+    # The global catalog version starts at 1 (seed is not an activation, so no bump —
+    # the insert
     # sets version=1 directly).
     await repo.stand_beruehren(benutzer="seed", aktivierung=False)
     zaehler["katalog_stand"] = 1
@@ -147,8 +183,12 @@ async def seed_katalog(repo: KatalogRepository) -> dict[str, int]:
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed the katalog_* tables from the fixtures.")
-    parser.add_argument("--reset", action="store_true", help="truncate all katalog_* tables first")
+    parser = argparse.ArgumentParser(
+        description="Seed the katalog_* tables from the fixtures."
+    )
+    parser.add_argument(
+        "--reset", action="store_true", help="truncate all katalog_* tables first"
+    )
     args = parser.parse_args()
 
     engine = create_async_engine(settings.database_url)
@@ -158,7 +198,10 @@ async def main() -> None:
             if args.reset:
                 await repo.alles_leeren()
             elif not await repo.ist_leer():
-                print("katalog_* tables already populated — pass --reset to truncate and reseed.")
+                print(
+                    "katalog_* tables already populated — pass --reset to truncate and "
+                    "reseed."
+                )
                 return
             zaehler = await seed_katalog(repo)
         for name, n in zaehler.items():

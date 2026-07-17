@@ -1,9 +1,10 @@
 """Sinks that receive a ``UsageEvent`` from an OpenRouter client.
 
-``LoggingUsageSink`` emits one structured log line and is the default sink (works offline and in
-tests). ``DatabaseUsageSink`` persists each event to Postgres in its OWN short transaction, owning
-an ``AsyncEngine`` and bypassing any caller ``UnitOfWork``: the cost was really incurred at
-OpenRouter, so it must survive a business-transaction rollback.
+``LoggingUsageSink`` emits one structured log line and is the default sink (works
+offline and in tests). ``DatabaseUsageSink`` persists each event to Postgres in its OWN
+short transaction, owning an ``AsyncEngine`` and bypassing any caller ``UnitOfWork``:
+the cost was really incurred at OpenRouter, so it must survive a business-transaction
+rollback.
 
 Sinks do not swallow their own errors; failure isolation is the calling client's single
 responsibility (it wraps parse + emit so usage recording never fails the primary call).

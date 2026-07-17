@@ -1,13 +1,15 @@
 """Structured-output schema for the aggregate LV membership prompt.
 
-Given a numbered listing of a project's LV positions and an aggregation predicate (e.g. "earth
-removal" / "Bodenabtrag"), the model returns which positions belong to the predicate -- membership
-only. It never sums, and never invents an lv_item_uuid: each returned uuid is copied verbatim from
-the listing. Deterministic Python does the arithmetic afterwards (the AggregateLVService).
+Given a numbered listing of a project's LV positions and an aggregation predicate (e.g.
+"earth removal" / "Bodenabtrag"), the model returns which positions belong to the
+predicate -- membership only. It never sums, and never invents an lv_item_uuid: each
+returned uuid is copied verbatim from the listing. Deterministic Python does the
+arithmetic afterwards (the AggregateLVService).
 
-`LVMembership.matched` is a `list[LVMembershipItem]`, which Pydantic renders with a `$ref` into
-`$defs`. Strict structured output forbids `$ref` (see the registry docstring), so `model_json_schema`
-is overridden to inline the defs before the schema reaches the transport.
+`LVMembership.matched` is a `list[LVMembershipItem]`, which Pydantic renders with a
+`$ref` into `$defs`. Strict structured output forbids `$ref` (see the registry
+docstring), so `model_json_schema` is overridden to inline the defs before the schema
+reaches the transport.
 """
 
 from __future__ import annotations
@@ -23,10 +25,12 @@ class LVMembershipItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     lv_item_uuid: str = Field(
-        description="The lv_item_uuid of a matching position, copied verbatim from the listing."
+        description="The lv_item_uuid of a matching position, copied verbatim from the "
+        "listing."
     )
     rationale: str = Field(
-        description="A short reason (a few words) why this position matches the predicate."
+        description="A short reason (a few words) why this position matches the "
+        "predicate."
     )
 
 
@@ -36,7 +40,8 @@ class LVMembership(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     matched: list[LVMembershipItem] = Field(
-        description="Every LV position that matches the predicate. Empty when none match."
+        description="Every LV position that matches the predicate. Empty when none "
+        "match."
     )
 
     @classmethod

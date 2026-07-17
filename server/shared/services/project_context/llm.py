@@ -1,10 +1,12 @@
-"""The dedicated synthesis LLM site for project context globals (PROJECT_CONTEXT_RESOLVE).
+"""The dedicated synthesis LLM site for project context globals
+(PROJECT_CONTEXT_RESOLVE).
 
 `resolve_globale` distills the hybrid-RAG chunks for ONE global into a structured
-`{wert, konfidenz, beleg}` (reasoning-augmented). One variable per call: the retrieval is
-already focused on that variable's `rag_prompt`, so there is no multi-variable pass (which
-would mix unrelated chunks and invite cross-variable hallucination). Mirrors the structured
-sites in `shared.services.calculator.llm_calls`; numbers are read verbatim, never coerced here.
+`{wert, konfidenz, beleg}` (reasoning-augmented). One variable per call: the retrieval
+is already focused on that variable's `rag_prompt`, so there is no multi-variable pass
+(which would mix unrelated chunks and invite cross-variable hallucination). Mirrors the
+structured sites in `shared.services.calculator.llm_calls`; numbers are read verbatim,
+never coerced here.
 """
 
 from __future__ import annotations
@@ -24,17 +26,26 @@ from shared.clients.llm.client import (
 from shared.models.prompt_version import PromptVersion
 from shared.services.kalkulation_v2.globale_variablen import GlobaleVariable
 
-_REASONING = ("2-5 kurze Denkschritte, ZUERST: was die Auszüge sagen -> welche Stelle den Wert "
-              "hergibt -> Schluss. Belege mit wörtlichem Zitat.")
+_REASONING = (
+    "2-5 kurze Denkschritte, ZUERST: was die Auszüge sagen -> welche Stelle den Wert "
+    "hergibt -> Schluss. Belege mit wörtlichem Zitat."
+)
 
 
 class GlobaleAufloesung(BaseModel):
     reasoning: list[str] = Field(default=[], description=_REASONING)
-    gefunden: bool = Field(description="True nur, wenn die Auszüge den Wert eindeutig hergeben")
+    gefunden: bool = Field(
+        description="True nur, wenn die Auszüge den Wert eindeutig hergeben"
+    )
     wert: str | None = Field(
-        default=None, description="Der gelesene Wert, wörtlich (Adresse oder Zahl); None wenn nicht gefunden")
+        default=None,
+        description="Der gelesene Wert, wörtlich (Adresse oder Zahl); None wenn nicht "
+        "gefunden",
+    )
     konfidenz: float = Field(ge=0, le=1)
-    beleg: str | None = Field(default=None, description="Wörtliches Belegzitat aus den Auszügen")
+    beleg: str | None = Field(
+        default=None, description="Wörtliches Belegzitat aus den Auszügen"
+    )
 
 
 def _messages(system: str, user: str) -> list[dict[str, str]]:
@@ -64,8 +75,10 @@ async def resolve_globale(
         "einheit": variable.einheit,
         "ist_standort": variable.ist_standort,
     }
-    user = (f"Gesuchte globale Variable:\n{_dump(gesucht)}\n\n"
-            f"Auszüge (verwende NUR diese):\n{_dump(snippets)}")
+    user = (
+        f"Gesuchte globale Variable:\n{_dump(gesucht)}\n\n"
+        f"Auszüge (verwende NUR diese):\n{_dump(snippets)}"
+    )
     return await llm.chat_with_reasoning(
         model=prompt.model_name,
         messages=_messages(prompt.system_prompt, user),

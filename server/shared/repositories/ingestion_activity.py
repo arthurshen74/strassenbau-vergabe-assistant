@@ -7,7 +7,9 @@ from sqlalchemy import delete, func, insert, select, union_all
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.ingestion_activity_log import ingestion_activity_log
-from shared.db.tables.ingestion_activity_log_archive import ingestion_activity_log_archive
+from shared.db.tables.ingestion_activity_log_archive import (
+    ingestion_activity_log_archive,
+)
 from shared.models.ingestion_activity import IngestionActivity, NewIngestionActivity
 
 
@@ -43,7 +45,8 @@ class IngestionActivityLogRepository:
     async def list_for_document(
         self, document_uuid: UUID, *, offset: int = 0, limit: int = 200
     ) -> list[IngestionActivity]:
-        """A document's activity, oldest first, across the active and archive tables (paged)."""
+        """A document's activity, oldest first, across the active and archive tables
+        (paged)."""
         active_q = select(ingestion_activity_log).where(
             ingestion_activity_log.c.document_uuid == document_uuid
         )
@@ -70,9 +73,10 @@ class IngestionActivityLogRepository:
         return (active or 0) + (archived or 0)
 
     async def archive_stale(self, older_than: datetime) -> int:
-        """Move activity lines older than the cutoff from the active table into the archive,
-        preserving their ids, so the hot table stays small while history is kept. Returns the
-        number moved. Caller runs this in a transaction so the copy and delete commit together."""
+        """Move activity lines older than the cutoff from the active table into the
+        archive, preserving their ids, so the hot table stays small while history is
+        kept. Returns the number moved. Caller runs this in a transaction so the copy
+        and delete commit together."""
         columns = [c.name for c in ingestion_activity_log.c]
         moved = await self.conn.execute(
             insert(ingestion_activity_log_archive).from_select(
@@ -83,6 +87,8 @@ class IngestionActivityLogRepository:
             )
         )
         await self.conn.execute(
-            delete(ingestion_activity_log).where(ingestion_activity_log.c.ts < older_than)
+            delete(ingestion_activity_log).where(
+                ingestion_activity_log.c.ts < older_than
+            )
         )
         return moved.rowcount

@@ -1,16 +1,19 @@
-"""The project-chat turn brain: a streaming ReAct agent over the project's documents and LV.
+"""The project-chat turn brain: a streaming ReAct agent over the project's documents and
+LV.
 
-One `run_turn` drives a user -> assistant turn for a `project_chat` conversation and yields the same
-SSE envelopes as the dispatcher, so the API streams it the same way. The latest user message is
-appended to the conversation's user/assistant history and handed to a `ProjectChatAgent` (a LangChain
-`create_agent` loop), which decides which tools to call -- project/LV retrieval, LV lookups, or
-quantity aggregation -- and streams a grounded answer.
+One `run_turn` drives a user -> assistant turn for a `project_chat` conversation and
+yields the same SSE envelopes as the dispatcher, so the API streams it the same way. The
+latest user message is appended to the conversation's user/assistant history and handed
+to a `ProjectChatAgent` (a LangChain `create_agent` loop), which decides which tools to
+call -- project/LV retrieval, LV lookups, or quantity aggregation -- and streams a
+grounded answer.
 
-Messages are persisted in their own short transactions (the SSE response is long-lived and must not
-hold one transaction open across the whole stream), mirroring the Dispatcher idiom; tool calls and
-their results are persisted as function_call / function_call_output rows so the UI can render them
-inline. The agent's answer-model telemetry is buffered during the run and drained to the usage /
-execution-log sinks afterward (the sinks' engine is bound to the main loop).
+Messages are persisted in their own short transactions (the SSE response is long-lived
+and must not hold one transaction open across the whole stream), mirroring the
+Dispatcher idiom; tool calls and their results are persisted as function_call /
+function_call_output rows so the UI can render them inline. The agent's answer-model
+telemetry is buffered during the run and drained to the usage / execution-log sinks
+afterward (the sinks' engine is bound to the main loop).
 """
 
 from __future__ import annotations
@@ -60,7 +63,6 @@ from shared.services.project_chat_agent import (
     TOOL_CALCULATE_EKT,
     AgentToken,
     AgentToolCall,
-    AgentToolResult,
     ProjectChatAgent,
 )
 from shared.services.prompt_runner import PromptVersionNotFoundError
@@ -68,24 +70,31 @@ from shared.services.retrieval import RetrievalConfig, RetrievalService
 
 logger = logging.getLogger(__name__)
 
-# Prepended so a position chat is grounded in its bound LV item: "this position" resolves to it.
+# Prepended so a position chat is grounded in its bound LV item: "this position"
+# resolves to it.
 POSITION_SYSTEM_TEMPLATE = (
-    "\n\nDiese Unterhaltung bezieht sich auf die folgende LV-Position. Wenn der Nutzer von "
+    "\n\nDiese Unterhaltung bezieht sich auf die folgende LV-Position. Wenn der Nutzer "
+    "von "
     '"dieser Position" spricht, ist diese gemeint:\n{position}'
 )
 
-# Appended while a position chat can still start its calculation: answer questions normally, but
-# call calculate_ekt the moment the user asks to run the EKT calculation for the position.
+# Appended while a position chat can still start its calculation: answer questions
+# normally, but call calculate_ekt the moment the user asks to run the EKT calculation
+# for the position.
 CALC_SYSTEM_SUFFIX = (
-    "\n\nWenn der Nutzer die EKT-Kalkulation für diese Position durchführen möchte (z. B. "
-    '"Kalkuliere die EKT für diese Position", "berechne die Position", "starte die Kalkulation"), '
-    "rufe das Werkzeug calculate_ekt auf und kündige kurz an, dass die Kalkulation startet. Rufe "
+    "\n\nWenn der Nutzer die EKT-Kalkulation für diese Position durchführen möchte (z. "
+    "B. "
+    '"Kalkuliere die EKT für diese Position", "berechne die Position", "starte die '
+    'Kalkulation"), '
+    "rufe das Werkzeug calculate_ekt auf und kündige kurz an, dass die Kalkulation "
+    "startet. Rufe "
     "calculate_ekt ausschließlich auf ausdrücklichen Wunsch des Nutzers auf."
 )
 
 
 def config_from_request(dto: TurnRetrievalConfig | None) -> RetrievalConfig:
-    """Map the request-side retrieval knobs to a service RetrievalConfig (sizes from settings)."""
+    """Map the request-side retrieval knobs to a service RetrievalConfig (sizes from
+    settings)."""
     if dto is None:
         return RetrievalConfig()
     return RetrievalConfig(
@@ -120,9 +129,12 @@ class ProjectChatService:
         *,
         position_context: str | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
-        # One root span per turn so the agent's LangChain spans, the native ES query spans, and the
-        # LLMClient sink spans collapse into a single trace, grouped into the conversation's session.
-        assert conversation.project_uuid is not None  # project_chat conversations are project-scoped
+        # One root span per turn so the agent's LangChain spans, the native ES query
+        # spans, and the LLMClient sink spans collapse into a single trace, grouped into
+        # the conversation's session.
+        assert (
+            conversation.project_uuid is not None
+        )  # project_chat conversations are project-scoped
         with flow_span(
             "project_chat.turn",
             session_id=str(conversation.conversation_uuid),
@@ -143,7 +155,9 @@ class ProjectChatService:
     ) -> AsyncIterator[dict[str, Any]]:
         conversation_id = conversation.conversation_uuid
         project_uuid = conversation.project_uuid
-        assert project_uuid is not None  # project_chat conversations are always project-scoped
+        assert (
+            project_uuid is not None
+        )  # project_chat conversations are always project-scoped
 
         await self._persist(
             NewMessage(
@@ -155,10 +169,12 @@ class ProjectChatService:
 
         history = await self._load_history(conversation_id)
         messages = [
-            {ROLE: m.role, CONTENT: m.content} for m in to_user_assistant_messages(history)
+            {ROLE: m.role, CONTENT: m.content}
+            for m in to_user_assistant_messages(history)
         ]
-        # A position chat (EKT_CALCULATOR) is grounded in its bound LV item and, until the
-        # calculation has run, gets the calculate_ekt tool + a nudge so it starts on request.
+        # A position chat (EKT_CALCULATOR) is grounded in its bound LV item and, until
+        # the calculation has run, gets the calculate_ekt tool + a nudge so it starts on
+        # request.
         allow_start = (
             conversation.prompt_type == PromptType.EKT_CALCULATOR
             and conversation.calculation_status == CalculationStatus.AWAITING_START
@@ -192,8 +208,9 @@ class ProjectChatService:
                     yield _text_delta(event.content)
                 elif isinstance(event, AgentToolCall):
                     if event.name == TOOL_CALCULATE_EKT:
-                        # Control signal only: surface it so the caller can chain the calculation,
-                        # but don't persist it -- it carries no data and isn't part of the transcript.
+                        # Control signal only: surface it so the caller can chain the
+                        # calculation, but don't persist it -- it carries no data and
+                        # isn't part of the transcript.
                         yield _function_call(event.call_id, event.name, event.arguments)
                         continue
                     await self._persist(
@@ -208,7 +225,8 @@ class ProjectChatService:
                     yield _function_call(event.call_id, event.name, event.arguments)
                 else:  # AgentToolResult
                     if event.name == TOOL_CALCULATE_EKT:
-                        continue  # the signal's result is internal to the agent loop; drop it
+                        # the signal's result is internal to the agent loop; drop it
+                        continue
                     await self._persist(
                         NewMessage(
                             conversation_uuid=conversation_id,
@@ -219,9 +237,13 @@ class ProjectChatService:
                             data=event.payload,
                         )
                     )
-                    yield _function_call_output(event.call_id, event.name, True, event.payload)
+                    yield _function_call_output(
+                        event.call_id, event.name, True, event.payload
+                    )
         except Exception:
-            logger.exception("project chat turn failed conversation=%s", conversation_id)
+            logger.exception(
+                "project chat turn failed conversation=%s", conversation_id
+            )
             yield _ui_notice(NOTICE_PROCESSING_ERROR, NoticeLevel.ERROR)
         finally:
             await self._emit_agent_telemetry(agent)
@@ -253,7 +275,9 @@ class ProjectChatService:
 
     async def _load_prompt(self) -> PromptVersion:
         async with self._engine.connect() as conn:
-            prompt = await PromptVersionRepository(conn).get_latest(PromptType.PROJECT_CHAT)
+            prompt = await PromptVersionRepository(conn).get_latest(
+                PromptType.PROJECT_CHAT
+            )
         if prompt is None:
             raise PromptVersionNotFoundError("no prompt version for type=project_chat")
         return prompt
@@ -279,7 +303,9 @@ def _ui_notice(content: str, level: NoticeLevel = NoticeLevel.INFO) -> dict[str,
     return {EVENT: EVENT_UI_NOTICE, DATA: {DATA_CONTENT: content, DATA_LEVEL: level}}
 
 
-def _function_call(call_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+def _function_call(
+    call_id: str, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
     return {
         EVENT: EVENT_FUNCTION_CALL,
         DATA: {DATA_CALL_ID: call_id, DATA_NAME: name, DATA_ARGUMENTS: arguments},

@@ -1,8 +1,9 @@
 """Junction: the ordered Vorgänge of one *version row* of a Bauverfahren.
 
-Rows belong to a specific Bauverfahren version (by `zeile_uuid`) and are rewritten when the
-Bauverfahren is superseded — hence the FK to `katalog_bauverfahren` with ON DELETE CASCADE.
-`vorgang_code` references a Vorgang by code (version-independent); it gets no DB-level FK.
+Rows belong to a specific Bauverfahren version (by `zeile_uuid`) and are rewritten when
+the Bauverfahren is superseded — hence the FK to `katalog_bauverfahren` with ON DELETE
+CASCADE. `vorgang_code` references a Vorgang by code (version-independent); it gets no
+DB-level FK.
 """
 
 from __future__ import annotations

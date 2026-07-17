@@ -1,9 +1,9 @@
 """Domain models for NER error flags: the captured misprediction, its snapshotted
 context, and the LLM error analysis persisted onto it.
 
-A flag is a point-in-time record. `entity_snapshot` freezes the flag-time entity
-list and `suggested_rule` holds the advisory LLM fix; the effective category
-(user override winning over the LLM assignment) is what the dashboard aggregates.
+A flag is a point-in-time record. `entity_snapshot` freezes the flag-time entity list
+and `suggested_rule` holds the advisory LLM fix; the effective category (user override
+winning over the LLM assignment) is what the dashboard aggregates.
 """
 
 from __future__ import annotations
@@ -28,8 +28,8 @@ class SnapshotEntity(BaseModel):
 
 
 class SuggestedRule(BaseModel):
-    """Advisory EntityRuler fix proposed by the LLM (never auto-applied). `pattern`
-    is nullable: a partial suggestion must not discard the whole analysis."""
+    """Advisory EntityRuler fix proposed by the LLM (never auto-applied). `pattern` is
+    nullable: a partial suggestion must not discard the whole analysis."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -94,7 +94,8 @@ class NerFlagUpdate(BaseModel):
 
 
 class NerCategoryCount(BaseModel):
-    """Per-effective-category flag tally, split by status. `category` None = un-analyzed."""
+    """Per-effective-category flag tally, split by status. `category` None =
+    un-analyzed."""
 
     model_config = ConfigDict(extra="forbid")
 

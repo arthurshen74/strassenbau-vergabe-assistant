@@ -1,10 +1,10 @@
 """Render the SourceLine rows of an LV document as the line-numbered text the LLM reads.
 
-Each kept line is prefixed with its `line_id` so the model can segment by reference without
-reproducing text. Repeating page furniture (project header, filename/page footer, the title
-and column-header band) is stripped from the rendering only -- the SourceLine rows stay
-complete, so spans the model returns still index straight back into the full set (LV_PARSE.md
-step 2)."""
+Each kept line is prefixed with its `line_id` so the model can segment by reference
+without reproducing text. Repeating page furniture (project header, filename/page
+footer, the title and column-header band) is stripped from the rendering only -- the
+SourceLine rows stay complete, so spans the model returns still index straight back into
+the full set (LV_PARSE.md step 2)."""
 
 from __future__ import annotations
 
@@ -14,8 +14,9 @@ from shared.models.source_line import SourceLine
 
 LINE_ID_SEP = "\t"
 
-# Furniture anchors: lines whose text starts with these prefixes, or equals these exactly,
-# are page furniture regardless of how often they repeat (the footer's page number varies).
+# Furniture anchors: lines whose text starts with these prefixes, or equals these
+# exactly, are page furniture regardless of how often they repeat (the footer's page
+# number varies).
 ANCHOR_PREFIXES = ("Projektnummer:", "Projektbezeichnung:", "Dateiname:")
 ANCHOR_EXACT = ("LEISTUNGSVERZEICHNIS",)
 
@@ -25,11 +26,14 @@ FURNITURE_MIN_PAGES = 3
 
 
 def render_line_numbered(source_lines: list[SourceLine]) -> tuple[str, list[int]]:
-    """Return the line-numbered rendering and the list of line_ids it kept (furniture removed)."""
+    """Return the line-numbered rendering and the list of line_ids it kept (furniture
+    removed)."""
     ordered = sorted(source_lines, key=lambda line: line.line_id)
     furniture = _furniture_line_ids(ordered)
     kept = [line for line in ordered if line.line_id not in furniture]
-    rendered = "\n".join(f"{line.line_id}{LINE_ID_SEP}{line.line_text}" for line in kept)
+    rendered = "\n".join(
+        f"{line.line_id}{LINE_ID_SEP}{line.line_text}" for line in kept
+    )
     return rendered, [line.line_id for line in kept]
 
 

@@ -56,7 +56,8 @@ class DocumentDetailRead(BaseModel):
 
 
 class ChunkRead(BaseModel):
-    """One chunk for the document chunk viewer, unified across the Simple and LangChain indexes."""
+    """One chunk for the document chunk viewer, unified across the Simple and LangChain
+    indexes."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -79,7 +80,8 @@ class ChunkListRead(BaseModel):
 
 
 class ActivityListRead(BaseModel):
-    """A page of a document's ingestion activity plus the total across active + archive."""
+    """A page of a document's ingestion activity plus the total across active +
+    archive."""
 
     model_config = ConfigDict(extra="forbid")
 

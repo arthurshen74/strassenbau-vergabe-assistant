@@ -23,8 +23,8 @@ class PromptVersion(BaseModel):
 
 
 class NewPromptVersion(BaseModel):
-    """Create-model for a prompt version. `version` is assigned by the repository
-    (next integer for the prompt_type); PK and created_at by the DB."""
+    """Create-model for a prompt version. `version` is assigned by the repository (next
+    integer for the prompt_type); PK and created_at by the DB."""
 
     model_config = ConfigDict(extra="forbid")
 

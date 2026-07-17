@@ -74,7 +74,9 @@ ner_flags = Table(
     Column("analyzed_at", DateTime(timezone=True), nullable=True),
     Column("status", Text, nullable=False, server_default=NerFlagStatus.OPEN.value),
     Column("resolved_note", Text, nullable=True),
-    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column(
+        "created_at", DateTime(timezone=True), nullable=False, server_default=func.now()
+    ),
     Column(
         "updated_at",
         DateTime(timezone=True),

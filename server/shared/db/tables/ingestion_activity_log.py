@@ -16,8 +16,9 @@ from sqlalchemy.dialects.postgresql import UUID
 from shared.db.metadata import metadata
 
 # Granular per-job activity stream: the worker's liveness signal (its flushes also bump
-# ingest_jobs.locked_at) and the feed for the live UI terminal. High-frequency and prunable,
-# kept separate from the coarse ingest_job_events milestone stream that drives the status bar.
+# ingest_jobs.locked_at) and the feed for the live UI terminal. High-frequency and
+# prunable, kept separate from the coarse ingest_job_events milestone stream that drives
+# the status bar.
 ingestion_activity_log = Table(
     "ingestion_activity_log",
     metadata,

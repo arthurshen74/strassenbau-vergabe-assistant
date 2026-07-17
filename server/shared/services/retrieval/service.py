@@ -1,11 +1,12 @@
 """The retrieval orchestrator (RETRIEVAL.md).
 
-RetrievalService runs one scoped RAG retrieval: it resolves the Simple/Plus scope, optionally
-expands the query into variants, runs dense (and optionally BM25) search per query, fuses the
-ranked lists with reciprocal rank fusion, optionally reranks with the cross-encoder, and answers
-from the top-k context using the project_chat prompt. It returns a RetrievalResult that captures
-every stage and emits no logs of its own; the caller (the debug CLI) prints the trace, so logging
-stays at the boundary. DB reads use short connections, mirroring the Dispatcher idiom.
+RetrievalService runs one scoped RAG retrieval: it resolves the Simple/Plus scope,
+optionally expands the query into variants, runs dense (and optionally BM25) search per
+query, fuses the ranked lists with reciprocal rank fusion, optionally reranks with the
+cross-encoder, and answers from the top-k context using the project_chat prompt. It
+returns a RetrievalResult that captures every stage and emits no logs of its own; the
+caller (the debug CLI) prints the trace, so logging stays at the boundary. DB reads use
+short connections, mirroring the Dispatcher idiom.
 """
 
 from __future__ import annotations
@@ -54,7 +55,8 @@ _tracer = trace.get_tracer(__name__)
 
 
 class RetrievalError(Exception):
-    """Retrieval cannot proceed (e.g. PLUS modality on a project with no LV document)."""
+    """Retrieval cannot proceed (e.g. PLUS modality on a project with no LV
+    document)."""
 
 
 class RetrievalService:
@@ -100,8 +102,10 @@ class RetrievalService:
         scope_override: dict[str, Any] | None = None,
         conversation_uuid: UUID | None = None,
     ) -> RetrievalContext:
-        # Own span so the native elasticsearch-py query spans nest under a labeled retrieval span:
-        # they cannot nest under the LangChain tool span (see shared.clients.tracing.flow_span).
+        # Own span so the native elasticsearch-py query spans nest under a labeled
+        # retrieval span:
+        # they cannot nest under the LangChain tool span (see
+        # shared.clients.tracing.flow_span).
         with _tracer.start_as_current_span("retrieval.retrieve_context") as span:
             span.set_attribute("retrieval.modality", config.modality.value)
             span.set_attribute("retrieval.project_uuid", str(project_uuid))
@@ -127,12 +131,15 @@ class RetrievalService:
     ) -> RetrievalContext:
         """The full pipeline up to the numbered context, without generating an answer.
 
-        `scope_override` substitutes a caller-built ES filter for the Simple/Plus scope (e.g. the
-        agent's LV-only `get_lv_context`); the rest of the pipeline is unchanged."""
+        `scope_override` substitutes a caller-built ES filter for the Simple/Plus scope
+        (e.g. the agent's LV-only `get_lv_context`); the rest of the pipeline is
+        unchanged."""
         if scope_override is not None:
             es_filter, lv_document_uuid = scope_override, None
         else:
-            es_filter, lv_document_uuid = await self._resolve_scope(project_uuid, config)
+            es_filter, lv_document_uuid = await self._resolve_scope(
+                project_uuid, config
+            )
         scope = ScopeTrace(
             modality=config.modality,
             project_uuid=project_uuid,
@@ -150,9 +157,13 @@ class RetrievalService:
         query_traces: list[QueryTrace] = []
         ranked_lists: dict[str, Sequence[ScoredChunk]] = {}
         for i, (text, vector) in enumerate(zip(query_texts, vectors)):
-            dense = await self._search.knn_search(vector, es_filter, k=config.candidate_k)
+            dense = await self._search.knn_search(
+                vector, es_filter, k=config.candidate_k
+            )
             lexical = (
-                await self._search.lexical_search(text, es_filter, size=config.candidate_k)
+                await self._search.lexical_search(
+                    text, es_filter, size=config.candidate_k
+                )
                 if config.use_bm25
                 else []
             )
@@ -174,8 +185,9 @@ class RetrievalService:
         final_chunks, rerank_traces, rerank_applied = await self._select_context(
             question, fused, project_uuid, config, conversation_uuid
         )
-        # LV_ITEM sources point at the LV item, not a document; their page thumbnails live on the
-        # project's LV document, so resolve it once (already known under PLUS).
+        # LV_ITEM sources point at the LV item, not a document; their page thumbnails
+        # live on the project's LV document, so resolve it once (already known under
+        # PLUS).
         thumbnail_doc_uuid = await self._thumbnail_document_uuid(
             project_uuid, lv_document_uuid, final_chunks
         )
@@ -202,8 +214,8 @@ class RetrievalService:
         lv_document_uuid: UUID | None,
         chunks: Sequence[SimpleChunk],
     ) -> UUID | None:
-        """The LV document to source LV_ITEM page thumbnails from. Known already under PLUS;
-        looked up only when SIMPLE produced LV_ITEM chunks."""
+        """The LV document to source LV_ITEM page thumbnails from. Known already under
+        PLUS; looked up only when SIMPLE produced LV_ITEM chunks."""
         if lv_document_uuid is not None:
             return lv_document_uuid
         if not any(c.source_doc_type is SourceDocType.LV_ITEM for c in chunks):
@@ -341,8 +353,9 @@ def _context_chunk(
 def _thumbnail_ref(
     chunk: SimpleChunk, thumbnail_document_uuid: UUID | None
 ) -> ThumbnailRef | None:
-    """The page thumbnail for a context source: a DOCUMENT chunk's own document, or the LV
-    document for an LV_ITEM chunk. None when the chunk has no page or the document is unknown."""
+    """The page thumbnail for a context source: a DOCUMENT chunk's own document, or the
+    LV document for an LV_ITEM chunk. None when the chunk has no page or the document is
+    unknown."""
     if not chunk.source_doc_pages:
         return None
     page = chunk.source_doc_pages[0]
@@ -376,5 +389,6 @@ def _source_header(chunk: ContextChunk) -> str:
 
 
 def format_context(context: list[ContextChunk]) -> str:
-    """Render the numbered evidence block the project_chat answer prompt expects under {{context}}."""
+    """Render the numbered evidence block the project_chat answer prompt expects under
+    {{context}}."""
     return "\n\n".join(f"{_source_header(c)}\n{c.chunk_text}" for c in context)

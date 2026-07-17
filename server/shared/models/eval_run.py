@@ -1,5 +1,6 @@
-"""Domain models for eval runs: the queued/graded run itself, its progress events, and the
-per-item result rows. The queue mechanics mirror ingest jobs; see shared.services.eval."""
+"""Domain models for eval runs: the queued/graded run itself, its progress events, and
+the per-item result rows. The queue mechanics mirror ingest jobs; see
+shared.services.eval."""
 
 from __future__ import annotations
 

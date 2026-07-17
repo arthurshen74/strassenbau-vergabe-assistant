@@ -1,16 +1,18 @@
 """One generic repository for the whole persisted catalog.
 
-Thirteen near-identical lifecycle tables would be thirteen near-identical repositories, so
-instead there is one repository parameterized by `KATALOG_REGISTRY` (table, natural-key column,
-payload column set per entity). It moves `KatalogZeile` envelopes in and out; the seed and the
-provider own the per-entity model↔payload mapping. Payloads are stored JSON-clean
-(`model_dump(mode="json")`): Text/Numeric/Boolean columns accept the strings and Postgres
-coerces them (Numeric reads back as Decimal), JSONB columns hold the parsed structures.
+Thirteen near-identical lifecycle tables would be thirteen near-identical repositories,
+so instead there is one repository parameterized by `KATALOG_REGISTRY` (table,
+natural-key column, payload column set per entity). It moves `KatalogZeile` envelopes in
+and out; the seed and the provider own the per-entity model↔payload mapping. Payloads
+are stored JSON-clean (`model_dump(mode="json")`): Text/Numeric/Boolean columns accept
+the strings and Postgres coerces them (Numeric reads back as Decimal), JSONB columns
+hold the parsed structures.
 
-`neue_version` inserts the next version of a natural key as `entwurf`; `aktiviere` performs the
-SCD-2 supersede (archive the current `aktiv` row of that key, then promote the draft), mirroring
-`project_context_values.supersede` including the `clock_timestamp()` note. The two non-lifecycle
-tables (Bauverfahren→Vorgang junction, supplier prices) have their own accessors.
+`neue_version` inserts the next version of a natural key as `entwurf`; `aktiviere`
+performs the SCD-2 supersede (archive the current `aktiv` row of that key, then promote
+the draft), mirroring `project_context_values.supersede` including the
+`clock_timestamp()` note. The two non-lifecycle tables (Bauverfahren→Vorgang junction,
+supplier prices) have their own accessors.
 """
 
 from __future__ import annotations
@@ -28,7 +30,9 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from shared.db.tables.katalog_ausfuehrungsarten import katalog_ausfuehrungsarten
 from shared.db.tables.katalog_baustoffe import katalog_baustoffe
 from shared.db.tables.katalog_bauverfahren import katalog_bauverfahren
-from shared.db.tables.katalog_bauverfahren_vorgaenge import katalog_bauverfahren_vorgaenge
+from shared.db.tables.katalog_bauverfahren_vorgaenge import (
+    katalog_bauverfahren_vorgaenge,
+)
 from shared.db.tables.katalog_betriebsarten import katalog_betriebsarten
 from shared.db.tables.katalog_betriebskategorien import katalog_betriebskategorien
 from shared.db.tables.katalog_formeln import katalog_formeln
@@ -67,10 +71,12 @@ from shared.models.katalog import (
 
 @dataclass(frozen=True)
 class EntitaetSpec:
-    """How one catalog entity maps onto its table: the natural-key column and payload columns.
+    """How one catalog entity maps onto its table: the natural-key column and payload
+    columns.
 
-    `diskriminator` (a payload column, e.g. `gruppe`) extends the natural key: version/active
-    scoping is per (schluessel, diskriminator) so the same key may recur once per discriminator."""
+    `diskriminator` (a payload column, e.g. `gruppe`) extends the natural key:
+    version/active scoping is per (schluessel, diskriminator) so the same key may recur
+    once per discriminator."""
 
     tabelle: Table
     schluessel: str
@@ -80,7 +86,9 @@ class EntitaetSpec:
 
 KATALOG_REGISTRY: dict[KatalogEntitaet, EntitaetSpec] = {
     KatalogEntitaet.LEISTUNGEN: EntitaetSpec(
-        katalog_leistungen, "code", ("name", "beschreibung", "standard_kennung", "einheit")
+        katalog_leistungen,
+        "code",
+        ("name", "beschreibung", "standard_kennung", "einheit"),
     ),
     KatalogEntitaet.BAUVERFAHREN: EntitaetSpec(katalog_bauverfahren, "code", ("name",)),
     KatalogEntitaet.VORGAENGE: EntitaetSpec(
@@ -102,7 +110,9 @@ KATALOG_REGISTRY: dict[KatalogEntitaet, EntitaetSpec] = {
         katalog_betriebskategorien, "code", ("bezeichnung", "beschreibung")
     ),
     KatalogEntitaet.BETRIEBSARTEN: EntitaetSpec(
-        katalog_betriebsarten, "code", ("bezeichnung", "kategorie_code", "einheit", "beschreibung")
+        katalog_betriebsarten,
+        "code",
+        ("bezeichnung", "kategorie_code", "einheit", "beschreibung"),
     ),
     KatalogEntitaet.FORMELN: EntitaetSpec(
         katalog_formeln, "name", ("ausdruck", "einheit", "beschreibung", "parameter")
@@ -110,13 +120,29 @@ KATALOG_REGISTRY: dict[KatalogEntitaet, EntitaetSpec] = {
     KatalogEntitaet.VARIABLEN: EntitaetSpec(
         katalog_variablen,
         "name",
-        ("gruppe", "bezeichnung", "beschreibung", "einheit", "datentyp", "llm_kontext", "aufloesung"),
+        (
+            "gruppe",
+            "bezeichnung",
+            "beschreibung",
+            "einheit",
+            "datentyp",
+            "llm_kontext",
+            "aufloesung",
+        ),
         diskriminator="gruppe",
     ),
     KatalogEntitaet.GLOBALE_VARIABLEN: EntitaetSpec(
         katalog_globale_variablen,
         "name",
-        ("bezeichnung", "einheit", "datentyp", "ist_standort", "erforderlich", "ziel_variable", "rag_prompt"),
+        (
+            "bezeichnung",
+            "einheit",
+            "datentyp",
+            "ist_standort",
+            "erforderlich",
+            "ziel_variable",
+            "rag_prompt",
+        ),
     ),
     KatalogEntitaet.BAUSTOFFE: EntitaetSpec(
         katalog_baustoffe,
@@ -138,7 +164,13 @@ KATALOG_REGISTRY: dict[KatalogEntitaet, EntitaetSpec] = {
     KatalogEntitaet.MASCHINEN: EntitaetSpec(
         katalog_maschinen,
         "code",
-        ("hersteller", "modell", "ausfuehrungsart_code", "eigenschaften", "leistungsprofile"),
+        (
+            "hersteller",
+            "modell",
+            "ausfuehrungsart_code",
+            "eigenschaften",
+            "leistungsprofile",
+        ),
     ),
     KatalogEntitaet.LEISTUNG_BAUVERFAHREN: EntitaetSpec(
         katalog_leistung_bauverfahren, "leistung_code", ("bauverfahren_codes",)
@@ -163,15 +195,22 @@ class KatalogRepository:
             payload={c: m[c] for c in spec.payload},
         )
 
-    # --- global catalog version (katalog_stand) ---------------------------------------------- #
+    # --- global catalog version (katalog_stand)
+    # ---------------------------------------------- #
 
     async def stand_lesen(self) -> KatalogStandZeile | None:
         """The global catalog version row, or None on an unseeded DB (no row yet)."""
         row = (
-            await self.conn.execute(
-                select(katalog_stand).where(katalog_stand.c[STAND_SPALTE_ID] == STAND_ID)
+            (
+                await self.conn.execute(
+                    select(katalog_stand).where(
+                        katalog_stand.c[STAND_SPALTE_ID] == STAND_ID
+                    )
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
         if row is None:
             return None
         return KatalogStandZeile(
@@ -180,11 +219,14 @@ class KatalogRepository:
             benutzer=row[STAND_SPALTE_BENUTZER],
         )
 
-    async def stand_beruehren(self, benutzer: str | None, aktivierung: bool) -> KatalogStandZeile:
-        """Upsert the singleton catalog-version row: bump `version` only on activation, otherwise
-        just touch `aktualisiert_am`/`benutzer`. Runs in the caller's UoW — the same transaction as
-        the write it records. clock_timestamp() advances within the transaction (like the SCD-2
-        supersede), so the touch instant is the write's instant."""
+    async def stand_beruehren(
+        self, benutzer: str | None, aktivierung: bool
+    ) -> KatalogStandZeile:
+        """Upsert the singleton catalog-version row: bump `version` only on activation,
+        otherwise just touch `aktualisiert_am`/`benutzer`. Runs in the caller's UoW —
+        the same transaction as the write it records. clock_timestamp() advances within
+        the transaction (like the SCD-2 supersede), so the touch instant is the write's
+        instant."""
         inkrement = 1 if aktivierung else 0
         stmt = (
             pg_insert(katalog_stand)
@@ -199,7 +241,8 @@ class KatalogRepository:
             .on_conflict_do_update(
                 index_elements=[katalog_stand.c[STAND_SPALTE_ID]],
                 set_={
-                    STAND_SPALTE_VERSION: katalog_stand.c[STAND_SPALTE_VERSION] + inkrement,
+                    STAND_SPALTE_VERSION: katalog_stand.c[STAND_SPALTE_VERSION]
+                    + inkrement,
                     STAND_SPALTE_AKTUALISIERT_AM: func.clock_timestamp(),
                     STAND_SPALTE_BENUTZER: benutzer,
                 },
@@ -224,11 +267,14 @@ class KatalogRepository:
     async def nach_status(
         self, entitaet: KatalogEntitaet, status: KatalogStatus
     ) -> list[KatalogZeile]:
-        """Every row of an entity in a given lifecycle status, ordered by natural key."""
+        """Every row of an entity in a given lifecycle status, ordered by natural
+        key."""
         spec = KATALOG_REGISTRY[entitaet]
         t = spec.tabelle
         stmt = (
-            select(t).where(t.c[SPALTE_STATUS] == status.value).order_by(t.c[spec.schluessel])
+            select(t)
+            .where(t.c[SPALTE_STATUS] == status.value)
+            .order_by(t.c[spec.schluessel])
         )
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [self._zeile(spec, r) for r in rows]
@@ -236,10 +282,12 @@ class KatalogRepository:
     async def alle_versionen(
         self, entitaet: KatalogEntitaet, schluessel: str
     ) -> list[KatalogZeile]:
-        """Every version of one natural key (any status), oldest first — the SCD-2 timeline (T32).
+        """Every version of one natural key (any status), oldest first — the SCD-2
+        timeline (T32).
 
-        For an entity with a discriminator (variablen: gruppe) a name may recur once per gruppe;
-        all rows are returned, ordered by (version, gueltig_ab) so a shadowed name shows both."""
+        For an entity with a discriminator (variablen: gruppe) a name may recur once per
+        gruppe; all rows are returned, ordered by (version, gueltig_ab) so a shadowed
+        name shows both."""
         spec = KATALOG_REGISTRY[entitaet]
         t = spec.tabelle
         stmt = (
@@ -250,7 +298,9 @@ class KatalogRepository:
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [self._zeile(spec, r) for r in rows]
 
-    async def nach_bundle(self, bundle_uuid: UUID) -> dict[KatalogEntitaet, list[KatalogZeile]]:
+    async def nach_bundle(
+        self, bundle_uuid: UUID
+    ) -> dict[KatalogEntitaet, list[KatalogZeile]]:
         """All rows carrying `bundle_uuid`, grouped by entity (any status)."""
         gruppen: dict[KatalogEntitaet, list[KatalogZeile]] = {}
         for entitaet, spec in KATALOG_REGISTRY.items():
@@ -262,7 +312,8 @@ class KatalogRepository:
         return gruppen
 
     async def offene_bundles(self) -> list[UUID]:
-        """Distinct bundle_uuids that still have at least one `entwurf` row, newest first."""
+        """Distinct bundle_uuids that still have at least one `entwurf` row, newest
+        first."""
         bundles: dict[UUID, Any] = {}
         for spec in KATALOG_REGISTRY.values():
             t = spec.tabelle
@@ -277,10 +328,15 @@ class KatalogRepository:
             for bundle_uuid, letzte in (await self.conn.execute(stmt)).all():
                 if bundle_uuid not in bundles or letzte > bundles[bundle_uuid]:
                     bundles[bundle_uuid] = letzte
-        return [b for b, _ in sorted(bundles.items(), key=lambda kv: kv[1], reverse=True)]
+        return [
+            b for b, _ in sorted(bundles.items(), key=lambda kv: kv[1], reverse=True)
+        ]
 
-    def _schluessel_bedingung(self, spec: EntitaetSpec, schluessel: str, diskriminator_wert: Any):
-        """WHERE terms that scope to one natural key, including the discriminator when present."""
+    def _schluessel_bedingung(
+        self, spec: EntitaetSpec, schluessel: str, diskriminator_wert: Any
+    ):
+        """WHERE terms that scope to one natural key, including the discriminator when
+        present."""
         t = spec.tabelle
         bedingungen = [t.c[spec.schluessel] == schluessel]
         if spec.diskriminator is not None:
@@ -295,7 +351,8 @@ class KatalogRepository:
         benutzer: str | None,
         bundle_uuid: UUID | None,
     ) -> KatalogZeile:
-        """Insert the next version of `schluessel` as `entwurf`, sharing `bundle_uuid`."""
+        """Insert the next version of `schluessel` as `entwurf`, sharing
+        `bundle_uuid`."""
         spec = KATALOG_REGISTRY[entitaet]
         t = spec.tabelle
         diskriminator_wert = payload[spec.diskriminator] if spec.diskriminator else None
@@ -314,16 +371,24 @@ class KatalogRepository:
             SPALTE_BENUTZER: benutzer,
             **{c: payload[c] for c in spec.payload},
         }
-        row = (await self.conn.execute(insert(t).values(**values).returning(t))).mappings().one()
+        row = (
+            (await self.conn.execute(insert(t).values(**values).returning(t)))
+            .mappings()
+            .one()
+        )
         return self._zeile(spec, row)
 
-    async def aktiviere(self, entitaet: KatalogEntitaet, zeile_uuid: UUID) -> KatalogZeile:
-        """Archive the current `aktiv` row of the draft's key, then promote the draft to `aktiv`.
+    async def aktiviere(
+        self, entitaet: KatalogEntitaet, zeile_uuid: UUID
+    ) -> KatalogZeile:
+        """Archive the current `aktiv` row of the draft's key, then promote the draft to
+        `aktiv`.
 
-        The archive precedes the promote so the one-`aktiv`-per-key partial index never sees two
-        current rows. clock_timestamp() (not now()) advances within the transaction, so the
-        archived row's gueltig_bis and the promoted row's gueltig_ab are the same instant — a
-        gapless timeline even when several keys are activated in one UoW.
+        The archive precedes the promote so the one-`aktiv`-per-key partial index never
+        sees two current rows. clock_timestamp() (not now()) advances within the
+        transaction, so the archived row's gueltig_bis and the promoted row's gueltig_ab
+        are the same instant — a gapless timeline even when several keys are activated
+        in one UoW.
         """
         spec = KATALOG_REGISTRY[entitaet]
         t = spec.tabelle
@@ -331,7 +396,9 @@ class KatalogRepository:
             [t.c[spec.diskriminator]] if spec.diskriminator else []
         )
         werte = (
-            await self.conn.execute(select(*auswahl).where(t.c[SPALTE_ZEILE_UUID] == zeile_uuid))
+            await self.conn.execute(
+                select(*auswahl).where(t.c[SPALTE_ZEILE_UUID] == zeile_uuid)
+            )
         ).one()
         schluessel = werte[0]
         diskriminator_wert = werte[1] if spec.diskriminator else None
@@ -342,34 +409,58 @@ class KatalogRepository:
                 *self._schluessel_bedingung(spec, schluessel, diskriminator_wert),
                 t.c[SPALTE_STATUS] == KatalogStatus.AKTIV.value,
             )
-            .values(**{SPALTE_STATUS: KatalogStatus.ARCHIVIERT.value, SPALTE_GUELTIG_BIS: now})
+            .values(
+                **{
+                    SPALTE_STATUS: KatalogStatus.ARCHIVIERT.value,
+                    SPALTE_GUELTIG_BIS: now,
+                }
+            )
         )
         row = (
-            await self.conn.execute(
-                update(t)
-                .where(t.c[SPALTE_ZEILE_UUID] == zeile_uuid)
-                .values(**{SPALTE_STATUS: KatalogStatus.AKTIV.value, SPALTE_GUELTIG_AB: now})
-                .returning(t)
+            (
+                await self.conn.execute(
+                    update(t)
+                    .where(t.c[SPALTE_ZEILE_UUID] == zeile_uuid)
+                    .values(
+                        **{
+                            SPALTE_STATUS: KatalogStatus.AKTIV.value,
+                            SPALTE_GUELTIG_AB: now,
+                        }
+                    )
+                    .returning(t)
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         return self._zeile(spec, row)
 
     async def verwirf(self, entitaet: KatalogEntitaet, zeile_uuid: UUID) -> None:
-        """Discard a draft (status → verworfen, gueltig_bis = now). Retiring an active row is
-        `aktiviere`'s job and writes `archiviert`, so the two ends stay distinguishable."""
+        """Discard a draft (status → verworfen, gueltig_bis = now). Retiring an active
+        row is `aktiviere`'s job and writes `archiviert`, so the two ends stay
+        distinguishable."""
         spec = KATALOG_REGISTRY[entitaet]
         t = spec.tabelle
         now = (await self.conn.execute(select(func.clock_timestamp()))).scalar_one()
         await self.conn.execute(
             update(t)
             .where(t.c[SPALTE_ZEILE_UUID] == zeile_uuid)
-            .values(**{SPALTE_STATUS: KatalogStatus.VERWORFEN.value, SPALTE_GUELTIG_BIS: now})
+            .values(
+                **{
+                    SPALTE_STATUS: KatalogStatus.VERWORFEN.value,
+                    SPALTE_GUELTIG_BIS: now,
+                }
+            )
         )
 
-    # --- non-lifecycle children -------------------------------------------------------------- #
+    # --- non-lifecycle children
+    # -------------------------------------------------------------- #
 
-    async def vorgaenge_schreiben(self, bauverfahren_uuid: UUID, vorgang_codes: list[str]) -> None:
-        """Write a Bauverfahren version's ordered Vorgang junction rows (reihenfolge = index)."""
+    async def vorgaenge_schreiben(
+        self, bauverfahren_uuid: UUID, vorgang_codes: list[str]
+    ) -> None:
+        """Write a Bauverfahren version's ordered Vorgang junction rows (reihenfolge =
+        index)."""
         if not vorgang_codes:
             return
         await self.conn.execute(
@@ -388,7 +479,9 @@ class KatalogRepository:
         """The ordered Vorgang codes of one Bauverfahren version."""
         stmt = (
             select(katalog_bauverfahren_vorgaenge.c.vorgang_code)
-            .where(katalog_bauverfahren_vorgaenge.c.bauverfahren_uuid == bauverfahren_uuid)
+            .where(
+                katalog_bauverfahren_vorgaenge.c.bauverfahren_uuid == bauverfahren_uuid
+            )
             .order_by(katalog_bauverfahren_vorgaenge.c.reihenfolge)
         )
         return list((await self.conn.execute(stmt)).scalars().all())
@@ -407,8 +500,9 @@ class KatalogRepository:
         )
 
     async def preise_schreiben(self, preise: list[KatalogPreis]) -> None:
-        """Append supplier price rows (immutable; a correction inserts a new row). Each row carries
-        its lifecycle status — seed/active prices are `aktiv`, a bundle's proposals `entwurf`."""
+        """Append supplier price rows (immutable; a correction inserts a new row). Each
+        row carries its lifecycle status — seed/active prices are `aktiv`, a bundle's
+        proposals `entwurf`."""
         if not preise:
             return
         await self.conn.execute(
@@ -417,9 +511,10 @@ class KatalogRepository:
         )
 
     async def preise(self) -> list[KatalogPreis]:
-        """All ACTIVE supplier price rows, ordered by (lieferant, baustoff) for deterministic loads.
-        Draft and discarded rows are excluded — the running catalog and the read tools see only
-        active prices; temporal validity (gueltig_ab/bis) still selects the price at a Stichtag."""
+        """All ACTIVE supplier price rows, ordered by (lieferant, baustoff) for
+        deterministic loads. Draft and discarded rows are excluded — the running catalog
+        and the read tools see only active prices; temporal validity (gueltig_ab/bis)
+        still selects the price at a Stichtag."""
         t = katalog_lieferanten_preise
         stmt = (
             select(t)
@@ -432,20 +527,26 @@ class KatalogRepository:
     async def preise_nach_bundle(
         self, bundle_uuid: UUID, status: KatalogStatus | None = None
     ) -> list[KatalogPreis]:
-        """Price rows carrying `bundle_uuid`, optionally filtered by status (any status if None)."""
+        """Price rows carrying `bundle_uuid`, optionally filtered by status (any status
+        if None)."""
         t = katalog_lieferanten_preise
         bedingungen = [t.c.bundle_uuid == bundle_uuid]
         if status is not None:
             bedingungen.append(t.c.status == status.value)
-        stmt = select(t).where(*bedingungen).order_by(t.c.lieferant_code, t.c.baustoff_code)
+        stmt = (
+            select(t)
+            .where(*bedingungen)
+            .order_by(t.c.lieferant_code, t.c.baustoff_code)
+        )
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [self._preis(r) for r in rows]
 
     async def preis_vorgaenger_offen(
         self, lieferant_code: str, baustoff_code: str, gueltig_ab: date
     ) -> KatalogPreis | None:
-        """The open-ended active price for (lieferant, baustoff) that a new price starting at
-        `gueltig_ab` would close out on activation (D5), or None if there is none."""
+        """The open-ended active price for (lieferant, baustoff) that a new price
+        starting at `gueltig_ab` would close out on activation (D5), or None if there is
+        none."""
         t = katalog_lieferanten_preise
         stmt = select(t).where(
             t.c.lieferant_code == lieferant_code,
@@ -458,24 +559,29 @@ class KatalogRepository:
         return self._preis(row) if row is not None else None
 
     async def preise_aktivieren(self, bundle_uuid: UUID) -> None:
-        """Activate the bundle's draft price rows. Each closes out an overlapping open-ended active
-        predecessor for the same (lieferant, baustoff) — its gueltig_bis set to the day before the
-        new gueltig_ab (D5, the same close-out-never-mutate move as project_context_values) — then
-        the draft goes active. Drafts activate earliest-validity-first, so several prices for the
-        same pair in one bundle close each other in sequence."""
+        """Activate the bundle's draft price rows. Each closes out an overlapping
+        open-ended active predecessor for the same (lieferant, baustoff) — its
+        gueltig_bis set to the day before the new gueltig_ab (D5, the same
+        close-out-never-mutate move as project_context_values) — then the draft goes
+        active. Drafts activate earliest-validity-first, so several prices for the same
+        pair in one bundle close each other in sequence."""
         t = katalog_lieferanten_preise
         drafts = (
             await self.conn.execute(
                 select(
-                    t.c.zeile_uuid, t.c.lieferant_code, t.c.baustoff_code, t.c.gueltig_ab
+                    t.c.zeile_uuid,
+                    t.c.lieferant_code,
+                    t.c.baustoff_code,
+                    t.c.gueltig_ab,
                 )
                 .where(
                     t.c.bundle_uuid == bundle_uuid,
                     t.c.status == KatalogStatus.ENTWURF.value,
                 )
-                # Earliest first: a later-starting draft activated before an earlier one would not
-                # be caught by the earlier one's close-out (its filter is gueltig_ab <= own start),
-                # leaving TWO open-ended active prices for the pair.
+                # Earliest first: a later-starting draft activated before an earlier one
+                # would not be caught by the earlier one's close-out (its filter is
+                # gueltig_ab <= own start), leaving TWO open-ended active prices for the
+                # pair.
                 .order_by(t.c.gueltig_ab)
             )
         ).all()
@@ -498,12 +604,15 @@ class KatalogRepository:
             )
 
     async def preise_verwerfen(self, bundle_uuid: UUID) -> None:
-        """Discard the bundle's draft price rows (status → verworfen — the active catalog is
-        untouched)."""
+        """Discard the bundle's draft price rows (status → verworfen — the active
+        catalog is untouched)."""
         t = katalog_lieferanten_preise
         await self.conn.execute(
             update(t)
-            .where(t.c.bundle_uuid == bundle_uuid, t.c.status == KatalogStatus.ENTWURF.value)
+            .where(
+                t.c.bundle_uuid == bundle_uuid,
+                t.c.status == KatalogStatus.ENTWURF.value,
+            )
             .values(status=KatalogStatus.VERWORFEN.value)
         )
 
@@ -511,15 +620,17 @@ class KatalogRepository:
         """True when no lifecycle catalog rows exist (a fresh, unseeded DB)."""
         for spec in KATALOG_REGISTRY.values():
             vorhanden = (
-                await self.conn.execute(select(spec.tabelle.c[SPALTE_ZEILE_UUID]).limit(1))
+                await self.conn.execute(
+                    select(spec.tabelle.c[SPALTE_ZEILE_UUID]).limit(1)
+                )
             ).first()
             if vorhanden is not None:
                 return False
         return True
 
     async def alles_leeren(self) -> None:
-        """Delete every catalog row (lifecycle tables + junction + prices + the version row) for
-        a reseed, so the next seed restarts the version at 1."""
+        """Delete every catalog row (lifecycle tables + junction + prices + the version
+        row) for a reseed, so the next seed restarts the version at 1."""
         await self.conn.execute(delete(katalog_bauverfahren_vorgaenge))
         await self.conn.execute(delete(katalog_lieferanten_preise))
         await self.conn.execute(delete(katalog_stand))

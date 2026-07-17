@@ -151,8 +151,9 @@ BODY_MODELS: list[type[BaseModel]] = [
     ProjectRead,
     ProjectCreate,
     ProjectUpdate,
-    # Project context (global variables): the flat current view, the editable subset, and the
-    # governance history (ProjectContextValue is nested in the history, so it must be emitted too).
+    # Project context (global variables): the flat current view, the editable subset,
+    # and the governance history (ProjectContextValue is nested in the history, so it
+    # must be emitted too).
     ProjectContextValue,
     ProjectContextRead,
     ProjectContextUpdate,
@@ -179,9 +180,10 @@ BODY_MODELS: list[type[BaseModel]] = [
     PromptExecutionLogSummary,
     PromptExecutionLogRead,
     OpenRouterUsageRead,
-    # Project-chat retrieval: the turn config the UI sends, and the structured tool-result shapes
-    # the chat renders (LV items, retrieval sources, and the verbose trace). All nested models must
-    # be listed so json2ts emits each interface rather than leaving a dangling reference.
+    # Project-chat retrieval: the turn config the UI sends, and the structured
+    # tool-result shapes the chat renders (LV items, retrieval sources, and the verbose
+    # trace). All nested models must be listed so json2ts emits each interface rather
+    # than leaving a dangling reference.
     TurnRetrievalConfig,
     LVItem,
     ThumbnailRef,
@@ -193,22 +195,24 @@ BODY_MODELS: list[type[BaseModel]] = [
     RerankTrace,
     RetrievalConfig,
     RetrievalContext,
-    # aggregate_lv_items result: per-unit subtotals + itemized breakdown the chat renders.
+    # aggregate_lv_items result: per-unit subtotals + itemized breakdown the chat
+    # renders.
     UnitSubtotal,
     AggregateLineItem,
     AggregateCoverage,
     AggregateTraceEntry,
     AggregateResult,
-    # Katalog confirm card: the bundle-state re-query (with its nested rows) and the activation
-    # report. The draft envelope itself stays untyped JSON (a per-tool artifact).
+    # Katalog confirm card: the bundle-state re-query (with its nested rows) and the
+    # activation report. The draft envelope itself stays untyped JSON (a per-tool
+    # artifact).
     BundleZeileAnsicht,
     BundleZustandAnsicht,
     BundleBericht,
-    # Katalog workspace view: the active rows + version history (payload stays untyped JSON,
-    # rendered generically by entity kind).
+    # Katalog workspace view: the active rows + version history (payload stays untyped
+    # JSON, rendered generically by entity kind).
     KatalogZeile,
-    # Eval curation: gold rows with staleness info (GoldVariable is nested), the PUT body, and
-    # the read-only corrections list + error-analysis summary.
+    # Eval curation: gold rows with staleness info (GoldVariable is nested), the PUT
+    # body, and the read-only corrections list + error-analysis summary.
     GoldVariable,
     GroundTruthRead,
     GroundTruthUpsert,
@@ -386,7 +390,9 @@ def render() -> str:
     parts.append("")
     parts.append("\n\n".join(_render(PINNED_MODELS, "PinnedBundle")))
     parts.append("")
-    parts.append("// ---- Discriminated unions (appended by scripts/export_schema.py) ----")
+    parts.append(
+        "// ---- Discriminated unions (appended by scripts/export_schema.py) ----"
+    )
     parts.append("")
     for name, members in UNIONS:
         union = [f"export type {name} ="]

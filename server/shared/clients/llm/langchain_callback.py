@@ -1,15 +1,17 @@
 """Captures LangChain chat-model telemetry into the same events the LLMClient emits.
 
-LangChain's `ChatOpenAI` (used by the project-chat agent) bypasses `LLMClient`, so its usage and
-execution records would otherwise be invisible. `TelemetryCallbackHandler` is a synchronous
-`BaseCallbackHandler` that buffers a `UsageEvent` and an `ExecutionLogEvent` per model call. It does
-NOT touch the database: the caller drains `usage_events` / `execution_log_events` and emits them to
-the DB sinks after the agent run (see `ProjectChatAgent.drain_telemetry`), keeping the writes on the
-main event loop the sinks' engine is bound to.
+LangChain's `ChatOpenAI` (used by the project-chat agent) bypasses `LLMClient`, so its
+usage and execution records would otherwise be invisible. `TelemetryCallbackHandler` is
+a synchronous `BaseCallbackHandler` that buffers a `UsageEvent` and an
+`ExecutionLogEvent` per model call. It does NOT touch the database: the caller drains
+`usage_events` / `execution_log_events` and emits them to the DB sinks after the agent
+run (see `ProjectChatAgent.drain_telemetry`), keeping the writes on the main event loop
+the sinks' engine is bound to.
 
-`ChatOpenAI` places OpenRouter's raw `usage` object verbatim at `LLMResult.llm_output["token_usage"]`
-(with `cost` when usage accounting is enabled via `extra_body`), so the same `parse_usage` the
-clients use builds the `UsageEvent` here too.
+`ChatOpenAI` places OpenRouter's raw `usage` object verbatim at
+`LLMResult.llm_output["token_usage"]` (with `cost` when usage accounting is enabled via
+`extra_body`), so the same `parse_usage` the clients use builds the `UsageEvent` here
+too.
 """
 
 from __future__ import annotations
@@ -36,11 +38,13 @@ logger = logging.getLogger(__name__)
 LLM_OUTPUT_TOKEN_USAGE = "token_usage"
 LLM_OUTPUT_MODEL_NAME = "model_name"
 
-# OpenRouter usage object keys (read from the raw token_usage dict for the execution log).
+# OpenRouter usage object keys (read from the raw token_usage dict for the execution
+# log).
 USAGE_PROMPT_TOKENS = "prompt_tokens"
 USAGE_COMPLETION_TOKENS = "completion_tokens"
 
-# LangChain message.type -> OpenAI chat role, so buffered messages match LLMClient-recorded rows.
+# LangChain message.type -> OpenAI chat role, so buffered messages match
+# LLMClient-recorded rows.
 _ROLE_BY_TYPE = {"system": "system", "human": "user", "ai": "assistant", "tool": "tool"}
 MESSAGE_ROLE = "role"
 MESSAGE_CONTENT = "content"
@@ -65,7 +69,8 @@ class _Pending:
 
 
 class TelemetryCallbackHandler(BaseCallbackHandler):
-    """Buffers a UsageEvent and ExecutionLogEvent per ChatOpenAI call for the caller to drain."""
+    """Buffers a UsageEvent and ExecutionLogEvent per ChatOpenAI call for the caller to
+    drain."""
 
     def __init__(
         self,
@@ -103,7 +108,11 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
         prompt = messages[0] if messages else []
         converted = [self._convert_message(m) for m in prompt]
         system_prompt = next(
-            (m.content for m in prompt if m.type == "system" and isinstance(m.content, str)),
+            (
+                m.content
+                for m in prompt
+                if m.type == "system" and isinstance(m.content, str)
+            ),
             None,
         )
         self._pending[run_id] = _Pending(
@@ -129,7 +138,9 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
             error_message=None,
         )
 
-    def on_llm_error(self, error: BaseException, *, run_id: UUID, **kwargs: Any) -> None:
+    def on_llm_error(
+        self, error: BaseException, *, run_id: UUID, **kwargs: Any
+    ) -> None:
         returned_at = datetime.now(UTC)
         pending = self._pending.pop(run_id, None)
         self._buffer_execution_log(
@@ -143,13 +154,13 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
             error_message=str(error),
         )
 
-    def _buffer_usage(
-        self, raw_usage: Any, model: str, request_id: str | None
-    ) -> None:
+    def _buffer_usage(self, raw_usage: Any, model: str, request_id: str | None) -> None:
         # Buffering must never break the agent: swallow and log any error.
         try:
             if not isinstance(raw_usage, dict):
-                logger.warning("LangChain chat response missing token usage for model %s", model)
+                logger.warning(
+                    "LangChain chat response missing token usage for model %s", model
+                )
                 return
             body = {FIELD_USAGE: raw_usage, FIELD_RESPONSE_ID: request_id}
             event = parse_usage(
@@ -161,7 +172,9 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
                 chat_prompt_type=self._prompt_type,
             )
             if event.cost is None:
-                logger.warning("OpenRouter usage missing cost for model %s", event.model)
+                logger.warning(
+                    "OpenRouter usage missing cost for model %s", event.model
+                )
             self.usage_events.append(event)
         except Exception:
             logger.exception("Failed to buffer LangChain chat usage; continuing")
@@ -180,7 +193,9 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
     ) -> None:
         # Buffering must never break the agent: swallow and log any error.
         try:
-            generation = self._first_generation(response) if response is not None else None
+            generation = (
+                self._first_generation(response) if response is not None else None
+            )
             usage = raw_usage if isinstance(raw_usage, dict) else {}
             sent_at = pending.sent_at if pending is not None else returned_at
             event = ExecutionLogEvent(
@@ -190,7 +205,9 @@ class TelemetryCallbackHandler(BaseCallbackHandler):
                 prompt_type=self._prompt_type,
                 provider_url=self._provider_url,
                 system_prompt=pending.system_prompt if pending is not None else None,
-                response_text=(generation.text or None) if generation is not None else None,
+                response_text=(generation.text or None)
+                if generation is not None
+                else None,
                 response_tool_calls=self._tool_calls(generation),
                 finish_reason=self._finish_reason(generation),
                 tokens_in=usage.get(USAGE_PROMPT_TOKENS),

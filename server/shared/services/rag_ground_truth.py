@@ -1,9 +1,10 @@
 """Curation of RAG reference questions: CRUD with ref validation.
 
-Refs (document + page) are validated against the project's ingested documents at the write
-boundary — a ref must point at a document of the project, on a page the document has. A question
-without refs is legal but flagged on read (refs_missing): it counts only toward answer grading,
-not retrieval metrics. The validators are pure so they can be unit-tested without a database.
+Refs (document + page) are validated against the project's ingested documents at the
+write boundary — a ref must point at a document of the project, on a page the document
+has. A question without refs is legal but flagged on read (refs_missing): it counts only
+toward answer grading, not retrieval metrics. The validators are pure so they can be
+unit-tested without a database.
 """
 
 from __future__ import annotations
@@ -25,7 +26,8 @@ from shared.repositories.rag_ground_truth import RagGroundTruthRepository
 
 
 def validate_refs(refs: list[RagRef], documents: dict[UUID, Document]) -> list[str]:
-    """Boundary validation for the Fundstellen; returns human-readable problems (empty = valid)."""
+    """Boundary validation for the Fundstellen; returns human-readable problems (empty =
+    valid)."""
     problems: list[str] = []
     for ref in refs:
         doc = documents.get(ref.document_uuid)
@@ -48,7 +50,9 @@ class RagGroundTruthService:
         self._conn = conn
         self._repo = RagGroundTruthRepository(conn)
 
-    async def _validate(self, project_uuid: UUID, payload: RagGroundTruthUpsert) -> None:
+    async def _validate(
+        self, project_uuid: UUID, payload: RagGroundTruthUpsert
+    ) -> None:
         if not payload.refs:
             return
         documents = {

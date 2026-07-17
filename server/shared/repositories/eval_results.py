@@ -17,7 +17,8 @@ class EvalResultRepository:
     async def add_many(
         self, eval_run_uuid: UUID, rows: list[tuple[str, dict[str, Any]]]
     ) -> None:
-        """Persist (item_id, payload) result rows for a finished run. No-op for an empty list."""
+        """Persist (item_id, payload) result rows for a finished run. No-op for an empty
+        list."""
         if not rows:
             return
         await self.conn.execute(

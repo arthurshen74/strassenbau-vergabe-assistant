@@ -1,14 +1,16 @@
 """Resolve, persist and project the project-scoped context globals.
 
 `resolve` fills in every global not yet present: hybrid retrieval finds the chunks, the
-dedicated `PROJECT_CONTEXT_RESOLVE` synthesis distills the value, locations are geocoded, and
-each is written as a new RAG version; `entfernung_deponie_km` is then derived by routing.
-`save` applies a user override (geocoding changed locations, recomputing the deponie distance)
-as new HITL versions. `current_read`/`history` project the version rows for the API/UI.
+dedicated `PROJECT_CONTEXT_RESOLVE` synthesis distills the value, locations are
+geocoded, and each is written as a new RAG version; `entfernung_deponie_km` is then
+derived by routing. `save` applies a user override (geocoding changed locations,
+recomputing the deponie distance) as new HITL versions. `current_read`/`history` project
+the version rows for the API/UI.
 
 The service is constructed with an `AsyncConnection` (the GroundTruthService idiom): a
-transactional connection for the writing paths (`resolve`, `save`) and a read connection for
-the projecting paths. It owns no graph dependency; the retrieval policy is mirrored locally.
+transactional connection for the writing paths (`resolve`, `save`) and a read connection
+for the projecting paths. It owns no graph dependency; the retrieval policy is mirrored
+locally.
 """
 
 from __future__ import annotations
@@ -48,8 +50,9 @@ from shared.services.retrieval.models import RetrievalContext
 
 logger = logging.getLogger(__name__)
 
-# Mirrors the calculator's hybrid policy (graph.CALCULATOR_RETRIEVAL_CONFIG): the resolver owns
-# its own instance so this module never imports the heavy calculator graph.
+# Mirrors the calculator's hybrid policy (graph.CALCULATOR_RETRIEVAL_CONFIG): the
+# resolver owns its own instance so this module never imports the heavy calculator
+# graph.
 RESOLVE_RETRIEVAL_CONFIG = RetrievalConfig(
     modality=RetrievalModality.PLUS,
     multi_query=True,
@@ -57,18 +60,20 @@ RESOLVE_RETRIEVAL_CONFIG = RetrievalConfig(
     use_cross_encoder=True,
 )
 
-# A geocoded location below this confidence is flagged UNSICHER (matches graph.GEOCODE_HITL_THRESHOLD).
+# A geocoded location below this confidence is flagged UNSICHER (matches
+# graph.GEOCODE_HITL_THRESHOLD).
 GEOCODE_UNSICHER_SCHWELLE = 0.6
 
 ROUTING_PROVIDER = "google_routes"
 
-# Governance user placeholder until fastapi-users lands (PROJECT_CONTEXT_PLAN §11.1): every
-# `benutzer` write references this one constant. When auth lands, the caller threads the real
-# authenticated user into `save` instead.
+# Governance user placeholder until fastapi-users lands (PROJECT_CONTEXT_PLAN §11.1):
+# every `benutzer` write references this one constant. When auth lands, the caller
+# threads the real authenticated user into `save` instead.
 DEFAULT_USER = "DEFAULT_USER"
 
-# Offline fixtures (settings.calculator_mock): the resolver skips retrieval + LLM. The mock
-# geocoder returns a fixed coordinate for any address, so the deponie distance resolves to ~0.
+# Offline fixtures (settings.calculator_mock): the resolver skips retrieval + LLM. The
+# mock geocoder returns a fixed coordinate for any address, so the deponie distance
+# resolves to ~0.
 _MOCK_WERTE: dict[str, str] = {
     VAR_BAUSTELLE_LOCATION: "Baustelle L 101, Nordhausen",
     VAR_DEPONIE_LOCATION: "Deponie Sangerhausen",
@@ -90,7 +95,9 @@ class ProjectContextService:
         for name in (*GLOBALE_VARIABLEN, VAR_ENTFERNUNG_DEPONIE_KM):
             versionen = await self._repo.history(project_uuid, name)
             if versionen:
-                out.append(ProjectContextHistory(variable_name=name, versionen=versionen))
+                out.append(
+                    ProjectContextHistory(variable_name=name, versionen=versionen)
+                )
         return out
 
     async def resolve(
@@ -101,42 +108,54 @@ class ProjectContextService:
         llm: LLMClient,
         prompt: PromptVersion | None = None,
     ) -> ProjectContextRead:
-        """Resolve every global not yet present (RAG + synthesis + geocode), then derive the
-        deponie distance. `prompt` is the PROJECT_CONTEXT_RESOLVE PromptVersion (unused in mock)."""
+        """Resolve every global not yet present (RAG + synthesis + geocode), then derive
+        the deponie distance. `prompt` is the PROJECT_CONTEXT_RESOLVE PromptVersion
+        (unused in mock)."""
         current = await self._repo.current(project_uuid)
         location_resolved = False
         for name, gv in GLOBALE_VARIABLEN.items():
             if name in current:
                 continue
-            new = await self._resolve_one(project_uuid, gv, retrieval=retrieval, llm=llm, prompt=prompt)
+            new = await self._resolve_one(
+                project_uuid, gv, retrieval=retrieval, llm=llm, prompt=prompt
+            )
             if new is not None:
                 await self._repo.supersede(new)
                 location_resolved = location_resolved or gv.ist_standort
-        # Repair: a location resolved on an earlier run but never geocoded (e.g. the Geocoding API
-        # was disabled then, or the address was corrected later) is retried here by re-geocoding its
-        # current address. A new version is written only on SUCCESS, so a still-failing geocode never
-        # spams the history; once coordinates exist this is a no-op (idempotent).
-        location_resolved = await self._repair_locations(project_uuid, current) or location_resolved
-        # Route the deponie distance only when a location was newly resolved this run (or none exists
-        # yet); otherwise a no-op resolve would append a spurious ROUTING version every calculation.
+        # Repair: a location resolved on an earlier run but never geocoded (e.g. the
+        # Geocoding API was disabled then, or the address was corrected later) is
+        # retried here by re-geocoding its current address. A new version is written
+        # only on SUCCESS, so a still-failing geocode never spams the history; once
+        # coordinates exist this is a no-op (idempotent).
+        location_resolved = (
+            await self._repair_locations(project_uuid, current) or location_resolved
+        )
+        # Route the deponie distance only when a location was newly resolved this run
+        # (or none exists yet); otherwise a no-op resolve would append a spurious
+        # ROUTING version every calculation.
         if location_resolved or VAR_ENTFERNUNG_DEPONIE_KM not in current:
             await self._recompute_deponie_distance(project_uuid)
         return await self.current_read(project_uuid)
 
     async def clear(self, project_uuid: UUID) -> int:
-        """Delete all persisted context versions for a project so the next resolve re-runs from
-        scratch (RAG + geocode). Returns the number of rows deleted."""
+        """Delete all persisted context versions for a project so the next resolve
+        re-runs from scratch (RAG + geocode). Returns the number of rows deleted."""
         return await self._repo.delete_all(project_uuid)
 
     async def _repair_locations(
         self, project_uuid: UUID, current: dict[str, ProjectContextValue]
     ) -> bool:
-        """Re-geocode any location global that is present but has no coordinates. Returns whether a
-        location was newly geocoded (so the caller reroutes the deponie distance)."""
+        """Re-geocode any location global that is present but has no coordinates.
+        Returns whether a location was newly geocoded (so the caller reroutes the
+        deponie distance)."""
         repariert = False
         for name, gv in GLOBALE_VARIABLEN.items():
             vorhanden = current.get(name)
-            if not gv.ist_standort or vorhanden is None or vorhanden.breitengrad is not None:
+            if (
+                not gv.ist_standort
+                or vorhanden is None
+                or vorhanden.breitengrad is not None
+            ):
                 continue
             breitengrad, laengengrad, status = await self._geocode(vorhanden.wert)
             if breitengrad is None:
@@ -162,8 +181,8 @@ class ProjectContextService:
     async def save(
         self, project_uuid: UUID, update: ProjectContextUpdate, *, benutzer: str
     ) -> ProjectContextRead:
-        """Apply a user override as new HITL versions; geocode changed locations and recompute
-        the deponie distance when either location moved."""
+        """Apply a user override as new HITL versions; geocode changed locations and
+        recompute the deponie distance when either location moved."""
         location_changed = False
         for name in (VAR_BAUSTELLE_LOCATION, VAR_DEPONIE_LOCATION):
             wert = getattr(update, name)
@@ -215,7 +234,9 @@ class ProjectContextService:
             beleg: str | None = "(mock)"
             quelle_referenz: dict | None = None
         else:
-            assert prompt is not None  # live resolution always carries the resolve prompt
+            assert (
+                prompt is not None
+            )  # live resolution always carries the resolve prompt
             ctx = await retrieval.retrieve_context(
                 gv.rag_prompt, project_uuid, RESOLVE_RETRIEVAL_CONFIG
             )
@@ -248,7 +269,8 @@ class ProjectContextService:
         )
 
     async def _geocode(self, address: str) -> tuple[str | None, str | None, str]:
-        """Geocode an address string to (breitengrad, laengengrad, status). Never raises."""
+        """Geocode an address string to (breitengrad, laengengrad, status). Never
+        raises."""
         try:
             geo = await geocode(address)
         except MapsError as exc:
@@ -260,8 +282,8 @@ class ProjectContextService:
         return str(geo.breitengrad), str(geo.laengengrad), status
 
     async def _recompute_deponie_distance(self, project_uuid: UUID) -> None:
-        """Route the current Baustelle -> Deponie and persist `entfernung_deponie_km` (ROUTING).
-        A no-op until both locations are present and geocoded."""
+        """Route the current Baustelle -> Deponie and persist `entfernung_deponie_km`
+        (ROUTING). A no-op until both locations are present and geocoded."""
         current = await self._repo.current(project_uuid)
         baustelle = current.get(VAR_BAUSTELLE_LOCATION)
         deponie = current.get(VAR_DEPONIE_LOCATION)
@@ -293,7 +315,8 @@ def _koordinate(value: ProjectContextValue | None) -> Koordinate | None:
 
 
 def _quelle_referenz(ctx: RetrievalContext) -> dict:
-    """Governance provenance for a RAG value: the retrieval policy + the contributing chunks."""
+    """Governance provenance for a RAG value: the retrieval policy + the contributing
+    chunks."""
     scores = {t.chunk_uuid: t.relevance_score for t in ctx.reranked}
     treffer = [
         {

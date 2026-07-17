@@ -1,7 +1,7 @@
 """RAG reference questions: project-scoped CRUD for the retrieval/answer gold set.
 
-Refs are validated against the project's ingested documents on every write; questions without
-refs are flagged refs_missing on read (they count only toward answer grading).
+Refs are validated against the project's ingested documents on every write; questions
+without refs are flagged refs_missing on read (they count only toward answer grading).
 """
 
 from __future__ import annotations
@@ -22,7 +22,9 @@ router = APIRouter(prefix="/projects", tags=["rag-ground-truth"])
 
 async def _ensure_project(conn: AsyncConnection, project_uuid: UUID) -> None:
     if await ProjectRepository(conn).get(project_uuid) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
 
 
 @router.get("/{project_uuid}/rag-ground-truth", response_model=list[RagGroundTruthRead])
@@ -75,7 +77,9 @@ async def update_rag_ground_truth(
             payload=payload,
         )
     except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
@@ -93,7 +97,9 @@ async def delete_rag_ground_truth(
     _principal: Principal = Depends(get_current_user),
 ) -> None:
     await _ensure_project(uow.conn, project_uuid)
-    if not await RagGroundTruthService(uow.conn).delete(project_uuid, rag_ground_truth_uuid):
+    if not await RagGroundTruthService(uow.conn).delete(
+        project_uuid, rag_ground_truth_uuid
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="RAG reference question not found",

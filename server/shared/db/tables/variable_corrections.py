@@ -19,9 +19,10 @@ from shared.models.enums import VariableCorrectionReason
 # (see VariableCorrectionReason).
 _CORRECTION_REASONS_SQL = ", ".join(f"'{r.value}'" for r in VariableCorrectionReason)
 
-# Append-only log of every Gate B override: the model's proposal (value + provenance + confidence)
-# vs the value the Kalkulator set, with an optional reason. This is error-analysis telemetry,
-# captured on every override regardless of whether the run was also saved as ground truth.
+# Append-only log of every Gate B override: the model's proposal (value + provenance +
+# confidence) vs the value the Kalkulator set, with an optional reason. This is
+# error-analysis telemetry, captured on every override regardless of whether the run was
+# also saved as ground truth.
 variable_corrections = Table(
     "variable_corrections",
     metadata,
@@ -62,7 +63,8 @@ variable_corrections = Table(
     Column("final_wert", Text, nullable=False),
     Column("reason", Text, nullable=True),
     Column("note", Text, nullable=True),
-    # Owner lives in the auth DB; stored here as a plain UUID (the domain DB never joins to auth).
+    # Owner lives in the auth DB; stored here as a plain UUID (the domain DB never joins
+    # to auth).
     Column("created_by_user_id", UUID(as_uuid=True), nullable=False),
     Column(
         "created_at",

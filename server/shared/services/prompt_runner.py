@@ -1,9 +1,10 @@
 """Execution surface for DB-stored prompts.
 
-PromptRunner is the one place that turns a PromptType into an LLM call: it loads the prompt
-version, renders its `{{placeholder}}` template, resolves the registered output schema, and
-delegates to the generic LLMClient (which records usage). The typed wrappers below are the
-public surface feature code calls; `_run` is the shared mechanism beneath them.
+PromptRunner is the one place that turns a PromptType into an LLM call: it loads the
+prompt version, renders its `{{placeholder}}` template, resolves the registered output
+schema, and delegates to the generic LLMClient (which records usage). The typed wrappers
+below are the public surface feature code calls; `_run` is the shared mechanism beneath
+them.
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ from shared.models.llm_output_schemas import (
 )
 from shared.repositories.prompt_versions import PromptVersionRepository
 
-# OpenRouter message keys and the system role. ChatMessage only models user/assistant turns,
-# so the rendered system prompt is passed as a plain message mapping.
+# OpenRouter message keys and the system role. ChatMessage only models user/assistant
+# turns, so the rendered system prompt is passed as a plain message mapping.
 MESSAGE_ROLE = "role"
 MESSAGE_CONTENT = "content"
 ROLE_SYSTEM = "system"
@@ -61,7 +62,8 @@ class PromptRunner:
         ingest_job_uuid: UUID | None = None,
         conversation_uuid: UUID | None = None,
     ) -> list[str]:
-        """Expand a query into up to `n` retrieval variants via the multi-question generator."""
+        """Expand a query into up to `n` retrieval variants via the multi-question
+        generator."""
         count = n if n is not None else settings.multi_query_n
         result = await self._run(
             PromptType.MULTI_QUESTION_GENERATOR,
@@ -84,8 +86,8 @@ class PromptRunner:
         project_uuid: UUID | None = None,
         conversation_uuid: UUID | None = None,
     ) -> LVMembership:
-        """Decide which LV positions in `listing` match an aggregation `predicate` (membership
-        only; the caller sums the matched items deterministically)."""
+        """Decide which LV positions in `listing` match an aggregation `predicate`
+        (membership only; the caller sums the matched items deterministically)."""
         result = await self._run(
             PromptType.AGGREGATE_LV_MEMBERSHIP,
             variables={"predicate": predicate, "listing": listing},
@@ -127,7 +129,8 @@ class PromptRunner:
         project_uuid: UUID | None = None,
         ingest_job_uuid: UUID | None = None,
     ) -> str:
-        """Run a free-form (non-structured) prompt type and return the assistant text."""
+        """Run a free-form (non-structured) prompt type and return the assistant
+        text."""
         result = await self._run(
             prompt_type,
             variables=variables,
@@ -167,7 +170,8 @@ class PromptRunner:
             *messages,
         ]
         output_model = output_model_for(prompt_type)
-        # Split on output_model so chat()'s overloads resolve to str vs the validated model.
+        # Split on output_model so chat()'s overloads resolve to str vs the validated
+        # model.
         if output_model is None:
             return await self._llm.chat(
                 model=pv.model_name,
@@ -195,7 +199,8 @@ class PromptRunner:
 
 
 def render_template(template: str, variables: Mapping[str, str] | None) -> str:
-    """Substitute `{{name}}` placeholders; raise if any placeholder has no supplied variable."""
+    """Substitute `{{name}}` placeholders; raise if any placeholder has no supplied
+    variable."""
     values = variables or {}
 
     def replace(match: re.Match[str]) -> str:

@@ -1,18 +1,19 @@
 """Business logic for projects and their documents.
 
-Reads translate domain models to API DTOs. `ingest_documents` is the upload path: each uploaded
-file (or, for a `.zip`, each flattened entry) is stored to object storage under
-`raw/{document_uuid}`, recorded as a `Document`, and enqueued as a queued `IngestJob` for the
-worker to process later. Storage writes are offloaded to a thread because the StorageClient is
-synchronous boto3. The document type comes from the filename alone: a GAEB file (D83/X83) is
-the LV document by definition and supersedes the project's existing one (the old document is
-deleted first, removing its LV items from Postgres and its chunks from Elasticsearch);
-everything else -- including the LV print-layout PDF -- is prose.
+Reads translate domain models to API DTOs. `ingest_documents` is the upload path: each
+uploaded file (or, for a `.zip`, each flattened entry) is stored to object storage under
+`raw/{document_uuid}`, recorded as a `Document`, and enqueued as a queued `IngestJob`
+for the worker to process later. Storage writes are offloaded to a thread because the
+StorageClient is synchronous boto3. The document type comes from the filename alone: a
+GAEB file (D83/X83) is the LV document by definition and supersedes the project's
+existing one (the old document is deleted first, removing its LV items from Postgres and
+its chunks from Elasticsearch); everything else -- including the LV print-layout PDF --
+is prose.
 
-`delete_document` is the inverse: the DB row delete cascades to the document's thumbnails,
-source_lines, lv_items, and ingest_jobs, while the Elasticsearch chunks and object-storage blobs
-are removed explicitly. The external cleanup is best-effort so a transient ES/storage failure cannot
-strand the user with an undeletable document.
+`delete_document` is the inverse: the DB row delete cascades to the document's
+thumbnails, source_lines, lv_items, and ingest_jobs, while the Elasticsearch chunks and
+object-storage blobs are removed explicitly. The external cleanup is best-effort so a
+transient ES/storage failure cannot strand the user with an undeletable document.
 """
 
 from __future__ import annotations
@@ -145,14 +146,14 @@ class ProjectService:
 
     async def delete_project(self, project_uuid: UUID) -> bool:
         """Remove a project and everything under it. Each document is taken down via
-        delete_document (its Elasticsearch chunks and object-storage blobs, plus its own DB
-        cascade); the project row delete then cascades to conversations and any remaining
-        project-scoped rows. Returns False if the project does not exist.
+        delete_document (its Elasticsearch chunks and object-storage blobs, plus its own
+        DB cascade); the project row delete then cascades to conversations and any
+        remaining project-scoped rows. Returns False if the project does not exist.
 
-        Per-document external cleanup is best-effort (see delete_document): a transient ES/storage
-        failure is logged and leaves an orphaned blob/chunk rather than blocking the delete. Rendered
-        project maps under maps/{project_uuid}/ are not tracked in Postgres and are left as
-        regenerable orphans."""
+        Per-document external cleanup is best-effort (see delete_document): a transient
+        ES/storage failure is logged and leaves an orphaned blob/chunk rather than
+        blocking the delete. Rendered project maps under maps/{project_uuid}/ are not
+        tracked in Postgres and are left as regenerable orphans."""
         assert self.storage is not None
         assert self.thumbnails is not None
         assert self.lv_items is not None
@@ -170,11 +171,12 @@ class ProjectService:
     async def enqueue_ingest(
         self, project_uuid: UUID, document_uuid: UUID
     ) -> IngestJob | None:
-        """Re-ingest an existing document by requeuing its job in place: reset to QUEUED with a
-        fresh retry budget so the worker reprocesses the raw PDF already in object storage
-        (ingestion is idempotent, archiving/replacing the document's prior chunks). Keeps one job
-        per document rather than minting a new row; falls back to creating a job if the document has
-        none yet. Returns None if the document does not exist in the project."""
+        """Re-ingest an existing document by requeuing its job in place: reset to QUEUED
+        with a fresh retry budget so the worker reprocesses the raw PDF already in
+        object storage (ingestion is idempotent, archiving/replacing the document's
+        prior chunks). Keeps one job per document rather than minting a new row; falls
+        back to creating a job if the document has none yet. Returns None if the
+        document does not exist in the project."""
         doc = await self.documents.get(document_uuid)
         if doc is None or doc.project_uuid != project_uuid:
             return None
@@ -188,7 +190,8 @@ class ProjectService:
         project_uuid: UUID,
         uploads: list[UploadInput],
     ) -> list[DocumentRead]:
-        """Store each file (zip entries flattened) and create Document + queued IngestJob rows."""
+        """Store each file (zip entries flattened) and create Document + queued
+        IngestJob rows."""
         assert self.storage is not None, "ingest requires a storage client"
         created: list[DocumentRead] = []
         for upload in uploads:
@@ -196,7 +199,9 @@ class ProjectService:
                 for entry in _expand_zip(upload.data):
                     created.append(
                         await self._ingest_one(
-                            project_uuid, entry, _classify_document_type(entry.file_name)
+                            project_uuid,
+                            entry,
+                            _classify_document_type(entry.file_name),
                         )
                     )
             else:
@@ -213,8 +218,9 @@ class ProjectService:
         if document_type == DocumentType.LV_DOCUMENT:
             existing = await self.documents.get_lv_document(project_uuid)
             if existing is not None:
-                # A GAEB upload supersedes the project's LV: drop the previous LV document
-                # with all its LV items (Postgres cascade) and chunks (Elasticsearch).
+                # A GAEB upload supersedes the project's LV: drop the previous LV
+                # document with all its LV items (Postgres cascade) and chunks
+                # (Elasticsearch).
                 await self.delete_document(project_uuid, existing.document_uuid)
         doc = await self.documents.add(
             NewDocument(
@@ -261,7 +267,10 @@ def _expand_zip(data: bytes) -> list[UploadInput]:
 
 def _count_pdf_pages(upload: UploadInput) -> int:
     """Page count for PDFs (0 for anything else or on a parse error)."""
-    if upload.content_type != CONTENT_TYPE_PDF and not upload.file_name.lower().endswith(".pdf"):
+    if (
+        upload.content_type != CONTENT_TYPE_PDF
+        and not upload.file_name.lower().endswith(".pdf")
+    ):
         return 0
     try:
         with pdfplumber.open(io.BytesIO(upload.data)) as pdf:

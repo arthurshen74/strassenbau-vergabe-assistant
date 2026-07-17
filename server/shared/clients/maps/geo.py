@@ -1,16 +1,17 @@
 """Google Geocoding + Routes client for the EKT calculator.
 
 Two I/O capabilities the pure calc engine must not own (ARCHITECTURE §1): geocoding the
-Baubeschreibung to a Baustelle coordinate, and routing supplier -> Baustelle road distances.
-`geocode` wraps the Geocoding API; `route_matrix` wraps the Routes API computeRouteMatrix so one
-call ranks N candidate suppliers. Both reuse `settings.google_static_maps_api_key` (the shared
-Google Maps Platform key).
+Baubeschreibung to a Baustelle coordinate, and routing supplier -> Baustelle road
+distances. `geocode` wraps the Geocoding API; `route_matrix` wraps the Routes API
+computeRouteMatrix so one call ranks N candidate suppliers. Both reuse
+`settings.google_static_maps_api_key` (the shared Google Maps Platform key).
 
-Mock mode (`settings.calculator_mock`) returns deterministic stubs with no network: geocode
-yields a fixed fixture coordinate, distances fall back to the haversine helper (x1.3 detour) so
-the whole offline calculator flow stays runnable (graph.py mock-mode contract). The live Routes
-path also falls back to haversine per origin/destination pair when a route is missing, so a gap in
-Google's coverage degrades the ranking instead of crashing it.
+Mock mode (`settings.calculator_mock`) returns deterministic stubs with no network:
+geocode yields a fixed fixture coordinate, distances fall back to the haversine helper
+(x1.3 detour) so the whole offline calculator flow stays runnable (graph.py mock-mode
+contract). The live Routes path also falls back to haversine per origin/destination pair
+when a route is missing, so a gap in Google's coverage degrades the ranking instead of
+crashing it.
 """
 
 from __future__ import annotations
@@ -32,7 +33,8 @@ _tracer = trace.get_tracer(__name__)
 # (Breitengrad, Längengrad) in decimal degrees.
 Koordinate = tuple[Decimal, Decimal]
 
-# Mock-mode fixture site: the demo Baustelle on the L 101 near Nordhausen (lieferanten.py __main__).
+# Mock-mode fixture site: the demo Baustelle on the L 101 near Nordhausen
+# (lieferanten.py __main__).
 MOCK_BAUSTELLE_LAT = Decimal("51.42")
 MOCK_BAUSTELLE_LON = Decimal("10.81")
 
@@ -51,10 +53,13 @@ GEOCODE_KEY_LNG = "lng"
 GEOCODE_KEY_LOCATION_TYPE = "location_type"
 GEOCODE_KEY_FORMATTED = "formatted_address"
 GEOCODE_KEY_PARTIAL = "partial_match"
-GEOCODE_KEY_ERROR_MESSAGE = "error_message"  # Google's human reason on non-OK (billing/referrer/etc.)
+GEOCODE_KEY_ERROR_MESSAGE = (
+    "error_message"  # Google's human reason on non-OK (billing/referrer/etc.)
+)
 GEOCODE_STATUS_OK = "OK"
 
-# Geocoder location_type -> confidence (precise rooftop down to a town-level approximation).
+# Geocoder location_type -> confidence (precise rooftop down to a town-level
+# approximation).
 GEOCODE_CONFIDENCE: dict[str, float] = {
     "ROOFTOP": 1.0,
     "RANGE_INTERPOLATED": 0.8,
@@ -111,7 +116,8 @@ ATTR_FALLBACK_PAIRS = "maps.haversine_fallback_pairs"
 
 
 class MapsError(Exception):
-    """Raised when a live geocode/route request cannot be completed (missing key or failure)."""
+    """Raised when a live geocode/route request cannot be completed (missing key or
+    failure)."""
 
 
 class GeocodeResult(BaseModel):
@@ -124,8 +130,11 @@ class GeocodeResult(BaseModel):
 
 
 def _haversine_km(origin: Koordinate, dest: Koordinate) -> Decimal:
-    """Great-circle distance x detour factor, as a Decimal km (the offline distance baseline)."""
-    km = haversine_km(float(origin[0]), float(origin[1]), float(dest[0]), float(dest[1]))
+    """Great-circle distance x detour factor, as a Decimal km (the offline distance
+    baseline)."""
+    km = haversine_km(
+        float(origin[0]), float(origin[1]), float(dest[0]), float(dest[1])
+    )
     return (Decimal(str(km)) * DETOUR_FACTOR).quantize(KM_QUANT)
 
 
@@ -137,24 +146,36 @@ def _record_geocode(span: Span, result: GeocodeResult) -> None:
     span.set_attribute(ATTR_FORMATIERT, result.formatiert)
 
 
-async def geocode(address: str, *, client: httpx.AsyncClient | None = None) -> GeocodeResult:
-    """Resolve an address/place string to a Baustelle coordinate. Mock mode returns the fixture
-    site; live mode calls the Geocoding API and raises MapsError on a missing key or no result.
-    Emits a `maps.geocode` span (address in, coordinate + confidence out; ERROR on failure)."""
+async def geocode(
+    address: str, *, client: httpx.AsyncClient | None = None
+) -> GeocodeResult:
+    """Resolve an address/place string to a Baustelle coordinate. Mock mode returns the
+    fixture site; live mode calls the Geocoding API and raises MapsError on a missing
+    key or no result. Emits a `maps.geocode` span (address in, coordinate + confidence
+    out; ERROR on failure)."""
     with _tracer.start_as_current_span(SPAN_GEOCODE) as span:
         span.set_attribute(ATTR_ADDRESS, address)
         span.set_attribute(ATTR_MOCK, settings.calculator_mock)
         if settings.calculator_mock:
-            result = GeocodeResult(breitengrad=MOCK_BAUSTELLE_LAT, laengengrad=MOCK_BAUSTELLE_LON,
-                                   formatiert=address, konfidenz=1.0)
+            result = GeocodeResult(
+                breitengrad=MOCK_BAUSTELLE_LAT,
+                laengengrad=MOCK_BAUSTELLE_LON,
+                formatiert=address,
+                konfidenz=1.0,
+            )
             _record_geocode(span, result)
             return result
         if not settings.google_static_maps_api_key:
             raise MapsError("google_static_maps_api_key is not configured")
 
-        params = {GEOCODE_PARAM_ADDRESS: address, GEOCODE_PARAM_KEY: settings.google_static_maps_api_key}
+        params = {
+            GEOCODE_PARAM_ADDRESS: address,
+            GEOCODE_PARAM_KEY: settings.google_static_maps_api_key,
+        }
         owns = client is None
-        http = client or httpx.AsyncClient(timeout=settings.maps_request_timeout_seconds)
+        http = client or httpx.AsyncClient(
+            timeout=settings.maps_request_timeout_seconds
+        )
         try:
             response = await http.get(settings.google_maps_geocoding_url, params=params)
             response.raise_for_status()
@@ -168,43 +189,58 @@ async def geocode(address: str, *, client: httpx.AsyncClient | None = None) -> G
 
         results = body.get(GEOCODE_KEY_RESULTS) or []
         if body.get(GEOCODE_KEY_STATUS) != GEOCODE_STATUS_OK or not results:
-            # Google returns a human `error_message` on REQUEST_DENIED/OVER_QUERY_LIMIT (billing,
-            # key restriction, API not enabled, ...); surface it so the cause isn't a bare status.
+            # Google returns a human `error_message` on REQUEST_DENIED/OVER_QUERY_LIMIT
+            # (billing, key restriction, API not enabled, ...); surface it so the cause
+            # isn't a bare status.
             grund = body.get(GEOCODE_KEY_ERROR_MESSAGE)
             detail = f" — {grund}" if grund else ""
             raise MapsError(
                 f"geocode returned no result for {address!r} "
-                f"(status {body.get(GEOCODE_KEY_STATUS)}){detail}")
+                f"(status {body.get(GEOCODE_KEY_STATUS)}){detail}"
+            )
         top = results[0]
         loc = top[GEOCODE_KEY_GEOMETRY][GEOCODE_KEY_LOCATION]
         konfidenz = GEOCODE_CONFIDENCE.get(
-            top[GEOCODE_KEY_GEOMETRY].get(GEOCODE_KEY_LOCATION_TYPE), GEOCODE_CONFIDENCE_DEFAULT)
-        if top.get(GEOCODE_KEY_PARTIAL):                 # a partial match is inherently less certain
+            top[GEOCODE_KEY_GEOMETRY].get(GEOCODE_KEY_LOCATION_TYPE),
+            GEOCODE_CONFIDENCE_DEFAULT,
+        )
+        if top.get(GEOCODE_KEY_PARTIAL):  # a partial match is inherently less certain
             konfidenz = min(konfidenz, 0.5)
         result = GeocodeResult(
             breitengrad=Decimal(str(loc[GEOCODE_KEY_LAT])),
             laengengrad=Decimal(str(loc[GEOCODE_KEY_LNG])),
             formatiert=top.get(GEOCODE_KEY_FORMATTED, address),
-            konfidenz=konfidenz)
+            konfidenz=konfidenz,
+        )
         _record_geocode(span, result)
         return result
 
 
 def _location(coord: Koordinate) -> dict:
-    return {ROUTES_KEY_LOCATION: {ROUTES_KEY_LATLNG: {
-        ROUTES_KEY_LATITUDE: float(coord[0]), ROUTES_KEY_LONGITUDE: float(coord[1])}}}
+    return {
+        ROUTES_KEY_LOCATION: {
+            ROUTES_KEY_LATLNG: {
+                ROUTES_KEY_LATITUDE: float(coord[0]),
+                ROUTES_KEY_LONGITUDE: float(coord[1]),
+            }
+        }
+    }
 
 
-def _waypoint(coord: Koordinate) -> dict:                # computeRouteMatrix wraps a location
+def _waypoint(coord: Koordinate) -> dict:  # computeRouteMatrix wraps a location
     return {ROUTES_KEY_WAYPOINT: _location(coord)}
 
 
-async def route_matrix(origins: list[Koordinate], dests: list[Koordinate], *,
-                       client: httpx.AsyncClient | None = None) -> list[list[Decimal]]:
-    """Road distance (km) for every origin x destination pair. Mock mode and any pair Google
-    cannot route fall back to haversine, so the result is always a full grid (never None).
-    Emits a `maps.route_matrix` span (origin/destination counts + how many pairs were road-routed
-    vs fell back to haversine; ERROR on failure)."""
+async def route_matrix(
+    origins: list[Koordinate],
+    dests: list[Koordinate],
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[list[Decimal]]:
+    """Road distance (km) for every origin x destination pair. Mock mode and any pair
+    Google cannot route fall back to haversine, so the result is always a full grid
+    (never None). Emits a `maps.route_matrix` span (origin/destination counts + how many
+    pairs were road-routed vs fell back to haversine; ERROR on failure)."""
     if not origins or not dests:
         return [[] for _ in origins]
     with _tracer.start_as_current_span(SPAN_ROUTE_MATRIX) as span:
@@ -220,7 +256,10 @@ async def route_matrix(origins: list[Koordinate], dests: list[Koordinate], *,
         if not settings.google_static_maps_api_key:
             raise MapsError("google_static_maps_api_key is not configured")
 
-        headers = {HEADER_API_KEY: settings.google_static_maps_api_key, HEADER_FIELD_MASK: ROUTES_FIELD_MASK}
+        headers = {
+            HEADER_API_KEY: settings.google_static_maps_api_key,
+            HEADER_FIELD_MASK: ROUTES_FIELD_MASK,
+        }
         payload = {
             ROUTES_KEY_ORIGINS: [_waypoint(o) for o in origins],
             ROUTES_KEY_DESTINATIONS: [_waypoint(d) for d in dests],
@@ -228,15 +267,24 @@ async def route_matrix(origins: list[Koordinate], dests: list[Koordinate], *,
             ROUTES_KEY_ROUTING_PREFERENCE: ROUTES_ROUTING_PREFERENCE,
         }
         owns = client is None
-        http = client or httpx.AsyncClient(timeout=settings.maps_request_timeout_seconds)
+        http = client or httpx.AsyncClient(
+            timeout=settings.maps_request_timeout_seconds
+        )
         try:
-            response = await http.post(settings.google_maps_route_matrix_url, headers=headers, json=payload)
+            response = await http.post(
+                settings.google_maps_route_matrix_url, headers=headers, json=payload
+            )
             response.raise_for_status()
             elements = response.json()
         except httpx.HTTPError as exc:
-            logger.exception("Route matrix request failed (%d origins, %d dests)", len(origins), len(dests))
-            # The Routes API returns its reason in the error response body (billing, key restriction,
-            # API not enabled); include it so the cause isn't just the HTTP status.
+            logger.exception(
+                "Route matrix request failed (%d origins, %d dests)",
+                len(origins),
+                len(dests),
+            )
+            # The Routes API returns its reason in the error response body (billing, key
+            # restriction, API not enabled); include it so the cause isn't just the HTTP
+            # status.
             koerper = getattr(getattr(exc, "response", None), "text", "") or ""
             detail = f" — {koerper[:500]}" if koerper else ""
             raise MapsError(f"{exc}{detail}") from exc
@@ -244,38 +292,50 @@ async def route_matrix(origins: list[Koordinate], dests: list[Koordinate], *,
             if owns:
                 await http.aclose()
 
-        # computeRouteMatrix returns a flat, possibly out-of-order list keyed by origin/dest index;
-        # start from the haversine grid and overwrite each pair that routed successfully.
+        # computeRouteMatrix returns a flat, possibly out-of-order list keyed by
+        # origin/dest index; start from the haversine grid and overwrite each pair that
+        # routed successfully.
         grid = haversine_grid
         geroutet = 0
         for el in elements:
-            if el.get(ROUTES_KEY_CONDITION) != ROUTES_CONDITION_OK or ROUTES_KEY_DISTANCE_METERS not in el:
+            if (
+                el.get(ROUTES_KEY_CONDITION) != ROUTES_CONDITION_OK
+                or ROUTES_KEY_DISTANCE_METERS not in el
+            ):
                 continue
             i, j = el[ROUTES_KEY_ORIGIN_INDEX], el[ROUTES_KEY_DEST_INDEX]
-            grid[i][j] = (Decimal(el[ROUTES_KEY_DISTANCE_METERS]) / 1000).quantize(KM_QUANT)
+            grid[i][j] = (Decimal(el[ROUTES_KEY_DISTANCE_METERS]) / 1000).quantize(
+                KM_QUANT
+            )
             geroutet += 1
         span.set_attribute(ATTR_ROUTED_PAIRS, geroutet)
         span.set_attribute(ATTR_FALLBACK_PAIRS, gesamt_paare - geroutet)
         return grid
 
 
-async def road_distance_km(origin: Koordinate, dest: Koordinate, *,
-                           client: httpx.AsyncClient | None = None) -> Decimal:
+async def road_distance_km(
+    origin: Koordinate, dest: Koordinate, *, client: httpx.AsyncClient | None = None
+) -> Decimal:
     """Road distance (km) between two coordinates."""
     return (await route_matrix([origin], [dest], client=client))[0][0]
 
 
-async def route_polyline(origin: Koordinate, dest: Koordinate, *,
-                         client: httpx.AsyncClient | None = None) -> tuple[Decimal, str]:
-    """`(road_km, encoded_polyline)` for origin -> dest via the Routes API computeRoutes, for the
-    route map. Mock mode (and a missing/absent route) returns the haversine distance and an EMPTY
-    polyline, so the caller draws a straight segment between the two points instead of a road line."""
+async def route_polyline(
+    origin: Koordinate, dest: Koordinate, *, client: httpx.AsyncClient | None = None
+) -> tuple[Decimal, str]:
+    """`(road_km, encoded_polyline)` for origin -> dest via the Routes API
+    computeRoutes, for the route map. Mock mode (and a missing/absent route) returns the
+    haversine distance and an EMPTY polyline, so the caller draws a straight segment
+    between the two points instead of a road line."""
     if settings.calculator_mock:
         return _haversine_km(origin, dest), ""
     if not settings.google_static_maps_api_key:
         raise MapsError("google_static_maps_api_key is not configured")
 
-    headers = {HEADER_API_KEY: settings.google_static_maps_api_key, HEADER_FIELD_MASK: COMPUTE_FIELD_MASK}
+    headers = {
+        HEADER_API_KEY: settings.google_static_maps_api_key,
+        HEADER_FIELD_MASK: COMPUTE_FIELD_MASK,
+    }
     payload = {
         COMPUTE_KEY_ORIGIN: _location(origin),
         COMPUTE_KEY_DESTINATION: _location(dest),
@@ -285,7 +345,9 @@ async def route_polyline(origin: Koordinate, dest: Koordinate, *,
     owns = client is None
     http = client or httpx.AsyncClient(timeout=settings.maps_request_timeout_seconds)
     try:
-        response = await http.post(settings.google_maps_compute_routes_url, headers=headers, json=payload)
+        response = await http.post(
+            settings.google_maps_compute_routes_url, headers=headers, json=payload
+        )
         response.raise_for_status()
         body = response.json()
     except httpx.HTTPError as exc:
@@ -299,7 +361,7 @@ async def route_polyline(origin: Koordinate, dest: Koordinate, *,
 
     routes = body.get(COMPUTE_KEY_ROUTES) or []
     if not routes:
-        return _haversine_km(origin, dest), ""      # no route -> straight-line fallback
+        return _haversine_km(origin, dest), ""  # no route -> straight-line fallback
     top = routes[0]
     km = (Decimal(top.get(ROUTES_KEY_DISTANCE_METERS, 0)) / 1000).quantize(KM_QUANT)
     polyline = (top.get(COMPUTE_KEY_POLYLINE) or {}).get(COMPUTE_KEY_ENCODED, "")

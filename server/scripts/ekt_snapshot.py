@@ -1,11 +1,14 @@
 """EKT parity snapshot: freeze cent-exact results of the CURRENT engine + catalog.
 
-Run BEFORE the formula redesign (and again after, with --vergleich) to prove the new engine
+Run BEFORE the formula redesign (and again after, with --vergleich) to prove the new
+engine
 reproduces every EKT to the cent (REZEPT_REDESIGN_PLAN.md §6). Three coverage sets:
 
 1. POSITIONEN — the 41-row L-101 fixture worklist, computed on the DB-loaded catalog.
-2. Synthetic — every active Leistung with a Bauverfahren mapping, menge=100, a fixed generic
-   kontext and a deterministic Baustoff pick; positions whose worklist cannot be satisfied are
+2. Synthetic — every active Leistung with a Bauverfahren mapping, menge=100, a fixed
+generic
+   kontext and a deterministic Baustoff pick; positions whose worklist cannot be
+   satisfied are
    recorded as unresolvable (the new engine must fail on exactly the same set).
 
 Read-only: `lade_katalog` only reads. Results land in eval/parity/ekt_snapshot.json.
@@ -31,10 +34,14 @@ from shared.services.kalkulation_v2.positionen import Position
 from shared.services.kalkulation_v2.provider import lade_katalog
 from shared.services.kalkulation_v2.store import POSITIONEN, kalkuliere
 
-SNAPSHOT_PFAD = Path(__file__).resolve().parents[2] / "eval" / "parity" / "ekt_snapshot.json"
+SNAPSHOT_PFAD = (
+    Path(__file__).resolve().parents[2] / "eval" / "parity" / "ekt_snapshot.json"
+)
 
-# Generic kontext for synthetic coverage — superset of the Gate-B eval answers plus every
-# EINGABE leaf the fixture recipes know. Values are arbitrary but FROZEN: parity compares
+# Generic kontext for synthetic coverage — superset of the Gate-B eval answers plus
+# every
+# EINGABE leaf the fixture recipes know. Values are arbitrary but FROZEN: parity
+# compares
 # old vs new engine on identical inputs, realism is irrelevant.
 SYNTH_KONTEXT: dict[str, str] = {
     "tiefe_cm": "5",
@@ -58,7 +65,8 @@ SYNTH_KONTEXT: dict[str, str] = {
 
 
 def _baustoff_fuer(bv_code: str) -> str | None:
-    """Deterministic Baustoff pick: first code (sorted) whose Kategorie the recipe name hints at,
+    """Deterministic Baustoff pick: first code (sorted) whose Kategorie the recipe name
+    hints at,
     else the first Baustoff overall. Arbitrary but frozen."""
     codes = sorted(m_mat.BAUSTOFFE)
     return codes[0] if codes else None
@@ -74,10 +82,16 @@ def _sicher_kalkulieren(pos: Position) -> dict:
             "ekt_eur": str(r["ekt_eur"]),
             "ep_eur": str(r["ep_eur"]),
             "linien": [
-                {"vorgang": d["vorgang"], "positionen": [
-                    {"kostenart": p["kostenart"], "betrag_eur": str(p["betrag_eur"])}
-                    for p in d["positionen"]
-                ]}
+                {
+                    "vorgang": d["vorgang"],
+                    "positionen": [
+                        {
+                            "kostenart": p["kostenart"],
+                            "betrag_eur": str(p["betrag_eur"]),
+                        }
+                        for p in d["positionen"]
+                    ],
+                }
                 for d in r["detail"]
             ],
         }
@@ -96,7 +110,11 @@ async def main() -> None:
         print("Katalog-Tabellen leer — Snapshot abgebrochen.")
         raise SystemExit(1)
 
-    snapshot: dict = {"katalog_stand": geladen.get("stand"), "positionen": {}, "synthetisch": {}}
+    snapshot: dict = {
+        "katalog_stand": geladen.get("stand"),
+        "positionen": {},
+        "synthetisch": {},
+    }
 
     for pos in POSITIONEN:
         snapshot["positionen"][pos.oz] = _sicher_kalkulieren(pos)
@@ -109,8 +127,12 @@ async def main() -> None:
                 continue
             kontext = {k: Decimal(v) for k, v in SYNTH_KONTEXT.items()}
             pos = Position(
-                oz=f"SYN::{l_key}::{bv_key}", leistung_key=l_key, menge=Decimal("100"),
-                bauverfahren_key=bv_key, baustoff_code=_baustoff_fuer(bv_key), kontext=kontext,
+                oz=f"SYN::{l_key}::{bv_key}",
+                leistung_key=l_key,
+                menge=Decimal("100"),
+                bauverfahren_key=bv_key,
+                baustoff_code=_baustoff_fuer(bv_key),
+                kontext=kontext,
             )
             snapshot["synthetisch"][pos.oz] = _sicher_kalkulieren(pos)
 
@@ -121,8 +143,15 @@ async def main() -> None:
             for oz, alt_r in alt[gruppe].items():
                 neu_r = snapshot[gruppe].get(oz)
                 if neu_r != alt_r:
-                    fehler.append(f"{oz}: alt={alt_r.get('ekt_eur', alt_r.get('fehler'))} "
-                                  f"neu={None if neu_r is None else neu_r.get('ekt_eur', neu_r.get('fehler'))}")
+                    neu_wert = (
+                        None
+                        if neu_r is None
+                        else neu_r.get("ekt_eur", neu_r.get("fehler"))
+                    )
+                    fehler.append(
+                        f"{oz}: alt={alt_r.get('ekt_eur', alt_r.get('fehler'))} "
+                        f"neu={neu_wert}"
+                    )
         if fehler:
             print(f"PARITY FAILED — {len(fehler)} Abweichung(en):")
             for f in fehler[:40]:
@@ -134,10 +163,17 @@ async def main() -> None:
 
     SNAPSHOT_PFAD.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT_PFAD.write_text(json.dumps(snapshot, indent=1, ensure_ascii=False))
-    ok = sum(1 for g in ("positionen", "synthetisch") for r in snapshot[g].values() if r["ok"])
+    ok = sum(
+        1
+        for g in ("positionen", "synthetisch")
+        for r in snapshot[g].values()
+        if r["ok"]
+    )
     gesamt = len(snapshot["positionen"]) + len(snapshot["synthetisch"])
-    print(f"Snapshot geschrieben: {SNAPSHOT_PFAD} — {ok}/{gesamt} Positionen berechnet "
-          f"(Katalog-Stand {snapshot['katalog_stand']}).")
+    print(
+        f"Snapshot geschrieben: {SNAPSHOT_PFAD} — {ok}/{gesamt} Positionen berechnet "
+        f"(Katalog-Stand {snapshot['katalog_stand']})."
+    )
 
 
 if __name__ == "__main__":

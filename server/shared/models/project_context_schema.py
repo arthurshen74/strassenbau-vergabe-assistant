@@ -1,9 +1,11 @@
-"""API/calc-facing projections of the project context (the flat current view + governance).
+"""API/calc-facing projections of the project context (the flat current view +
+governance).
 
-`ProjectContextRead` flattens the current version of every variable into one object the UI
-and the calc consume (addresses as strings; coords + deponie distance derived). `ProjectContextUpdate`
-is the editable subset an override posts (each changed field appends a new version).
-`ProjectContextHistory` is the per-variable version list for governance.
+`ProjectContextRead` flattens the current version of every variable into one object the
+UI and the calc consume (addresses as strings; coords + deponie distance derived).
+`ProjectContextUpdate` is the editable subset an override posts (each changed field
+appends a new version). `ProjectContextHistory` is the per-variable version list for
+governance.
 """
 
 from __future__ import annotations

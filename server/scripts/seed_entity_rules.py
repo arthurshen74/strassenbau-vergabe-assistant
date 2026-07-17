@@ -1,9 +1,9 @@
 """Seed the entity_rules table from the authored JSON fixture.
 
 Imports `server/shared/services/nlp/entity_rules.json` (the 240 hand-authored
-EntityRuler patterns) into the DB. Idempotent: each rule's dedupe key is a hash of
-its label, pattern_id, and canonicalized pattern JSON; rules whose key is already
-present are skipped, so re-running never creates duplicates.
+EntityRuler patterns) into the DB. Idempotent: each rule's dedupe key is a hash of its
+label, pattern_id, and canonicalized pattern JSON; rules whose key is already present
+are skipped, so re-running never creates duplicates.
 
     uv run python -m scripts.seed_entity_rules
 """
@@ -38,7 +38,9 @@ _FIXTURE_ID = "id"
 def _dedupe_key(label: str, pattern_id: str | None, pattern: Any) -> str:
     """Stable identity for a rule: label + pattern_id + canonical pattern JSON."""
     canonical = json.dumps(pattern, sort_keys=True, ensure_ascii=False)
-    return hashlib.sha256(f"{label}|{pattern_id or ''}|{canonical}".encode()).hexdigest()
+    return hashlib.sha256(
+        f"{label}|{pattern_id or ''}|{canonical}".encode()
+    ).hexdigest()
 
 
 def _existing_key(rule: EntityRule) -> str:

@@ -9,9 +9,9 @@ Database access comes in two shapes:
   success and rolls back on exception, for write paths that compose multiple
   repositories.
 
-Auth is a stub for now: ``Principal`` is the request identity, and
-``get_current_user`` always resolves to a hardcoded dev administrator until real
-auth (fastapi-users, then OAuth2/JWT) lands.
+Auth is a stub for now: ``Principal`` is the request identity, and ``get_current_user``
+always resolves to a hardcoded dev administrator until real auth (fastapi-users, then
+OAuth2/JWT) lands.
 """
 
 from __future__ import annotations
@@ -147,7 +147,8 @@ class Principal(BaseModel):
 
 
 # Interim Sprint 2 stub: real auth (fastapi-users, then OAuth2/JWT) lands later; until
-# then every request resolves to a dev administrator. See ARCHITECTURE.md "Authentication".
+# then every request resolves to a dev administrator. See ARCHITECTURE.md
+# "Authentication".
 _DEV_PRINCIPAL = Principal(
     user_id=UUID("00000000-0000-0000-0000-000000000001"),
     roles=["administrator"],

@@ -1,19 +1,20 @@
 """The LLM call sites of the kalkulation_v2 position-calculation graph.
 
-Four prompts, each on a DB-backed, versioned PromptVersion (the caller resolves it
-via shared.services.calculator.prompts and passes it in; model, system text,
+Four prompts, each on a DB-backed, versioned PromptVersion (the caller resolves it via
+shared.services.calculator.prompts and passes it in; model, system text,
 temperature and reasoning effort all come from it):
 
   1. classify_leistung    -> LeistungKlassifikation  (which Leistung is this position?)
-  2. extract_chat_values   -> ChatWerte               (values the Kalkulator stated pre-launch)
-  3. extract_value         -> WertExtraktion          (one generic extractor: Langtext OR RAG)
+  2. extract_chat_values   -> ChatWerte               (values the Kalkulator stated
+  pre-launch)
+  3. extract_value         -> WertExtraktion          (one generic extractor: Langtext
+  OR RAG)
   4. narrate_output        -> str                      (the long-form result narration)
 
-The structured sites go through `chat_with_reasoning` (validated output + the
-provider's reasoning summary, best-effort). Numbers are read VERBATIM from text;
-coercion to Decimal happens deterministically in the graph, never here. Mock mode is
-handled by the graph nodes (which skip these calls entirely), so these are pure
-live-LLM sites.
+The structured sites go through `chat_with_reasoning` (validated output + the provider's
+reasoning summary, best-effort). Numbers are read VERBATIM from text; coercion to
+Decimal happens deterministically in the graph, never here. Mock mode is handled by the
+graph nodes (which skip these calls entirely), so these are pure live-LLM sites.
 """
 
 from __future__ import annotations
@@ -32,8 +33,10 @@ from shared.clients.llm.client import (
 )
 from shared.models.prompt_version import PromptVersion
 
-_REASONING = ("2-5 kurze Denkschritte, ZUERST: was der Text sagt -> welche Regel greift "
-              "-> Schluss. Belege mit wörtlichem Zitat.")
+_REASONING = (
+    "2-5 kurze Denkschritte, ZUERST: was der Text sagt -> welche Regel greift "
+    "-> Schluss. Belege mit wörtlichem Zitat."
+)
 
 # Sentinel the classifier returns when no offered Leistung fits.
 LEISTUNG_UNBEKANNT = "unbekannt"
@@ -41,26 +44,36 @@ LEISTUNG_UNBEKANNT = "unbekannt"
 
 class LeistungKlassifikation(BaseModel):
     reasoning: list[str] = Field(default=[], description=_REASONING)
-    leistung_key: str = Field(description="Genau einer der angebotenen Leistung-Keys, oder 'unbekannt'")
+    leistung_key: str = Field(
+        description="Genau einer der angebotenen Leistung-Keys, oder 'unbekannt'"
+    )
     konfidenz: float = Field(ge=0, le=1)
     notizen: str = Field(description="1-2 Sätze, mit dem entscheidenden Wortlaut")
 
 
 class ChatWertZuweisung(BaseModel):
     name: str = Field(description="Exakter Variablenname aus dem angebotenen Katalog")
-    wert: str = Field(description="Der genannte Wert, wörtlich übernommen (keine Umrechnung)")
+    wert: str = Field(
+        description="Der genannte Wert, wörtlich übernommen (keine Umrechnung)"
+    )
     beleg: str = Field(description="Die Chat-Stelle, die ihn gesetzt hat")
 
 
 class ChatWerte(BaseModel):
     zuweisungen: list[ChatWertZuweisung] = Field(
-        default=[], description="Jede explizite Zuweisung; [] wenn keine")
+        default=[], description="Jede explizite Zuweisung; [] wenn keine"
+    )
 
 
 class WertExtraktion(BaseModel):
     reasoning: list[str] = Field(default=[], description=_REASONING)
-    gefunden: bool = Field(description="True nur, wenn der Beleg den Wert eindeutig hergibt")
-    wert: str | None = Field(default=None, description="Der gelesene Wert, wörtlich; None wenn nicht gefunden")
+    gefunden: bool = Field(
+        description="True nur, wenn der Beleg den Wert eindeutig hergibt"
+    )
+    wert: str | None = Field(
+        default=None,
+        description="Der gelesene Wert, wörtlich; None wenn nicht gefunden",
+    )
     konfidenz: float = Field(ge=0, le=1)
     beleg: str | None = Field(default=None, description="Wörtliches Belegzitat")
 
@@ -86,9 +99,12 @@ async def classify_leistung(
     project_uuid: UUID | None = None,
     conversation_uuid: UUID | None = None,
 ) -> tuple[LeistungKlassifikation, str | None]:
-    user = (f"LV-Position:\n{_dump(position)}\n\n"
-            f"Angebotene Leistungen (wähle GENAU einen leistung_key):\n{_dump(leistung_index)}\n\n"
-            f"Projektkontext (Auszüge):\n{_dump(snippets)}")
+    user = (
+        f"LV-Position:\n{_dump(position)}\n\n"
+        f"Angebotene Leistungen (wähle GENAU einen "
+        f"leistung_key):\n{_dump(leistung_index)}\n\n"
+        f"Projektkontext (Auszüge):\n{_dump(snippets)}"
+    )
     return await llm.chat_with_reasoning(
         model=prompt.model_name,
         messages=_messages(prompt.system_prompt, user),
@@ -112,8 +128,10 @@ async def extract_chat_values(
     project_uuid: UUID | None = None,
     conversation_uuid: UUID | None = None,
 ) -> tuple[ChatWerte, str | None]:
-    user = (f"Chatverlauf:\n{_dump(transcript)}\n\n"
-            f"Variablen-Katalog (wähle names NUR hieraus):\n{_dump(variablen_katalog)}")
+    user = (
+        f"Chatverlauf:\n{_dump(transcript)}\n\n"
+        f"Variablen-Katalog (wähle names NUR hieraus):\n{_dump(variablen_katalog)}"
+    )
     return await llm.chat_with_reasoning(
         model=prompt.model_name,
         messages=_messages(prompt.system_prompt, user),
@@ -139,8 +157,10 @@ async def extract_value(
 ) -> tuple[WertExtraktion, str | None]:
     """One generic extractor, reused for the Langtext step (evidence = position
     Langtext/Hinweise) and the RAG step (evidence = retrieved snippets)."""
-    user = (f"Gesuchte Variable:\n{_dump(variable)}\n\n"
-            f"Beleg (verwende NUR dies):\n{_dump(evidence)}")
+    user = (
+        f"Gesuchte Variable:\n{_dump(variable)}\n\n"
+        f"Beleg (verwende NUR dies):\n{_dump(evidence)}"
+    )
     return await llm.chat_with_reasoning(
         model=prompt.model_name,
         messages=_messages(prompt.system_prompt, user),
@@ -164,8 +184,10 @@ async def narrate_output(
     project_uuid: UUID | None = None,
     conversation_uuid: UUID | None = None,
 ) -> str:
-    user = (f"EKT-Ergebnis:\n{_dump(ekt_zeile)}\n\n"
-            f"Nachweistabelle (Herleitung):\n{_dump(nachweis_tabelle)}")
+    user = (
+        f"EKT-Ergebnis:\n{_dump(ekt_zeile)}\n\n"
+        f"Nachweistabelle (Herleitung):\n{_dump(nachweis_tabelle)}"
+    )
     text = await llm.chat(
         model=prompt.model_name,
         messages=_messages(prompt.system_prompt, user),

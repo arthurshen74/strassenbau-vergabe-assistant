@@ -59,11 +59,21 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--project", type=UUID, required=True, help="project_uuid")
     parser.add_argument("--oz", required=True, help="Ordnungszahl, e.g. 01.02.0006")
-    parser.add_argument("--mock", action="store_true",
-                        help="skip the LLM/RAG seams; use --leistung and --set")
-    parser.add_argument("--leistung", help="mock: the Leistung key the classifier returns")
-    parser.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",
-                        help="mock: pre-pin a chat value (source 0); repeatable")
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="skip the LLM/RAG seams; use --leistung and --set",
+    )
+    parser.add_argument(
+        "--leistung", help="mock: the Leistung key the classifier returns"
+    )
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="mock: pre-pin a chat value (source 0); repeatable",
+    )
     parser.add_argument("--no-trace", action="store_true", help="skip Phoenix tracing")
     return parser.parse_args()
 
@@ -97,9 +107,13 @@ async def main() -> None:
 
     try:
         async with engine.connect() as conn:
-            item = await LVItemRepository(conn).get_by_project_and_oz(args.project, args.oz)
+            item = await LVItemRepository(conn).get_by_project_and_oz(
+                args.project, args.oz
+            )
         if item is None:
-            print(f"no LV position {args.oz} in project {args.project}", file=sys.stderr)
+            print(
+                f"no LV position {args.oz} in project {args.project}", file=sys.stderr
+            )
             raise SystemExit(1)
 
         async def retrieve(query: str) -> list[str]:
@@ -121,9 +135,15 @@ async def main() -> None:
         if args.leistung:
             position[POSITION_LEISTUNG_HINT] = args.leistung
         print(f"position {item.oz}: {item.kurztext} — {item.menge} {item.einheit}")
-        pending = await _stream(app, cfg,
-                                {"position": position, "project_uuid": args.project,
-                                 "vorgaben": _vorgaben(args.set)})
+        pending = await _stream(
+            app,
+            cfg,
+            {
+                "position": position,
+                "project_uuid": args.project,
+                "vorgaben": _vorgaben(args.set),
+            },
+        )
         while pending is not None:
             command = await _prompt_for_resume(pending)
             pending = await _stream(app, cfg, command)
@@ -150,8 +170,8 @@ def _position(item: LVItem) -> dict[str, Any]:
 
 
 async def _stream(app: Any, cfg: dict, payload: Any) -> dict | None:
-    """Run until the next interrupt or completion, printing reasoning live.
-    Returns the interrupt payload to resume from, or None when the run ends."""
+    """Run until the next interrupt or completion, printing reasoning live. Returns the
+    interrupt payload to resume from, or None when the run ends."""
     pending = None
     async for update in app.astream(payload, cfg, stream_mode="updates"):
         if "__interrupt__" in update:
@@ -171,7 +191,7 @@ def _print_reasoning(entry: dict) -> None:
         print(f"[agent] {entry['text']}")
     elif entry["kind"] == REASONING_LLM:
         print(f"    - {entry['text']}")
-    else:                                       # provider reasoning summary
+    else:  # provider reasoning summary
         text = " ".join(entry["text"].split())
         if len(text) > PROVIDER_REASONING_PREVIEW:
             text = text[:PROVIDER_REASONING_PREVIEW].rstrip() + "..."
@@ -192,7 +212,10 @@ async def _prompt_for_resume(payload: dict) -> Command:
         print("\nGRAPH PAUSED: Gate 3 — Material")
         vorschlag = payload.get("baustoff_vorschlag") or {}
         default = vorschlag.get("code")
-        print(f"  Vorschlag   : {default} ({vorschlag.get('name')}) @ {vorschlag.get('konfidenz')}")
+        print(
+            f"  Vorschlag   : {default} ({vorschlag.get('name')}) @ "
+            f"{vorschlag.get('konfidenz')}"
+        )
         answer = await _prompt(f"  Baustoff [{default}]> ")
         return Command(resume={"baustoff_code": answer or default})
 
@@ -200,8 +223,10 @@ async def _prompt_for_resume(payload: dict) -> Command:
     overrides: dict[str, str] = {}
     for v in payload["surfaced"]:
         flag = " [HOCHRISIKO]" if v["hochrisiko"] else ""
-        print(f"\n  {v['name']} = {v['wert']} {v['einheit'] or ''}  "
-              f"({v['quelle'] or 'ungelöst'}){flag}")
+        print(
+            f"\n  {v['name']} = {v['wert']} {v['einheit'] or ''}  "
+            f"({v['quelle'] or 'ungelöst'}){flag}"
+        )
         print(f"    {v['bezeichnung']}")
         answer = await _prompt(f"  {v['name']} [enter = accept]> ")
         if answer:
@@ -220,16 +245,22 @@ def _print_state(state: dict) -> None:
         print("\n(no EKT — see warnings)")
     else:
         print(f"\nEKT: {ekt['leistung']} über {ekt['bauverfahren']}")
-        print(f"  EP {ekt['ep_eur']} EUR/{ekt['einheit']}  ·  GP {ekt['gp_eur']} EUR "
-              f"({ekt['menge']} {ekt['einheit']})")
+        print(
+            f"  EP {ekt['ep_eur']} EUR/{ekt['einheit']}  ·  GP {ekt['gp_eur']} EUR "
+            f"({ekt['menge']} {ekt['einheit']})"
+        )
         for k in ekt["kostenlinien"]:
-            print(f"    {k['kostenart']:12} {k['variable']:26} {k['betrag_eur']:>12} EUR "
-                  f"({k['quelle']})")
+            print(
+                f"    {k['kostenart']:12} {k['variable']:26} {k['betrag_eur']:>12} EUR "
+                f"({k['quelle']})"
+            )
     print("\nNachweistabelle:")
     for n in state.get("nachweis_tabelle", []):
         ausdruck = f"  = {n['ausdruck']}" if n.get("ausdruck") else ""
-        print(f"  {n['name']:30} {n['wert']:>14} {n['einheit'] or '':6} "
-              f"[{n['quelle']}]{ausdruck}")
+        print(
+            f"  {n['name']:30} {n['wert']:>14} {n['einheit'] or '':6} "
+            f"[{n['quelle']}]{ausdruck}"
+        )
     for w in state.get("warnungen", []):
         print(f"  WARNUNG: {w}")
     if state.get("beschreibung"):

@@ -1,7 +1,7 @@
 """NlpService: composition root for the /nlp/* routes.
 
-Wires reflow (source_lines + cached layout), spaCy analysis, and the
-reflowed-text view together. Route handlers stay thin wrappers.
+Wires reflow (source_lines + cached layout), spaCy analysis, and the reflowed-text view
+together. Route handlers stay thin wrappers.
 """
 
 from __future__ import annotations
@@ -33,8 +33,11 @@ class NlpService:
         self._engine = engine
         self._layout = LayoutService(engine, storage)
 
-    async def get_reflow(self, document_uuid: UUID) -> tuple[list[SourceLine], ReflowResult]:
-        """Load lines, ensure layout regions exist, and reflow (CPU-bound part off-loop)."""
+    async def get_reflow(
+        self, document_uuid: UUID
+    ) -> tuple[list[SourceLine], ReflowResult]:
+        """Load lines, ensure layout regions exist, and reflow (CPU-bound part
+        off-loop)."""
         async with unit_of_work(self._engine) as uow:
             lines = await uow.source_lines.list_by_document(document_uuid)
         layout = await self._layout.get_or_infer(document_uuid)

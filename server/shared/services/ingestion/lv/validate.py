@@ -1,9 +1,9 @@
 """Validate the LLM segmentation against the SourceLine rows before slicing.
 
-Hard failures (out-of-range spans, overlapping bodies, a non-monotonic numeric OZ sequence, an
-unparseable quantity) raise `LVValidationError` -- the extraction is unusable. Soft issues
-(a priced position missing its langtext or menge, an unknown linked_oz) are returned as warnings
-for the caller to surface (LV_PARSE.md step 6)."""
+Hard failures (out-of-range spans, overlapping bodies, a non-monotonic numeric OZ
+sequence, an unparseable quantity) raise `LVValidationError` -- the extraction is
+unusable. Soft issues (a priced position missing its langtext or menge, an unknown
+linked_oz) are returned as warnings for the caller to surface (LV_PARSE.md step 6)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,9 @@ def validate(parsed: list[ParsedPosition], src: dict[int, SourceLine]) -> list[s
     return _soft_warnings(parsed)
 
 
-def _check_spans_in_range(parsed: list[ParsedPosition], src: dict[int, SourceLine]) -> None:
+def _check_spans_in_range(
+    parsed: list[ParsedPosition], src: dict[int, SourceLine]
+) -> None:
     for position in parsed:
         for line_id in _all_line_ids(position):
             if line_id not in src:
@@ -39,8 +41,9 @@ def _check_spans_in_range(parsed: list[ParsedPosition], src: dict[int, SourceLin
 def _check_no_overlap(parsed: list[ParsedPosition]) -> None:
     owner: dict[int, str] = {}
     for position in parsed:
-        # Dedupe within a position: a line may legitimately be both the kurztext line and the
-        # start of the langtext span. Only a line claimed by a *different* OZ is a real overlap.
+        # Dedupe within a position: a line may legitimately be both the kurztext line
+        # and the start of the langtext span. Only a line claimed by a *different* OZ is
+        # a real overlap.
         for line_id in set(_body_line_ids(position)):
             existing = owner.get(line_id)
             if existing is not None and existing != position.oz:

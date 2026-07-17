@@ -27,7 +27,8 @@ EKT_PROMPT_TYPES = (
 
 
 class CalculatorPromptNotSeededError(Exception):
-    """A calculator prompt type has no version in prompt_versions (run scripts.seed.prompts)."""
+    """A calculator prompt type has no version in prompt_versions (run
+    scripts.seed.prompts)."""
 
 
 async def load_calculator_prompts(
@@ -40,7 +41,8 @@ async def load_calculator_prompts(
         pv = await repo.get_latest(prompt_type)
         if pv is None:
             raise CalculatorPromptNotSeededError(
-                f"no prompt version for {prompt_type.value}; run `python -m scripts.seed.prompts`"
+                f"no prompt version for {prompt_type.value}; run `python -m "
+                f"scripts.seed.prompts`"
             )
         prompts[prompt_type] = pv
     return prompts

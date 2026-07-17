@@ -3,12 +3,13 @@
 The LLM segments a Leistungsverzeichnis: for every position and section title it returns
 which `line_id`s belong to which field (kurztext / langtext / hinweis) plus the short
 header tokens copied verbatim (oz / stl_nr / menge / einheit). It never reproduces the
-Langtext and never emits coordinates -- deterministic code slices the verbatim text out of
-the SourceLine rows afterwards (LV_PARSE.md).
+Langtext and never emits coordinates -- deterministic code slices the verbatim text out
+of the SourceLine rows afterwards (LV_PARSE.md).
 
-`LVExtraction.positions` is a `list[LVPosition]`, which Pydantic renders with a `$ref` into
-`$defs`. Strict structured output forbids `$ref` (see the registry docstring), so
-`model_json_schema` is overridden to inline the defs before the schema reaches the transport.
+`LVExtraction.positions` is a `list[LVPosition]`, which Pydantic renders with a `$ref`
+into `$defs`. Strict structured output forbids `$ref` (see the registry docstring), so
+`model_json_schema` is overridden to inline the defs before the schema reaches the
+transport.
 """
 
 from __future__ import annotations
@@ -18,8 +19,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Positionstyp values the model may assign to a priced position when the document states one.
-# Section titles are flagged via `is_title` and tagged with POSITIONSTYP_TITEL by code, not here.
+# Positionstyp values the model may assign to a priced position when the document states
+# one. Section titles are flagged via `is_title` and tagged with POSITIONSTYP_TITEL by
+# code, not here.
 Positionstyp = Literal[
     "Normalposition",
     "Bedarfsposition",
@@ -45,7 +47,8 @@ NO_LINE = -1
 
 
 class LVPosition(BaseModel):
-    """One position or section title, expressed as line spans plus verbatim header tokens.
+    """One position or section title, expressed as line spans plus verbatim header
+    tokens.
 
     Spans are inclusive `line_id` ranges into the line-numbered rendering; NO_LINE (-1)
     marks an absent span. Token fields are copied verbatim from the header line."""
@@ -64,7 +67,8 @@ class LVPosition(BaseModel):
         description="First line_id of the long-text body; -1 if there is none."
     )
     langtext_end: int = Field(
-        description="Last line_id of the long-text body, inclusive; -1 if there is none."
+        description="Last line_id of the long-text body, inclusive; -1 if there is "
+        "none."
     )
     hinweis_start: int = Field(
         description="First line_id of a governing Hinweis block tied to this position; "
@@ -82,7 +86,8 @@ class LVPosition(BaseModel):
         "(e.g. '25,00'); null for titles and notes."
     )
     einheit: str | None = Field(
-        description="Unit token verbatim (e.g. 'm', 'm2', 'St', 'psch'); null when there "
+        description="Unit token verbatim (e.g. 'm', 'm2', 'St', 'psch'); null when "
+        "there "
         "is no quantity."
     )
     linked_oz: str | None = Field(
@@ -90,7 +95,8 @@ class LVPosition(BaseModel):
         "referenced predecessor; else null."
     )
     positionstyp: Positionstyp | None = Field(
-        description="The position type if the document states one explicitly; else null."
+        description="The position type if the document states one explicitly; else "
+        "null."
     )
 
 
@@ -100,7 +106,8 @@ class LVExtraction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     positions: list[LVPosition] = Field(
-        description="Every position and section title in the document, in document order."
+        description="Every position and section title in the document, in document "
+        "order."
     )
 
     @classmethod
@@ -111,8 +118,9 @@ class LVExtraction(BaseModel):
 
 
 def inline_defs(schema: dict[str, Any]) -> dict[str, Any]:
-    """Return a copy of a JSON schema with every `$ref` to `$defs` replaced inline and the
-    top-level `$defs` removed. Sibling keys on a `$ref` node (e.g. a description) are kept."""
+    """Return a copy of a JSON schema with every `$ref` to `$defs` replaced inline and
+    the top-level `$defs` removed. Sibling keys on a `$ref` node (e.g. a description)
+    are kept."""
     defs = schema.get("$defs", {})
 
     def resolve(node: Any) -> Any:

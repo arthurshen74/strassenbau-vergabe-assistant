@@ -1,11 +1,11 @@
 """State envelope + output artifacts for the EKT position-calculation graph.
 
 The graph state is the chat+calc envelope; its heart is the resolved-values dict
-(`werte`) the engine consumes, but it also carries the method decision (Gate A),
-the variable worklist + proposals (Gate B), and the three output artifacts. State
-is kept plain-JSON (no Decimal, no engine objects) so the LangGraph Postgres
-checkpointer can serialize it across HITL interrupts; the compute node rebuilds the
-engine's `VariablenWert` bag from `werte` and dumps results back as JSON.
+(`werte`) the engine consumes, but it also carries the method decision (Gate A), the
+variable worklist + proposals (Gate B), and the three output artifacts. State is kept
+plain-JSON (no Decimal, no engine objects) so the LangGraph Postgres checkpointer can
+serialize it across HITL interrupts; the compute node rebuilds the engine's
+`VariablenWert` bag from `werte` and dumps results back as JSON.
 """
 
 from __future__ import annotations
@@ -22,9 +22,10 @@ from shared.services.kalkulation_v2.model import AufloesungsMethode, VariablenWe
 # Default confidence threshold for Gate B tiering (ARCHITECTURE §7).
 DEFAULT_REVIEW_SCHWELLE = 0.75
 
-# Interrupt payload stages (the UI dispatches its gate components on these). Four HITL gates, each
-# consuming only inputs the human already confirmed: project context (G1), Leistung+Bauverfahren
-# (G2), Material (G3, skipped for material-free recipes), then machines+supplier+variables (G4).
+# Interrupt payload stages (the UI dispatches its gate components on these). Four HITL
+# gates, each consuming only inputs the human already confirmed: project context (G1),
+# Leistung+Bauverfahren (G2), Material (G3, skipped for material-free recipes), then
+# machines+supplier+variables (G4).
 STAGE_PROJECT_CONTEXT_REVIEW = "project_context_review"
 STAGE_LEISTUNG_BV_REVIEW = "leistung_bv_review"
 STAGE_MATERIAL_REVIEW = "material_review"
@@ -37,17 +38,22 @@ STATUS_VORGESCHLAGEN = "vorgeschlagen"
 STATUS_AKZEPTIERT = "akzeptiert"
 STATUS_UEBERSCHRIEBEN = "ueberschrieben"
 
-# Location geocoding outcome (the project-context review shows the editable location with this
-# status). Mirrors the backend ContextStatus values.
-BAUSTELLE_OK = "aufgeloest"            # geocoded with confidence
-BAUSTELLE_UNSICHER = "unsicher"        # geocoded but low confidence -> confirm
-BAUSTELLE_FEHLT = "fehlgeschlagen"     # not geocoded -> enter manually
+# Location geocoding outcome (the project-context review shows the editable location
+# with this status). Mirrors the backend ContextStatus values.
+BAUSTELLE_OK = "aufgeloest"  # geocoded with confidence
+BAUSTELLE_UNSICHER = "unsicher"  # geocoded but low confidence -> confirm
+BAUSTELLE_FEHLT = "fehlgeschlagen"  # not geocoded -> enter manually
 
-# Project-context reconcile flags: how a chat-stated global relates to the saved/resolved value
-# (the review offers Confirm / Override / resolve-Conflict per variable, §8.3).
-RECONCILE_BESTAETIGEN = "bestaetigen"      # chat agrees with the current value (or none stated)
-RECONCILE_UEBERSCHREIBEN = "ueberschreiben"  # chat proposes a value where none was saved
-RECONCILE_KONFLIKT = "konflikt"            # chat value differs from the saved value
+# Project-context reconcile flags: how a chat-stated global relates to the
+# saved/resolved value (the review offers Confirm / Override / resolve-Conflict per
+# variable, §8.3).
+RECONCILE_BESTAETIGEN = (
+    "bestaetigen"  # chat agrees with the current value (or none stated)
+)
+RECONCILE_UEBERSCHREIBEN = (
+    "ueberschreiben"  # chat proposes a value where none was saved
+)
+RECONCILE_KONFLIKT = "konflikt"  # chat value differs from the saved value
 
 
 def wert_to_json(w: VariablenWert) -> dict:
@@ -72,12 +78,13 @@ def wert_from_json(d: dict) -> VariablenWert:
 
 class VariablenVorschlag(BaseModel):
     """One Gate B row: a worklist leaf with its proposed value, provenance and tier."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str
     bezeichnung: str
     einheit: str | None = None
-    art: str                                 # BlattArt value: eingabe | satz | stammdaten
+    art: str  # BlattArt value: eingabe | satz | stammdaten
     hochrisiko: bool = False
     tier: str = TIER_COLLAPSED
     status: str = STATUS_VORGESCHLAGEN
@@ -89,8 +96,9 @@ class VariablenVorschlag(BaseModel):
 
 
 class NachweisZeile(BaseModel):
-    """One row of the derivation tree: a variable the calc touched, with provenance.
-    For FORMEL variables `ausdruck` + `eingaben` show how it was computed."""
+    """One row of the derivation tree: a variable the calc touched, with provenance. For
+    FORMEL variables `ausdruck` + `eingaben` show how it was computed."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str
@@ -104,7 +112,9 @@ class NachweisZeile(BaseModel):
 
 
 class KostenLinie(BaseModel):
-    """One cost line of the EKT: a Kostenart of a Vorgang, with its variable + source."""
+    """One cost line of the EKT: a Kostenart of a Vorgang, with its variable +
+    source."""
+
     model_config = ConfigDict(extra="forbid")
 
     vorgang: str
@@ -116,6 +126,7 @@ class KostenLinie(BaseModel):
 
 class EKTZeile(BaseModel):
     """The unit-price result for one position (EKT/Einzelkosten der Teilleistung)."""
+
     model_config = ConfigDict(extra="forbid")
 
     oz: str
@@ -124,18 +135,18 @@ class EKTZeile(BaseModel):
     bauverfahren: str
     einheit: str | None = None
     menge: Decimal
-    ep_eur: Decimal                          # Einheitspreis (per unit)
-    gp_eur: Decimal                          # Gesamtpreis (EKT total for the menge)
+    ep_eur: Decimal  # Einheitspreis (per unit)
+    gp_eur: Decimal  # Gesamtpreis (EKT total for the menge)
     kostenlinien: list[KostenLinie] = []
 
 
 class PositionKalkulationState(TypedDict, total=False):
     # --- permanent LV context (from the chat agent) ---
-    position: dict                           # oz, kurztext, langtext, menge, einheit, baustoff_code
+    position: dict  # oz, kurztext, langtext, menge, einheit, baustoff_code
     project_uuid: UUID
     conversation_uuid: UUID
-    chat_verlauf: list[dict]                 # [{role, content}] pre-launch transcript (source 0)
-    vorgaben: dict                           # name -> value stated in chat (mock source-0 seed)
+    chat_verlauf: list[dict]  # [{role, content}] pre-launch transcript (source 0)
+    vorgaben: dict  # name -> value stated in chat (mock source-0 seed)
 
     # --- config ---
     konfidenz_schwelle_review: float
@@ -145,44 +156,59 @@ class PositionKalkulationState(TypedDict, total=False):
     leistung_name: str
     bauverfahren_kandidaten: list[str]
     bauverfahren_key: str
-    abgebrochen: bool                        # the Kalkulator cancelled at Gate A
+    abgebrochen: bool  # the Kalkulator cancelled at Gate A
 
     # --- resources (machines + material), bound after the recipe is chosen ---
-    gewaehlte_maschinen: dict                # ausfuehrungsart_code -> Maschine code (default; Gate 4 override)
-    maschinen_kandidaten: dict               # ausfuehrungsart_code -> [{code, hersteller, modell}]
-    maschinen_werte: dict                    # name -> wert_to_json (machine-sourced cost/productivity)
+    gewaehlte_maschinen: (
+        dict  # ausfuehrungsart_code -> Maschine code (default; Gate 4 override)
+    )
+    maschinen_kandidaten: dict  # ausfuehrungsart_code -> [{code, hersteller, modell}]
+    maschinen_werte: dict  # name -> wert_to_json (machine-sourced cost/productivity)
     baustoff_code: str | None
-    # BM25 match from the LV text -> Baustoff catalog (resolved after Gate 2, pre-fills the Gate 3
-    # picker). {code, name, konfidenz, auto, treffer:[{code,name,score}]}; None if the recipe needs none.
+    # BM25 match from the LV text -> Baustoff catalog (resolved after Gate 2, pre-fills
+    # the Gate 3 picker). {code, name, konfidenz, auto, treffer:[{code,name,score}]};
+    # None if the recipe needs none.
     baustoff_vorschlag: dict | None
 
-    # --- project context (global variables, resolved once per project; §1) ---
-    # Flat current view (ProjectContextRead.model_dump): baustelle/deponie location + coords +
-    # status, entfernung_deponie_km, strip dims, fraesgut_klasse. Supplier ranking + deponie
-    # distance read the confirmed Baustelle/Deponie coords from here (no per-position geocode).
+    # --- project context (global variables, resolved once per project; §1) --- Flat
+    # current view (ProjectContextRead.model_dump): baustelle/deponie location + coords
+    # + status, entfernung_deponie_km, strip dims, fraesgut_klasse. Supplier ranking +
+    # deponie distance read the confirmed Baustelle/Deponie coords from here (no
+    # per-position geocode).
     projekt_kontext: dict
-    projekt_kontext_reconcile: dict          # variable_name -> {flag (RECONCILE_*), chat_wert, aktuell_wert}
-    chat_global_kandidaten: dict             # variable_name -> {wert, beleg, quelle}: globals stated in chat
+    projekt_kontext_reconcile: (
+        dict  # variable_name -> {flag (RECONCILE_*), chat_wert, aktuell_wert}
+    )
+    chat_global_kandidaten: (
+        dict  # variable_name -> {wert, beleg, quelle}: globals stated in chat
+    )
 
     # --- supplier selection (ranked after Material is confirmed at Gate 3) ---
-    # baustoff_code -> {default: lieferant_code|None, angebote: [LieferantAngebot.model_dump(json)]}.
-    # Ranked cheapest-delivered for the Gate 4 supplier picker.
+    # baustoff_code -> {default: lieferant_code|None, angebote:
+    # [LieferantAngebot.model_dump(json)]}. Ranked cheapest-delivered for the Gate 4
+    # supplier picker.
     lieferanten_vorschlag: dict
-    gewaehlter_lieferant: dict               # baustoff_code -> lieferant_code (default cheapest; Gate 4 override)
-    lieferant_code: str | None               # finalized supplier for the bound Baustoff
-    lieferant_werkspreis: str | None         # finalized ex-works €/t override (string); None = catalog price
-    lieferant_beleg: str | None              # Nachweis beleg for the supplier-driven material price
-    lieferant_werte: dict                    # name -> wert_to_json (supplier-sourced, e.g. entfernung_lieferant_km)
+    gewaehlter_lieferant: (
+        dict  # baustoff_code -> lieferant_code (default cheapest; Gate 4 override)
+    )
+    lieferant_code: str | None  # finalized supplier for the bound Baustoff
+    lieferant_werkspreis: (
+        str | None
+    )  # finalized ex-works €/t override (string); None = catalog price
+    lieferant_beleg: str | None  # Nachweis beleg for the supplier-driven material price
+    lieferant_werte: (
+        dict  # name -> wert_to_json (supplier-sourced, e.g. entfernung_lieferant_km)
+    )
 
     # --- resolution (Gate 4: machines + supplier + variables) ---
-    chat_werte: dict                         # name -> wert_to_json: values pinned from chat
-    benoetigte: list[dict]                   # VariablenBlatt.model_dump() worklist leaves
-    vorschlaege: dict                        # name -> VariablenVorschlag.model_dump()
+    chat_werte: dict  # name -> wert_to_json: values pinned from chat
+    benoetigte: list[dict]  # VariablenBlatt.model_dump() worklist leaves
+    vorschlaege: dict  # name -> VariablenVorschlag.model_dump()
 
     # --- outputs ---
-    werte: dict                              # name -> wert_to_json -> Kalkulationskontext.werte
-    ekt_zeile: dict                          # EKTZeile.model_dump(mode="json")
-    nachweis_tabelle: list[dict]             # NachweisZeile.model_dump(mode="json")
+    werte: dict  # name -> wert_to_json -> Kalkulationskontext.werte
+    ekt_zeile: dict  # EKTZeile.model_dump(mode="json")
+    nachweis_tabelle: list[dict]  # NachweisZeile.model_dump(mode="json")
     beschreibung: str | None
     warnungen: Annotated[list[str], operator.add]
     reasoning_log: Annotated[list[dict], operator.add]

@@ -1,11 +1,12 @@
 """Create a position-chat conversation for an LV position.
 
-The flow is conversation-first: this endpoint makes the `ekt_calculator` conversation (owned by the
-principal, so it shows in the project conversation list), bound to the LV position via
-`lv_item_uuid`, and seeds the opening message with the position details. The UI redirects to it and
-the user chats about the position; asking to run the EKT calculation trips the agent's
-`calculate_ekt` tool, which the `/conversations/{uuid}/turn` endpoint continues into the calculation
-(streaming reasoning, pausing at HITL gates, resuming via the same turn endpoint)."""
+The flow is conversation-first: this endpoint makes the `ekt_calculator` conversation
+(owned by the principal, so it shows in the project conversation list), bound to the LV
+position via `lv_item_uuid`, and seeds the opening message with the position details.
+The UI redirects to it and the user chats about the position; asking to run the EKT
+calculation trips the agent's `calculate_ekt` tool, which the
+`/conversations/{uuid}/turn` endpoint continues into the calculation (streaming
+reasoning, pausing at HITL gates, resuming via the same turn endpoint)."""
 
 from __future__ import annotations
 
@@ -53,10 +54,10 @@ async def create_calculation(
     principal: Principal = Depends(get_current_user),
     engine: AsyncEngine = Depends(get_engine),
 ) -> ConversationRead:
-    """Create the position-chat conversation for an LV position and seed its opening message. The UI
-    redirects to it; the user chats about the position and can ask to run the EKT calculation, which
-    the turn endpoint continues into the calculation. `awaiting_start` here means "position chat,
-    calculation not yet run"."""
+    """Create the position-chat conversation for an LV position and seed its opening
+    message. The UI redirects to it; the user chats about the position and can ask to
+    run the EKT calculation, which the turn endpoint continues into the calculation.
+    `awaiting_start` here means "position chat, calculation not yet run"."""
     async with engine.connect() as conn:
         item = await LVItemRepository(conn).get_by_project_and_oz(project_uuid, oz)
     if item is None:

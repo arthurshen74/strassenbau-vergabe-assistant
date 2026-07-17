@@ -1,5 +1,5 @@
-"""Repository for ner_flags: CRUD plus the effective-category aggregation that
-backs the dashboard summary (user override wins over the LLM assignment)."""
+"""Repository for ner_flags: CRUD plus the effective-category aggregation that backs the
+dashboard summary (user override wins over the LLM assignment)."""
 
 from __future__ import annotations
 

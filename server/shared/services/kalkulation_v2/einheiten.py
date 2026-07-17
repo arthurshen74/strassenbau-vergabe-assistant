@@ -1,24 +1,25 @@
 """einheiten.py — the unit converter for formula bindings.
 
 One small fixed table maps every supported unit to its canonical base and an EXACT
-power-of-ten Decimal factor (REZEPT_REDESIGN_PLAN.md §2.3). Compound units are parsed
-as products/quotients of base units ("kg/m2", "€/(t·km)", "g/(m·cm)"), their factor is
-the quotient of the component factors — still exact, so a converted calculation stays
+power-of-ten Decimal factor (REZEPT_REDESIGN_PLAN.md §2.3). Compound units are parsed as
+products/quotients of base units ("kg/m2", "€/(t·km)", "g/(m·cm)"), their factor is the
+quotient of the component factors — still exact, so a converted calculation stays
 cent-identical to the inline-arithmetic formulas it replaces.
 
 Conversion happens at binding time: a source value whose Einheit differs from the
 parameter's canonical Einheit by scale only is multiplied by `faktor(von, nach)`.
-Dimension CHANGES (m³→t) are never conversions — they are Mengengerüst formulas.
-Unknown units pass through unchanged (save-time validation owns unit compatibility;
-the calculator must not crash on a generic parameter like `menge`).
+Dimension CHANGES (m³→t) are never conversions — they are Mengengerüst formulas. Unknown
+units pass through unchanged (save-time validation owns unit compatibility; the
+calculator must not crash on a generic parameter like `menge`).
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
 
-# Base unit -> (canonical unit, exact Decimal factor). Only exact power-of-ten scalings —
-# a unit that would need a repeating-decimal factor (min->h) has no place in this table.
+# Base unit -> (canonical unit, exact Decimal factor). Only exact power-of-ten scalings
+# — a unit that would need a repeating-decimal factor (min->h) has no place in this
+# table.
 _BASIS: dict[str, tuple[str, Decimal]] = {
     "mm": ("m", Decimal("0.001")),
     "cm": ("m", Decimal("0.01")),
@@ -63,7 +64,9 @@ def _produkt(teil: str) -> tuple[tuple[str, ...], Decimal] | None:
     return tuple(sorted(kanonisch)), faktor
 
 
-def zerlege(einheit: str) -> tuple[tuple[tuple[str, ...], tuple[str, ...]], Decimal] | None:
+def zerlege(
+    einheit: str,
+) -> tuple[tuple[tuple[str, ...], tuple[str, ...]], Decimal] | None:
     """Decompose a unit into its canonical dimension signature and exact scale factor.
 
     Returns ((numerator units, denominator units), factor) or None for an unknown unit.

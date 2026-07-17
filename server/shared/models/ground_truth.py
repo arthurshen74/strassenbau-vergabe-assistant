@@ -1,8 +1,8 @@
 """Domain models for EKT ground-truth capture.
 
 GroundTruth is the expert-confirmed answer for one LV position (the curated gold set); a
-VariableCorrection is one Gate B override (proposal vs. the Kalkulator's value), the append-only
-telemetry that explains why a value changed. Both are written at Gate B; see
+VariableCorrection is one Gate B override (proposal vs. the Kalkulator's value), the
+append-only telemetry that explains why a value changed. Both are written at Gate B; see
 shared.services.ground_truth.
 """
 
@@ -17,19 +17,21 @@ from shared.models.enums import VariableCorrectionReason
 
 
 class GoldVariable(BaseModel):
-    """The endorsed value for one reviewed leaf, with the provenance that produced it."""
+    """The endorsed value for one reviewed leaf, with the provenance that produced
+    it."""
 
     model_config = ConfigDict(extra="forbid")
 
     wert: str | None = None
     einheit: str | None = None
-    art: str | None = None                 # BlattArt value: eingabe | satz | stammdaten
-    quelle: str | None = None              # AufloesungsMethode value, or hitl when overridden
-    overridden: bool = False               # True when the Kalkulator changed the proposal
+    art: str | None = None  # BlattArt value: eingabe | satz | stammdaten
+    quelle: str | None = None  # AufloesungsMethode value, or hitl when overridden
+    overridden: bool = False  # True when the Kalkulator changed the proposal
 
 
 class NewGroundTruth(BaseModel):
-    """Create/upsert model for one position's gold record. PK and timestamps assigned by the DB."""
+    """Create/upsert model for one position's gold record. PK and timestamps assigned by
+    the DB."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -52,8 +54,8 @@ class GroundTruth(NewGroundTruth):
 
 
 class GroundTruthUpsert(BaseModel):
-    """PUT body for curating one position's gold record. Scope and audit fields come from the
-    route (path + principal); oz comes from the LV item, never the client."""
+    """PUT body for curating one position's gold record. Scope and audit fields come
+    from the route (path + principal); oz comes from the LV item, never the client."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -67,9 +69,9 @@ class GroundTruthRead(GroundTruth):
     shared.services.ground_truth.assess_staleness)."""
 
     stale: bool = False
-    recipe_missing: bool = False           # leistung/bauverfahren no longer in the catalog
-    missing_variables: list[str] = []      # in the current worklist but not in gold
-    extra_variables: list[str] = []        # in gold but no longer in the worklist
+    recipe_missing: bool = False  # leistung/bauverfahren no longer in the catalog
+    missing_variables: list[str] = []  # in the current worklist but not in gold
+    extra_variables: list[str] = []  # in gold but no longer in the worklist
 
 
 class NewVariableCorrection(BaseModel):

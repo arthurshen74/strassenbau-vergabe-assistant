@@ -43,19 +43,22 @@ class Settings(BaseSettings):
     google_static_maps_api_key: str | None = None
     jwt_secret: str | None = None
 
-    # Default zoom for the render_map chat tool. 12 frames roughly a 3 km radius at German
-    # latitudes on the 800px image; higher zooms in. The model may override per call.
+    # Default zoom for the render_map chat tool. 12 frames roughly a 3 km radius at
+    # German latitudes on the 800px image; higher zooms in. The model may override per
+    # call.
     static_map_zoom: int = 12
 
-    # Google Maps Platform endpoints behind the calculator's Baustelle geocoding and supplier
-    # road distances. They reuse the same key as the static map tool (google_static_maps_api_key):
-    # the Geocoding API resolves the Baubeschreibung to lat/lon, the Routes API computeRouteMatrix
-    # ranks N candidate suppliers by road distance in one call.
+    # Google Maps Platform endpoints behind the calculator's Baustelle geocoding and
+    # supplier road distances. They reuse the same key as the static map tool
+    # (google_static_maps_api_key):
+    # the Geocoding API resolves the Baubeschreibung to lat/lon, the Routes API
+    # computeRouteMatrix ranks N candidate suppliers by road distance in one call.
     google_maps_geocoding_url: str = "https://maps.googleapis.com/maps/api/geocode/json"
     google_maps_route_matrix_url: str = (
         "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
     )
-    # computeRoutes (single route) returns the road polyline for the Baustelle->Deponie route map.
+    # computeRoutes (single route) returns the road polyline for the Baustelle->Deponie
+    # route map.
     google_maps_compute_routes_url: str = (
         "https://routes.googleapis.com/directions/v2:computeRoutes"
     )
@@ -76,17 +79,20 @@ class Settings(BaseSettings):
     # OpenRouter reasoning effort for the calculator's LLM sites; None disables the
     # reasoning request (and the provider reasoning summaries in the output).
     calculator_reasoning_effort: str | None = "low"
-    # Min BM25 separation confidence to AUTO-apply a matched Baustoff at Gate A; below this
-    # the top hit is surfaced for the Kalkulator to confirm/choose (HITL). Range (0.5, 1].
+    # Min BM25 separation confidence to AUTO-apply a matched Baustoff at Gate A; below
+    # this the top hit is surfaced for the Kalkulator to confirm/choose (HITL). Range
+    # (0.5, 1].
     calculator_baustoff_match_threshold: float = 0.6
     # Target machine deployment window (hours) for right-sizing the default machine: the
-    # default is the smallest candidate whose capacity clears the job within this window.
+    # default is the smallest candidate whose capacity clears the job within this
+    # window.
     calculator_maschine_zielstunden: float = 16.0
-    # Supplier ranking: carriers beyond this great-circle radius (km) are dropped before road
-    # routing; if none remain, the ranking falls back to the single nearest carrier and warns.
+    # Supplier ranking: carriers beyond this great-circle radius (km) are dropped before
+    # road routing; if none remain, the ranking falls back to the single nearest carrier
+    # and warns.
     calculator_lieferant_radius_km: float = 100.0
-    # Coarse HGV approximation: Google can only DRIVE-route, so the supplier haul road distance
-    # is scaled by this detour factor (1.0 = no adjustment).
+    # Coarse HGV approximation: Google can only DRIVE-route, so the supplier haul road
+    # distance is scaled by this detour factor (1.0 = no adjustment).
     calculator_hgv_detour_factor: float = 1.0
 
     # Phoenix HTTP OTLP collector (the docker-compose `phoenix` service).
@@ -97,9 +103,10 @@ class Settings(BaseSettings):
     worker_max_attempts: int = 3
     ingest_status_poll_interval_seconds: float = 1.5
 
-    # Ingestion activity stream: emit one activity line every N units of work (the live console
-    # feed and the worker's lease heartbeat), flush buffered lines this often (keep well below
-    # worker_lease_seconds), and prune lines older than the retention window.
+    # Ingestion activity stream: emit one activity line every N units of work (the live
+    # console feed and the worker's lease heartbeat), flush buffered lines this often
+    # (keep well below worker_lease_seconds), and prune lines older than the retention
+    # window.
     activity_thumbnail_every: int = 10
     activity_embed_every: int = 10
     activity_lv_item_every: int = 1

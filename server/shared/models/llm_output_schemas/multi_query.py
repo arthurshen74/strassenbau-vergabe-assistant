@@ -4,7 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class MultiQueryRewrite(BaseModel):
-    """Structured output for the retrieval multi-query generator: a list of query variants."""
+    """Structured output for the retrieval multi-query generator: a list of query
+    variants."""
 
     model_config = ConfigDict(extra="forbid")
 

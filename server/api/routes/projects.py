@@ -49,10 +49,12 @@ from shared.services.project_service import ProjectService, UploadInput
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-# Page thumbnails are immutable once ingested (re-ingestion replaces the row), so cache hard.
+# Page thumbnails are immutable once ingested (re-ingestion replaces the row), so cache
+# hard.
 THUMBNAIL_CACHE_CONTROL = "public, max-age=86400, immutable"
 
-# Rendered maps are addressed by a hash of their request params, so they're immutable too.
+# Rendered maps are addressed by a hash of their request params, so they're immutable
+# too.
 MAP_CACHE_CONTROL = "public, max-age=86400, immutable"
 
 
@@ -127,7 +129,9 @@ async def get_project(
 ) -> ProjectRead:
     found = await service.get(project_uuid)
     if found is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
     return found
 
 
@@ -136,11 +140,14 @@ async def delete_project(
     project_uuid: UUID,
     service: ProjectService = Depends(get_deletable_project_service),
 ) -> None:
-    """Delete a project and everything under it: documents (with their thumbnails, source lines,
-    LV items, and ingest jobs), conversations, object-storage blobs, and Elasticsearch chunks."""
+    """Delete a project and everything under it: documents (with their thumbnails,
+    source lines, LV items, and ingest jobs), conversations, object-storage blobs, and
+    Elasticsearch chunks."""
     deleted = await service.delete_project(project_uuid)
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
 
 
 @router.get("/{project_uuid}/documents", response_model=list[DocumentRead])
@@ -167,8 +174,9 @@ async def search_lv_items(
     limit: int = Query(default=50, ge=1, le=200),
     service: LVItemSearchService = Depends(get_lv_item_search_service),
 ) -> list[LVItem]:
-    """LV positions matching q in relevance order: hybrid BM25 + semantic search over the
-    project's LV_ITEM chunks, with exact oz/stl_nr position matches surfaced first."""
+    """LV positions matching q in relevance order: hybrid BM25 + semantic search over
+    the project's LV_ITEM chunks, with exact oz/stl_nr position matches surfaced first.
+    """
     return await service.search(project_uuid, q, limit=limit)
 
 
@@ -180,15 +188,19 @@ async def ingest_status_stream(
 ) -> StreamingResponse:
     """Stream per-document ingest status for the project as SSE IngestEvents.
 
-    The existence check uses a short-lived connection; the stream itself opens a fresh connection
-    per poll tick rather than holding one for its whole (long) lifetime."""
+    The existence check uses a short-lived connection; the stream itself opens a fresh
+    connection per poll tick rather than holding one for its whole (long) lifetime."""
     async with engine.connect() as conn:
         if await ProjectRepository(conn).get(project_uuid) is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+            )
 
     async def event_stream() -> AsyncIterator[str]:
         async for event in stream_project_status(
-            engine, project_uuid, poll_interval=settings.ingest_status_poll_interval_seconds
+            engine,
+            project_uuid,
+            poll_interval=settings.ingest_status_poll_interval_seconds,
         ):
             yield SSE_HEARTBEAT if event.get(HEARTBEAT) else format_sse(event)
 
@@ -207,10 +219,13 @@ async def upload_documents(
     # which needs the thumbnail/LV/search dependencies of the delete path.
     service: ProjectService = Depends(get_deletable_project_service),
 ) -> list[DocumentRead]:
-    """Upload project documents. The document type comes from each filename: GAEB D83/X83
-    files become the LV document (replacing an existing one); everything else is prose."""
+    """Upload project documents. The document type comes from each filename: GAEB
+    D83/X83 files become the LV document (replacing an existing one); everything else is
+    prose."""
     if await service.get(project_uuid) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
     uploads = [
         UploadInput(
             file_name=f.filename or "upload",
@@ -232,11 +247,13 @@ async def ingest_document(
     document_uuid: UUID,
     service: ProjectService = Depends(get_writable_project_service),
 ) -> IngestJobRead:
-    """Queue a (re-)ingest of an existing document; the worker picks it up and progress streams
-    over the project's ingest status SSE."""
+    """Queue a (re-)ingest of an existing document; the worker picks it up and progress
+    streams over the project's ingest status SSE."""
     job = await service.enqueue_ingest(project_uuid, document_uuid)
     if job is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="document not found"
+        )
     return IngestJobRead.model_validate(job)
 
 
@@ -265,14 +282,18 @@ async def get_page_thumbnail(
     storage: StorageClient = Depends(get_storage),
 ) -> Response:
     """Serve a document page's thumbnail image, proxied from object storage (MinIO isn't
-    reachable from the browser in local dev). Scoped to the project so a thumbnail can't be
-    pulled across projects."""
+    reachable from the browser in local dev). Scoped to the project so a thumbnail can't
+    be pulled across projects."""
     document = await DocumentRepository(conn).get(document_uuid)
     if document is None or document.project_uuid != project_uuid:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="document not found"
+        )
     thumbnail = await ThumbnailRepository(conn).get_by_page(document_uuid, page_number)
     if thumbnail is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="thumbnail not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="thumbnail not found"
+        )
     data = await asyncio.to_thread(storage.get_object, thumbnail.object_key)
     return Response(
         content=data,
@@ -287,14 +308,16 @@ async def get_project_map(
     map_id: str,
     storage: StorageClient = Depends(get_storage),
 ) -> Response:
-    """Serve a rendered static map image, proxied from object storage (MinIO isn't reachable from
-    the browser in local dev). The map is keyed under the project, so it can't be pulled across
-    projects; a missing key is a 404."""
+    """Serve a rendered static map image, proxied from object storage (MinIO isn't
+    reachable from the browser in local dev). The map is keyed under the project, so it
+    can't be pulled across projects; a missing key is a 404."""
     key = map_object_key(project_uuid, map_id)
     try:
         data = await asyncio.to_thread(storage.get_object, key)
     except ClientError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="map not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="map not found"
+        )
     return Response(
         content=data,
         media_type=MAP_CONTENT_TYPE,
@@ -314,7 +337,9 @@ async def get_document_detail(
 ) -> DocumentDetailRead:
     detail = await service.get_detail(project_uuid, document_uuid)
     if detail is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="document not found"
+        )
     return detail
 
 
@@ -333,7 +358,8 @@ async def list_document_chunks(
     _principal: Principal = Depends(get_current_user),
     service: DocumentDetailService = Depends(get_document_detail_service),
 ) -> ChunkListRead:
-    """A page of the document's chunks from the chosen index (doc_type/q apply to SimpleChunks)."""
+    """A page of the document's chunks from the chosen index (doc_type/q apply to
+    SimpleChunks)."""
     return await service.list_chunks(
         project_uuid,
         document_uuid,
@@ -357,5 +383,6 @@ async def list_document_activity(
     _principal: Principal = Depends(get_current_user),
     service: DocumentDetailService = Depends(get_document_detail_service),
 ) -> ActivityListRead:
-    """The document's ingestion activity (active then archive), oldest first, paged, with total."""
+    """The document's ingestion activity (active then archive), oldest first, paged,
+    with total."""
     return await service.list_activity(document_uuid, offset=offset, limit=limit)

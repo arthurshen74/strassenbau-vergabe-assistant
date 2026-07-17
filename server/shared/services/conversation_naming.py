@@ -1,8 +1,8 @@
 """Generate a short title for a conversation from its first user message.
 
-Single-shot, free-form `conversation_name` prompt: the first user turn goes in, a short title
-comes back, and it is persisted as the conversation's `title`. Returns None when the conversation
-has no user message yet (nothing to name).
+Single-shot, free-form `conversation_name` prompt: the first user turn goes in, a short
+title comes back, and it is persisted as the conversation's `title`. Returns None when
+the conversation has no user message yet (nothing to name).
 """
 
 from __future__ import annotations
@@ -28,7 +28,9 @@ class ConversationNamingService:
         self._conversations = conversations
         self._messages = messages
 
-    async def name_from_first_message(self, conversation_uuid: UUID) -> Conversation | None:
+    async def name_from_first_message(
+        self, conversation_uuid: UUID
+    ) -> Conversation | None:
         history = await self._messages.list_for_conversation(conversation_uuid)
         first_user = next(
             (m for m in history if m.kind == MessageKind.USER and m.content), None

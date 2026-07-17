@@ -1,14 +1,14 @@
 """End-to-end ingestion harness for a single ingest job.
 
-Given an existing IngestJob uuid, this drives the whole pipeline against the real services
-(Postgres, object storage, Elasticsearch, OpenRouter embeddings): it marks the job RUNNING,
-then for a PDF renders page thumbnails, extracts SourceLines, and simple-chunks the document,
-or for a GAEB D83/X83 file parses it into LVItems and LV_ITEM chunks, and finally marks the
-job DONE (or FAILED on error). Progress is written to the ingest_job_events table and
-mirrored to stdout.
+Given an existing IngestJob uuid, this drives the whole pipeline against the real
+services (Postgres, object storage, Elasticsearch, OpenRouter embeddings): it marks the
+job RUNNING, then for a PDF renders page thumbnails, extracts SourceLines, and
+simple-chunks the document, or for a GAEB D83/X83 file parses it into LVItems and
+LV_ITEM chunks, and finally marks the job DONE (or FAILED on error). Progress is written
+to the ingest_job_events table and mirrored to stdout.
 
-The IngestJob, its Document, and the raw file in object storage must already exist (they are
-created by the upload path).
+The IngestJob, its Document, and the raw file in object storage must already exist (they
+are created by the upload path).
 
     python -m scripts.run_ingest_job <job_uuid>
 """
@@ -35,7 +35,9 @@ logger = logging.getLogger("scripts.run_ingest_job")
 
 
 async def run_ingest_job(job_uuid: UUID) -> None:
-    engine = make_engine(settings.database_url, pool_size=5, application_name="run-ingest-job")
+    engine = make_engine(
+        settings.database_url, pool_size=5, application_name="run-ingest-job"
+    )
     storage = build_storage_client()
     search = SearchClient.from_settings()
     sinks = build_telemetry_sinks(engine)
@@ -70,7 +72,8 @@ async def run_ingest_job(job_uuid: UUID) -> None:
         async with unit_of_work(engine) as uow:
             await uow.ingest_jobs.set_status(job_uuid, IngestStatus.DONE)
         logger.info(
-            "[ingest] job %s DONE: %d source lines, %d thumbnails, %d langchain chunks, "
+            "[ingest] job %s DONE: %d source lines, %d thumbnails, %d langchain "
+            "chunks, "
             "%d document chunks, %d LV items, %d LV chunks",
             job_uuid,
             result.source_lines,

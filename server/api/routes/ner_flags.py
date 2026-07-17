@@ -26,8 +26,8 @@ async def create_flag(
     engine: AsyncEngine = Depends(get_engine),
     llm: LLMClient = Depends(get_llm_client),
 ) -> NerFlag:
-    """Persist the flag, then run the one-shot analysis synchronously. A failed
-    analysis leaves the flag with a null analysis (retriable), still returned."""
+    """Persist the flag, then run the one-shot analysis synchronously. A failed analysis
+    leaves the flag with a null analysis (retriable), still returned."""
     async with unit_of_work(engine) as uow:
         flag = await uow.ner_flags.add(payload)
     return await analyze_flag(flag, engine=engine, llm=llm)
@@ -41,7 +41,9 @@ async def list_flags(
     engine: AsyncEngine = Depends(get_engine),
 ) -> list[NerFlag]:
     async with unit_of_work(engine) as uow:
-        return await uow.ner_flags.list(kind=kind, category=category, status=flag_status)
+        return await uow.ner_flags.list(
+            kind=kind, category=category, status=flag_status
+        )
 
 
 @router.get("/summary", response_model=NerFlagSummary)

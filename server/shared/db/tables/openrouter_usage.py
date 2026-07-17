@@ -79,7 +79,5 @@ openrouter_usage = Table(
         nullable=False,
         server_default=func.now(),
     ),
-    CheckConstraint(
-        f"operation IN ({_USAGE_OPERATIONS_SQL})", name="operation_valid"
-    ),
+    CheckConstraint(f"operation IN ({_USAGE_OPERATIONS_SQL})", name="operation_valid"),
 )

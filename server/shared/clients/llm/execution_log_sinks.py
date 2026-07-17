@@ -1,10 +1,10 @@
 """Sinks that receive an ``ExecutionLogEvent`` from the LLM client.
 
-``LoggingExecutionLogSink`` emits one structured log line and is the default (works offline and
-in tests). ``DatabaseExecutionLogSink`` persists each event to Postgres in its OWN short
-transaction, owning an ``AsyncEngine`` and bypassing any caller ``UnitOfWork`` -- mirrors
-``DatabaseUsageSink``. Sinks do not swallow their own errors; failure isolation is the calling
-client's responsibility.
+``LoggingExecutionLogSink`` emits one structured log line and is the default (works
+offline and in tests). ``DatabaseExecutionLogSink`` persists each event to Postgres in
+its OWN short transaction, owning an ``AsyncEngine`` and bypassing any caller
+``UnitOfWork`` -- mirrors ``DatabaseUsageSink``. Sinks do not swallow their own errors;
+failure isolation is the calling client's responsibility.
 """
 
 from __future__ import annotations
@@ -59,9 +59,9 @@ class DatabaseExecutionLogSink:
 
 
 class CompositeExecutionLogSink:
-    """Tees one event to several sinks. Unlike the single sinks above, it isolates each sink's
-    failure (logs and continues) so one sink erroring -- e.g. the OTLP exporter being down -- never
-    starves the others of the event."""
+    """Tees one event to several sinks. Unlike the single sinks above, it isolates each
+    sink's failure (logs and continues) so one sink erroring -- e.g. the OTLP exporter
+    being down -- never starves the others of the event."""
 
     def __init__(self, sinks: Sequence[ExecutionLogSink]) -> None:
         self._sinks = tuple(sinks)

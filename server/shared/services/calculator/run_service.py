@@ -1,13 +1,14 @@
 """Drives one EKT calculator run as a conversation, streamed to the UI over SSE.
 
 A run is a sequence of SSE segments glued by the LangGraph Postgres checkpointer
-(`thread_id = conversation_uuid`): `start` streams until the first HITL interrupt (or the
-end), `resume` continues from the checkpoint with the Kalkulator's decision. Each segment
-maps the graph's `reasoning_log` to `text_delta` events and persists them as assistant
-messages (the `ProjectChatService` idiom: short transactions, never one held open across the
-stream), surfaces an interrupt as an `interrupt` event + a persisted prompt, and emits the
-final EKT row + Nachweistabelle as a `function_call_output`. `calculation_status` tracks the lifecycle so
-the API knows whether a turn is a resume (awaiting_input) or a follow-up chat (complete).
+(`thread_id = conversation_uuid`): `start` streams until the first HITL interrupt (or
+the end), `resume` continues from the checkpoint with the Kalkulator's decision. Each
+segment maps the graph's `reasoning_log` to `text_delta` events and persists them as
+assistant messages (the `ProjectChatService` idiom: short transactions, never one held
+open across the stream), surfaces an interrupt as an `interrupt` event + a persisted
+prompt, and emits the final EKT row + Nachweistabelle as a `function_call_output`.
+`calculation_status` tracks the lifecycle so the API knows whether a turn is a resume
+(awaiting_input) or a follow-up chat (complete).
 """
 
 from __future__ import annotations
@@ -85,9 +86,10 @@ INTERRUPT_KEY = "__interrupt__"
 TOOL_INTERRUPT = "interrupt"
 TOOL_EKT_RESULT = "ekt_result"
 
-# Marker key on an assistant message's `data` flagging it as the calculator's reasoning trail (one
-# per streamed segment), so the UI renders it collapsed to its latest line instead of as a wall of
-# per-node bubbles. Mirrored client-side in MessageList (CALC_REASONING_MARKER).
+# Marker key on an assistant message's `data` flagging it as the calculator's reasoning
+# trail (one per streamed segment), so the UI renders it collapsed to its latest line
+# instead of as a wall of per-node bubbles. Mirrored client-side in MessageList
+# (CALC_REASONING_MARKER).
 CALC_REASONING_MARKER = "calc_reasoning"
 
 
@@ -108,13 +110,15 @@ class CalculatorRunService:
     async def start(
         self, conversation: Conversation, item: LVItem
     ) -> AsyncIterator[dict[str, Any]]:
-        """Begin a run for one LV position; stream until the first interrupt or completion.
+        """Begin a run for one LV position; stream until the first interrupt or
+        completion.
 
-        A run reuses `thread_id = conversation_uuid`, so a re-calculation (the Kalkulator asks
-        to recalculate, e.g. with a different value) must start from a clean checkpoint —
-        otherwise the prior run's reducer channels (reasoning_log, warnungen) accumulate and the
-        finished END state blocks a fresh start. We wipe the thread first; it is a no-op on the
-        first run, and safe because a mid-run conversation is 409-guarded against a new start."""
+        A run reuses `thread_id = conversation_uuid`, so a re-calculation (the
+        Kalkulator asks to recalculate, e.g. with a different value) must start from a
+        clean checkpoint — otherwise the prior run's reducer channels (reasoning_log,
+        warnungen) accumulate and the finished END state blocks a fresh start. We wipe
+        the thread first; it is a no-op on the first run, and safe because a mid-run
+        conversation is 409-guarded against a new start."""
         await self._checkpointer.adelete_thread(str(conversation.conversation_uuid))
         prompts = await self._load_prompts()
         payload = {
@@ -128,22 +132,27 @@ class CalculatorRunService:
             yield event
 
     async def _load_prompts(self) -> dict[PromptType, PromptVersion]:
-        """Resolve the calculator's DB-backed prompt versions once per run segment. Mock runs skip
-        the LLM sites entirely, so they need no prompts (and none may be seeded)."""
+        """Resolve the calculator's DB-backed prompt versions once per run segment. Mock
+        runs skip the LLM sites entirely, so they need no prompts (and none may be
+        seeded)."""
         if settings.calculator_mock:
             return {}
         async with self._engine.connect() as conn:
             return await load_calculator_prompts(conn)
 
-    async def _chat_transcript(self, conversation: Conversation) -> list[dict[str, Any]]:
+    async def _chat_transcript(
+        self, conversation: Conversation
+    ) -> list[dict[str, Any]]:
         """The pre-launch user/assistant transcript (precedence source 0). The graph's
-        extract_chat_values node harvests the values the Kalkulator already stated from it."""
+        extract_chat_values node harvests the values the Kalkulator already stated from
+        it."""
         async with self._engine.connect() as conn:
             history = await MessageRepository(conn).list_for_conversation(
                 conversation.conversation_uuid
             )
         return [
-            {ROLE: m.role, CONTENT: m.content} for m in to_user_assistant_messages(history)
+            {ROLE: m.role, CONTENT: m.content}
+            for m in to_user_assistant_messages(history)
         ]
 
     async def resume(
@@ -151,8 +160,8 @@ class CalculatorRunService:
     ) -> AsyncIterator[dict[str, Any]]:
         """Continue a paused run from its checkpoint with the Kalkulator's decision."""
         prompts = await self._load_prompts()
-        # A Gate B submit may override values and/or flag the review as ground truth; capture both
-        # from the paused proposals before the resume overwrites them.
+        # A Gate B submit may override values and/or flag the review as ground truth;
+        # capture both from the paused proposals before the resume overwrites them.
         await self._capture_gate_b(conversation, decision, prompts)
         async for event in self._run_segment(
             conversation, Command(resume=decision), prompts
@@ -165,18 +174,21 @@ class CalculatorRunService:
         decision: dict[str, Any],
         prompts: Mapping[PromptType, PromptVersion],
     ) -> None:
-        """Persist Gate B corrections (every overridden leaf) and, when flagged, the ground-truth
-        record. A no-op unless the decision changes or flags something and the paused state holds
-        variable proposals — i.e. it is Gate B (variable_review), not Gate A (method_review)."""
+        """Persist Gate B corrections (every overridden leaf) and, when flagged, the
+        ground-truth record. A no-op unless the decision changes or flags something and
+        the paused state holds variable proposals — i.e. it is Gate B (variable_review),
+        not Gate A (method_review)."""
         if not (decision.get("mark_as_ground_truth") or decision.get("overrides")):
             return
         if conversation.project_uuid is None or conversation.lv_item_uuid is None:
             return
-        app = self._app(conversation.project_uuid, conversation.conversation_uuid, prompts)
+        app = self._app(
+            conversation.project_uuid, conversation.conversation_uuid, prompts
+        )
         config = {"configurable": {"thread_id": str(conversation.conversation_uuid)}}
         state = (await app.aget_state(config)).values
         proposals = state.get("vorschlaege") or {}
-        if not proposals:                          # Gate A (no worklist yet): nothing to capture
+        if not proposals:  # Gate A (no worklist yet): nothing to capture
             return
         position = state.get("position") or {}
         async with self._engine.begin() as conn:
@@ -207,26 +219,41 @@ class CalculatorRunService:
         )
 
     def _project_context_loader(self):
-        """Resolve + persist the project globals (current versions, then RAG for any missing),
-        returning the flat current view. The graph node reconciles it against the chat candidates.
-        Runs in its own short transaction (never held across the stream)."""
+        """Resolve + persist the project globals (current versions, then RAG for any
+        missing), returning the flat current view. The graph node reconciles it against
+        the chat candidates. Runs in its own short transaction (never held across the
+        stream)."""
 
-        async def loader(project_uuid: UUID, _chat_candidates: dict[str, Any]) -> dict[str, Any]:
+        async def loader(
+            project_uuid: UUID, _chat_candidates: dict[str, Any]
+        ) -> dict[str, Any]:
             async with self._engine.begin() as conn:
-                prompt = None if settings.calculator_mock else await load_resolve_prompt(conn)
+                prompt = (
+                    None
+                    if settings.calculator_mock
+                    else await load_resolve_prompt(conn)
+                )
                 read = await ProjectContextService(conn).resolve(
-                    project_uuid, retrieval=self._retrieval, llm=self._llm, prompt=prompt
+                    project_uuid,
+                    retrieval=self._retrieval,
+                    llm=self._llm,
+                    prompt=prompt,
                 )
             return {"projekt_kontext": read.model_dump(mode="json")}
 
         return loader
 
     def _project_context_saver(self):
-        """Persist a project-context review override as new HITL versions, returning the updated
-        flat view. `benutzer` is the interim DEFAULT_USER placeholder until fastapi-users lands."""
+        """Persist a project-context review override as new HITL versions, returning the
+        updated flat view. `benutzer` is the interim DEFAULT_USER placeholder until
+        fastapi-users lands."""
 
         async def saver(project_uuid: UUID, updates: dict[str, Any]) -> dict[str, Any]:
-            fields = {k: v for k, v in updates.items() if k in ProjectContextUpdate.model_fields}
+            fields = {
+                k: v
+                for k, v in updates.items()
+                if k in ProjectContextUpdate.model_fields
+            }
             async with self._engine.begin() as conn:
                 read = await ProjectContextService(conn).save(
                     project_uuid, ProjectContextUpdate(**fields), benutzer=DEFAULT_USER
@@ -235,7 +262,9 @@ class CalculatorRunService:
 
         return saver
 
-    def _retriever(self, project_uuid: UUID, conversation_uuid: UUID) -> ContextRetriever:
+    def _retriever(
+        self, project_uuid: UUID, conversation_uuid: UUID
+    ) -> ContextRetriever:
         async def retrieve(query: str) -> list[str]:
             ctx = await self._retrieval.retrieve_context(
                 query,
@@ -253,10 +282,13 @@ class CalculatorRunService:
         payload: Any,
         prompts: Mapping[PromptType, PromptVersion],
     ) -> AsyncIterator[dict[str, Any]]:
-        # One root span per streamed segment (the start, and each resume after a HITL gate) so the
-        # LangGraph node spans, native ES query spans, and LLMClient sink spans collapse into one
-        # trace; session.id groups every segment of a run into one Phoenix session.
-        assert conversation.project_uuid is not None  # ekt_calculator runs are project-scoped
+        # One root span per streamed segment (the start, and each resume after a HITL
+        # gate) so the LangGraph node spans, native ES query spans, and LLMClient sink
+        # spans collapse into one trace; session.id groups every segment of a run into
+        # one Phoenix session.
+        assert (
+            conversation.project_uuid is not None
+        )  # ekt_calculator runs are project-scoped
         with flow_span(
             "ekt.calculation",
             session_id=str(conversation.conversation_uuid),
@@ -272,28 +304,33 @@ class CalculatorRunService:
         prompts: Mapping[PromptType, PromptVersion],
     ) -> AsyncIterator[dict[str, Any]]:
         conversation_id = conversation.conversation_uuid
-        assert conversation.project_uuid is not None  # ekt_calculator runs are project-scoped
+        assert (
+            conversation.project_uuid is not None
+        )  # ekt_calculator runs are project-scoped
         app = self._app(conversation.project_uuid, conversation_id, prompts)
         config = {"configurable": {"thread_id": str(conversation_id)}}
 
         await self._set_status(conversation_id, CalculationStatus.RUNNING)
         _trace(conversation_id, "--- streaming calculation segment ---")
-        # Tell the UI this turn is now a calculation, so it collapses the reasoning and shows the
-        # activity indicator even when the segment was chained from a position-chat message.
+        # Tell the UI this turn is now a calculation, so it collapses the reasoning and
+        # shows the activity indicator even when the segment was chained from a
+        # position-chat message.
         yield {EVENT: EVENT_CALC_START, DATA: {}}
         interrupted = False
-        # Diagnostic counters: distinguish "graph never streamed reasoning" (custom writer broken)
-        # from "graph streamed fine but the client/transport dropped it". Traced at segment end.
+        # Diagnostic counters: distinguish "graph never streamed reasoning" (custom
+        # writer broken) from "graph streamed fine but the client/transport dropped it".
+        # Traced at segment end.
         started_at = time.monotonic()
         custom_count = 0
         update_count = 0
-        # Accumulated across the whole segment and persisted as ONE assistant message at the end, so
-        # the transcript shows a single collapsible reasoning block per segment (not one per node).
+        # Accumulated across the whole segment and persisted as ONE assistant message at
+        # the end, so the transcript shows a single collapsible reasoning block per
+        # segment (not one per node).
         reasoning_parts: list[str] = []
         try:
-            # "custom" carries each reasoning entry live as a node produces it (so the long
-            # per-driver node streams incrementally); "updates" carries completed-node output for
-            # persistence and the HITL interrupt signal.
+            # "custom" carries each reasoning entry live as a node produces it (so the
+            # long per-driver node streams incrementally); "updates" carries
+            # completed-node output for persistence and the HITL interrupt signal.
             async for mode, chunk in app.astream(
                 payload, config, stream_mode=["updates", "custom"]
             ):
@@ -302,7 +339,8 @@ class CalculatorRunService:
                     if custom_count == 1:
                         _trace(
                             conversation_id,
-                            f"first reasoning delta after {time.monotonic() - started_at:.2f}s",
+                            f"first reasoning delta after "
+                            f"{time.monotonic() - started_at:.2f}s",
                         )
                     text = _format_reasoning(chunk)
                     _trace(conversation_id, text.rstrip("\n"))
@@ -311,13 +349,18 @@ class CalculatorRunService:
                 update_count += 1
                 if INTERRUPT_KEY in chunk:
                     value = chunk[INTERRUPT_KEY][0].value
-                    _trace(conversation_id, f"PAUSED ({value.get('stage')}); awaiting input")
+                    _trace(
+                        conversation_id,
+                        f"PAUSED ({value.get('stage')}); awaiting input",
+                    )
                     await self._persist_interrupt(conversation_id, value)
                     yield _interrupt_event(value)
                     interrupted = True
                     continue
                 for node_output in chunk.values():
-                    outputs = node_output if isinstance(node_output, list) else [node_output]
+                    outputs = (
+                        node_output if isinstance(node_output, list) else [node_output]
+                    )
                     for output in outputs:
                         if isinstance(output, dict):
                             reasoning_parts.append(_reasoning_content(output))
@@ -332,16 +375,20 @@ class CalculatorRunService:
 
         _trace(
             conversation_id,
-            f"segment stats: {custom_count} reasoning deltas, {update_count} node updates",
+            f"segment stats: {custom_count} reasoning deltas, {update_count} node "
+            f"updates",
         )
         if custom_count == 0 and update_count > 0:
             _trace(
                 conversation_id,
-                "WARNING: nodes produced output but streamed 0 reasoning deltas -- the custom "
-                "writer is inactive (see graph._write_live); the UI will look stuck until the result.",
+                "WARNING: nodes produced output but streamed 0 reasoning deltas -- the "
+                "custom "
+                "writer is inactive (see graph._write_live); the UI will look stuck "
+                "until the result.",
             )
 
-        # One reasoning message for the whole segment; persisted before the result so it sorts first.
+        # One reasoning message for the whole segment; persisted before the result so it
+        # sorts first.
         await self._persist_reasoning_block(conversation_id, reasoning_parts)
 
         if interrupted:
@@ -357,9 +404,9 @@ class CalculatorRunService:
     async def _persist_reasoning_block(
         self, conversation_id: UUID, parts: list[str]
     ) -> None:
-        """Persist the segment's accumulated reasoning as ONE assistant message, marked so the UI
-        collapses it to its latest line. The lines already streamed live via the custom events; this
-        is the authoritative copy for the transcript."""
+        """Persist the segment's accumulated reasoning as ONE assistant message, marked
+        so the UI collapses it to its latest line. The lines already streamed live via
+        the custom events; this is the authoritative copy for the transcript."""
         content = "".join(p for p in parts if p)
         if not content:
             return
@@ -408,7 +455,9 @@ class CalculatorRunService:
         yield _function_call(call_id, TOOL_EKT_RESULT, {})
         yield _function_call_output(call_id, TOOL_EKT_RESULT, True, data)
 
-    async def _persist_interrupt(self, conversation_id: UUID, value: dict[str, Any]) -> None:
+    async def _persist_interrupt(
+        self, conversation_id: UUID, value: dict[str, Any]
+    ) -> None:
         await self._persist(
             NewMessage(
                 conversation_uuid=conversation_id,
@@ -423,9 +472,13 @@ class CalculatorRunService:
         async with self._engine.begin() as conn:
             await MessageRepository(conn).add(new)
 
-    async def _set_status(self, conversation_id: UUID, status: CalculationStatus) -> None:
+    async def _set_status(
+        self, conversation_id: UUID, status: CalculationStatus
+    ) -> None:
         async with self._engine.begin() as conn:
-            await ConversationRepository(conn).set_calculation_status(conversation_id, status)
+            await ConversationRepository(conn).set_calculation_status(
+                conversation_id, status
+            )
 
     async def _touch(self, conversation_id: UUID) -> None:
         async with self._engine.begin() as conn:
@@ -445,7 +498,8 @@ def _position(item: LVItem) -> dict[str, Any]:
 
 
 def _reasoning_content(output: dict[str, Any]) -> str:
-    """A completed node's reasoning_log rendered to transcript text (empty when the node logged none)."""
+    """A completed node's reasoning_log rendered to transcript text (empty when the node
+    logged none)."""
     entries = output.get("reasoning_log") or []
     return "".join(_format_reasoning(entry) for entry in entries)
 
@@ -461,8 +515,9 @@ def _format_reasoning(entry: dict[str, Any]) -> str:
 
 
 def _trace(conversation_id: UUID, text: str) -> None:
-    # Operator-facing mirror of the SSE stream: lets a run be followed in `docker compose logs api`
-    # at the same time as the UI. Printed (not logged) so it shows regardless of log-level config.
+    # Operator-facing mirror of the SSE stream: lets a run be followed in `docker
+    # compose logs api` at the same time as the UI. Printed (not logged) so it shows
+    # regardless of log-level config.
     print(f"[ekt {str(conversation_id)[:8]}] {text}", flush=True)
 
 
@@ -475,10 +530,15 @@ def _ui_notice(content: str, level: NoticeLevel) -> dict[str, Any]:
 
 
 def _interrupt_event(value: dict[str, Any]) -> dict[str, Any]:
-    return {EVENT: EVENT_INTERRUPT, DATA: {DATA_STAGE: value.get("stage"), DATA_PAYLOAD: value}}
+    return {
+        EVENT: EVENT_INTERRUPT,
+        DATA: {DATA_STAGE: value.get("stage"), DATA_PAYLOAD: value},
+    }
 
 
-def _function_call(call_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+def _function_call(
+    call_id: str, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
     return {
         EVENT: EVENT_FUNCTION_CALL,
         DATA: {DATA_CALL_ID: call_id, DATA_NAME: name, DATA_ARGUMENTS: arguments},

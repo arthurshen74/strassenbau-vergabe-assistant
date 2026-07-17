@@ -1,4 +1,5 @@
-"""Dispatcher tool registry: declarative tool definitions executed via direct service calls."""
+"""Dispatcher tool registry: declarative tool definitions executed via direct service
+calls."""
 
 from __future__ import annotations
 

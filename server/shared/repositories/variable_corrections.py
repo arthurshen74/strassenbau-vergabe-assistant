@@ -22,7 +22,9 @@ class VariableCorrectionRepository:
         """Append override rows (one per changed variable). No-op for an empty list."""
         if not news:
             return
-        await self.conn.execute(insert(variable_corrections), [n.model_dump() for n in news])
+        await self.conn.execute(
+            insert(variable_corrections), [n.model_dump() for n in news]
+        )
 
     async def list_by_project(
         self,
@@ -43,7 +45,9 @@ class VariableCorrectionRepository:
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [VariableCorrection.model_validate(dict(r)) for r in rows]
 
-    async def summary_by_project(self, project_uuid: UUID) -> list[CorrectionSummaryRow]:
+    async def summary_by_project(
+        self, project_uuid: UUID
+    ) -> list[CorrectionSummaryRow]:
         """Correction counts grouped by variable and reason, most-corrected first."""
         stmt = (
             select(

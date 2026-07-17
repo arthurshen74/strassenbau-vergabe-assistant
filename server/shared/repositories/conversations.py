@@ -35,7 +35,9 @@ class ConversationRepository:
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [Conversation.model_validate(dict(r)) for r in rows]
 
-    async def set_title(self, conversation_uuid: UUID, title: str) -> Conversation | None:
+    async def set_title(
+        self, conversation_uuid: UUID, title: str
+    ) -> Conversation | None:
         stmt = (
             update(conversations)
             .where(conversations.c.conversation_uuid == conversation_uuid)
@@ -66,8 +68,8 @@ class ConversationRepository:
         await self.conn.execute(stmt)
 
     async def delete(self, conversation_uuid: UUID) -> bool:
-        """Delete a conversation; its messages cascade (messages FK ON DELETE CASCADE). Returns
-        whether a row was removed."""
+        """Delete a conversation; its messages cascade (messages FK ON DELETE CASCADE).
+        Returns whether a row was removed."""
         stmt = (
             delete(conversations)
             .where(conversations.c.conversation_uuid == conversation_uuid)

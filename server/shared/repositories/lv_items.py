@@ -12,7 +12,8 @@ from shared.db.tables.lv_items import lv_items
 from shared.models.enums import DocumentType
 from shared.models.lv_item import LVItem, NewLVItem
 
-# Natural key the LV parse output upserts on; everything else is overwritten on conflict.
+# Natural key the LV parse output upserts on; everything else is overwritten on
+# conflict.
 LV_NATURAL_KEY = ("document_uuid", "oz")
 COL_LAST_INGESTION = "last_ingestion"
 
@@ -23,17 +24,19 @@ class LVItemRepository:
 
     async def get(self, lv_item_uuid: UUID) -> LVItem | None:
         row = (
-            await self.conn.execute(
-                select(lv_items).where(lv_items.c.lv_item_uuid == lv_item_uuid)
+            (
+                await self.conn.execute(
+                    select(lv_items).where(lv_items.c.lv_item_uuid == lv_item_uuid)
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
         return LVItem.model_validate(dict(row)) if row else None
 
-    async def get_by_project_and_oz(
-        self, project_uuid: UUID, oz: str
-    ) -> LVItem | None:
-        """Backs the LV_Item_Lookup gate. The schema's unique key is (document_uuid, oz),
-        so a project+oz lookup resolves through the project's LV document."""
+    async def get_by_project_and_oz(self, project_uuid: UUID, oz: str) -> LVItem | None:
+        """Backs the LV_Item_Lookup gate. The schema's unique key is (document_uuid,
+        oz), so a project+oz lookup resolves through the project's LV document."""
         stmt = (
             select(lv_items)
             .join(documents, documents.c.document_uuid == lv_items.c.document_uuid)
@@ -78,9 +81,9 @@ class LVItemRepository:
         return [LVItem.model_validate(dict(r)) for r in rows]
 
     async def list_by_uuids(self, lv_item_uuids: Sequence[UUID]) -> list[LVItem]:
-        """LV items for the given uuids in arbitrary order; the caller re-orders by relevance.
-        Backs hybrid LV item search, which ranks lv_item_uuids in Elasticsearch then loads
-        the rows."""
+        """LV items for the given uuids in arbitrary order; the caller re-orders by
+        relevance. Backs hybrid LV item search, which ranks lv_item_uuids in
+        Elasticsearch then loads the rows."""
         if not lv_item_uuids:
             return []
         stmt = select(lv_items).where(lv_items.c.lv_item_uuid.in_(list(lv_item_uuids)))
@@ -103,10 +106,10 @@ class LVItemRepository:
         return LVItem.model_validate(dict(row))
 
     async def add_many(self, items: Sequence[NewLVItem]) -> list[LVItem]:
-        """Bulk upsert the LV parse output on the (document_uuid, oz) natural key, bumping
-        last_ingestion. A re-ingestion replays a document's LV items and updates them in
-        place, so each lv_item_uuid stays stable and its Elasticsearch chunks (keyed by that
-        uuid) remain addressable for re-archival."""
+        """Bulk upsert the LV parse output on the (document_uuid, oz) natural key,
+        bumping last_ingestion. A re-ingestion replays a document's LV items and updates
+        them in place, so each lv_item_uuid stays stable and its Elasticsearch chunks
+        (keyed by that uuid) remain addressable for re-archival."""
         if not items:
             return []
         stmt = pg_insert(lv_items).values([item.model_dump() for item in items])
@@ -125,9 +128,10 @@ class LVItemRepository:
     async def delete_missing(
         self, document_uuid: UUID, keep_ozs: Sequence[str]
     ) -> list[UUID]:
-        """Delete a document's LV items whose oz is not in keep_ozs, returning the removed
-        lv_item_uuids so the caller can archive their Elasticsearch chunks. Used by
-        re-ingestion to drop positions that no longer appear; an empty keep_ozs removes all."""
+        """Delete a document's LV items whose oz is not in keep_ozs, returning the
+        removed lv_item_uuids so the caller can archive their Elasticsearch chunks. Used
+        by re-ingestion to drop positions that no longer appear; an empty keep_ozs
+        removes all."""
         condition = lv_items.c.document_uuid == document_uuid
         if keep_ozs:
             condition = condition & lv_items.c.oz.notin_(keep_ozs)

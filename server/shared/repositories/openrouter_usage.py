@@ -17,12 +17,18 @@ class OpenRouterUsageRepository:
         self.conn = conn
 
     async def add(self, new: NewOpenRouterUsage) -> OpenRouterUsage:
-        stmt = insert(openrouter_usage).values(**new.model_dump()).returning(openrouter_usage)
+        stmt = (
+            insert(openrouter_usage)
+            .values(**new.model_dump())
+            .returning(openrouter_usage)
+        )
         row = (await self.conn.execute(stmt)).mappings().one()
         return OpenRouterUsage.model_validate(dict(row))
 
     async def get(self, usage_uuid: UUID) -> OpenRouterUsage | None:
-        stmt = select(openrouter_usage).where(openrouter_usage.c.usage_uuid == usage_uuid)
+        stmt = select(openrouter_usage).where(
+            openrouter_usage.c.usage_uuid == usage_uuid
+        )
         row = (await self.conn.execute(stmt)).mappings().first()
         return OpenRouterUsage.model_validate(dict(row)) if row else None
 
@@ -52,7 +58,8 @@ class OpenRouterUsageRepository:
         return (await self.conn.execute(stmt)).scalar_one()
 
     async def sum_cost_by_document(self, document_uuid: UUID) -> Decimal:
-        """Total USD cost attributed to a document's ingestion (zero if none recorded)."""
+        """Total USD cost attributed to a document's ingestion (zero if none
+        recorded)."""
         stmt = select(func.coalesce(func.sum(openrouter_usage.c.cost), 0)).where(
             openrouter_usage.c.document_uuid == document_uuid
         )
@@ -67,7 +74,8 @@ class OpenRouterUsageRepository:
         limit: int = 100,
         offset: int = 0,
     ) -> list[OpenRouterUsage]:
-        """Most-recent-first usage rows, optionally filtered by operation and date range."""
+        """Most-recent-first usage rows, optionally filtered by operation and date
+        range."""
         stmt = select(openrouter_usage)
         if operation is not None:
             stmt = stmt.where(openrouter_usage.c.operation == operation)
@@ -76,7 +84,9 @@ class OpenRouterUsageRepository:
         if end is not None:
             stmt = stmt.where(openrouter_usage.c.created_at < end)
         stmt = (
-            stmt.order_by(openrouter_usage.c.created_at.desc()).limit(limit).offset(offset)
+            stmt.order_by(openrouter_usage.c.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [OpenRouterUsage.model_validate(dict(r)) for r in rows]

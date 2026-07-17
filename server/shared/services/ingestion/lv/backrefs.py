@@ -2,9 +2,9 @@
 
 A position that reads "wie in voriger Position beschrieben jedoch ..." inherits its
 predecessor's body and states only the delta. We compose `langtext_resolved` as the
-predecessor's resolved body plus this position's delta, recursing through chains, while the
-verbatim `langtext` is left untouched (LV_PARSE.md step 8). Positions without a back-reference
-get `None`."""
+predecessor's resolved body plus this position's delta, recursing through chains, while
+the verbatim `langtext` is left untouched (LV_PARSE.md step 8). Positions without a
+back-reference get `None`."""
 
 from __future__ import annotations
 
@@ -18,7 +18,8 @@ DELTA_SEP = " "
 def resolve_backrefs(sliced: list[SlicedPosition]) -> dict[str, str | None]:
     """Return oz -> langtext_resolved (None when the position has no back-reference).
 
-    Processes in document order so a predecessor is resolved before anything that links to it."""
+    Processes in document order so a predecessor is resolved before anything that links
+    to it."""
     index_by_oz = {position.oz: i for i, position in enumerate(sliced)}
     resolved: dict[str, str | None] = {}
 
@@ -28,7 +29,9 @@ def resolve_backrefs(sliced: list[SlicedPosition]) -> dict[str, str | None]:
             resolved[position.oz] = None
             continue
         predecessor_body = resolved.get(predecessor.oz) or predecessor.langtext
-        resolved[position.oz] = f"{predecessor_body}{DELTA_SEP}{_delta(position.langtext)}"
+        resolved[position.oz] = (
+            f"{predecessor_body}{DELTA_SEP}{_delta(position.langtext)}"
+        )
 
     return resolved
 
@@ -47,7 +50,8 @@ def _predecessor(
 
 
 def _delta(langtext: str) -> str:
-    """The part of a back-reference body that states the difference from the predecessor."""
+    """The part of a back-reference body that states the difference from the
+    predecessor."""
     marker = langtext.lower().find(JEDOCH_MARKER)
     if marker != -1:
         return langtext[marker:].strip()

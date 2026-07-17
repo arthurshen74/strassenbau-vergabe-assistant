@@ -1,9 +1,9 @@
 """Domain models for project-scoped context globals (per-variable version history).
 
 `ProjectContextValue` is one immutable version row; `NewProjectContextValue` is the
-insert shape the repository turns into the next version (computing `version` and
-closing out the prior current row). Provenance per version lives in `quelle`,
-`beleg`, `quelle_referenz` and `konfidenz` (see PROJECT_CONTEXT_PLAN.md §5).
+insert shape the repository turns into the next version (computing `version` and closing
+out the prior current row). Provenance per version lives in `quelle`, `beleg`,
+`quelle_referenz` and `konfidenz` (see PROJECT_CONTEXT_PLAN.md §5).
 """
 
 from __future__ import annotations
@@ -42,7 +42,8 @@ class ProjectContextValue(BaseModel):
 
 
 class NewProjectContextValue(BaseModel):
-    """Insert shape; the repository computes `version` and closes out the prior version."""
+    """Insert shape; the repository computes `version` and closes out the prior
+    version."""
 
     model_config = ConfigDict(extra="forbid")
 

@@ -1,8 +1,9 @@
-"""Slice verbatim text out of SourceLine by the LLM's line spans, and map each span to pages.
+"""Slice verbatim text out of SourceLine by the LLM's line spans, and map each span to
+pages.
 
-Code owns the contractual text (LV_PARSE.md): the model only points at line_ids, and here we
-cut the exact `line_text` out of SourceLine, join multi-line bodies, collect the covered pages,
-and record the SourceLine UUIDs each position draws from."""
+Code owns the contractual text (LV_PARSE.md): the model only points at line_ids, and
+here we cut the exact `line_text` out of SourceLine, join multi-line bodies, collect the
+covered pages, and record the SourceLine UUIDs each position draws from."""
 
 from __future__ import annotations
 
@@ -20,8 +21,11 @@ def slice_positions(
 
 def _slice_one(position: ParsedPosition, src: dict[int, SourceLine]) -> SlicedPosition:
     kurztext = src[position.kurztext_line].line_text
-    # The langtext span can begin at the kurztext line; don't repeat the header in the body.
-    langtext_lines = [lid for lid in position.langtext_lines if lid != position.kurztext_line]
+    # The langtext span can begin at the kurztext line; don't repeat the header in the
+    # body.
+    langtext_lines = [
+        lid for lid in position.langtext_lines if lid != position.kurztext_line
+    ]
     hinweis_lines = position.hinweis_lines
 
     langtext = LINE_JOIN.join(src[line_id].line_text for line_id in langtext_lines)
@@ -31,8 +35,11 @@ def _slice_one(position: ParsedPosition, src: dict[int, SourceLine]) -> SlicedPo
         else None
     )
 
-    # Dedupe while preserving order: the header / spans can reference a line more than once.
-    covered = list(dict.fromkeys([position.kurztext_line, *langtext_lines, *hinweis_lines]))
+    # Dedupe while preserving order: the header / spans can reference a line more than
+    # once.
+    covered = list(
+        dict.fromkeys([position.kurztext_line, *langtext_lines, *hinweis_lines])
+    )
     pages = sorted({src[line_id].page for line_id in covered})
     source_line_uuids = [src[line_id].source_line_uuid for line_id in covered]
 

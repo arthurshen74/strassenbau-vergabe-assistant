@@ -1,10 +1,11 @@
 """Aggregate LV quantities for a free-text predicate.
 
-The one operation top-k RAG can't do: total a quantity across the LV positions that match a
-predicate (e.g. "total m³ of earth removed"). Enumerate the project's LV positions, let an LLM judge
-which ones belong to the predicate (membership only), then sum their `menge` (Decimal) grouped by
-`einheit` in deterministic Python -- the LLM never adds anything up. Bedarfs-/Eventualpositionen are
-reported separately so a conditional quantity is never folded into a headline total.
+The one operation top-k RAG can't do: total a quantity across the LV positions that
+match a predicate (e.g. "total m³ of earth removed"). Enumerate the project's LV
+positions, let an LLM judge which ones belong to the predicate (membership only), then
+sum their `menge` (Decimal) grouped by `einheit` in deterministic Python -- the LLM
+never adds anything up. Bedarfs-/Eventualpositionen are reported separately so a
+conditional quantity is never folded into a headline total.
 """
 
 from __future__ import annotations
@@ -31,12 +32,13 @@ from shared.services.aggregate_lv_models import (
 )
 from shared.services.prompt_runner import PromptRunner
 
-# Positionstyp values whose quantity is conditional: surfaced separately, never summed into a
-# headline total (a Kalkulator decides whether they count).
+# Positionstyp values whose quantity is conditional: surfaced separately, never summed
+# into a headline total (a Kalkulator decides whether they count).
 CONTINGENCY_POSITIONSTYPEN = frozenset({"Bedarfsposition", "Eventualposition"})
 
-# Unit-string variants that mean the same unit, for matching the optional `unit` filter. Grouping
-# itself is by the verbatim einheit; this only normalises the caller's requested unit.
+# Unit-string variants that mean the same unit, for matching the optional `unit` filter.
+# Grouping itself is by the verbatim einheit; this only normalises the caller's
+# requested unit.
 _UNIT_ALIASES = {"m3": "m³", "cbm": "m³", "m2": "m²", "qm": "m²"}
 
 
@@ -104,7 +106,11 @@ class AggregateLVService:
         regular: list[LVItem] = []
         contingency: list[LVItem] = []
         for item in matched:
-            bucket = contingency if item.positionstyp in CONTINGENCY_POSITIONSTYPEN else regular
+            bucket = (
+                contingency
+                if item.positionstyp in CONTINGENCY_POSITIONSTYPEN
+                else regular
+            )
             bucket.append(item)
 
         result = AggregateResult(
@@ -126,14 +132,16 @@ class AggregateLVService:
 
 
 def _build_listing(items: list[LVItem]) -> str:
-    """One JSON object per line (JSONL). langtext newlines and pipes survive as escaped string
-    content, so they never collide with the line delimiter the way the prior `|` format let them."""
+    """One JSON object per line (JSONL). langtext newlines and pipes survive as escaped
+    string content, so they never collide with the line delimiter the way the prior `|`
+    format let them."""
     return "\n".join(json.dumps(_item_record(i), ensure_ascii=False) for i in items)
 
 
 def _item_record(item: LVItem) -> dict[str, str]:
-    """The judge's view of one position. langtext_resolved is preferred (STL references expanded);
-    stl_nr/hinweis are omitted when absent to keep the listing light at LV scale."""
+    """The judge's view of one position. langtext_resolved is preferred (STL references
+    expanded); stl_nr/hinweis are omitted when absent to keep the listing light at LV
+    scale."""
     record = {
         "lv_item_uuid": str(item.lv_item_uuid),
         "oz": item.oz,
@@ -147,7 +155,7 @@ def _item_record(item: LVItem) -> dict[str, str]:
     if item.hinweis is not None:
         record["hinweis"] = item.hinweis
     return record
-    
+
 
 def _line(item: LVItem, rationale_by_uuid: dict[str, str]) -> AggregateLineItem:
     return AggregateLineItem(

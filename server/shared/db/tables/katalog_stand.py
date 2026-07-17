@@ -1,10 +1,10 @@
 """The global catalog version — a single-row table (`katalog_stand`).
 
-One row (`id = 1`) holds the catalog's monotonic `version` (bumped on every bundle ACTIVATION,
-the number stamped onto calculations for provenance and compared for reloads) plus the audit
-display: `aktualisiert_am`/`benutzer`, the last catalog write of ANY kind (draft save, activate,
-discard, seed). `stand_beruehren` upserts it in the same UoW as the write. A plain `create_all`
-table (new tables need no SQL migration).
+One row (`id = 1`) holds the catalog's monotonic `version` (bumped on every bundle
+ACTIVATION, the number stamped onto calculations for provenance and compared for
+reloads) plus the audit display: `aktualisiert_am`/`benutzer`, the last catalog write of
+ANY kind (draft save, activate, discard, seed). `stand_beruehren` upserts it in the same
+UoW as the write. A plain `create_all` table (new tables need no SQL migration).
 """
 
 from __future__ import annotations

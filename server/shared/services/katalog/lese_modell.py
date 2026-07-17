@@ -1,18 +1,20 @@
 """
 lese_modell.py — the read layer behind the Katalog-Chat agent's tools (Phase 1, T1–T33).
 
-One class, `LeseModell`, answers every catalog read: enumerations, single-entity detail resolved
-one reference deep with its reverse edges, targeted relationship queries, lexical search, formula
-rendering, and the transitive variable analyses (derivation tree, where-used). All logic lives here;
-the tool handlers are thin wrappers (§1.3). Every tool returns a JSON-compact envelope — short keys,
-Decimals/dates/UUIDs stringified, None values dropped — designed for LLM consumption (§2).
+One class, `LeseModell`, answers every catalog read: enumerations, single-entity detail
+resolved one reference deep with its reverse edges, targeted relationship queries,
+lexical search, formula rendering, and the transitive variable analyses (derivation
+tree, where-used). All logic lives here; the tool handlers are thin wrappers (§1.3).
+Every tool returns a JSON-compact envelope — short keys, Decimals/dates/UUIDs
+stringified, None values dropped — designed for LLM consumption (§2).
 
-The source of truth is the DATABASE (`KatalogRepository`), not the engine's in-memory module dicts
-(§1.2): default visibility is `aktiv` rows; drafts and archived versions are reachable only through
-the explicit `status` parameter on list tools and through the history/draft tools. Domain objects are
-reconstructed from the stored payloads exactly as the provider does; where-used analysis parses the
-stored formula expressions via `Formel.eingaben()`. A `LeseModell` caches its loads for its own
-lifetime (one tool call), so cross-entity resolution inside a single answer never re-queries a table.
+The source of truth is the DATABASE (`KatalogRepository`), not the engine's in-memory
+module dicts (§1.2): default visibility is `aktiv` rows; drafts and archived versions
+are reachable only through the explicit `status` parameter on list tools and through the
+history/draft tools. Domain objects are reconstructed from the stored payloads exactly
+as the provider does; where-used analysis parses the stored formula expressions via
+`Formel.eingaben()`. A `LeseModell` caches its loads for its own lifetime (one tool
+call), so cross-entity resolution inside a single answer never re-queries a table.
 """
 
 from __future__ import annotations
@@ -31,7 +33,10 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from shared.models.katalog import KatalogEntitaet, KatalogStatus
 from shared.repositories.katalog import KatalogRepository
 from shared.services.katalog import ontologie
-from shared.services.kalkulation_v2.formel_darstellung import VariablenLegende, stelle_formel_dar
+from shared.services.kalkulation_v2.formel_darstellung import (
+    VariablenLegende,
+    stelle_formel_dar,
+)
 from shared.services.kalkulation_v2.model import (
     AufloesungsMethode,
     Formel,
@@ -39,22 +44,25 @@ from shared.services.kalkulation_v2.model import (
     _FUNKTIONEN,
 )
 
-# List envelopes carry `treffer_gesamt` so truncation is never silent; `limit` clamps to a hard cap.
+# List envelopes carry `treffer_gesamt` so truncation is never silent; `limit` clamps to
+# a hard cap.
 LIMIT_STANDARD = 50
 LIMIT_MAX = 200
 
-# Precedence for a variable name shadowed across gruppen — mirrors the `{**stamm, **kontext}` merge
-# in store.py, where the KONTEXT-gruppe definition wins the runtime KATALOG. Formeln are no longer
-# variables (base formulas are instantiated per Vorgang), so the FORMEL gruppe is gone.
+# Precedence for a variable name shadowed across gruppen — mirrors the `{**stamm,
+# **kontext}` merge in store.py, where the KONTEXT-gruppe definition wins the runtime
+# KATALOG. Formeln are no longer variables (base formulas are instantiated per Vorgang),
+# so the FORMEL gruppe is gone.
 _GRUPPE_RANG = {"stammdaten": 1, "kontext": 2}
 
-# The binding-path prefixes that name a catalog variable (vs. baustoff fields, sibling instanzen,
-# or literals) — the vocabulary of FormelInstanz.bindung values that reference `variablen`.
+# The binding-path prefixes that name a catalog variable (vs. baustoff fields, sibling
+# instanzen, or literals) — the vocabulary of FormelInstanz.bindung values that
+# reference `variablen`.
 _VAR_PRAEFIXE = ("kontext", "stammdaten")
 
-# T3 — the DSL vocabulary. Operators/comparisons are the AST the evaluator accepts; the function
-# whitelist is sourced from `_FUNKTIONEN` (extending it is an engineering change, §1.5), each with a
-# one-line semantics + example authored here.
+# T3 — the DSL vocabulary. Operators/comparisons are the AST the evaluator accepts; the
+# function whitelist is sourced from `_FUNKTIONEN` (extending it is an engineering
+# change, §1.5), each with a one-line semantics + example authored here.
 _DSL_OPERATOREN = [
     {"symbol": "+", "bedeutung": "Addition", "beispiel": "a + b"},
     {"symbol": "-", "bedeutung": "Subtraktion / Vorzeichen", "beispiel": "a - b"},
@@ -75,14 +83,18 @@ _DSL_FUNKTION_DOKU = {
     "abs": ("Betrag", "abs(-3) → 3"),
     "min": ("kleinster Wert", "min(120, 1000 / tiefe_cm)"),
     "max": ("größter Wert", "max(18, 220 / tiefe_cm)"),
-    "round": ("auf n Nachkommastellen runden (n=0 Standard)", "round(3.14159, 2) → 3.14"),
+    "round": (
+        "auf n Nachkommastellen runden (n=0 Standard)",
+        "round(3.14159, 2) → 3.14",
+    ),
     "ceil": ("aufrunden zur nächsten Ganzzahl", "ceil(2.1) → 3"),
     "floor": ("abrunden zur nächsten Ganzzahl", "floor(2.9) → 2"),
 }
 
 
 def _env(obj: Any) -> Any:
-    """Normalise an envelope for JSON/LLM consumption: drop None, stringify Decimal/date/UUID, unwrap Enum."""
+    """Normalise an envelope for JSON/LLM consumption: drop None, stringify
+    Decimal/date/UUID, unwrap Enum."""
     if isinstance(obj, dict):
         return {k: _env(v) for k, v in obj.items() if v is not None}
     if isinstance(obj, (list, tuple)):
@@ -115,8 +127,8 @@ def _passt(text: str | None, *felder: str | None) -> bool:
     return any(f is not None and n in f.lower() for f in felder)
 
 
-# --------------------------------------------------------------------------- #
-# Generic BM25 for T2 (the baustoff_suche._BM25 pattern generalised over catalog documents).
+# --------------------------------------------------------------------------- # Generic
+# BM25 for T2 (the baustoff_suche._BM25 pattern generalised over catalog documents).
 # --------------------------------------------------------------------------- #
 _K1 = 1.5
 _B = 0.75
@@ -130,7 +142,8 @@ def _tokenize(text: str) -> list[str]:
 
 
 class _Suchindex:
-    """Okapi-BM25 over `(schluessel, text)` documents; returns catalog keys ranked by a query."""
+    """Okapi-BM25 over `(schluessel, text)` documents; returns catalog keys ranked by a
+    query."""
 
     def __init__(self, dokumente: list[dict[str, Any]]) -> None:
         self.docs = dokumente
@@ -151,8 +164,10 @@ class _Suchindex:
             s = 0.0
             for t in q & tf.keys():
                 f = tf[t]
-                s += self.idf.get(t, 0.0) * (f * (_K1 + 1)) / (
-                    f + _K1 * (1 - _B + _B * dl / (self.avglen or 1.0))
+                s += (
+                    self.idf.get(t, 0.0)
+                    * (f * (_K1 + 1))
+                    / (f + _K1 * (1 - _B + _B * dl / (self.avglen or 1.0)))
                 )
             if s > 0:
                 ranked.append((doc, s))
@@ -166,23 +181,48 @@ def _name_join(*teile: str | None) -> str:
 
 
 _SUCH_ENTITAETEN: dict[KatalogEntitaet, tuple[Any, tuple[str, ...]]] = {
-    KatalogEntitaet.LEISTUNGEN: (lambda p: p.get("name"), ("name", "beschreibung", "standard_kennung")),
+    KatalogEntitaet.LEISTUNGEN: (
+        lambda p: p.get("name"),
+        ("name", "beschreibung", "standard_kennung"),
+    ),
     KatalogEntitaet.BAUVERFAHREN: (lambda p: p.get("name"), ("name",)),
     KatalogEntitaet.VORGAENGE: (lambda p: p.get("name"), ("name",)),
-    KatalogEntitaet.AUSFUEHRUNGSARTEN: (lambda p: p.get("name"), ("name", "geraetebezug")),
-    KatalogEntitaet.BETRIEBSKATEGORIEN: (lambda p: p.get("bezeichnung"), ("bezeichnung", "beschreibung")),
-    KatalogEntitaet.BETRIEBSARTEN: (lambda p: p.get("bezeichnung"), ("bezeichnung", "beschreibung")),
+    KatalogEntitaet.AUSFUEHRUNGSARTEN: (
+        lambda p: p.get("name"),
+        ("name", "geraetebezug"),
+    ),
+    KatalogEntitaet.BETRIEBSKATEGORIEN: (
+        lambda p: p.get("bezeichnung"),
+        ("bezeichnung", "beschreibung"),
+    ),
+    KatalogEntitaet.BETRIEBSARTEN: (
+        lambda p: p.get("bezeichnung"),
+        ("bezeichnung", "beschreibung"),
+    ),
     KatalogEntitaet.FORMELN: (lambda p: None, ("beschreibung", "ausdruck")),
-    KatalogEntitaet.VARIABLEN: (lambda p: p.get("bezeichnung"), ("bezeichnung", "beschreibung")),
-    KatalogEntitaet.GLOBALE_VARIABLEN: (lambda p: p.get("bezeichnung"), ("bezeichnung",)),
-    KatalogEntitaet.BAUSTOFFE: (lambda p: p.get("name"), ("name", "kategorie", "koernung")),
+    KatalogEntitaet.VARIABLEN: (
+        lambda p: p.get("bezeichnung"),
+        ("bezeichnung", "beschreibung"),
+    ),
+    KatalogEntitaet.GLOBALE_VARIABLEN: (
+        lambda p: p.get("bezeichnung"),
+        ("bezeichnung",),
+    ),
+    KatalogEntitaet.BAUSTOFFE: (
+        lambda p: p.get("name"),
+        ("name", "kategorie", "koernung"),
+    ),
     KatalogEntitaet.LIEFERANTEN: (lambda p: p.get("name"), ("name", "standort")),
-    KatalogEntitaet.MASCHINEN: (lambda p: _name_join(p.get("hersteller"), p.get("modell")), ("hersteller", "modell")),
+    KatalogEntitaet.MASCHINEN: (
+        lambda p: _name_join(p.get("hersteller"), p.get("modell")),
+        ("hersteller", "modell"),
+    ),
 }
 
 
 class LeseModell:
-    """Read-only access to the persisted catalog for the agent's tools; one instance per tool call."""
+    """Read-only access to the persisted catalog for the agent's tools; one instance per
+    tool call."""
 
     def __init__(self, conn: AsyncConnection) -> None:
         self.repo = KatalogRepository(conn)
@@ -198,7 +238,9 @@ class LeseModell:
     ) -> list:
         schluessel = (entitaet, status)
         if schluessel not in self._zeilen_cache:
-            self._zeilen_cache[schluessel] = await self.repo.nach_status(entitaet, status)
+            self._zeilen_cache[schluessel] = await self.repo.nach_status(
+                entitaet, status
+            )
         return self._zeilen_cache[schluessel]
 
     async def _payloads(self, entitaet: KatalogEntitaet) -> dict[str, dict]:
@@ -213,8 +255,9 @@ class LeseModell:
         return self._formeln_cache
 
     async def _var_index(self) -> dict[str, Any]:
-        """Variable definitions resolved by gruppe precedence, plus the gruppen and KONSTANTE-values
-        per name (a name may be shadowed across gruppen — the grandfathered dual-gruppe case)."""
+        """Variable definitions resolved by gruppe precedence, plus the gruppen and
+        KONSTANTE-values per name (a name may be shadowed across gruppen — the
+        grandfathered dual-gruppe case)."""
         if self._var_index_cache is not None:
             return self._var_index_cache
         defs: dict[str, VariableDefinition] = {}
@@ -228,7 +271,12 @@ class LeseModell:
             vardef = VariableDefinition.model_validate({"name": name, **rest})
             gruppen.setdefault(name, []).append(gruppe)
             kwert = next(
-                (s.konstante for s in vardef.aufloesung if s.methode == AufloesungsMethode.KONSTANTE and s.konstante is not None),
+                (
+                    s.konstante
+                    for s in vardef.aufloesung
+                    if s.methode == AufloesungsMethode.KONSTANTE
+                    and s.konstante is not None
+                ),
                 None,
             )
             if kwert is not None:
@@ -237,14 +285,21 @@ class LeseModell:
                 defs[name] = vardef
                 rang[name] = _GRUPPE_RANG.get(gruppe, 0)
         # The gruppe that won for each name (highest precedence present).
-        primaer = {n: max(gs, key=lambda g: _GRUPPE_RANG.get(g, 0)) for n, gs in gruppen.items()}
+        primaer = {
+            n: max(gs, key=lambda g: _GRUPPE_RANG.get(g, 0))
+            for n, gs in gruppen.items()
+        }
         self._var_index_cache = {
-            "defs": defs, "gruppen": gruppen, "primaer": primaer, "konstante": konstante
+            "defs": defs,
+            "gruppen": gruppen,
+            "primaer": primaer,
+            "konstante": konstante,
         }
         return self._var_index_cache
 
     async def _bv_vorgaenge(self) -> dict[str, list[str]]:
-        """Bauverfahren code → ordered Vorgang codes (the junction of its active version)."""
+        """Bauverfahren code → ordered Vorgang codes (the junction of its active
+        version)."""
         if self._bv_vorgaenge_cache is None:
             self._bv_vorgaenge_cache = {
                 z.schluessel: await self.repo.vorgaenge_lesen(z.zeile_uuid)
@@ -265,10 +320,11 @@ class LeseModell:
 
     # --- Meta and search (T1–T3) ----------------------------------------- #
     async def katalog_uebersicht(self) -> dict[str, Any]:
-        """T1: counts per entity, catalog stand (version + last change), open-draft count.
+        """T1: counts per entity, catalog stand (version + last change), open-draft
+        count.
 
-        The stand reads the katalog_stand row; on an unseeded DB (no row) it falls back to the
-        max gueltig_ab across the lifecycle tables (the Phase-1 derivation)."""
+        The stand reads the katalog_stand row; on an unseeded DB (no row) it falls back
+        to the max gueltig_ab across the lifecycle tables (the Phase-1 derivation)."""
         counts: dict[str, int] = {}
         letzte: Any = None
         letzter_benutzer: str | None = None
@@ -299,7 +355,8 @@ class LeseModell:
     async def suche_katalog(
         self, text: str, entitaeten: list[str] | None = None, limit: int | None = None
     ) -> dict[str, Any]:
-        """T2: ranked lexical (BM25) search across entities; returns (entitaet, schluessel, name, score)."""
+        """T2: ranked lexical (BM25) search across entities; returns (entitaet,
+        schluessel, name, score)."""
         gewuenscht = set(entitaeten) if entitaeten else None
         dokumente: list[dict[str, Any]] = []
         for e, (name_fn, felder) in _SUCH_ENTITAETEN.items():
@@ -317,13 +374,19 @@ class LeseModell:
                 )
         ranked = _Suchindex(dokumente).score(text)
         treffer = [
-            {"entitaet": d["entitaet"], "schluessel": d["schluessel"], "name": d["name"], "score": round(s, 4)}
+            {
+                "entitaet": d["entitaet"],
+                "schluessel": d["schluessel"],
+                "name": d["name"],
+                "score": round(s, 4),
+            }
             for d, s in ranked
         ]
         return _env(_liste(treffer, limit))
 
     async def zeige_dsl_funktionen(self) -> dict[str, Any]:
-        """T3: the formula language — operators, comparisons, ternary, and the function whitelist."""
+        """T3: the formula language — operators, comparisons, ternary, and the function
+        whitelist."""
         funktionen = [
             {
                 "name": name,
@@ -336,16 +399,25 @@ class LeseModell:
             {
                 "operatoren": _DSL_OPERATOREN,
                 "vergleiche": _DSL_VERGLEICHE,
-                "logik": [{"symbol": "and", "bedeutung": "logisches Und"}, {"symbol": "or", "bedeutung": "logisches Oder"}],
-                "bedingung": {"form": "a if bedingung else b", "bedeutung": "Ternär: a wenn Bedingung wahr, sonst b"},
+                "logik": [
+                    {"symbol": "and", "bedeutung": "logisches Und"},
+                    {"symbol": "or", "bedeutung": "logisches Oder"},
+                ],
+                "bedingung": {
+                    "form": "a if bedingung else b",
+                    "bedeutung": "Ternär: a wenn Bedingung wahr, sonst b",
+                },
                 "funktionen": funktionen,
             }
         )
 
     # --- Leistungen (T4–T5) ---------------------------------------------- #
     async def liste_leistungen(
-        self, filter_text: str | None = None, einheit: str | None = None,
-        status: str = KatalogStatus.AKTIV.value, limit: int | None = None,
+        self,
+        filter_text: str | None = None,
+        einheit: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """T4: code, name, einheit, #Bauverfahren-Kandidaten."""
         mapping = await self._leistung_bv()
@@ -364,7 +436,8 @@ class LeseModell:
         return _env(_liste(eintraege, limit))
 
     async def zeige_leistung(self, code: str) -> dict[str, Any]:
-        """T5: full detail + ordered Bauverfahren candidates (first = default) + standard_kennung."""
+        """T5: full detail + ordered Bauverfahren candidates (first = default) +
+        standard_kennung."""
         payloads = await self._payloads(KatalogEntitaet.LEISTUNGEN)
         if code not in payloads:
             return _env({"fehler": f"keine aktive Leistung mit code {code}"})
@@ -390,7 +463,9 @@ class LeseModell:
 
     # --- Bauverfahren (T6–T8) -------------------------------------------- #
     async def liste_bauverfahren(
-        self, filter_text: str | None = None, status: str = KatalogStatus.AKTIV.value,
+        self,
+        filter_text: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
         limit: int | None = None,
     ) -> dict[str, Any]:
         """T6: code, name, #Vorgänge, #Leistungen die es nutzen."""
@@ -411,7 +486,8 @@ class LeseModell:
         return _env(_liste(eintraege, limit))
 
     async def zeige_bauverfahren(self, code: str) -> dict[str, Any]:
-        """T7: ordered Vorgang chain (code, name, Ausführungsart, Kostenarten) + reverse Leistungen."""
+        """T7: ordered Vorgang chain (code, name, Ausführungsart, Kostenarten) + reverse
+        Leistungen."""
         payloads = await self._payloads(KatalogEntitaet.BAUVERFAHREN)
         if code not in payloads:
             return _env({"fehler": f"kein aktives Bauverfahren mit code {code}"})
@@ -425,29 +501,54 @@ class LeseModell:
                 {
                     "code": vc,
                     "name": vp.get("name"),
-                    "ausfuehrungsart": {"code": aa, "name": aa_namen.get(aa)} if aa else None,
+                    "ausfuehrungsart": {"code": aa, "name": aa_namen.get(aa)}
+                    if aa
+                    else None,
                     "kostenarten": _kostenarten(vp),
                 }
             )
-        leistungen = [lc for lc, bvs in (await self._leistung_bv()).items() if code in bvs]
+        leistungen = [
+            lc for lc, bvs in (await self._leistung_bv()).items() if code in bvs
+        ]
         return _env(
-            {"code": code, "name": payloads[code].get("name"), "vorgaenge": kette, "genutzt_von_leistungen": leistungen}
+            {
+                "code": code,
+                "name": payloads[code].get("name"),
+                "vorgaenge": kette,
+                "genutzt_von_leistungen": leistungen,
+            }
         )
 
     async def finde_bauverfahren_mit_vorgang(self, vorgang_code: str) -> dict[str, Any]:
-        """T8: every Bauverfahren containing the Vorgang, with its position in the chain."""
+        """T8: every Bauverfahren containing the Vorgang, with its position in the
+        chain."""
         bv_namen = await self._namen(KatalogEntitaet.BAUVERFAHREN, "name")
         treffer = []
         for bv, codes in (await self._bv_vorgaenge()).items():
             if vorgang_code in codes:
-                treffer.append({"code": bv, "name": bv_namen.get(bv), "position": codes.index(vorgang_code) + 1})
+                treffer.append(
+                    {
+                        "code": bv,
+                        "name": bv_namen.get(bv),
+                        "position": codes.index(vorgang_code) + 1,
+                    }
+                )
         treffer.sort(key=lambda t: t["code"])
-        return _env({"vorgang_code": vorgang_code, "bauverfahren": treffer, "treffer_gesamt": len(treffer)})
+        return _env(
+            {
+                "vorgang_code": vorgang_code,
+                "bauverfahren": treffer,
+                "treffer_gesamt": len(treffer),
+            }
+        )
 
     # --- Vorgänge (T9–T10) ----------------------------------------------- #
     async def liste_vorgaenge(
-        self, ausfuehrungsart_code: str | None = None, betriebsart_code: str | None = None,
-        filter_text: str | None = None, status: str = KatalogStatus.AKTIV.value,
+        self,
+        ausfuehrungsart_code: str | None = None,
+        betriebsart_code: str | None = None,
+        filter_text: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
         limit: int | None = None,
     ) -> dict[str, Any]:
         """T9: both machine facets as explicit filters (reverse edges of T12/T15)."""
@@ -462,19 +563,27 @@ class LeseModell:
             }
             for z in zeilen
             if _passt(filter_text, z.schluessel, z.payload.get("name"))
-            and (ausfuehrungsart_code is None or z.payload.get("ausfuehrungsart_code") == ausfuehrungsart_code)
-            and (betriebsart_code is None or z.payload.get("betriebsart_code") == betriebsart_code)
+            and (
+                ausfuehrungsart_code is None
+                or z.payload.get("ausfuehrungsart_code") == ausfuehrungsart_code
+            )
+            and (
+                betriebsart_code is None
+                or z.payload.get("betriebsart_code") == betriebsart_code
+            )
         ]
         return _env(_liste(eintraege, limit))
 
     async def zeige_vorgang(self, code: str) -> dict[str, Any]:
-        """T10: Ausführungsart, Betriebsart, leistung_instanz, kosten_bindung, and the Rechnung —
-        the named quantity/curve Instanzen and the cost lines per Kostenart (each: base formula +
-        bindings + the formula's Einheit) + reverse: containing Bauverfahren.
+        """T10: Ausführungsart, Betriebsart, leistung_instanz, kosten_bindung, and the
+        Rechnung — the named quantity/curve Instanzen and the cost lines per Kostenart
+        (each: base formula + bindings + the formula's Einheit) + reverse: containing
+        Bauverfahren.
 
-        Each Instanz/Kostenzeile shows which base formula it instantiates and how its declared
-        parameters are bound (kontext./stammdaten. variables, baustoff fields, sibling formel.
-        instanzen, or literals). The formula's Einheit gives the produced unit."""
+        Each Instanz/Kostenzeile shows which base formula it instantiates and how its
+        declared parameters are bound (kontext./stammdaten. variables, baustoff fields,
+        sibling formel. instanzen, or literals). The formula's Einheit gives the
+        produced unit."""
         payloads = await self._payloads(KatalogEntitaet.VORGAENGE)
         if code not in payloads:
             return _env({"fehler": f"kein aktiver Vorgang mit code {code}"})
@@ -499,20 +608,27 @@ class LeseModell:
             }
 
         instanzen = [
-            instanz_ansicht(name, inst) for name, inst in (rechnung.get("instanzen") or {}).items()
+            instanz_ansicht(name, inst)
+            for name, inst in (rechnung.get("instanzen") or {}).items()
         ]
         kosten = [
             {"kostenart": ka, **instanz_ansicht(None, inst)}
             for ka, liste in (rechnung.get("kosten") or {}).items()
             for inst in liste
         ]
-        enthalten_in = [bv for bv, codes in (await self._bv_vorgaenge()).items() if code in codes]
+        enthalten_in = [
+            bv for bv, codes in (await self._bv_vorgaenge()).items() if code in codes
+        ]
         return _env(
             {
                 "code": code,
                 "name": p.get("name"),
-                "ausfuehrungsart": {"code": aa, "name": aa_namen.get(aa)} if aa else None,
-                "betriebsart": {"code": bt, "bezeichnung": bt_namen.get(bt)} if bt else None,
+                "ausfuehrungsart": {"code": aa, "name": aa_namen.get(aa)}
+                if aa
+                else None,
+                "betriebsart": {"code": bt, "bezeichnung": bt_namen.get(bt)}
+                if bt
+                else None,
                 "leistung_instanz": p.get("leistung_instanz"),
                 "kosten_bindung": p.get("kosten_bindung") or None,
                 "instanzen": instanzen,
@@ -523,7 +639,9 @@ class LeseModell:
 
     # --- Ausführungsarten / Betriebsarten / -kategorien (T11–T15) -------- #
     async def liste_ausfuehrungsarten(
-        self, filter_text: str | None = None, status: str = KatalogStatus.AKTIV.value,
+        self,
+        filter_text: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
         limit: int | None = None,
     ) -> dict[str, Any]:
         """T11: code, name, geraetebezug, #Maschinen, #Vorgänge."""
@@ -531,7 +649,9 @@ class LeseModell:
         vorgaenge = await self._payloads(KatalogEntitaet.VORGAENGE)
         n_masch = Counter(m.get("ausfuehrungsart_code") for m in maschinen.values())
         n_vorg = Counter(v.get("ausfuehrungsart_code") for v in vorgaenge.values())
-        zeilen = await self._zeilen(KatalogEntitaet.AUSFUEHRUNGSARTEN, KatalogStatus(status))
+        zeilen = await self._zeilen(
+            KatalogEntitaet.AUSFUEHRUNGSARTEN, KatalogStatus(status)
+        )
         eintraege = [
             {
                 "code": z.schluessel,
@@ -541,12 +661,18 @@ class LeseModell:
                 "vorgaenge": n_vorg.get(z.schluessel, 0),
             }
             for z in zeilen
-            if _passt(filter_text, z.schluessel, z.payload.get("name"), z.payload.get("geraetebezug"))
+            if _passt(
+                filter_text,
+                z.schluessel,
+                z.payload.get("name"),
+                z.payload.get("geraetebezug"),
+            )
         ]
         return _env(_liste(eintraege, limit))
 
     async def zeige_ausfuehrungsart(self, code: str) -> dict[str, Any]:
-        """T12: detail + reverse both ways: machines filling this slot, Vorgänge requiring it."""
+        """T12: detail + reverse both ways: machines filling this slot, Vorgänge
+        requiring it."""
         payloads = await self._payloads(KatalogEntitaet.AUSFUEHRUNGSARTEN)
         if code not in payloads:
             return _env({"fehler": f"keine aktive Ausführungsart mit code {code}"})
@@ -577,19 +703,30 @@ class LeseModell:
         """T13: each Betriebskategorie with its #Betriebsarten."""
         betriebsarten = await self._payloads(KatalogEntitaet.BETRIEBSARTEN)
         n = Counter(b.get("kategorie_code") for b in betriebsarten.values())
-        zeilen = await self._zeilen(KatalogEntitaet.BETRIEBSKATEGORIEN, KatalogStatus(status))
+        zeilen = await self._zeilen(
+            KatalogEntitaet.BETRIEBSKATEGORIEN, KatalogStatus(status)
+        )
         eintraege = [
-            {"code": z.schluessel, "bezeichnung": z.payload.get("bezeichnung"), "betriebsarten": n.get(z.schluessel, 0)}
+            {
+                "code": z.schluessel,
+                "bezeichnung": z.payload.get("bezeichnung"),
+                "betriebsarten": n.get(z.schluessel, 0),
+            }
             for z in zeilen
         ]
         return _env(_liste(eintraege, limit))
 
     async def liste_betriebsarten(
-        self, kategorie_code: str | None = None, filter_text: str | None = None,
-        status: str = KatalogStatus.AKTIV.value, limit: int | None = None,
+        self,
+        kategorie_code: str | None = None,
+        filter_text: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """T14: Betriebsarten, optionally scoped to one Betriebskategorie."""
-        zeilen = await self._zeilen(KatalogEntitaet.BETRIEBSARTEN, KatalogStatus(status))
+        zeilen = await self._zeilen(
+            KatalogEntitaet.BETRIEBSARTEN, KatalogStatus(status)
+        )
         eintraege = [
             {
                 "code": z.schluessel,
@@ -598,13 +735,17 @@ class LeseModell:
                 "einheit": z.payload.get("einheit"),
             }
             for z in zeilen
-            if (kategorie_code is None or z.payload.get("kategorie_code") == kategorie_code)
+            if (
+                kategorie_code is None
+                or z.payload.get("kategorie_code") == kategorie_code
+            )
             and _passt(filter_text, z.schluessel, z.payload.get("bezeichnung"))
         ]
         return _env(_liste(eintraege, limit))
 
     async def zeige_betriebsart(self, code: str) -> dict[str, Any]:
-        """T15: detail + reverse: machines carrying a Leistungsprofil for it, Vorgänge selecting it."""
+        """T15: detail + reverse: machines carrying a Leistungsprofil for it, Vorgänge
+        selecting it."""
         payloads = await self._payloads(KatalogEntitaet.BETRIEBSARTEN)
         if code not in payloads:
             return _env({"fehler": f"keine aktive Betriebsart mit code {code}"})
@@ -612,7 +753,10 @@ class LeseModell:
         maschinen = [
             {"code": k, "hersteller": mp.get("hersteller"), "modell": mp.get("modell")}
             for k, mp in (await self._payloads(KatalogEntitaet.MASCHINEN)).items()
-            if any(lp.get("betriebsart_code") == code for lp in (mp.get("leistungsprofile") or []))
+            if any(
+                lp.get("betriebsart_code") == code
+                for lp in (mp.get("leistungsprofile") or [])
+            )
         ]
         vorgaenge = [
             {"code": k, "name": vp.get("name")}
@@ -633,21 +777,32 @@ class LeseModell:
 
     # --- Maschinen (T16–T17) --------------------------------------------- #
     async def liste_maschinen(
-        self, ausfuehrungsart_code: str | None = None, betriebsart_code: str | None = None,
-        filter_text: str | None = None, status: str = KatalogStatus.AKTIV.value,
+        self,
+        ausfuehrungsart_code: str | None = None,
+        betriebsart_code: str | None = None,
+        filter_text: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
         limit: int | None = None,
     ) -> dict[str, Any]:
-        """T16: the two facets explicit — Geräteklasse (ausfuehrungsart) and Betriebsart."""
+        """T16: the two facets explicit — Geräteklasse (ausfuehrungsart) and
+        Betriebsart."""
         zeilen = await self._zeilen(KatalogEntitaet.MASCHINEN, KatalogStatus(status))
         eintraege = []
         for z in zeilen:
             p = z.payload
             profile = p.get("leistungsprofile") or []
-            if ausfuehrungsart_code is not None and p.get("ausfuehrungsart_code") != ausfuehrungsart_code:
+            if (
+                ausfuehrungsart_code is not None
+                and p.get("ausfuehrungsart_code") != ausfuehrungsart_code
+            ):
                 continue
-            if betriebsart_code is not None and not any(lp.get("betriebsart_code") == betriebsart_code for lp in profile):
+            if betriebsart_code is not None and not any(
+                lp.get("betriebsart_code") == betriebsart_code for lp in profile
+            ):
                 continue
-            if not _passt(filter_text, z.schluessel, p.get("hersteller"), p.get("modell")):
+            if not _passt(
+                filter_text, z.schluessel, p.get("hersteller"), p.get("modell")
+            ):
                 continue
             eintraege.append(
                 {
@@ -661,7 +816,8 @@ class LeseModell:
         return _env(_liste(eintraege, limit))
 
     async def zeige_maschine(self, code: str) -> dict[str, Any]:
-        """T17: Hersteller/Modell, slot (Ausführungsart), property bag, Leistungsprofile per Betriebsart."""
+        """T17: Hersteller/Modell, slot (Ausführungsart), property bag, Leistungsprofile
+        per Betriebsart."""
         payloads = await self._payloads(KatalogEntitaet.MASCHINEN)
         if code not in payloads:
             return _env({"fehler": f"keine aktive Maschine mit code {code}"})
@@ -669,7 +825,12 @@ class LeseModell:
         aa = p.get("ausfuehrungsart_code")
         aa_namen = await self._namen(KatalogEntitaet.AUSFUEHRUNGSARTEN, "name")
         eigenschaften = [
-            {"schluessel": k, "wert": v.get("wert"), "einheit": v.get("einheit"), "beleg": v.get("beleg")}
+            {
+                "schluessel": k,
+                "wert": v.get("wert"),
+                "einheit": v.get("einheit"),
+                "beleg": v.get("beleg"),
+            }
             for k, v in (p.get("eigenschaften") or {}).items()
         ]
         profile = [
@@ -678,7 +839,11 @@ class LeseModell:
                 "leistung": lp.get("leistung"),
                 "einheit": lp.get("einheit"),
                 "eigenschaften": [
-                    {"schluessel": k, "wert": v.get("wert"), "einheit": v.get("einheit")}
+                    {
+                        "schluessel": k,
+                        "wert": v.get("wert"),
+                        "einheit": v.get("einheit"),
+                    }
                     for k, v in (lp.get("eigenschaften") or {}).items()
                 ],
             }
@@ -689,7 +854,9 @@ class LeseModell:
                 "code": code,
                 "hersteller": p.get("hersteller"),
                 "modell": p.get("modell"),
-                "ausfuehrungsart": {"code": aa, "name": aa_namen.get(aa)} if aa else None,
+                "ausfuehrungsart": {"code": aa, "name": aa_namen.get(aa)}
+                if aa
+                else None,
                 "eigenschaften": eigenschaften,
                 "leistungsprofile": profile,
             }
@@ -697,8 +864,11 @@ class LeseModell:
 
     # --- Baustoffe (T18–T21) --------------------------------------------- #
     async def liste_baustoffe(
-        self, kategorie: str | None = None, koernung: str | None = None,
-        filter_text: str | None = None, status: str = KatalogStatus.AKTIV.value,
+        self,
+        kategorie: str | None = None,
+        koernung: str | None = None,
+        filter_text: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
         limit: int | None = None,
     ) -> dict[str, Any]:
         """T18: code, name, kategorie, koernung, einheit, basispreis."""
@@ -720,14 +890,16 @@ class LeseModell:
         return _env(_liste(eintraege, limit))
 
     async def liste_baustoff_kategorien(self) -> dict[str, Any]:
-        """T19: distinct kategorie values with counts (makes the loose vocabulary visible)."""
+        """T19: distinct kategorie values with counts (makes the loose vocabulary
+        visible)."""
         zeilen = await self._payloads(KatalogEntitaet.BAUSTOFFE)
         n = Counter((p.get("kategorie") or "(ohne)") for p in zeilen.values())
         eintraege = [{"kategorie": k, "baustoffe": v} for k, v in sorted(n.items())]
         return _env({"treffer_gesamt": len(eintraege), "eintraege": eintraege})
 
     async def zeige_baustoff(self, code: str) -> dict[str, Any]:
-        """T20: properties, base price(s), #Lieferanten carrying it, Stammdaten-Variablen bridging to it."""
+        """T20: properties, base price(s), #Lieferanten carrying it,
+        Stammdaten-Variablen bridging to it."""
         payloads = await self._payloads(KatalogEntitaet.BAUSTOFFE)
         if code not in payloads:
             return _env({"fehler": f"kein aktiver Baustoff mit code {code}"})
@@ -735,13 +907,18 @@ class LeseModell:
         heute = date.today()
         preise = await self.repo.preise()
         lieferanten = sorted(
-            {pr.lieferant_code for pr in preise if pr.baustoff_code == code and _gueltig(pr, heute)}
+            {
+                pr.lieferant_code
+                for pr in preise
+                if pr.baustoff_code == code and _gueltig(pr, heute)
+            }
         )
         brueckenvariablen = [
             {"name": name, "stammdaten_pfad": s.stammdaten_pfad}
             for name, vardef in (await self._var_index())["defs"].items()
             for s in vardef.aufloesung
-            if s.methode == AufloesungsMethode.STAMMDATEN and (s.stammdaten_pfad or "").startswith("baustoff.")
+            if s.methode == AufloesungsMethode.STAMMDATEN
+            and (s.stammdaten_pfad or "").startswith("baustoff.")
         ]
         return _env(
             {
@@ -762,13 +939,17 @@ class LeseModell:
     async def finde_lieferanten_fuer_baustoff(
         self, baustoff_code: str, stichtag: str | None = None
     ) -> dict[str, Any]:
-        """T21: every Lieferant with a valid ex-works price at stichtag, sorted by price; location included."""
+        """T21: every Lieferant with a valid ex-works price at stichtag, sorted by
+        price; location included."""
         tag = _als_datum(stichtag)
         lief_payloads = await self._payloads(KatalogEntitaet.LIEFERANTEN)
         best: dict[str, Decimal] = {}
         for pr in await self.repo.preise():
             if pr.baustoff_code == baustoff_code and _gueltig(pr, tag):
-                if pr.lieferant_code not in best or pr.preis_eur_pro_t < best[pr.lieferant_code]:
+                if (
+                    pr.lieferant_code not in best
+                    or pr.preis_eur_pro_t < best[pr.lieferant_code]
+                ):
                     best[pr.lieferant_code] = pr.preis_eur_pro_t
         treffer = [
             {
@@ -781,15 +962,24 @@ class LeseModell:
         ]
         treffer.sort(key=lambda t: t["werkspreis_eur_pro_t"])
         return _env(
-            {"baustoff_code": baustoff_code, "stichtag": tag, "lieferanten": treffer, "treffer_gesamt": len(treffer)}
+            {
+                "baustoff_code": baustoff_code,
+                "stichtag": tag,
+                "lieferanten": treffer,
+                "treffer_gesamt": len(treffer),
+            }
         )
 
     # --- Lieferanten & Preise (T22–T24) ---------------------------------- #
     async def liste_lieferanten(
-        self, filter_text: str | None = None, ort: str | None = None,
-        status: str = KatalogStatus.AKTIV.value, limit: int | None = None,
+        self,
+        filter_text: str | None = None,
+        ort: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
+        limit: int | None = None,
     ) -> dict[str, Any]:
-        """T22: code, name, Standort, #Baustoffe im Sortiment (currently valid prices)."""
+        """T22: code, name, Standort, #Baustoffe im Sortiment (currently valid
+        prices)."""
         heute = date.today()
         sortiment: dict[str, set[str]] = {}
         for pr in await self.repo.preise():
@@ -822,7 +1012,9 @@ class LeseModell:
             if pr.lieferant_code == code and _gueltig(pr, heute):
                 kat = baustoffe.get(pr.baustoff_code, {}).get("kategorie") or "(ohne)"
                 kategorien[kat] += 1
-        sortiment = [{"kategorie": k, "baustoffe": v} for k, v in sorted(kategorien.items())]
+        sortiment = [
+            {"kategorie": k, "baustoffe": v} for k, v in sorted(kategorien.items())
+        ]
         return _env(
             {
                 "code": code,
@@ -835,10 +1027,14 @@ class LeseModell:
         )
 
     async def zeige_preise(
-        self, lieferant_code: str | None = None, baustoff_code: str | None = None,
-        stichtag: str | None = None, mit_historie: bool = False,
+        self,
+        lieferant_code: str | None = None,
+        baustoff_code: str | None = None,
+        stichtag: str | None = None,
+        mit_historie: bool = False,
     ) -> dict[str, Any]:
-        """T24: raw price rows with validity ranges; either/both filters; mit_historie includes expired."""
+        """T24: raw price rows with validity ranges; either/both filters; mit_historie
+        includes expired."""
         tag = _als_datum(stichtag)
         reihen = []
         for pr in await self.repo.preise():
@@ -857,24 +1053,39 @@ class LeseModell:
                     "gueltig_bis": pr.gueltig_bis,
                 }
             )
-        reihen.sort(key=lambda r: (r["lieferant_code"], r["baustoff_code"], r["gueltig_ab"]))
-        return _env({"treffer_gesamt": len(reihen), "stichtag": tag, "mit_historie": mit_historie, "eintraege": reihen})
+        reihen.sort(
+            key=lambda r: (r["lieferant_code"], r["baustoff_code"], r["gueltig_ab"])
+        )
+        return _env(
+            {
+                "treffer_gesamt": len(reihen),
+                "stichtag": tag,
+                "mit_historie": mit_historie,
+                "eintraege": reihen,
+            }
+        )
 
     # --- Ontologie-Lookup (T34) ------------------------------------------ #
-    async def ontologie_lookup(self, query: str, limit: int | None = None) -> dict[str, Any]:
-        """T34: the recipe compiler's "where does this input live?" tool. Retrieves over the
-        Phase-3 prose (base-formula + variable beschreibungen) and returns, for a natural-language
-        need ("Dieselpreis", "Leistung für Fräsen bei Tiefe", "Dichte Asphalt"):
+    async def ontologie_lookup(
+        self, query: str, limit: int | None = None
+    ) -> dict[str, Any]:
+        """T34: the recipe compiler's "where does this input live?" tool. Retrieves over
+        the Phase-3 prose (base-formula + variable beschreibungen) and returns, for a
+        natural-language need ("Dieselpreis", "Leistung für Fräsen bei Tiefe", "Dichte
+        Asphalt"):
 
-        - `basisformeln`: matching base formulas to INSTANTIATE (name, einheit, beschreibung,
+        - `basisformeln`: matching base formulas to INSTANTIATE (name, einheit,
+        beschreibung,
           declared parameters) — the compiler binds these, never re-invents them;
         - `variablen`: matching bindable sources (name, gruppe, einheit, beschreibung);
-        - `bindungsgrammatik`: the legal binding-path prefixes (how to reference a source);
-        - `mengengeruest`: the sanctioned dimension-CHANGING formulas (chain these instead of
+        - `bindungsgrammatik`: the legal binding-path prefixes (how to reference a
+        source);
+        - `mengengeruest`: the sanctioned dimension-CHANGING formulas (chain these
+        instead of
           inventing unit arithmetic).
 
-        Retrieval runs over real prose, so the answer is only as good as the beschreibungen — which
-        Phase 3 authored for every survivor."""
+        Retrieval runs over real prose, so the answer is only as good as the
+        beschreibungen — which Phase 3 authored for every survivor."""
         n = _limit(limit)
         formel_docs: list[dict[str, Any]] = []
         for name, f in (await self._formeln()).items():
@@ -885,7 +1096,9 @@ class LeseModell:
             formel_docs.append({"schluessel": name, "_text": prosa, "_formel": f})
         var_docs: list[dict[str, Any]] = []
         for name, p in (await self._payloads(KatalogEntitaet.VARIABLEN)).items():
-            prosa = " ".join([name, p.get("bezeichnung") or "", p.get("beschreibung") or ""])
+            prosa = " ".join(
+                [name, p.get("bezeichnung") or "", p.get("beschreibung") or ""]
+            )
             var_docs.append({"schluessel": name, "_text": prosa, "_payload": p})
 
         formel_treffer = _Suchindex(formel_docs).score(query)[:n]
@@ -896,7 +1109,11 @@ class LeseModell:
                 "einheit": d["_formel"].einheit,
                 "beschreibung": d["_formel"].beschreibung,
                 "parameter": [
-                    {"name": pp.name, "einheit": pp.einheit, "beschreibung": pp.beschreibung}
+                    {
+                        "name": pp.name,
+                        "einheit": pp.einheit,
+                        "beschreibung": pp.beschreibung,
+                    }
                     for pp in d["_formel"].parameter
                 ],
                 "score": round(s, 4),
@@ -926,32 +1143,44 @@ class LeseModell:
 
     # --- Formeln & Variablen (T25–T30) ----------------------------------- #
     async def liste_formeln(
-        self, filter_text: str | None = None,
-        status: str = KatalogStatus.AKTIV.value, limit: int | None = None,
+        self,
+        filter_text: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
+        limit: int | None = None,
     ) -> dict[str, Any]:
-        """T25: the base-formula catalog — name, einheit, beschreibung, declared parameter names,
-        ausdruck. `filter_text` matches name, ausdruck or beschreibung."""
+        """T25: the base-formula catalog — name, einheit, beschreibung, declared
+        parameter names, ausdruck. `filter_text` matches name, ausdruck or beschreibung.
+        """
         zeilen = await self._zeilen(KatalogEntitaet.FORMELN, KatalogStatus(status))
         eintraege = [
             {
                 "name": z.schluessel,
                 "einheit": z.payload.get("einheit"),
                 "beschreibung": z.payload.get("beschreibung"),
-                "parameter": [p.get("name") for p in (z.payload.get("parameter") or [])],
+                "parameter": [
+                    p.get("name") for p in (z.payload.get("parameter") or [])
+                ],
                 "ausdruck": z.payload.get("ausdruck", ""),
             }
             for z in zeilen
-            if _passt(filter_text, z.schluessel, z.payload.get("ausdruck"), z.payload.get("beschreibung"))
+            if _passt(
+                filter_text,
+                z.schluessel,
+                z.payload.get("ausdruck"),
+                z.payload.get("beschreibung"),
+            )
         ]
         return _env(_liste(eintraege, limit))
 
     async def zeige_formel(self, name: str) -> dict[str, Any]:
-        """T26: a base formula — ausdruck + LaTeX + legend over its DECLARED parameters (each with
-        Einheit, Beschreibung, Standard) + the reverse edge: every Vorgang that instantiates it.
+        """T26: a base formula — ausdruck + LaTeX + legend over its DECLARED parameters
+        (each with Einheit, Beschreibung, Standard) + the reverse edge: every Vorgang
+        that instantiates it.
 
-        Base formulas reference only their own formal parameters (never global variables), so the
-        legend and `parameter` list come from the declared signature, and the reverse edge is over
-        Vorgang Rechnungen (which base formula each Instanz/Kostenzeile binds), not a variable index."""
+        Base formulas reference only their own formal parameters (never global
+        variables), so the legend and `parameter` list come from the declared signature,
+        and the reverse edge is over Vorgang Rechnungen (which base formula each
+        Instanz/Kostenzeile binds), not a variable index."""
         formeln = await self._formeln()
         if name not in formeln:
             return _env({"fehler": f"keine aktive Formel mit name {name}"})
@@ -970,10 +1199,12 @@ class LeseModell:
             }
             for p in f.parameter
         ]
-        # Reverse edge: every Vorgang whose Rechnung instantiates this base formula (any Instanz or
-        # Kostenzeile). Shared with verwendung analysis so detail and impact never disagree.
+        # Reverse edge: every Vorgang whose Rechnung instantiates this base formula (any
+        # Instanz or Kostenzeile). Shared with verwendung analysis so detail and impact
+        # never disagree.
         gebunden_in = [
-            vc for vc, vp in (await self._payloads(KatalogEntitaet.VORGAENGE)).items()
+            vc
+            for vc, vp in (await self._payloads(KatalogEntitaet.VORGAENGE)).items()
             if name in _vorgang_formeln(vp)
         ]
         return _env(
@@ -990,10 +1221,14 @@ class LeseModell:
         )
 
     async def liste_variablen(
-        self, gruppe: str | None = None, filter_text: str | None = None,
-        status: str = KatalogStatus.AKTIV.value, limit: int | None = None,
+        self,
+        gruppe: str | None = None,
+        filter_text: str | None = None,
+        status: str = KatalogStatus.AKTIV.value,
+        limit: int | None = None,
     ) -> dict[str, Any]:
-        """T27: name, gruppe, bezeichnung, einheit, datentyp; gruppe ∈ stammdaten|kontext|formel."""
+        """T27: name, gruppe, bezeichnung, einheit, datentyp; gruppe ∈
+        stammdaten|kontext|formel."""
         zeilen = await self._zeilen(KatalogEntitaet.VARIABLEN, KatalogStatus(status))
         eintraege = [
             {
@@ -1010,11 +1245,18 @@ class LeseModell:
         return _env(_liste(eintraege, limit))
 
     async def zeige_variable(self, name: str) -> dict[str, Any]:
-        """T28: definition, Einheit, Datentyp, resolution cascade, current KONSTANTE value."""
-        zeilen = [z for z in await self._zeilen(KatalogEntitaet.VARIABLEN) if z.schluessel == name]
+        """T28: definition, Einheit, Datentyp, resolution cascade, current KONSTANTE
+        value."""
+        zeilen = [
+            z
+            for z in await self._zeilen(KatalogEntitaet.VARIABLEN)
+            if z.schluessel == name
+        ]
         if not zeilen:
             return _env({"fehler": f"keine aktive Variable mit name {name}"})
-        zeilen.sort(key=lambda z: _GRUPPE_RANG.get(z.payload.get("gruppe"), 0), reverse=True)
+        zeilen.sort(
+            key=lambda z: _GRUPPE_RANG.get(z.payload.get("gruppe"), 0), reverse=True
+        )
         primaer = zeilen[0]
 
         def darstellung(z) -> dict[str, Any]:
@@ -1031,7 +1273,14 @@ class LeseModell:
                 }
                 for s in vardef.aufloesung
             ]
-            konst = next((s.konstante for s in vardef.aufloesung if s.methode == AufloesungsMethode.KONSTANTE), None)
+            konst = next(
+                (
+                    s.konstante
+                    for s in vardef.aufloesung
+                    if s.methode == AufloesungsMethode.KONSTANTE
+                ),
+                None,
+            )
             return {
                 "gruppe": z.payload.get("gruppe"),
                 "bezeichnung": vardef.bezeichnung,
@@ -1048,11 +1297,13 @@ class LeseModell:
         return _env({"name": name, **haupt, "weitere_gruppen": weitere or None})
 
     async def erklaere_variable(self, name: str) -> dict[str, Any]:
-        """T29: how a catalog variable resolves — its cascade leaf. A variable is no longer produced
-        by a formula (base formulas take local parameters), so a variable resolves directly:
-        `konstante` (a rate), `stammdaten` (a bridge to a Baustoff field), or `eingabe` (a
-        situational kontext value filled by the graph). The derivation of a COST from base formulas
-        lives on the Vorgang Rechnung (zeige_vorgang), not on a variable."""
+        """T29: how a catalog variable resolves — its cascade leaf. A variable is no
+        longer produced by a formula (base formulas take local parameters), so a
+        variable resolves directly:
+        `konstante` (a rate), `stammdaten` (a bridge to a Baustoff field), or `eingabe`
+        (a situational kontext value filled by the graph). The derivation of a COST from
+        base formulas lives on the Vorgang Rechnung (zeige_vorgang), not on a variable.
+        """
         idx = await self._var_index()
         defs, primaer = idx["defs"], idx["primaer"]
         vardef = defs.get(name)
@@ -1060,29 +1311,47 @@ class LeseModell:
             return _env({"fehler": f"keine aktive Variable mit name {name}"})
         for s in vardef.aufloesung:
             if s.methode == AufloesungsMethode.KONSTANTE and s.konstante is not None:
-                return _env({"variable": name, "methode": "konstante", "wert": s.konstante,
-                             "gruppe": primaer.get(name)})
+                return _env(
+                    {
+                        "variable": name,
+                        "methode": "konstante",
+                        "wert": s.konstante,
+                        "gruppe": primaer.get(name),
+                    }
+                )
             if s.methode == AufloesungsMethode.STAMMDATEN:
-                return _env({"variable": name, "methode": "stammdaten",
-                             "stammdaten_pfad": s.stammdaten_pfad, "gruppe": primaer.get(name)})
-        return _env({
-            "variable": name,
-            "methode": "eingabe",
-            "gruppe": primaer.get(name),
-            "kaskade": [s.methode.value for s in vardef.aufloesung],
-        })
+                return _env(
+                    {
+                        "variable": name,
+                        "methode": "stammdaten",
+                        "stammdaten_pfad": s.stammdaten_pfad,
+                        "gruppe": primaer.get(name),
+                    }
+                )
+        return _env(
+            {
+                "variable": name,
+                "methode": "eingabe",
+                "gruppe": primaer.get(name),
+                "kaskade": [s.methode.value for s in vardef.aufloesung],
+            }
+        )
 
     async def verwendung_von_variable(self, name: str) -> dict[str, Any]:
-        """T30: full where-used for a catalog variable — every Vorgang whose Rechnung binds it (as a
-        source path or as a machine-override key) with its roles, plus Globale with ziel_variable on
-        it. The impact-analysis primitive before a rate/definition change."""
+        """T30: full where-used for a catalog variable — every Vorgang whose Rechnung
+        binds it (as a source path or as a machine-override key) with its roles, plus
+        Globale with ziel_variable on it. The impact-analysis primitive before a
+        rate/definition change."""
         vorgaenge = []
         for vc, vp in (await self._payloads(KatalogEntitaet.VORGAENGE)).items():
             rollen = _vorgang_rollen(vp, name)
             if rollen:
                 vorgaenge.append({"code": vc, "rollen": rollen})
         globale = [
-            k for k, gp in (await self._payloads(KatalogEntitaet.GLOBALE_VARIABLEN)).items()
+            k
+            for k, gp in (
+                await self._payloads(KatalogEntitaet.GLOBALE_VARIABLEN)
+            ).items()
             if gp.get("ziel_variable") == name
         ]
         return _env(
@@ -1095,7 +1364,8 @@ class LeseModell:
 
     # --- Globale Variablen (T31) ----------------------------------------- #
     async def liste_globale_variablen(self, limit: int | None = None) -> dict[str, Any]:
-        """T31: the project-scoped set: name, Bezeichnung, erforderlich, ist_standort, ziel_variable, RAG."""
+        """T31: the project-scoped set: name, Bezeichnung, erforderlich, ist_standort,
+        ziel_variable, RAG."""
         zeilen = await self._zeilen(KatalogEntitaet.GLOBALE_VARIABLEN)
         eintraege = [
             {
@@ -1112,11 +1382,17 @@ class LeseModell:
 
     # --- Lifecycle & Audit (T32–T33) ------------------------------------- #
     async def zeige_historie(self, entitaet: str, schluessel: str) -> dict[str, Any]:
-        """T32: all versions of one entry (version, status, benutzer, gueltig_ab/bis) — the SCD-2 timeline."""
+        """T32: all versions of one entry (version, status, benutzer, gueltig_ab/bis) —
+        the SCD-2 timeline."""
         try:
             e = KatalogEntitaet(entitaet)
         except ValueError:
-            return _env({"fehler": f"unbekannte Entität: {entitaet}", "bekannt": [x.value for x in KatalogEntitaet]})
+            return _env(
+                {
+                    "fehler": f"unbekannte Entität: {entitaet}",
+                    "bekannt": [x.value for x in KatalogEntitaet],
+                }
+            )
         zeilen = await self.repo.alle_versionen(e, schluessel)
         versionen = [
             {
@@ -1129,7 +1405,9 @@ class LeseModell:
             }
             for z in zeilen
         ]
-        return _env({"entitaet": entitaet, "schluessel": schluessel, "versionen": versionen})
+        return _env(
+            {"entitaet": entitaet, "schluessel": schluessel, "versionen": versionen}
+        )
 
     async def liste_entwuerfe(self) -> dict[str, Any]:
         """T33: open draft bundles grouped by bundle, entity, and author."""
@@ -1142,19 +1420,28 @@ class LeseModell:
                 entwuerfe = [z for z in zeilen if z.status == KatalogStatus.ENTWURF]
                 if not entwuerfe:
                     continue
-                entitaeten.append({"entitaet": e.value, "schluessel": [z.schluessel for z in entwuerfe]})
+                entitaeten.append(
+                    {
+                        "entitaet": e.value,
+                        "schluessel": [z.schluessel for z in entwuerfe],
+                    }
+                )
                 benutzer.update(z.benutzer for z in entwuerfe if z.benutzer)
             bundles.append(
-                {"bundle_uuid": bundle_uuid, "benutzer": sorted(benutzer), "entitaeten": entitaeten}
+                {
+                    "bundle_uuid": bundle_uuid,
+                    "benutzer": sorted(benutzer),
+                    "entitaeten": entitaeten,
+                }
             )
         return _env({"treffer_gesamt": len(bundles), "eintraege": bundles})
 
 
-# --------------------------------------------------------------------------- #
-# Module helpers
-# --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- # Module
+# helpers --------------------------------------------------------------------------- #
 def _instanzen(vorgang_payload: dict[str, Any]):
-    """Every FormelInstanz payload in a Vorgang's Rechnung — the named Instanzen and the cost lines."""
+    """Every FormelInstanz payload in a Vorgang's Rechnung — the named Instanzen and the
+    cost lines."""
     rechnung = vorgang_payload.get("rechnung") or {}
     yield from (rechnung.get("instanzen") or {}).values()
     for liste in (rechnung.get("kosten") or {}).values():
@@ -1168,23 +1455,29 @@ def _kostenarten(vorgang_payload: dict[str, Any]) -> list[str]:
 
 
 def _vorgang_formeln(vorgang_payload: dict[str, Any]) -> set[str]:
-    """Every base-formula name a Vorgang's Rechnung instantiates — the reverse edge for zeige_formel."""
-    return {inst["formel"] for inst in _instanzen(vorgang_payload) if inst.get("formel")}
+    """Every base-formula name a Vorgang's Rechnung instantiates — the reverse edge for
+    zeige_formel."""
+    return {
+        inst["formel"] for inst in _instanzen(vorgang_payload) if inst.get("formel")
+    }
 
 
 def _vorgang_rollen(vorgang_payload: dict[str, Any], variable: str) -> list[str]:
-    """The roles in which one Vorgang uses `variable` — THE single definition of "a Vorgang uses a
-    variable", the impact-analysis primitive behind verwendung_von_variable (T30).
+    """The roles in which one Vorgang uses `variable` — THE single definition of "a
+    Vorgang uses a variable", the impact-analysis primitive behind
+    verwendung_von_variable (T30).
 
     A Vorgang binds a variable in two distinct roles:
 
-    - "bindung" — a binding path (`kontext.<var>` / `stammdaten.<var>`) of some FormelInstanz in the
-      Rechnung: the value flows into a base formula's parameter. These are the sources the EKT is
-      computed from.
-    - "kosten_bindung" — a KEY of `kosten_bindung` (Stammdaten rate variable ← machine property-bag
-      key). When a machine is bound at Gate 4 its property value SHADOWS the Stammdaten rate this
-      variable would otherwise supply (binden.py) — the easily-missed role an author must know
-      before changing that rate.
+    - "bindung" — a binding path (`kontext.<var>` / `stammdaten.<var>`) of some
+    FormelInstanz in the
+      Rechnung: the value flows into a base formula's parameter. These are the sources
+      the EKT is computed from.
+    - "kosten_bindung" — a KEY of `kosten_bindung` (Stammdaten rate variable ← machine
+    property-bag
+      key). When a machine is bound at Gate 4 its property value SHADOWS the Stammdaten
+      rate this variable would otherwise supply (binden.py) — the easily-missed role an
+      author must know before changing that rate.
     """
     rollen: list[str] = []
     gebunden = {
@@ -1206,4 +1499,6 @@ def _als_datum(stichtag: str | None) -> date:
 
 
 def _gueltig(preis: Any, tag: date) -> bool:
-    return preis.gueltig_ab <= tag and (preis.gueltig_bis is None or tag <= preis.gueltig_bis)
+    return preis.gueltig_ab <= tag and (
+        preis.gueltig_bis is None or tag <= preis.gueltig_bis
+    )

@@ -1,5 +1,6 @@
 """API schemas for the Conversation resource. The owner (`user_uuid`) is taken from the
-authenticated principal, not the request body, so it is absent from `ConversationCreate`."""
+authenticated principal, not the request body, so it is absent from
+`ConversationCreate`."""
 
 from __future__ import annotations
 

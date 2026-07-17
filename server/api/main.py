@@ -41,7 +41,8 @@ from shared.config import settings
 from shared.db.engine import make_engine
 from shared.services.kalkulation_v2.provider import lade_katalog
 
-# Connection pool for the calculator's LangGraph Postgres checkpointer (HITL state across requests).
+# Connection pool for the calculator's LangGraph Postgres checkpointer (HITL state
+# across requests).
 CALCULATOR_CHECKPOINTER_POOL_SIZE = 10
 
 # Phoenix project the API process reports its traces under.
@@ -50,7 +51,8 @@ PHOENIX_PROJECT_NAME = "roadbuilders-api"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Install OTLP tracing before any client is built so every LangChain/LangGraph run is captured.
+    # Install OTLP tracing before any client is built so every LangChain/LangGraph run
+    # is captured.
     setup_phoenix_tracing(PHOENIX_PROJECT_NAME)
     engine = make_engine(
         settings.database_url,
@@ -58,23 +60,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         application_name="api",
     )
     app.state.engine = engine
-    # Load the persisted catalog into the kalkulation_v2 module dicts before serving. A dev DB
-    # without seed logs a warning and keeps the fixture data, so startup never crashes.
+    # Load the persisted catalog into the kalkulation_v2 module dicts before serving. A
+    # dev DB without seed logs a warning and keeps the fixture data, so startup never
+    # crashes.
     async with engine.connect() as conn:
         await lade_katalog(conn)
     app.state.storage = build_storage_client()
     app.state.search = SearchClient.from_settings()
-    # One shared telemetry-sink set per process, reused by every OpenRouter client so usage +
-    # execution logs land in Postgres the same way (in their own transactions, independent of any
-    # request UnitOfWork). The embeddings + reranker clients back project-chat RAG retrieval.
+    # One shared telemetry-sink set per process, reused by every OpenRouter client so
+    # usage + execution logs land in Postgres the same way (in their own transactions,
+    # independent of any request UnitOfWork). The embeddings + reranker clients back
+    # project-chat RAG retrieval.
     sinks = build_telemetry_sinks(engine)
     app.state.telemetry_sinks = sinks
     app.state.llm_client = build_llm_client(sinks)
     app.state.embeddings = build_embeddings_client(sinks, engine)
     app.state.reranker = build_rerank_client(sinks)
-    # The EKT calculator persists its LangGraph state across HITL interrupts in Postgres so a run can
-    # pause for the Kalkulator and resume in a later request. It uses its own psycopg pool (the libpq
-    # driver), separate from the SQLAlchemy/asyncpg engine. The DSN drops the asyncpg driver suffix.
+    # The EKT calculator persists its LangGraph state across HITL interrupts in Postgres
+    # so a run can pause for the Kalkulator and resume in a later request. It uses its
+    # own psycopg pool (the libpq driver), separate from the SQLAlchemy/asyncpg engine.
+    # The DSN drops the asyncpg driver suffix.
     checkpointer_pool = AsyncConnectionPool(
         conninfo=settings.database_url.replace("+asyncpg", ""),
         max_size=CALCULATOR_CHECKPOINTER_POOL_SIZE,

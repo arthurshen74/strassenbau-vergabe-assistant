@@ -1,15 +1,17 @@
-"""The LangChain ingestion step: PDF bytes to vectors in the `idx-langchain-roadbuilders` index.
+"""The LangChain ingestion step: PDF bytes to vectors in the
+`idx-langchain-roadbuilders` index.
 
-Runs between thumbnail generation and Poppler source-line extraction, in parallel to (and
-independent of) the SimpleChunk pipeline. It writes the raw PDF to a temp file, loads it with
-PyPDFLoader, splits the pages with RecursiveCharacterTextSplitter, stamps each chunk with the
-project / source-document metadata, replaces the document's prior vectors (so a re-ingest does not
-duplicate them), and indexes the chunks.
+Runs between thumbnail generation and Poppler source-line extraction, in parallel to
+(and independent of) the SimpleChunk pipeline. It writes the raw PDF to a temp file,
+loads it with PyPDFLoader, splits the pages with RecursiveCharacterTextSplitter, stamps
+each chunk with the project / source-document metadata, replaces the document's prior
+vectors (so a re-ingest does not duplicate them), and indexes the chunks.
 
-PyPDFLoader, the splitter, and the store are synchronous, so loading/splitting/deleting/indexing run
-inside `asyncio.to_thread`. Embedding, however, goes through the first-party `EmbeddingsClient` on
-the main event loop (so its usage is recorded to the DB sink, whose engine is bound to that loop);
-the precomputed vectors are then written with `ElasticsearchStore.add_embeddings`.
+PyPDFLoader, the splitter, and the store are synchronous, so
+loading/splitting/deleting/indexing run inside `asyncio.to_thread`. Embedding, however,
+goes through the first-party `EmbeddingsClient` on the main event loop (so its usage is
+recorded to the DB sink, whose engine is bound to that loop); the precomputed vectors
+are then written with `ElasticsearchStore.add_embeddings`.
 """
 
 from __future__ import annotations
@@ -38,7 +40,8 @@ from shared.models.enums import SourceDocType
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
-# PyPDFLoader records the temp file path under this key; overwrite it so the path does not leak.
+# PyPDFLoader records the temp file path under this key; overwrite it so the path does
+# not leak.
 META_SOURCE = "source"
 
 
@@ -48,8 +51,9 @@ class LangchainIngestor:
     def __init__(self, embeddings: EmbeddingsClient) -> None:
         self._embeddings = embeddings
         self._client = build_elasticsearch_client()
-        # The store indexes precomputed vectors via add_embeddings; the embeddings object is only
-        # needed to satisfy construction (and serves the retrieval-side similarity_search).
+        # The store indexes precomputed vectors via add_embeddings; the embeddings
+        # object is only needed to satisfy construction (and serves the retrieval-side
+        # similarity_search).
         self._vector_store = build_langchain_vector_store(
             build_langchain_embeddings(), self._client
         )
@@ -100,8 +104,8 @@ class LangchainIngestor:
         return chunks
 
     def _delete_prior_vectors(self, document_uuid: UUID) -> None:
-        """Replace the document's prior vectors so a re-ingest does not duplicate them; the index
-        may not exist yet on the first run."""
+        """Replace the document's prior vectors so a re-ingest does not duplicate them;
+        the index may not exist yet on the first run."""
         self._client.delete_by_query(
             index=settings.langchain_index,
             query={"term": {f"metadata.{META_SOURCE_DOC_UUID}": str(document_uuid)}},

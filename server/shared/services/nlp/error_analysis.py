@@ -1,9 +1,9 @@
 """One-shot LLM error analysis for a flagged NER misprediction.
 
 Assembles the flagged span, the analyzed text, the flag-time entities with their
-provenance (pattern id or a statistical-model marker), the spaCy model identity, and
-the full enabled entity-rule set into the seeded `ner_fehleranalyse` prompt, calls the
-LLM for a structured categorization, and writes the result (category, prose analysis,
+provenance (pattern id or a statistical-model marker), the spaCy model identity, and the
+full enabled entity-rule set into the seeded `ner_fehleranalyse` prompt, calls the LLM
+for a structured categorization, and writes the result (category, prose analysis,
 optional rule suggestion) plus provenance back onto the flag. An LLM failure leaves the
 flag with a null analysis; the same function is the retry path.
 """
@@ -100,7 +100,9 @@ def _format_rules(rules: list[EntityRule]) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
-async def analyze_flag(flag: NerFlag, *, engine: AsyncEngine, llm: LLMClient) -> NerFlag:
+async def analyze_flag(
+    flag: NerFlag, *, engine: AsyncEngine, llm: LLMClient
+) -> NerFlag:
     """Run the error analysis for one flag and persist the result. Returns the updated
     flag; on LLM failure returns the flag unchanged (analysis stays null, retriable)."""
     async with unit_of_work(engine) as uow:
@@ -141,8 +143,11 @@ async def analyze_flag(flag: NerFlag, *, engine: AsyncEngine, llm: LLMClient) ->
         )
     except (LLMError, ValueError, httpx.HTTPError) as exc:
         # LLM-boundary failure (refusal, truncation, bad structured output, transport):
-        # the flag (the human observation) survives with a null analysis and can be retried.
-        logger.warning("NER error analysis failed for flag %s: %s", flag.ner_flag_uuid, exc)
+        # the flag (the human observation) survives with a null analysis and can be
+        # retried.
+        logger.warning(
+            "NER error analysis failed for flag %s: %s", flag.ner_flag_uuid, exc
+        )
         return flag
 
     suggested = (

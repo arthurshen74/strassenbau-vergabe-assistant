@@ -1,12 +1,13 @@
 """SSE event payloads streamed by the dispatcher to the UI.
 
-`run_turn` yields envelopes shaped `{event: <name>, data: {...}}`; the SSE writer renders them
-and the frontend spreads the payload to the top level (`{event, ...data}`). The flat models below
-mirror that flattened client view and form the `SSEEvent` discriminated union that
-scripts/export_schema.py emits.
+`run_turn` yields envelopes shaped `{event: <name>, data: {...}}`; the SSE writer
+renders them and the frontend spreads the payload to the top level (`{event, ...data}`).
+The flat models below mirror that flattened client view and form the `SSEEvent`
+discriminated union that scripts/export_schema.py emits.
 
-The `EVENT_*` / `DATA_*` constants are the single source of truth for the wire discriminators and
-payload keys; the dispatcher imports them rather than re-typing the literals.
+The `EVENT_*` / `DATA_*` constants are the single source of truth for the wire
+discriminators and payload keys; the dispatcher imports them rather than re-typing the
+literals.
 """
 
 from __future__ import annotations
@@ -44,14 +45,16 @@ DATA_PAYLOAD = "payload"
 
 
 class NoticeLevel(StrEnum):
-    """Severity of a ui_notice; drives whether the UI renders it muted or error-styled."""
+    """Severity of a ui_notice; drives whether the UI renders it muted or
+    error-styled."""
 
     INFO = "info"
     ERROR = "error"
 
 
-# User-facing copy for a turn that failed before or during streaming. Shared by the project-chat
-# service and the streaming routes so the message reads the same wherever a turn breaks.
+# User-facing copy for a turn that failed before or during streaming. Shared by the
+# project-chat service and the streaming routes so the message reads the same wherever a
+# turn breaks.
 NOTICE_PROCESSING_ERROR = (
     "Sorry, something went wrong while processing your message. Please try again."
 )
@@ -93,8 +96,9 @@ class SSEUiNotice(BaseModel):
 
 
 class SSEInterrupt(BaseModel):
-    """A HITL pause in the EKT calculator run: the UI renders a control for `stage` and posts the
-    decision to the calculation resume endpoint. `payload` is the interrupt value from the graph."""
+    """A HITL pause in the EKT calculator run: the UI renders a control for `stage` and
+    posts the decision to the calculation resume endpoint. `payload` is the interrupt
+    value from the graph."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -104,9 +108,10 @@ class SSEInterrupt(BaseModel):
 
 
 class SSECalcStart(BaseModel):
-    """A calculation segment has begun streaming reasoning. Lets the UI switch the open turn into
-    calculator mode (collapse the reasoning to its latest line, show the activity indicator) even
-    when the segment was chained from a position-chat message rather than a HITL resume."""
+    """A calculation segment has begun streaming reasoning. Lets the UI switch the open
+    turn into calculator mode (collapse the reasoning to its latest line, show the
+    activity indicator) even when the segment was chained from a position-chat message
+    rather than a HITL resume."""
 
     model_config = ConfigDict(extra="forbid")
 

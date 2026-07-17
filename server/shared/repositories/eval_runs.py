@@ -37,9 +37,10 @@ class EvalRunRepository:
     async def claim_next(
         self, *, worker_id: str, lease_seconds: float, max_attempts: int
     ) -> EvalRun | None:
-        """Claim the oldest queued run, or reclaim an expired RUNNING one, and mark it RUNNING
-        under this worker's lease. Same mechanics as IngestJobRepository.claim_next: FOR UPDATE
-        SKIP LOCKED hands concurrent workers distinct runs; the claim increments attempts."""
+        """Claim the oldest queued run, or reclaim an expired RUNNING one, and mark it
+        RUNNING under this worker's lease. Same mechanics as
+        IngestJobRepository.claim_next: FOR UPDATE SKIP LOCKED hands concurrent workers
+        distinct runs; the claim increments attempts."""
         cutoff = func.now() - func.make_interval(0, 0, 0, 0, 0, 0, lease_seconds)
         expired = and_(
             eval_runs.c.status == EvalRunStatus.RUNNING,
@@ -58,23 +59,27 @@ class EvalRunRepository:
         if locked is None:
             return None
         row = (
-            await self.conn.execute(
-                update(eval_runs)
-                .where(eval_runs.c.eval_run_uuid == locked)
-                .values(
-                    status=EvalRunStatus.RUNNING,
-                    locked_at=func.now(),
-                    locked_by=worker_id,
-                    attempts=eval_runs.c.attempts + 1,
+            (
+                await self.conn.execute(
+                    update(eval_runs)
+                    .where(eval_runs.c.eval_run_uuid == locked)
+                    .values(
+                        status=EvalRunStatus.RUNNING,
+                        locked_at=func.now(),
+                        locked_by=worker_id,
+                        attempts=eval_runs.c.attempts + 1,
+                    )
+                    .returning(eval_runs)
                 )
-                .returning(eval_runs)
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         return EvalRun.model_validate(dict(row))
 
     async def touch_lease(self, eval_run_uuid: UUID, worker_id: str) -> None:
-        """Refresh the lease (locked_at = now) while this worker still owns the run; every
-        progress event does this so a long run is not reclaimed mid-flight."""
+        """Refresh the lease (locked_at = now) while this worker still owns the run;
+        every progress event does this so a long run is not reclaimed mid-flight."""
         await self.conn.execute(
             update(eval_runs)
             .where(
@@ -94,31 +99,35 @@ class EvalRunRepository:
         prompt_versions: dict[str, Any] | None = None,
         error: str | None = None,
     ) -> EvalRun | None:
-        """Terminal status write, fenced on the lease (locked_by = expected_worker) so a worker
-        whose run was reclaimed mid-flight cannot clobber the new owner. Returns None when the
-        lease was lost."""
+        """Terminal status write, fenced on the lease (locked_by = expected_worker) so a
+        worker whose run was reclaimed mid-flight cannot clobber the new owner. Returns
+        None when the lease was lost."""
         row = (
-            await self.conn.execute(
-                update(eval_runs)
-                .where(
-                    eval_runs.c.eval_run_uuid == eval_run_uuid,
-                    eval_runs.c.locked_by == expected_worker,
+            (
+                await self.conn.execute(
+                    update(eval_runs)
+                    .where(
+                        eval_runs.c.eval_run_uuid == eval_run_uuid,
+                        eval_runs.c.locked_by == expected_worker,
+                    )
+                    .values(
+                        status=status,
+                        locked_at=None,
+                        summary=summary,
+                        prompt_versions=prompt_versions,
+                        error=error,
+                    )
+                    .returning(eval_runs)
                 )
-                .values(
-                    status=status,
-                    locked_at=None,
-                    summary=summary,
-                    prompt_versions=prompt_versions,
-                    error=error,
-                )
-                .returning(eval_runs)
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
         return EvalRun.model_validate(dict(row)) if row else None
 
     async def park_exhausted(self, *, lease_seconds: float, max_attempts: int) -> int:
-        """Mark FAILED any RUNNING run whose lease has expired and whose retry budget is spent,
-        so a poison run stops being reclaimed. Returns the number parked."""
+        """Mark FAILED any RUNNING run whose lease has expired and whose retry budget is
+        spent, so a poison run stops being reclaimed. Returns the number parked."""
         cutoff = func.now() - func.make_interval(0, 0, 0, 0, 0, 0, lease_seconds)
         result = await self.conn.execute(
             update(eval_runs)
@@ -127,6 +136,10 @@ class EvalRunRepository:
                 func.coalesce(eval_runs.c.locked_at, eval_runs.c.created_at) < cutoff,
                 eval_runs.c.attempts >= max_attempts,
             )
-            .values(status=EvalRunStatus.FAILED, locked_at=None, error="lease expired, retries exhausted")
+            .values(
+                status=EvalRunStatus.FAILED,
+                locked_at=None,
+                error="lease expired, retries exhausted",
+            )
         )
         return result.rowcount

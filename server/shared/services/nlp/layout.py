@@ -59,7 +59,9 @@ def _get_converter() -> object:
             # Only layout labels are needed; TableFormer cell structure is not.
             options = PdfPipelineOptions(do_ocr=False, do_table_structure=False)
             _converter = DocumentConverter(
-                format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(pipeline_options=options)
+                }
             )
         return _converter
 

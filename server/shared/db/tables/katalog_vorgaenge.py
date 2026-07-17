@@ -5,10 +5,11 @@ from sqlalchemy.dialects.postgresql import JSON
 
 from shared.db.tables.katalog_lifecycle import lifecycle_tabelle
 
-# JSON (not JSONB): the Kostenart order inside `rechnung.kosten` drives the Nachweis cost-line
-# order, and jsonb reorders object keys — `json` preserves them for a byte-identical reload.
-# Cross-entity code references (ausfuehrungsart_code, betriebsart_code) get no DB-level FK —
-# codes are not unique across versions; referential integrity is enforced by the bundle validator.
+# JSON (not JSONB): the Kostenart order inside `rechnung.kosten` drives the Nachweis
+# cost-line order, and jsonb reorders object keys — `json` preserves them for a
+# byte-identical reload. Cross-entity code references (ausfuehrungsart_code,
+# betriebsart_code) get no DB-level FK — codes are not unique across versions;
+# referential integrity is enforced by the bundle validator.
 katalog_vorgaenge = lifecycle_tabelle(
     "katalog_vorgaenge",
     "code",

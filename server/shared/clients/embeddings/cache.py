@@ -1,13 +1,14 @@
 """Embedding cache injected into the ``EmbeddingsClient``.
 
-The client consults a cache before calling OpenRouter and only embeds the misses. The cache key
-is a SHA-256 hex of the embedding model, the vector dimension, and the exact input text, so a
-change to either the model or the dimension is a clean miss rather than a stale hit.
+The client consults a cache before calling OpenRouter and only embeds the misses. The
+cache key is a SHA-256 hex of the embedding model, the vector dimension, and the exact
+input text, so a change to either the model or the dimension is a clean miss rather than
+a stale hit.
 
-``NullEmbeddingCache`` is the default no-op (used in tests and when caching is disabled).
-``PostgresEmbeddingCache`` owns an ``AsyncEngine`` and opens its own short transaction per call,
-the same pattern as ``DatabaseUsageSink`` -- cache reads/writes are independent of any caller
-``UnitOfWork``.
+``NullEmbeddingCache`` is the default no-op (used in tests and when caching is
+disabled). ``PostgresEmbeddingCache`` owns an ``AsyncEngine`` and opens its own short
+transaction per call, the same pattern as ``DatabaseUsageSink`` -- cache reads/writes
+are independent of any caller ``UnitOfWork``.
 """
 
 from __future__ import annotations
@@ -20,8 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from shared.models.embedding_cache import NewEmbeddingCacheEntry
 from shared.repositories.embedding_cache import EmbeddingCacheRepository
 
-# Components of the cache key, joined before hashing. The separator cannot appear in a model slug
-# or an integer, so distinct (model, dim, text) triples never collide on the same key.
+# Components of the cache key, joined before hashing. The separator cannot appear in a
+# model slug or an integer, so distinct (model, dim, text) triples never collide on the
+# same key.
 KEY_SEPARATOR = "\x00"
 
 

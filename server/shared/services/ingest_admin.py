@@ -1,9 +1,10 @@
 """Ops-console operations over ingest jobs (Option D of the crash-recovery design).
 
-Lists jobs by status, requeues a stuck/failed job in place (reset to QUEUED so the worker
-reprocesses it -- ingestion is idempotent), and tails a job's granular activity as SSE. The
-activity stream mirrors status_stream: there is no LISTEN/NOTIFY, so it polls the activity log by
-an id cursor, emitting new lines until the job is terminal and drained.
+Lists jobs by status, requeues a stuck/failed job in place (reset to QUEUED so the
+worker reprocesses it -- ingestion is idempotent), and tails a job's granular activity
+as SSE. The activity stream mirrors status_stream: there is no LISTEN/NOTIFY, so it
+polls the activity log by an id cursor, emitting new lines until the job is terminal and
+drained.
 """
 
 from __future__ import annotations
@@ -22,7 +23,8 @@ from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.ingestion_activity import IngestionActivityLogRepository
 from shared.services.ingestion.status_stream import HEARTBEAT, HEARTBEAT_SECONDS
 
-# Rows read per poll tick; a full batch means a backlog remains and is drained without waiting.
+# Rows read per poll tick; a full batch means a backlog remains and is drained without
+# waiting.
 ACTIVITY_TAIL_LIMIT = 500
 
 _TERMINAL = (IngestStatus.DONE, IngestStatus.FAILED)
@@ -51,11 +53,13 @@ class IngestAdminService:
 async def stream_job_activity(
     engine: AsyncEngine, job_uuid: UUID, *, poll_interval: float
 ) -> AsyncIterator[dict]:
-    """Yield SSE envelopes for a job's activity, oldest first, until it is terminal and drained.
+    """Yield SSE envelopes for a job's activity, oldest first, until it is terminal and
+    drained.
 
-    Each tick reads activity past the last id and the job's current status from a fresh connection
-    (mirroring status_stream's polling). A heartbeat is interleaved while a still-running job is
-    quiet; client disconnect cancels the sleep and ends the generator."""
+    Each tick reads activity past the last id and the job's current status from a fresh
+    connection (mirroring status_stream's polling). A heartbeat is interleaved while a
+    still-running job is quiet; client disconnect cancels the sleep and ends the
+    generator."""
     after_id = 0
     idle = 0.0
     while True:

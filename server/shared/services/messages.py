@@ -1,8 +1,8 @@
 """Rebuild OpenAI chat-completions messages from stored conversation rows.
 
 Also the single source of truth for the chat-completions message wire format (roles, the
-assistant `tool_calls` envelope, and `role:"tool"` replies), shared with the dispatcher so the
-live loop and the rebuilt history are constructed the same way.
+assistant `tool_calls` envelope, and `role:"tool"` replies), shared with the dispatcher
+so the live loop and the rebuilt history are constructed the same way.
 """
 
 from __future__ import annotations
@@ -46,7 +46,9 @@ def assistant_message(content: str) -> dict[str, Any]:
     return {ROLE: ROLE_ASSISTANT, CONTENT: content}
 
 
-def tool_call_entry(call_id: str, tool_name: str, arguments_json: str) -> dict[str, Any]:
+def tool_call_entry(
+    call_id: str, tool_name: str, arguments_json: str
+) -> dict[str, Any]:
     return {
         TOOL_CALL_ID_FIELD: call_id,
         TOOL_CALL_TYPE: TOOL_CALL_TYPE_FUNCTION,
@@ -74,9 +76,10 @@ def tool_reply_message(call_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def to_user_assistant_messages(stored: Sequence[Message]) -> list[ChatMessage]:
-    """The user/assistant turns only, replayed into the project-chat agent as prior history:
-    the tool rows (LV results, retrieval traces) are re-derived each turn, so they would only
-    add noise and stale context."""
+    """The user/assistant turns only, replayed into the project-chat agent as prior
+    history:
+    the tool rows (LV results, retrieval traces) are re-derived each turn, so they would
+    only add noise and stale context."""
     out: list[ChatMessage] = []
     for m in stored:
         if m.kind == MessageKind.USER:
@@ -87,8 +90,9 @@ def to_user_assistant_messages(stored: Sequence[Message]) -> list[ChatMessage]:
 
 
 def to_chat_completions_messages(stored: Sequence[Message]) -> list[dict[str, Any]]:
-    """Coalesce stored rows into the chat-completions list, merging consecutive function_call
-    rows into one assistant tool_calls envelope followed by their tool replies."""
+    """Coalesce stored rows into the chat-completions list, merging consecutive
+    function_call rows into one assistant tool_calls envelope followed by their tool
+    replies."""
     out: list[dict[str, Any]] = []
     i = 0
     n = len(stored)
@@ -106,7 +110,9 @@ def to_chat_completions_messages(stored: Sequence[Message]) -> list[dict[str, An
                 fc = stored[i]
                 assert fc.call_id is not None and fc.tool_name is not None
                 calls.append(
-                    tool_call_entry(fc.call_id, fc.tool_name, json.dumps(fc.arguments or {}))
+                    tool_call_entry(
+                        fc.call_id, fc.tool_name, json.dumps(fc.arguments or {})
+                    )
                 )
                 i += 1
             out.append(assistant_tool_calls_message(calls))

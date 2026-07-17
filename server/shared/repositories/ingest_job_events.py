@@ -34,8 +34,9 @@ class IngestJobEventRepository:
         return [IngestJobEvent.model_validate(dict(r)) for r in rows]
 
     async def latest_event_ts(self, document_uuid: UUID, event: str) -> datetime | None:
-        """Timestamp of the most recent matching event among a document's jobs, or None. Used for a
-        document's 'last ingested' date (caller passes IngestEvent.COMPLETED.value)."""
+        """Timestamp of the most recent matching event among a document's jobs, or None.
+        Used for a document's 'last ingested' date (caller passes
+        IngestEvent.COMPLETED.value)."""
         stmt = (
             select(func.max(ingest_job_events.c.ts))
             .select_from(

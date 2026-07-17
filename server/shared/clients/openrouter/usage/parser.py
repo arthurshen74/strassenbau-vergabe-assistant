@@ -1,14 +1,15 @@
 """Parse the OpenRouter ``usage`` object into a transport-neutral ``UsageEvent``.
 
-Every OpenRouter response (chat, embeddings, rerank) carries a ``usage`` object, but the three
-shapes differ: chat has prompt/completion tokens plus cached/reasoning detail, embeddings has
-prompt/total tokens, and rerank has neither prompt nor completion tokens but adds ``search_units``.
-Every metric is optional in at least one endpoint's schema, so extraction is defensive: an absent
-metric becomes ``None``. ``cost`` is OpenRouter credits (== USD), reported as a JSON float and
-converted to ``Decimal`` to avoid binary-float drift.
+Every OpenRouter response (chat, embeddings, rerank) carries a ``usage`` object, but the
+three shapes differ: chat has prompt/completion tokens plus cached/reasoning detail,
+embeddings has prompt/total tokens, and rerank has neither prompt nor completion tokens
+but adds ``search_units``.
+Every metric is optional in at least one endpoint's schema, so extraction is defensive:
+an absent metric becomes ``None``. ``cost`` is OpenRouter credits (== USD), reported as
+a JSON float and converted to ``Decimal`` to avoid binary-float drift.
 
-A ``UsageEvent`` is what clients hand to a ``UsageSink``; it is decoupled from persistence (the DB
-model is derived from it at the sink).
+A ``UsageEvent`` is what clients hand to a ``UsageSink``; it is decoupled from
+persistence (the DB model is derived from it at the sink).
 """
 
 from __future__ import annotations
@@ -105,11 +106,13 @@ def parse_usage(
     chat_prompt_type: str | None = None,
     chat_prompt_version: int | None = None,
 ) -> UsageEvent:
-    """Extract the ``usage`` object from an OpenRouter response body into a ``UsageEvent``.
+    """Extract the ``usage`` object from an OpenRouter response body into a
+    ``UsageEvent``.
 
-    Raises ``MissingUsageError`` when the body has no ``usage`` object and ``MalformedUsageError``
-    when a present field is non-numeric; callers wrap this in a guarded emit and skip persistence
-    on either error. A missing ``cost`` alone is normal and recorded as ``None``.
+    Raises ``MissingUsageError`` when the body has no ``usage`` object and
+    ``MalformedUsageError`` when a present field is non-numeric; callers wrap this in a
+    guarded emit and skip persistence on either error. A missing ``cost`` alone is
+    normal and recorded as ``None``.
     """
     usage = body.get(FIELD_USAGE)
     if not isinstance(usage, dict):
@@ -123,7 +126,9 @@ def parse_usage(
         completion_tokens=_as_int(usage, FIELD_COMPLETION_TOKENS),
         total_tokens=_as_int(usage, FIELD_TOTAL_TOKENS),
         cost=_as_decimal(usage, FIELD_COST),
-        cached_tokens=_nested_int(usage, FIELD_PROMPT_TOKENS_DETAILS, FIELD_CACHED_TOKENS),
+        cached_tokens=_nested_int(
+            usage, FIELD_PROMPT_TOKENS_DETAILS, FIELD_CACHED_TOKENS
+        ),
         reasoning_tokens=_nested_int(
             usage, FIELD_COMPLETION_TOKENS_DETAILS, FIELD_REASONING_TOKENS
         ),

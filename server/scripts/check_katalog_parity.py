@@ -2,16 +2,20 @@
 
 Two checks, both must hold (acceptance criterion §10.2):
 
-1. Dict parity — after `lade_katalog`, every refilled catalog dict deep-equals its fixture
-   (compared as `model_dump(mode="json")` keyed by domain identity, so the incidental short-name
-   keys of Ausführungsarten/Vorgänge and the storage order of a supplier's prices don't matter;
-   the Step-0 prefactor already removed the ephemeral `id` fields, so nothing is excluded).
-2. Calculation parity — `kalkuliere(pos)` for every `POSITIONEN` position yields byte-identical
+1. Dict parity — after `lade_katalog`, every refilled catalog dict deep-equals its
+fixture
+   (compared as `model_dump(mode="json")` keyed by domain identity, so the incidental
+   short-name keys of Ausführungsarten/Vorgänge and the storage order of a supplier's
+   prices don't matter; the Step-0 prefactor already removed the ephemeral `id` fields,
+   so nothing is excluded).
+2. Calculation parity — `kalkuliere(pos)` for every `POSITIONEN` position yields
+byte-identical
    EKT/EP on the fixture catalog and the DB catalog.
 
-Ships as this script (`uv run python -m scripts.check_katalog_parity`, non-destructive: seeds a
-rolled-back transaction on the test DB) and as an integration test. `zustand_sichern` restores the
-in-place-refilled module dicts afterward so the in-process test does not pollute later tests.
+Ships as this script (`uv run python -m scripts.check_katalog_parity`, non-destructive:
+seeds a rolled-back transaction on the test DB) and as an integration test.
+`zustand_sichern` restores the in-place-refilled module dicts afterward so the
+in-process test does not pollute later tests.
 """
 
 from __future__ import annotations
@@ -46,7 +50,8 @@ from shared.services.kalkulation_v2.store import POSITIONEN, kalkuliere
 
 from scripts.seed.seed_katalog import seed_katalog
 
-# (snapshot label, live dict, identity-of-a-value) for the model dicts compared field-for-field.
+# (snapshot label, live dict, identity-of-a-value) for the model dicts compared
+# field-for-field.
 _MODEL_DICTS: list[tuple[str, dict, Callable[[Any], str]]] = [
     ("BETRIEBSKATEGORIEN", m_bt.BETRIEBSKATEGORIEN, lambda m: m.code),
     ("BETRIEBSARTEN", m_bt.BETRIEBSARTEN, lambda m: m.code),
@@ -63,7 +68,8 @@ _MODEL_DICTS: list[tuple[str, dict, Callable[[Any], str]]] = [
     ("KATALOG", m_store.KATALOG, lambda m: m.name),
 ]
 
-# Every module-level container `lade_katalog` mutates in place — saved and restored by the test.
+# Every module-level container `lade_katalog` mutates in place — saved and restored by
+# the test.
 _MUTABLE: list[Any] = [d for _, d, _ in _MODEL_DICTS] + [
     m_lief.LIEFERANTEN,
     m_lb.LEISTUNG_BAUVERFAHREN,
@@ -75,18 +81,24 @@ _MUTABLE: list[Any] = [d for _, d, _ in _MODEL_DICTS] + [
 def _lieferant_dump(lief: Any) -> dict:
     d = lief.model_dump(mode="json")
     d["preise"] = sorted(
-        d["preise"], key=lambda p: (p["baustoff_code"], p["gueltig_ab"], p["gueltig_bis"] or "")
+        d["preise"],
+        key=lambda p: (p["baustoff_code"], p["gueltig_ab"], p["gueltig_bis"] or ""),
     )
     return d
 
 
 def _snapshot() -> dict[str, dict]:
-    """Identity-keyed `model_dump(mode="json")` of every catalog dict (order-normalized)."""
+    """Identity-keyed `model_dump(mode="json")` of every catalog dict
+    (order-normalized)."""
     snap: dict[str, dict] = {}
     for name, d, ident in _MODEL_DICTS:
         snap[name] = {ident(m): m.model_dump(mode="json") for m in d.values()}
-    snap["LIEFERANTEN"] = {lief.code: _lieferant_dump(lief) for lief in m_lief.LIEFERANTEN.values()}
-    snap["LEISTUNG_BAUVERFAHREN"] = {k: list(v) for k, v in m_lb.LEISTUNG_BAUVERFAHREN.items()}
+    snap["LIEFERANTEN"] = {
+        lief.code: _lieferant_dump(lief) for lief in m_lief.LIEFERANTEN.values()
+    }
+    snap["LEISTUNG_BAUVERFAHREN"] = {
+        k: list(v) for k, v in m_lb.LEISTUNG_BAUVERFAHREN.items()
+    }
     return snap
 
 
@@ -104,7 +116,9 @@ def _dict_differenzen(name: str, ref: dict, other: dict) -> list[str]:
         fehler.append(f"{name}: zusätzlich nach Reload: {sorted(zuviel)[:5]}")
     for key in sorted(set(ref) & set(other)):
         if ref[key] != other[key]:
-            fehler.append(f"{name}[{key}] weicht ab: fixture={ref[key]!r} db={other[key]!r}")
+            fehler.append(
+                f"{name}[{key}] weicht ab: fixture={ref[key]!r} db={other[key]!r}"
+            )
             if len(fehler) >= 5:
                 break
     return fehler
@@ -112,8 +126,9 @@ def _dict_differenzen(name: str, ref: dict, other: dict) -> list[str]:
 
 @contextmanager
 def zustand_sichern() -> Iterator[None]:
-    """Snapshot every module dict/set `lade_katalog` mutates and restore them on exit, so an
-    in-process parity check does not leave the engine's catalog dicts refilled/re-keyed."""
+    """Snapshot every module dict/set `lade_katalog` mutates and restore them on exit,
+    so an in-process parity check does not leave the engine's catalog dicts
+    refilled/re-keyed."""
     gesichert = [(obj, obj.copy()) for obj in _MUTABLE]
     try:
         yield
@@ -125,11 +140,12 @@ def zustand_sichern() -> Iterator[None]:
 
 
 async def pruefe_parity(conn: AsyncConnection) -> list[str]:
-    """Load the seeded catalog on `conn` and return parity failures (empty ⇒ parity holds).
+    """Load the seeded catalog on `conn` and return parity failures (empty ⇒ parity
+    holds).
 
-    Assumes the katalog tables on `conn` are already seeded. Snapshots the fixtures and computes
-    fixture EKT/EP BEFORE `lade_katalog` refills the dicts in place, then compares against the
-    DB-backed state.
+    Assumes the katalog tables on `conn` are already seeded. Snapshots the fixtures and
+    computes fixture EKT/EP BEFORE `lade_katalog` refills the dicts in place, then
+    compares against the DB-backed state.
     """
     referenz = _snapshot()
     fixture_ergebnisse = _calc_all()
@@ -145,7 +161,8 @@ async def pruefe_parity(conn: AsyncConnection) -> list[str]:
     for oz, fixture_r in fixture_ergebnisse.items():
         if fixture_r != db_ergebnisse[oz]:
             fehler.append(
-                f"calc {oz}: EKT fixture={fixture_r['ekt_eur']} db={db_ergebnisse[oz]['ekt_eur']} "
+                f"calc {oz}: EKT fixture={fixture_r['ekt_eur']} "
+                f"db={db_ergebnisse[oz]['ekt_eur']} "
                 f"/ EP fixture={fixture_r['ep_eur']} db={db_ergebnisse[oz]['ep_eur']}"
             )
     return fehler
@@ -173,7 +190,10 @@ async def main() -> None:
         for f in fehler:
             print(f"  {f}")
         raise SystemExit(1)
-    print(f"PARITY OK — {len(_MODEL_DICTS) + 2} Kataloge und {len(POSITIONEN)} Positionen identisch.")
+    print(
+        f"PARITY OK — {len(_MODEL_DICTS) + 2} Kataloge und {len(POSITIONEN)} "
+        f"Positionen identisch."
+    )
 
 
 if __name__ == "__main__":

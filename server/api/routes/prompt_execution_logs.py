@@ -44,5 +44,7 @@ async def get_execution_log(
 ) -> PromptExecutionLogRead:
     found = await service.get(log_uuid)
     if found is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="log not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="log not found"
+        )
     return found

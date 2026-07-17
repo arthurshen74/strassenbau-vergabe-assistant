@@ -1,10 +1,11 @@
 """Builds the OpenRouter clients wired to persist telemetry to Postgres.
 
-One `AsyncEngine` yields one `TelemetrySinks` (a `DatabaseUsageSink` plus a `DatabaseExecutionLogSink`),
-shared across every client built from it: the same usage sink for the LLM, embeddings, and rerank
-clients, and the same execution-log sink for the LLM client. This is the single construction point
-for the API and the scripts, so they all record usage and execution logs the same way instead of
-each re-deriving (and forgetting) the sink wiring.
+One `AsyncEngine` yields one `TelemetrySinks` (a `DatabaseUsageSink` plus a
+`DatabaseExecutionLogSink`), shared across every client built from it: the same usage
+sink for the LLM, embeddings, and rerank clients, and the same execution-log sink for
+the LLM client. This is the single construction point for the API and the scripts, so
+they all record usage and execution logs the same way instead of each re-deriving (and
+forgetting) the sink wiring.
 """
 
 from __future__ import annotations
@@ -46,10 +47,13 @@ def build_telemetry_sinks(engine: AsyncEngine) -> TelemetrySinks:
 
 
 def build_llm_client(sinks: TelemetrySinks) -> LLMClient:
-    # The LLMClient powers dispatch + the calculator's in-node model calls; tee its execution log to
-    # Postgres AND Phoenix (OpenInference LLM spans). Project chat's ChatOpenAI is traced by the
-    # LangChain auto-instrumentor instead, so its drained events stay on the DB sink (sinks.execution_log).
-    execution_log = CompositeExecutionLogSink([sinks.execution_log, OTelExecutionLogSink()])
+    # The LLMClient powers dispatch + the calculator's in-node model calls; tee its
+    # execution log to Postgres AND Phoenix (OpenInference LLM spans). Project chat's
+    # ChatOpenAI is traced by the LangChain auto-instrumentor instead, so its drained
+    # events stay on the DB sink (sinks.execution_log).
+    execution_log = CompositeExecutionLogSink(
+        [sinks.execution_log, OTelExecutionLogSink()]
+    )
     return LLMClient(usage_sink=sinks.usage, execution_log_sink=execution_log)
 
 
@@ -62,9 +66,7 @@ def build_embedding_cache(engine: AsyncEngine) -> EmbeddingCache:
 def build_embeddings_client(
     sinks: TelemetrySinks, engine: AsyncEngine
 ) -> EmbeddingsClient:
-    return EmbeddingsClient(
-        usage_sink=sinks.usage, cache=build_embedding_cache(engine)
-    )
+    return EmbeddingsClient(usage_sink=sinks.usage, cache=build_embedding_cache(engine))
 
 
 def build_rerank_client(sinks: TelemetrySinks) -> RerankClient:

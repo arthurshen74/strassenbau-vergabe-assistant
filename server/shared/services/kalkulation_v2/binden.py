@@ -29,29 +29,45 @@ def maschinen_werte(vorgang: Vorgang, maschine: Maschine) -> dict[str, Variablen
     """The ctx.werte entries a bound machine supplies for one Vorgang."""
     werte: dict[str, VariablenWert] = {}
     beleg = f"{maschine.hersteller} {maschine.modell}"
-    profil = maschine.leistung_fuer(vorgang.betriebsart_code) if vorgang.betriebsart_code else None
+    profil = (
+        maschine.leistung_fuer(vorgang.betriebsart_code)
+        if vorgang.betriebsart_code
+        else None
+    )
 
     for cost_var, prop_key in (vorgang.kosten_bindung or {}).items():
-        mw = (profil.eigenschaften.get(prop_key) if profil else None) or maschine.eigenschaft(prop_key)
+        mw = (
+            profil.eigenschaften.get(prop_key) if profil else None
+        ) or maschine.eigenschaft(prop_key)
         if mw is not None and isinstance(mw.wert, Decimal):
-            werte[cost_var] = VariablenWert(name=cost_var, wert=mw.wert, quelle=M.STAMMDATEN, beleg=beleg)
+            werte[cost_var] = VariablenWert(
+                name=cost_var, wert=mw.wert, quelle=M.STAMMDATEN, beleg=beleg
+            )
 
     if vorgang.leistung_instanz and profil is not None:
         scoped = vorgang.instanz_scope(vorgang.leistung_instanz)
         werte[scoped] = VariablenWert(
-            name=scoped, wert=profil.leistung, quelle=M.STAMMDATEN,
-            beleg=f"{beleg} ({vorgang.betriebsart_code})")
+            name=scoped,
+            wert=profil.leistung,
+            quelle=M.STAMMDATEN,
+            beleg=f"{beleg} ({vorgang.betriebsart_code})",
+        )
     return werte
 
 
 def rezept_maschinen_werte(
     bauverfahren: Bauverfahren, auswahl: dict[str, Maschine]
 ) -> dict[str, VariablenWert]:
-    """All machine-sourced ctx.werte for a recipe, given a {ausfuehrungsart_code -> Maschine}
-    selection. Slots without a selected machine are skipped (fall to default / HITL)."""
+    """All machine-sourced ctx.werte for a recipe, given a {ausfuehrungsart_code ->
+    Maschine} selection. Slots without a selected machine are skipped (fall to default /
+    HITL)."""
     werte: dict[str, VariablenWert] = {}
     for vorgang in bauverfahren.vorgaenge:
-        aa = vorgang.ausfuehrungsart.code if vorgang.ausfuehrungsart is not None else None
+        aa = (
+            vorgang.ausfuehrungsart.code
+            if vorgang.ausfuehrungsart is not None
+            else None
+        )
         maschine = auswahl.get(aa) if aa else None
         if maschine is not None:
             werte.update(maschinen_werte(vorgang, maschine))

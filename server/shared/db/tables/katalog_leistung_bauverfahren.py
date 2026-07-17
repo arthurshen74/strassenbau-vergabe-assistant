@@ -5,8 +5,8 @@ from sqlalchemy.dialects.postgresql import JSON
 
 from shared.db.tables.katalog_lifecycle import lifecycle_tabelle
 
-# Natural key is `leistung_code`; `bauverfahren_codes` is an ordered array (first entry = default) —
-# JSON preserves that order on reload.
+# Natural key is `leistung_code`; `bauverfahren_codes` is an ordered array (first entry
+# = default) — JSON preserves that order on reload.
 katalog_leistung_bauverfahren = lifecycle_tabelle(
     "katalog_leistung_bauverfahren",
     "leistung_code",

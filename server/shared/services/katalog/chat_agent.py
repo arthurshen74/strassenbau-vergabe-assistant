@@ -1,11 +1,13 @@
-"""The katalog_chat ReAct agent — a `create_agent` tool loop over the read-only Katalog tools.
+"""The katalog_chat ReAct agent — a `create_agent` tool loop over the read-only Katalog
+tools.
 
-The catalog analogue of `ProjectChatAgent`: a streaming `ChatOpenAI` (OpenRouter) that decides which
-of the T1–T33 read tools to call and streams a grounded German answer. It is not project-scoped (the
-catalog is global), so it carries no retrieval/LV surface — only the `katalog_werkzeuge` and the
-Katalog-Handbuch system prompt. Usage/execution telemetry is buffered by a `TelemetryCallbackHandler`
-and drained after the run; `astream_events` is relayed through the shared `map_agent_event` mapping,
-so the SSE protocol and UI rendering are identical to the project chat's.
+The catalog analogue of `ProjectChatAgent`: a streaming `ChatOpenAI` (OpenRouter) that
+decides which of the T1–T33 read tools to call and streams a grounded German answer. It
+is not project-scoped (the catalog is global), so it carries no retrieval/LV surface —
+only the `katalog_werkzeuge` and the Katalog-Handbuch system prompt. Usage/execution
+telemetry is buffered by a `TelemetryCallbackHandler` and drained after the run;
+`astream_events` is relayed through the shared `map_agent_event` mapping, so the SSE
+protocol and UI rendering are identical to the project chat's.
 """
 
 from __future__ import annotations
@@ -34,8 +36,8 @@ from shared.services.project_chat_agent import (
     map_agent_event,
 )
 
-# The ChatOpenAI base_url is the chat-completions URL without its endpoint suffix (same settings
-# value that is the source of truth for the OpenRouter host).
+# The ChatOpenAI base_url is the chat-completions URL without its endpoint suffix (same
+# settings value that is the source of truth for the OpenRouter host).
 _CHAT_COMPLETIONS_SUFFIX = "/chat/completions"
 
 
@@ -44,7 +46,8 @@ def _openrouter_base_url() -> str:
 
 
 class KatalogChatAgent:
-    """A ReAct agent over the read-only catalog tools that streams its answer token-by-token."""
+    """A ReAct agent over the read-only catalog tools that streams its answer
+    token-by-token."""
 
     def __init__(
         self,
@@ -78,9 +81,14 @@ class KatalogChatAgent:
         )
         self._agent = create_agent(model, werkzeuge, system_prompt=system_prompt)
 
-    async def astream(self, messages: list[dict[str, Any]]) -> AsyncIterator[AgentEvent]:
-        """Stream the agent over the prior message list: answer tokens, tool calls, tool results."""
-        async for event in self._agent.astream_events({"messages": messages}, version="v2"):  # type: ignore
+    async def astream(
+        self, messages: list[dict[str, Any]]
+    ) -> AsyncIterator[AgentEvent]:
+        """Stream the agent over the prior message list: answer tokens, tool calls, tool
+        results."""
+        async for event in self._agent.astream_events(
+            {"messages": messages}, version="v2"
+        ):  # type: ignore
             mapped = map_agent_event(event)
             if mapped is not None:
                 yield mapped
@@ -88,12 +96,14 @@ class KatalogChatAgent:
     async def ainvoke(
         self, messages: list[dict[str, Any]], recursion_limit: int = 25
     ) -> dict[str, Any]:
-        """Run the agent to completion and return the final graph state (`messages` includes the
-        AI tool calls and ToolMessages with artifacts). The non-SSE path, used by the eval harness."""
+        """Run the agent to completion and return the final graph state (`messages`
+        includes the AI tool calls and ToolMessages with artifacts). The non-SSE path,
+        used by the eval harness."""
         return await self._agent.ainvoke(
             {"messages": messages}, config={"recursion_limit": recursion_limit}
         )
 
     def drain_telemetry(self) -> tuple[list[UsageEvent], list[ExecutionLogEvent]]:
-        """Return the usage + execution-log events buffered since the last drain, and clear them."""
+        """Return the usage + execution-log events buffered since the last drain, and
+        clear them."""
         return self._telemetry.drain()

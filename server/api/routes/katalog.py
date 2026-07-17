@@ -1,8 +1,9 @@
 """Katalog endpoints (thin wrappers over KatalogService).
 
-Reads expose the active catalog and the open draft bundles; writes validate, save, activate or
-discard a `KatalogBundle`. All logic lives in `shared.services.katalog`; these handlers only shape
-requests/responses and map service errors to HTTP status codes.
+Reads expose the active catalog and the open draft bundles; writes validate, save,
+activate or discard a `KatalogBundle`. All logic lives in `shared.services.katalog`;
+these handlers only shape requests/responses and map service errors to HTTP status
+codes.
 """
 
 from __future__ import annotations
@@ -71,8 +72,8 @@ async def liste_versionen(
     schluessel: str,
     service: KatalogService = Depends(get_katalog_service),
 ) -> list[KatalogZeile]:
-    """Every version of one entry (any status), oldest first — the SCD-2 timeline behind the
-    Katalog UI's Versionshistorie."""
+    """Every version of one entry (any status), oldest first — the SCD-2 timeline behind
+    the Katalog UI's Versionshistorie."""
     return await service.versionen(entitaet, schluessel)
 
 
@@ -107,7 +108,8 @@ async def bundle_speichern(
         bundle_uuid = await service.entwurf_speichern(bundle, benutzer=DEFAULT_AUTOR)
     except BundleUngueltig as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.bericht.model_dump()
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=exc.bericht.model_dump(),
         ) from exc
     return BundleGespeichert(bundle_uuid=bundle_uuid, bericht=bericht)
 
@@ -122,10 +124,13 @@ async def bundle_aktivieren(
     try:
         return await service.bundle_aktivieren(bundle_uuid, benutzer=DEFAULT_AUTOR)
     except BundleNichtGefunden as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except BundleUngueltig as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.bericht.model_dump()
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=exc.bericht.model_dump(),
         ) from exc
 
 
@@ -139,7 +144,9 @@ async def bundle_verwerfen(
     try:
         await service.bundle_verwerfen(bundle_uuid, benutzer=DEFAULT_AUTOR)
     except BundleNichtGefunden as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
 
 class KatalogGeladen(BaseModel):
@@ -153,8 +160,8 @@ async def katalog_neu_laden(
     service: KatalogService = Depends(get_katalog_service),
     _principal: Principal = Depends(get_current_user),
 ) -> KatalogGeladen:
-    """Re-read the persisted catalog into the running engine (edits that bypassed a bundle
-    activation become visible without a restart)."""
+    """Re-read the persisted catalog into the running engine (edits that bypassed a
+    bundle activation become visible without a restart)."""
     geladen = await service.neu_laden()
     if geladen is None:
         raise HTTPException(

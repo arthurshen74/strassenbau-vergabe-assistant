@@ -1,9 +1,9 @@
 """Internal value types for LV post-processing.
 
-`ParsedPosition` is the LLM segmentation normalised off the wire schema; `SlicedPosition`
-adds the verbatim text and pages sliced from SourceLine; `ResolvedItem` is one fully-built
-item ready for persistence (`build_resolved_item` constructs it from a sliced position and
-its links). `LVParseResult` is the stage output."""
+`ParsedPosition` is the LLM segmentation normalised off the wire schema;
+`SlicedPosition` adds the verbatim text and pages sliced from SourceLine; `ResolvedItem`
+is one fully-built item ready for persistence (`build_resolved_item` constructs it from
+a sliced position and its links). `LVParseResult` is the stage output."""
 
 from __future__ import annotations
 
@@ -19,10 +19,11 @@ TITEL_MENGE = Decimal(0)
 
 @dataclass(frozen=True)
 class ParsedPosition:
-    """One position as the LLM segmented it: line references plus verbatim header tokens.
+    """One position as the LLM segmented it: line references plus verbatim header
+    tokens.
 
-    Body/hinweis are explicit sorted line_id lists (not a single span) so that coalescing
-    duplicate entries for one OZ can take the union of their lines."""
+    Body/hinweis are explicit sorted line_id lists (not a single span) so that
+    coalescing duplicate entries for one OZ can take the union of their lines."""
 
     oz: str
     is_title: bool
@@ -92,9 +93,9 @@ def build_resolved_item(
     langtext_resolved: str | None,
     link: LinkInfo,
 ) -> ResolvedItem:
-    """One ResolvedItem from a sliced position and its links. A title carries no quantity;
-    it is persisted with menge 0 and a Titel type so it is still addressable by OZ and
-    retrievable as an LV_ITEM chunk."""
+    """One ResolvedItem from a sliced position and its links. A title carries no
+    quantity; it is persisted with menge 0 and a Titel type so it is still addressable
+    by OZ and retrievable as an LV_ITEM chunk."""
     if position.is_title:
         menge = TITEL_MENGE
         positionstyp: str | None = POSITIONSTYP_TITEL
@@ -123,7 +124,8 @@ def build_resolved_item(
 
 @dataclass(frozen=True)
 class LVParseResult:
-    """The LV parse output: one ResolvedItem per position, plus soft validation warnings."""
+    """The LV parse output: one ResolvedItem per position, plus soft validation
+    warnings."""
 
     items: list[ResolvedItem]
     warnings: list[str]

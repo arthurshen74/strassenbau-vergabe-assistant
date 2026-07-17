@@ -1,8 +1,8 @@
 """Pydantic output schemas for JSON-schema-constrained LLM calls.
 
-One module per feature/prompt; each class is the validated shape an LLM response must take.
-`registry` wires these to their `PromptType`; `PromptRunner` resolves the schema and the LLM
-transport validates responses against it at the boundary.
+One module per feature/prompt; each class is the validated shape an LLM response must
+take. `registry` wires these to their `PromptType`; `PromptRunner` resolves the schema
+and the LLM transport validates responses against it at the boundary.
 """
 
 from __future__ import annotations

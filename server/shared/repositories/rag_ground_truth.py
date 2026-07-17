@@ -25,7 +25,9 @@ class RagGroundTruthRepository:
         self.conn = conn
 
     async def add(self, new: NewRagGroundTruth) -> RagGroundTruth:
-        stmt = insert(rag_ground_truth).values(**_values(new)).returning(rag_ground_truth)
+        stmt = (
+            insert(rag_ground_truth).values(**_values(new)).returning(rag_ground_truth)
+        )
         row = (await self.conn.execute(stmt)).mappings().one()
         return RagGroundTruth.model_validate(dict(row))
 

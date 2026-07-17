@@ -1,11 +1,12 @@
-"""Headless calculator-gold eval: re-run each gold position's extraction with the current
-prompts and grade it against the saved ground truth (pinning the gold recipe at Gate 2, so
-extraction quality is decoupled from classification, which is scored separately).
+"""Headless calculator-gold eval: re-run each gold position's extraction with the
+current prompts and grade it against the saved ground truth (pinning the gold recipe at
+Gate 2, so extraction quality is decoupled from classification, which is scored
+separately).
 
-The runner is harness-agnostic: progress goes through the async `emit` callback, results come
-back as a value. The CLI (scripts.eval_calculator.run) prints and writes result files; the
-worker's eval-run queue records events and result rows. Needs the live stack (Postgres gold,
-Elasticsearch with the project ingested, OpenRouter).
+The runner is harness-agnostic: progress goes through the async `emit` callback, results
+come back as a value. The CLI (scripts.eval_calculator.run) prints and writes result
+files; the worker's eval-run queue records events and result rows. Needs the live stack
+(Postgres gold, Elasticsearch with the project ingested, OpenRouter).
 """
 
 from __future__ import annotations
@@ -41,7 +42,8 @@ from shared.services.retrieval import RetrievalService
 
 Emit = Callable[[str], Awaitable[None]]
 
-# The extraction prompts whose versions a run is keyed to (the LLM sites the grader exercises).
+# The extraction prompts whose versions a run is keyed to (the LLM sites the grader
+# exercises).
 EXTRACTION_PROMPTS = (
     PromptType.EKT_LEISTUNG_CLASSIFY,
     PromptType.EKT_CHAT_VALUES,
@@ -58,12 +60,18 @@ class CalculatorGoldRun:
 
 
 def stale_gold_reason(leistung_key: str, bauverfahren_key: str | None) -> str | None:
-    """A gold recipe that no longer exists in the catalog cannot be pinned at Gate 2 (the graph
-    rejects it); mirrors waehle_bauverfahren's validation. Returns the skip reason, or None."""
+    """A gold recipe that no longer exists in the catalog cannot be pinned at Gate 2
+    (the graph rejects it); mirrors waehle_bauverfahren's validation. Returns the skip
+    reason, or None."""
     if leistung_key not in LEISTUNGEN:
         return f"gold leistung_key {leistung_key!r} not in catalog"
-    if bauverfahren_key is not None and bauverfahren_key not in kandidaten(leistung_key):
-        return f"gold bauverfahren_key {bauverfahren_key!r} not a candidate for {leistung_key!r}"
+    if bauverfahren_key is not None and bauverfahren_key not in kandidaten(
+        leistung_key
+    ):
+        return (
+            f"gold bauverfahren_key {bauverfahren_key!r} not a candidate for "
+            f"{leistung_key!r}"
+        )
     return None
 
 
@@ -93,7 +101,8 @@ async def run_calculator_gold(
 ) -> CalculatorGoldRun:
     if settings.calculator_mock:
         raise RuntimeError(
-            "refusing to grade: settings.calculator_mock is on (extraction would be stubbed)"
+            "refusing to grade: settings.calculator_mock is on (extraction would be "
+            "stubbed)"
         )
     retrieval = RetrievalService(
         engine=engine, llm=llm, embeddings=embeddings, search=search, reranker=reranker
@@ -129,7 +138,11 @@ async def run_calculator_gold(
             await emit(f"skip {g.oz or g.lv_item_uuid}: LV position not found")
             skipped += 1
             continue
-        system_leistung_key, system_bauverfahren_key, proposals = await capture_extraction(
+        (
+            system_leistung_key,
+            system_bauverfahren_key,
+            proposals,
+        ) = await capture_extraction(
             app=app,
             thread_id=f"eval-{project_uuid}-{item.oz}",
             position=position_payload(item),
@@ -140,7 +153,9 @@ async def run_calculator_gold(
         result = grade_position(
             position_id=g.oz or str(g.lv_item_uuid),
             gold_leistung_key=g.leistung_key,
-            gold_variables={name: gv.model_dump() for name, gv in g.gold_variables.items()},
+            gold_variables={
+                name: gv.model_dump() for name, gv in g.gold_variables.items()
+            },
             system_leistung_key=system_leistung_key,
             system_proposals=proposals,
             gold_bauverfahren_key=g.bauverfahren_key,
@@ -148,16 +163,25 @@ async def run_calculator_gold(
             abs_tol=abs_tol,
         )
         results.append(result)
-        bv = ("n/a" if result.bauverfahren_correct is None
-              else "ok" if result.bauverfahren_correct else "MISS")
+        bv = (
+            "n/a"
+            if result.bauverfahren_correct is None
+            else "ok"
+            if result.bauverfahren_correct
+            else "MISS"
+        )
+        werte_ok = sum(1 for v in result.variables if v.value_correct)
         await emit(
-            f"{result.id}: leistung {'ok' if result.classification_correct else 'MISS'}, "
+            f"{result.id}: leistung "
+            f"{'ok' if result.classification_correct else 'MISS'}, "
             f"bv {bv}, "
-            f"{sum(1 for v in result.variables if v.value_correct)}/{len(result.variables)} values"
+            f"{werte_ok}/{len(result.variables)} values"
         )
 
     if skipped:
-        await emit(f"skipped {skipped} of {len(gold)} gold position(s) — re-confirm stale gold")
+        await emit(
+            f"skipped {skipped} of {len(gold)} gold position(s) — re-confirm stale gold"
+        )
     return CalculatorGoldRun(
         results=results,
         metrics=summarize(results),

@@ -29,7 +29,8 @@ class SimpleChunk(BaseModel):
 
 
 class NewSimpleChunk(BaseModel):
-    """Create-model for indexing. chunk_uuid is assigned at index time by the search client."""
+    """Create-model for indexing. chunk_uuid is assigned at index time by the search
+    client."""
 
     model_config = ConfigDict(extra="forbid")
 

@@ -15,8 +15,8 @@ class GroundTruthRepository:
         self.conn = conn
 
     async def upsert(self, new: NewGroundTruth) -> GroundTruth:
-        """Insert the position's gold record, or update it in place when one already exists
-        (the latest review wins). Keyed by (project_uuid, lv_item_uuid)."""
+        """Insert the position's gold record, or update it in place when one already
+        exists (the latest review wins). Keyed by (project_uuid, lv_item_uuid)."""
         values = new.model_dump()
         stmt = pg_insert(calculation_ground_truth).values(**values)
         stmt = stmt.on_conflict_do_update(

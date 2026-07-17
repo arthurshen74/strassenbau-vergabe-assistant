@@ -118,8 +118,8 @@ class EntityLabelStats(BaseModel):
 
 
 class EntityStats(BaseModel):
-    """All entities found across the analyzed blocks, grouped by label
-    (descending count)."""
+    """All entities found across the analyzed blocks, grouped by label (descending
+    count)."""
 
     model_config = ConfigDict(extra="forbid")
 

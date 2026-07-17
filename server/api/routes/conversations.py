@@ -63,34 +63,43 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
 class CalculationResume(BaseModel):
-    """The Kalkulator's structured decision for the current HITL gate of a paused calculation.
-    project_context_review (pre-Gate-A) `projekt_kontext` maps a changed project global -> its new
-    value (locations as address strings, strip dims/Fräsgut as numbers; only changed fields sent);
-    method_review (Gate A) confirms the Leistung, selects the Bauverfahren + resources, and
-    `lieferanten` maps a baustoff_code -> the chosen Lieferant; variable_review (Gate B) `overrides`
-    maps a variable name -> its corrected value (changed leaves only; an empty/absent map accepts
-    every proposal as-is). At Gate B, `reasons` optionally tags each override with why it changed,
-    and `mark_as_ground_truth` saves the reviewed state as eval ground truth (see
+    """The Kalkulator's structured decision for the current HITL gate of a paused
+    calculation. project_context_review (pre-Gate-A) `projekt_kontext` maps a changed
+    project global -> its new value (locations as address strings, strip dims/Fräsgut as
+    numbers; only changed fields sent); method_review (Gate A) confirms the Leistung,
+    selects the Bauverfahren + resources, and `lieferanten` maps a baustoff_code -> the
+    chosen Lieferant; variable_review (Gate B) `overrides` maps a variable name -> its
+    corrected value (changed leaves only; an empty/absent map accepts every proposal
+    as-is). At Gate B, `reasons` optionally tags each override with why it changed, and
+    `mark_as_ground_truth` saves the reviewed state as eval ground truth (see
     shared.services.ground_truth)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    projekt_kontext: dict[str, str] | None = None  # pre-Gate-A: changed project globals -> new value
+    projekt_kontext: dict[str, str] | None = (
+        None  # pre-Gate-A: changed project globals -> new value
+    )
     leistung_key: str | None = None
     bauverfahren_key: str | None = None
-    maschinen: dict[str, str] | None = None        # Ausführungsart slot code -> Maschine code
+    maschinen: dict[str, str] | None = None  # Ausführungsart slot code -> Maschine code
     baustoff_code: str | None = None
-    lieferanten: dict[str, str] | None = None      # Gate A: baustoff_code -> chosen Lieferant code
+    lieferanten: dict[str, str] | None = (
+        None  # Gate A: baustoff_code -> chosen Lieferant code
+    )
     overrides: dict[str, Any] | None = None
-    reasons: dict[str, VariableCorrectionReason] | None = None  # Gate B: variable name -> why it changed
-    mark_as_ground_truth: bool | None = None       # Gate B: persist the reviewed state as ground truth
+    reasons: dict[str, VariableCorrectionReason] | None = (
+        None  # Gate B: variable name -> why it changed
+    )
+    mark_as_ground_truth: bool | None = (
+        None  # Gate B: persist the reviewed state as ground truth
+    )
     cancel: bool | None = None
 
 
 class TurnRequest(BaseModel):
-    """One turn of a chat conversation. Exactly one of `content` (a free-text message, which for a
-    position chat may ask to run the calculation) or `resume` (a paused calculation's HITL gate
-    decision)."""
+    """One turn of a chat conversation. Exactly one of `content` (a free-text message,
+    which for a position chat may ask to run the calculation) or `resume` (a paused
+    calculation's HITL gate decision)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -143,7 +152,9 @@ async def delete_conversation(
 ) -> None:
     conversation = await uow.conversations.get(conversation_uuid)
     if conversation is None or conversation.user_uuid != principal.user_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found"
+        )
     await uow.conversations.delete(conversation_uuid)
 
 
@@ -155,8 +166,12 @@ async def get_conversation_cost(
 ) -> ConversationCostRead:
     conversation = await ConversationRepository(conn).get(conversation_uuid)
     if conversation is None or conversation.user_uuid != principal.user_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
-    cost = await OpenRouterUsageRepository(conn).sum_cost_by_conversation(conversation_uuid)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found"
+        )
+    cost = await OpenRouterUsageRepository(conn).sum_cost_by_conversation(
+        conversation_uuid
+    )
     return ConversationCostRead(conversation_uuid=conversation_uuid, cost=cost)
 
 
@@ -179,15 +194,18 @@ async def run_turn(
     calc: CalculatorRunService = Depends(get_calculator_run_service),
     katalog: KatalogChatService = Depends(get_katalog_chat_service),
 ) -> StreamingResponse:
-    """One streaming turn. `content` is a free-text message (project chat, or position chat that may
-    ask to run the calculation); `resume` is a structured decision answering a paused calculation's
-    HITL gate. A position-chat message that trips calculate_ekt streams the calculation in the SAME
-    response, until its first gate or completion."""
+    """One streaming turn. `content` is a free-text message (project chat, or position
+    chat that may ask to run the calculation); `resume` is a structured decision
+    answering a paused calculation's HITL gate. A position-chat message that trips
+    calculate_ekt streams the calculation in the SAME response, until its first gate or
+    completion."""
     conversation = await ConversationRepository(conn).get(conversation_uuid)
     if conversation is None or conversation.user_uuid != principal.user_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
-    # rezept_autor conversations are historical rows of the retired Part-B harness (D2): they stay
-    # readable, but are not continuable.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found"
+        )
+    # rezept_autor conversations are historical rows of the retired Part-B harness (D2):
+    # they stay readable, but are not continuable.
     if conversation.prompt_type not in (
         PromptType.PROJECT_CHAT,
         PromptType.EKT_CALCULATOR,
@@ -205,22 +223,31 @@ async def run_turn(
         if payload.resume is not None:
             events = _resume_events(calc, conversation, payload.resume)
         else:
-            assert payload.content is not None  # the schema validator guarantees one of the two
-            events = await _content_events(conn, project_chat, calc, conversation, payload.content, config)
+            assert (
+                payload.content is not None
+            )  # the schema validator guarantees one of the two
+            events = await _content_events(
+                conn, project_chat, calc, conversation, payload.content, config
+            )
 
     async def event_stream() -> AsyncIterator[str]:
-        # The 200 + headers are already committed once streaming starts, so an exception here
-        # cannot become an HTTP error. Surface it as a ui_notice + done instead of letting the
-        # connection close silently, and log the cause server-side.
+        # The 200 + headers are already committed once streaming starts, so an exception
+        # here cannot become an HTTP error. Surface it as a ui_notice + done instead of
+        # letting the connection close silently, and log the cause server-side.
         try:
             async for event in events:
                 yield format_sse(event)
         except Exception:
-            logger.exception("chat turn stream failed conversation=%s", conversation_uuid)
+            logger.exception(
+                "chat turn stream failed conversation=%s", conversation_uuid
+            )
             yield format_sse(
                 {
                     EVENT: EVENT_UI_NOTICE,
-                    DATA: {DATA_CONTENT: NOTICE_PROCESSING_ERROR, DATA_LEVEL: NoticeLevel.ERROR},
+                    DATA: {
+                        DATA_CONTENT: NOTICE_PROCESSING_ERROR,
+                        DATA_LEVEL: NoticeLevel.ERROR,
+                    },
                 }
             )
             yield format_sse({EVENT: EVENT_DONE, DATA: {}})
@@ -231,14 +258,17 @@ async def run_turn(
 def _resume_events(
     calc: CalculatorRunService, conversation: Conversation, resume: CalculationResume
 ) -> AsyncIterator[dict[str, Any]]:
-    """Validate and drive a paused calculation's resume; raises before streaming starts."""
+    """Validate and drive a paused calculation's resume; raises before streaming
+    starts."""
     if conversation.prompt_type != PromptType.EKT_CALCULATOR:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="resume is only valid for a calculation"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="resume is only valid for a calculation",
         )
     if conversation.calculation_status != CalculationStatus.AWAITING_INPUT:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="calculation is not awaiting input"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="calculation is not awaiting input",
         )
     return calc.resume(conversation, resume.model_dump(mode="json", exclude_none=True))
 
@@ -246,8 +276,8 @@ def _resume_events(
 def _katalog_events(
     katalog: KatalogChatService, conversation: Conversation, payload: TurnRequest
 ) -> AsyncIterator[dict[str, Any]]:
-    """Drive a catalog-chat turn: only a free-text `content` message is valid (read-only, no resume /
-    review). Raises before streaming starts."""
+    """Drive a catalog-chat turn: only a free-text `content` message is valid
+    (read-only, no resume / review). Raises before streaming starts."""
     if payload.content is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -256,7 +286,9 @@ def _katalog_events(
     try:
         guard_user_input(payload.content)
     except InputRejectedError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     return katalog.run_turn(conversation, payload.content)
 
 
@@ -268,17 +300,21 @@ async def _content_events(
     content: str,
     config: Any,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Validate and build the event stream for a free-text turn; raises before streaming starts."""
+    """Validate and build the event stream for a free-text turn; raises before streaming
+    starts."""
     try:
         guard_user_input(content)
     except InputRejectedError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
     if conversation.prompt_type != PromptType.EKT_CALCULATOR:
         return project_chat.run_turn(conversation, content, config)
 
-    # Position chat: a free-text turn is valid while no calculation is running (before it starts,
-    # or for Q&A after it completes). Mid-run it must be resumed, not chatted.
+    # Position chat: a free-text turn is valid while no calculation is running (before
+    # it starts, or for Q&A after it completes). Mid-run it must be resumed, not
+    # chatted.
     if conversation.calculation_status not in (
         CalculationStatus.AWAITING_START,
         CalculationStatus.COMPLETE,
@@ -294,9 +330,12 @@ async def _content_events(
     )
     if item is None:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="conversation has no LV position"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="conversation has no LV position",
         )
-    return _position_chat_then_maybe_calc(project_chat, calc, conversation, item, content, config)
+    return _position_chat_then_maybe_calc(
+        project_chat, calc, conversation, item, content, config
+    )
 
 
 async def _position_chat_then_maybe_calc(
@@ -307,16 +346,20 @@ async def _position_chat_then_maybe_calc(
     content: str,
     config: Any,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Stream the position-chat turn; if the agent trips calculate_ekt, continue into the
-    calculation in the same response (until its first HITL gate or completion). calculate_ekt is a
-    control signal: it is neither persisted nor shown, only used here to chain the run."""
+    """Stream the position-chat turn; if the agent trips calculate_ekt, continue into
+    the calculation in the same response (until its first HITL gate or completion).
+    calculate_ekt is a control signal: it is neither persisted nor shown, only used here
+    to chain the run."""
     kicked = False
     async for event in project_chat.run_turn(
         conversation, content, config, position_context=_position_context(item)
     ):
         if event[EVENT] == EVENT_DONE:
             continue  # defer the terminal done until any chained calculation finishes
-        if event[EVENT] == EVENT_FUNCTION_CALL and event[DATA].get(DATA_NAME) == TOOL_CALCULATE_EKT:
+        if (
+            event[EVENT] == EVENT_FUNCTION_CALL
+            and event[DATA].get(DATA_NAME) == TOOL_CALCULATE_EKT
+        ):
             kicked = True
             continue
         yield event
@@ -330,7 +373,10 @@ async def _position_chat_then_maybe_calc(
 
 def _position_context(item: LVItem) -> str:
     """The bound LV position rendered for the position-chat system prompt."""
-    lines = [f"Position {item.oz}: {item.kurztext}", f"Menge: {item.menge} {item.einheit}"]
+    lines = [
+        f"Position {item.oz}: {item.kurztext}",
+        f"Menge: {item.menge} {item.einheit}",
+    ]
     langtext = item.langtext_resolved or item.langtext
     if langtext:
         lines.append(langtext)
@@ -346,7 +392,9 @@ async def name_conversation(
 ) -> ConversationRead:
     conversation = await uow.conversations.get(conversation_uuid)
     if conversation is None or conversation.user_uuid != principal.user_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found"
+        )
     updated = await service.name_from_first_message(conversation_uuid)
     if updated is None:
         raise HTTPException(

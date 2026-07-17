@@ -1,9 +1,9 @@
 """Displacy renders for single sentences.
 
-dep -> SVG, cached in nlp_render_cache keyed by sha256(model, version, style, text);
-a model upgrade is a clean cache miss (key changes), never a stale hit.
-ent -> HTML, regenerated per request via displacy manual mode from the Doc's
-entities — model-agnostic, so EntityRuler output plugs in later unchanged.
+dep -> SVG, cached in nlp_render_cache keyed by sha256(model, version, style, text); a
+model upgrade is a clean cache miss (key changes), never a stale hit. ent -> HTML,
+regenerated per request via displacy manual mode from the Doc's entities —
+model-agnostic, so EntityRuler output plugs in later unchanged.
 """
 
 from __future__ import annotations
@@ -19,7 +19,9 @@ from shared.services.nlp.entity_ruler import ensure_ruler_current
 
 
 def render_cache_key(style: RenderStyle, text: str) -> str:
-    return hashlib.sha256(f"{spacy_model_version()}|{style}|{text}".encode()).hexdigest()
+    return hashlib.sha256(
+        f"{spacy_model_version()}|{style}|{text}".encode()
+    ).hexdigest()
 
 
 def render_dep_svg(text: str) -> str:

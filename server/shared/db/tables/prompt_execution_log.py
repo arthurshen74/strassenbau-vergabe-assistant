@@ -30,13 +30,14 @@ prompt_execution_log = Table(
     Column("prompt_version", Integer, nullable=True),
     Column("model", Text, nullable=False),
     Column("provider_url", Text, nullable=True),
-    # Request: the system prompt is also present inside `messages`; surfaced here for quick scans.
+    # Request: the system prompt is also present inside `messages`; surfaced here for
+    # quick scans.
     Column("system_prompt", Text, nullable=True),
     Column("messages", JSONB, nullable=False),
     Column("tools", JSONB, nullable=True),
     Column("response_format", JSONB, nullable=True),
-    # Response: text and tool_calls are mutually exclusive per turn; structured set only for
-    # response_format calls.
+    # Response: text and tool_calls are mutually exclusive per turn; structured set only
+    # for response_format calls.
     Column("response_text", Text, nullable=True),
     Column("response_tool_calls", JSONB, nullable=True),
     Column("response_structured", JSONB, nullable=True),

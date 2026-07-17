@@ -2,8 +2,8 @@
 
 One row per (project, variable, version). An override closes out the current row
 (`gueltig_bis`, `ist_aktuell=false`) and inserts the next version; a version's
-value/source are never altered. The partial unique index keeps exactly one
-current (`ist_aktuell`) row per (project, variable).
+value/source are never altered. The partial unique index keeps exactly one current
+(`ist_aktuell`) row per (project, variable).
 """
 
 from __future__ import annotations
@@ -44,15 +44,21 @@ project_context_values = Table(
     ),
     Column("variable_name", Text, nullable=False),  # e.g. "baustelle_location"
     Column("version", Integer, nullable=False),  # 1,2,3... per (project, variable)
-    Column("wert", Text, nullable=False),  # user-facing value (address string or number)
+    Column(
+        "wert", Text, nullable=False
+    ),  # user-facing value (address string or number)
     Column("breitengrad", Text, nullable=True),  # derived coords (location vars only)
     Column("laengengrad", Text, nullable=True),
     Column("quelle", Text, nullable=False),  # ContextQuelle: rag | hitl | routing
     Column("beleg", Text, nullable=True),  # literal evidence quote
     Column("quelle_referenz", JSONB, nullable=True),  # structured source provenance
     Column("konfidenz", Numeric, nullable=True),
-    Column("benutzer", Text, nullable=True),  # HITL override user (denormalized for filter)
-    Column("status", Text, nullable=True),  # location: aufgeloest|unsicher|fehlgeschlagen
+    Column(
+        "benutzer", Text, nullable=True
+    ),  # HITL override user (denormalized for filter)
+    Column(
+        "status", Text, nullable=True
+    ),  # location: aufgeloest|unsicher|fehlgeschlagen
     Column("ist_aktuell", Boolean, nullable=False, server_default=text("true")),
     Column(
         "gueltig_ab",
@@ -60,7 +66,9 @@ project_context_values = Table(
         nullable=False,
         server_default=func.now(),
     ),
-    Column("gueltig_bis", DateTime(timezone=True), nullable=True),  # set on supersede (SCD-2)
+    Column(
+        "gueltig_bis", DateTime(timezone=True), nullable=True
+    ),  # set on supersede (SCD-2)
     Column(
         "erstellt_am",
         DateTime(timezone=True),

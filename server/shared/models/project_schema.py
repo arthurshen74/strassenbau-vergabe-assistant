@@ -1,8 +1,8 @@
 """API schemas for the Project resource: Create / Read / Update.
 
 These DTOs are the HTTP boundary contract and are exported to the UI via
-scripts/export_schema.py. They mirror the domain model in models/project.py but
-form a separate type family.
+scripts/export_schema.py. They mirror the domain model in models/project.py but form a
+separate type family.
 """
 
 from __future__ import annotations

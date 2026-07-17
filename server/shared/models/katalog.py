@@ -1,12 +1,13 @@
 """Domain models for the persisted `kalkulation_v2` catalog (the Katalog Store).
 
 The catalog lives in Postgres with a draft/active lifecycle: `KatalogStatus` names the
-three states, `KatalogEntitaet` the persisted entity types, and `VariablenGruppe` the three
-variable sources the fixtures split across (so the provider can rebuild them exactly).
-`KatalogZeile` is the generic CRUD envelope — lifecycle metadata plus the entity's payload
-as a plain dict — used uniformly by the one generic repository. `KatalogPreis` is one supplier
-price row (the non-lifecycle price history). The payload contracts themselves stay the existing
-`kalkulation_v2.model` classes; there are no parallel DTOs.
+three states, `KatalogEntitaet` the persisted entity types, and `VariablenGruppe` the
+three variable sources the fixtures split across (so the provider can rebuild them
+exactly). `KatalogZeile` is the generic CRUD envelope — lifecycle metadata plus the
+entity's payload as a plain dict — used uniformly by the one generic repository.
+`KatalogPreis` is one supplier price row (the non-lifecycle price history). The payload
+contracts themselves stay the existing `kalkulation_v2.model` classes; there are no
+parallel DTOs.
 """
 
 from __future__ import annotations
@@ -35,8 +36,8 @@ from shared.services.kalkulation_v2.model import (
 class KatalogStatus(StrEnum):
     """Lifecycle state of a catalog row. The single source for these values.
 
-    `verworfen` and `archiviert` are distinct ends: a discarded draft was never in force, a
-    superseded version was. Only activation writes `archiviert`."""
+    `verworfen` and `archiviert` are distinct ends: a discarded draft was never in
+    force, a superseded version was. Only activation writes `archiviert`."""
 
     ENTWURF = "entwurf"
     AKTIV = "aktiv"
@@ -74,12 +75,13 @@ class VariablenGruppe(StrEnum):
 
 
 class KatalogZeile(BaseModel):
-    """One catalog row in envelope form: lifecycle metadata + the entity payload as a dict.
+    """One catalog row in envelope form: lifecycle metadata + the entity payload as a
+    dict.
 
     `schluessel` is the natural key value (a `code`, or a `name` for Formeln/Variablen);
-    `payload` holds the remaining entity columns (JSONB payloads already parsed to dict/list).
-    The provider merges `{key_field: schluessel, **payload}` and validates that into the
-    matching `kalkulation_v2.model` class.
+    `payload` holds the remaining entity columns (JSONB payloads already parsed to
+    dict/list). The provider merges `{key_field: schluessel, **payload}` and validates
+    that into the matching `kalkulation_v2.model` class.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -96,14 +98,16 @@ class KatalogZeile(BaseModel):
 
 
 class KatalogPreis(BaseModel):
-    """One supplier price row (`katalog_lieferanten_preise`): version-independent, immutable VALUE.
+    """One supplier price row (`katalog_lieferanten_preise`): version-independent,
+    immutable VALUE.
 
-    References a Lieferant and a Baustoff by code; a price correction inserts a new row rather
-    than updating. Maps field-for-field onto `BaustoffPreis` (plus the owning `lieferant_code`).
-    Phase 2 adds a lifecycle `status` (+ `bundle_uuid`/`benutzer`) so a price rides the
-    draft→confirm flow like everything else — the VALUE stays immutable/unversioned; the status
-    only tracks entwurf|aktiv|verworfen (D5). A superseded price stays `aktiv` with a closed
-    domain-time `gueltig_bis`, so `archiviert` never occurs on prices."""
+    References a Lieferant and a Baustoff by code; a price correction inserts a new row
+    rather than updating. Maps field-for-field onto `BaustoffPreis` (plus the owning
+    `lieferant_code`). Phase 2 adds a lifecycle `status` (+ `bundle_uuid`/`benutzer`) so
+    a price rides the draft→confirm flow like everything else — the VALUE stays
+    immutable/unversioned; the status only tracks entwurf|aktiv|verworfen (D5). A
+    superseded price stays `aktiv` with a closed domain-time `gueltig_bis`, so
+    `archiviert` never occurs on prices."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -118,8 +122,9 @@ class KatalogPreis(BaseModel):
 
 
 class KatalogStandZeile(BaseModel):
-    """The global catalog version row (`katalog_stand`, single row id=1): the effective catalog's
-    `version` (bumped on activation) plus the last-touched audit (`aktualisiert_am`/`benutzer`)."""
+    """The global catalog version row (`katalog_stand`, single row id=1): the effective
+    catalog's `version` (bumped on activation) plus the last-touched audit
+    (`aktualisiert_am`/`benutzer`)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -128,13 +133,14 @@ class KatalogStandZeile(BaseModel):
     benutzer: str | None = None
 
 
-# --------------------------------------------------------------------------- #
-# Katalog bundle (the write unit) — flat, code-referenced transport shapes.
+# --------------------------------------------------------------------------- # Katalog
+# bundle (the write unit) — flat, code-referenced transport shapes.
 # --------------------------------------------------------------------------- #
 class BundleVorgang(BaseModel):
-    """A Vorgang in bundle transport: the Ausführungsart is referenced by code (embedded on load),
-    matching the table payload directly (the domain `Vorgang` embeds the object instead). The
-    cost computation travels as the `rechnung` instantiation dict (base formula bindings)."""
+    """A Vorgang in bundle transport: the Ausführungsart is referenced by code (embedded
+    on load), matching the table payload directly (the domain `Vorgang` embeds the
+    object instead). The cost computation travels as the `rechnung` instantiation dict
+    (base formula bindings)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -148,8 +154,8 @@ class BundleVorgang(BaseModel):
 
 
 class BundleBauverfahren(BaseModel):
-    """A Bauverfahren in bundle transport: its Vorgänge are an ordered list of codes (the junction),
-    not embedded objects (first entry runs first)."""
+    """A Bauverfahren in bundle transport: its Vorgänge are an ordered list of codes
+    (the junction), not embedded objects (first entry runs first)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -159,8 +165,9 @@ class BundleBauverfahren(BaseModel):
 
 
 class BundleLieferant(BaseModel):
-    """A Lieferant in bundle transport (D6): code + location. Its price rows travel separately as
-    `BundlePreis` (prices are immutable value rows, not part of the Lieferant's payload)."""
+    """A Lieferant in bundle transport (D6): code + location. Its price rows travel
+    separately as `BundlePreis` (prices are immutable value rows, not part of the
+    Lieferant's payload)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -172,9 +179,10 @@ class BundleLieferant(BaseModel):
 
 
 class BundlePreis(BaseModel):
-    """A supplier price in bundle transport (D6): references a Lieferant and a Baustoff by code.
-    Saved as a draft price row; on activation it closes out an overlapping open-ended predecessor
-    (D5). `gueltig_ab` defaults are applied at the tool layer (today)."""
+    """A supplier price in bundle transport (D6): references a Lieferant and a Baustoff
+    by code. Saved as a draft price row; on activation it closes out an overlapping
+    open-ended predecessor (D5). `gueltig_ab` defaults are applied at the tool layer
+    (today)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -186,9 +194,10 @@ class BundlePreis(BaseModel):
 
 
 class BundleVariable(BaseModel):
-    """A managed variable plus the gruppe it belongs to. FORMEL-gruppe variables are derived from
-    the bundle's Formeln (like the `formel()` fixture helper), so this list carries stammdaten/
-    kontext variables; an explicit formel-gruppe entry is allowed and wins over the derived one."""
+    """A managed variable plus the gruppe it belongs to. FORMEL-gruppe variables are
+    derived from the bundle's Formeln (like the `formel()` fixture helper), so this list
+    carries stammdaten/ kontext variables; an explicit formel-gruppe entry is allowed
+    and wins over the derived one."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -197,12 +206,12 @@ class BundleVariable(BaseModel):
 
 
 class KatalogBundle(BaseModel):
-    """One coherent catalog change set — THE catalog write unit: any subset of entities that
-    belong together, validated as a whole, persisted as drafts sharing a bundle_uuid, and
-    activated atomically. A single superseded rate is a bundle; a full recipe (Leistung +
-    Bauverfahren + Vorgänge + Formeln) is just the most complex kind. Lieferanten and Preise
-    join the field set in Phase 2 (KATALOG_AGENT_PHASE2_PLAN.md D6); project globals stay out
-    (governed set)."""
+    """One coherent catalog change set — THE catalog write unit: any subset of entities
+    that belong together, validated as a whole, persisted as drafts sharing a
+    bundle_uuid, and activated atomically. A single superseded rate is a bundle; a full
+    recipe (Leistung + Bauverfahren + Vorgänge + Formeln) is just the most complex kind.
+    Lieferanten and Preise join the field set in Phase 2 (KATALOG_AGENT_PHASE2_PLAN.md
+    D6); project globals stay out (governed set)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -222,8 +231,9 @@ class KatalogBundle(BaseModel):
 
 
 class BundleBericht(BaseModel):
-    """Validation report for a bundle: hard errors block save/activation; supersede flags note the
-    bundle keys that update (rather than create) an active catalog row."""
+    """Validation report for a bundle: hard errors block save/activation; supersede
+    flags note the bundle keys that update (rather than create) an active catalog row.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -236,8 +246,9 @@ class BundleBericht(BaseModel):
 
 
 class BundleZustand(StrEnum):
-    """The confirm card's view of a bundle: still open for a decision, already activated,
-    discarded without ever being active, or activated and later superseded."""
+    """The confirm card's view of a bundle: still open for a decision, already
+    activated, discarded without ever being active, or activated and later superseded.
+    """
 
     OFFEN = "offen"
     AKTIVIERT = "aktiviert"
@@ -246,7 +257,8 @@ class BundleZustand(StrEnum):
 
 
 class BundleZeileAnsicht(BaseModel):
-    """One row of a bundle for the confirm card's state re-query (entity, natural key, status)."""
+    """One row of a bundle for the confirm card's state re-query (entity, natural key,
+    status)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -256,8 +268,9 @@ class BundleZeileAnsicht(BaseModel):
 
 
 class BundleZustandAnsicht(BaseModel):
-    """The GET /katalog/bundle/{uuid} payload: the bundle's derived state + its rows. Lets a card
-    re-query on reload so a draft long since activated or discarded renders truthfully."""
+    """The GET /katalog/bundle/{uuid} payload: the bundle's derived state + its rows.
+    Lets a card re-query on reload so a draft long since activated or discarded renders
+    truthfully."""
 
     model_config = ConfigDict(extra="forbid")
 

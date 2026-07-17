@@ -8,9 +8,9 @@ from shared.db.tables.prompt_versions import prompt_versions
 from shared.models.enums import PromptType
 from shared.models.prompt_version import NewPromptVersion, PromptVersion
 
-# Two writers racing on the same prompt_type can read the same max(version) and
-# collide on the (prompt_type, version) unique; retry a handful of times before
-# giving up so a genuine deadlock can't loop forever.
+# Two writers racing on the same prompt_type can read the same max(version) and collide
+# on the (prompt_type, version) unique; retry a handful of times before giving up so a
+# genuine deadlock can't loop forever.
 _MAX_VERSION_ASSIGN_ATTEMPTS = 5
 
 
@@ -26,19 +26,24 @@ class PromptVersionRepository:
         for _ in range(_MAX_VERSION_ASSIGN_ATTEMPTS):
             next_version = (
                 await self.conn.execute(
-                    select(func.coalesce(func.max(prompt_versions.c.version), 0) + 1)
-                    .where(prompt_versions.c.prompt_type == new.prompt_type)
+                    select(
+                        func.coalesce(func.max(prompt_versions.c.version), 0) + 1
+                    ).where(prompt_versions.c.prompt_type == new.prompt_type)
                 )
             ).scalar_one()
             try:
                 async with self.conn.begin_nested():
                     row = (
-                        await self.conn.execute(
-                            insert(prompt_versions)
-                            .values(**values, version=next_version)
-                            .returning(prompt_versions)
+                        (
+                            await self.conn.execute(
+                                insert(prompt_versions)
+                                .values(**values, version=next_version)
+                                .returning(prompt_versions)
+                            )
                         )
-                    ).mappings().one()
+                        .mappings()
+                        .one()
+                    )
                 return PromptVersion.model_validate(dict(row))
             except IntegrityError:
                 continue

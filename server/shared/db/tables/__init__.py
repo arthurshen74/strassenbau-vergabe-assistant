@@ -1,7 +1,7 @@
 """Importing this package registers every table on the shared metadata.
 
-`metadata.create_all` only sees tables whose modules have been imported, so any
-process that builds the schema (tests, bootstrap) must import this package first.
+`metadata.create_all` only sees tables whose modules have been imported, so any process
+that builds the schema (tests, bootstrap) must import this package first.
 """
 
 from __future__ import annotations
@@ -18,11 +18,15 @@ from shared.db.tables.eval_runs import eval_runs
 from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
 from shared.db.tables.ingestion_activity_log import ingestion_activity_log
-from shared.db.tables.ingestion_activity_log_archive import ingestion_activity_log_archive
+from shared.db.tables.ingestion_activity_log_archive import (
+    ingestion_activity_log_archive,
+)
 from shared.db.tables.katalog_ausfuehrungsarten import katalog_ausfuehrungsarten
 from shared.db.tables.katalog_baustoffe import katalog_baustoffe
 from shared.db.tables.katalog_bauverfahren import katalog_bauverfahren
-from shared.db.tables.katalog_bauverfahren_vorgaenge import katalog_bauverfahren_vorgaenge
+from shared.db.tables.katalog_bauverfahren_vorgaenge import (
+    katalog_bauverfahren_vorgaenge,
+)
 from shared.db.tables.katalog_betriebsarten import katalog_betriebsarten
 from shared.db.tables.katalog_betriebskategorien import katalog_betriebskategorien
 from shared.db.tables.katalog_formeln import katalog_formeln

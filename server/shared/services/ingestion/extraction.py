@@ -1,12 +1,13 @@
 """Common ingestion stage: PDF bytes to per-line SourceLine rows.
 
-Text is extracted with poppler's `pdftotext -bbox-layout`, which renders the page's content
-*and* its AcroForm field appearances (filled-in dates, checkboxes, free-text fields) and emits
-word/line geometry as XHTML. This matters for the construction forms in the corpus, whose
-contractual data lives in fillable form fields that the PDF content stream alone does not carry;
-it also reconstructs word spacing that a raw content-stream extractor drops. Each `<line>` becomes
-one SourceLine, enumerated into a single gap-free `line_id` that runs across pages, so the same
-integer is the stable reference the LV extraction segments on (INGESTION.md)."""
+Text is extracted with poppler's `pdftotext -bbox-layout`, which renders the page's
+content *and* its AcroForm field appearances (filled-in dates, checkboxes, free-text
+fields) and emits word/line geometry as XHTML. This matters for the construction forms
+in the corpus, whose contractual data lives in fillable form fields that the PDF content
+stream alone does not carry; it also reconstructs word spacing that a raw content-stream
+extractor drops. Each `<line>` becomes one SourceLine, enumerated into a single gap-free
+`line_id` that runs across pages, so the same integer is the stable reference the LV
+extraction segments on (INGESTION.md)."""
 
 from __future__ import annotations
 
@@ -21,7 +22,8 @@ PDFTOTEXT = "pdftotext"
 ARG_BBOX_LAYOUT = "-bbox-layout"
 STDIO = "-"
 
-# pdftotext XHTML tags (local names; the document carries an xhtml namespace) and geometry attrs.
+# pdftotext XHTML tags (local names; the document carries an xhtml namespace) and
+# geometry attrs.
 TAG_PAGE = "page"
 TAG_LINE = "line"
 TAG_WORD = "word"
@@ -45,8 +47,8 @@ def extract_source_lines(pdf_bytes: bytes, document_uuid: UUID) -> list[NewSourc
 def parse_bbox_layout(xhtml: bytes, document_uuid: UUID) -> list[NewSourceLine]:
     """Parse `pdftotext -bbox-layout` XHTML into NewSourceLine rows.
 
-    One row per non-empty `<line>`; bbox is (xMin, yMin, xMax, yMax) in top-origin coordinates;
-    page is 1-based; line_id is a single counter across pages."""
+    One row per non-empty `<line>`; bbox is (xMin, yMin, xMax, yMax) in top-origin
+    coordinates; page is 1-based; line_id is a single counter across pages."""
     root = ET.fromstring(xhtml)
     lines: list[NewSourceLine] = []
     line_id = 0
@@ -75,5 +77,6 @@ def parse_bbox_layout(xhtml: bytes, document_uuid: UUID) -> list[NewSourceLine]:
 
 
 def _find(element: ET.Element, local_name: str) -> list[ET.Element]:
-    """All descendants whose tag local name matches, ignoring the xhtml namespace prefix."""
+    """All descendants whose tag local name matches, ignoring the xhtml namespace
+    prefix."""
     return [e for e in element.iter() if e.tag.rsplit("}", 1)[-1] == local_name]

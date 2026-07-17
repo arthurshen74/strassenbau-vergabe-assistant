@@ -2,8 +2,9 @@
 
 Every document is chunked into `DOCUMENT` chunks from its SourceLine text; LV items are
 additionally chunked into `LV_ITEM` chunks from their resolved long text (INGESTION.md).
-This module is pure: it produces `ChunkDraft`s carrying everything a `NewSimpleChunk` needs
-except the embedding, which the service fills after calling the embeddings client."""
+This module is pure: it produces `ChunkDraft`s carrying everything a `NewSimpleChunk`
+needs except the embedding, which the service fills after calling the embeddings client.
+"""
 
 from __future__ import annotations
 
@@ -32,7 +33,8 @@ _SPLITTER = RecursiveCharacterTextSplitter(
 
 
 class ChunkDraft(BaseModel):
-    """A SimpleChunk minus the embedding; the service adds embedding + embedding_model."""
+    """A SimpleChunk minus the embedding; the service adds embedding +
+    embedding_model."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -53,8 +55,8 @@ def chunk_document(
     project_uuid: UUID,
     document_uuid: UUID,
 ) -> list[ChunkDraft]:
-    """Chunk a document's joined SourceLine text into DOCUMENT chunks, deriving each chunk's
-    pages from the SourceLine rows it spans."""
+    """Chunk a document's joined SourceLine text into DOCUMENT chunks, deriving each
+    chunk's pages from the SourceLine rows it spans."""
     ordered = sorted(source_lines, key=lambda line: line.line_id)
     joined = "\n".join(line.line_text for line in ordered)
     char_to_page = _char_to_page(ordered)
@@ -80,8 +82,8 @@ def chunk_lv_item(
     *,
     project_uuid: UUID,
 ) -> list[ChunkDraft]:
-    """Chunk one LV item's (langtext_resolved || langtext) into LV_ITEM chunks, carrying the
-    item's oz/stl_nr and pages on every chunk."""
+    """Chunk one LV item's (langtext_resolved || langtext) into LV_ITEM chunks, carrying
+    the item's oz/stl_nr and pages on every chunk."""
     text = item.langtext_resolved or item.langtext
     return [
         ChunkDraft(
@@ -112,8 +114,8 @@ def _char_to_page(ordered_lines: list[SourceLine]) -> list[int]:
 def _pages_for_chunks(
     chunks: list[str], joined: str, char_to_page: list[int]
 ) -> list[list[int]]:
-    """Locate each chunk in the joined text (via an advancing cursor, so overlapping chunks
-    resolve) and collect the distinct pages it spans."""
+    """Locate each chunk in the joined text (via an advancing cursor, so overlapping
+    chunks resolve) and collect the distinct pages it spans."""
     result: list[list[int]] = []
     cursor = 0
     for chunk in chunks:

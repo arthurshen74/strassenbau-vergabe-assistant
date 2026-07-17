@@ -1,11 +1,11 @@
 """GAEB 90 record layout: Zeilenarten, fixed column slices, and the OZ mask.
 
 A GAEB 90 file is a sequence of 80-column records: columns 1-2 hold the Zeilenart,
-columns 75-80 the running Satznummer, and the columns between carry fixed-position fields
-per Zeilenart. The OZMASKE from the Eroeffnungssatz (e.g. '1122PPPPI') describes how the
-9-character OZ field splits into hierarchy segments plus an optional alphanumeric index;
-`OzMask` formats raw OZ fields into the dotted form used across the LV models
-(e.g. '01.02.0030').
+columns 75-80 the running Satznummer, and the columns between carry fixed-position
+fields per Zeilenart. The OZMASKE from the Eroeffnungssatz (e.g. '1122PPPPI') describes
+how the 9-character OZ field splits into hierarchy segments plus an optional
+alphanumeric index; `OzMask` formats raw OZ fields into the dotted form used across the
+LV models (e.g. '01.02.0030').
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ ZA_PREISE = "23"
 ZA_EP_ANTEILE = "30"
 ZA_GRUPPE_END = "31"
 
-# Price/statistics records that sit inside a Teilleistung element, between its begin record
-# (21) and its text records (25/26); they must not disturb the text sink.
+# Price/statistics records that sit inside a Teilleistung element, between its begin
+# record (21) and its text records (25/26); they must not disturb the text sink.
 ZA_POSITION_DATA = (ZA_EINHEITSPREIS, ZA_PREISE, ZA_LB_ZUORDNUNG, ZA_EP_ANTEILE)
 ZA_LOS_END = "33"
 ZA_ABSCHLUSS = "99"
@@ -68,7 +68,9 @@ SLICE_POSART_2 = slice(12, 13)
 SLICE_MENGE = slice(23, 34)
 SLICE_EINHEIT = slice(34, 38)
 SLICE_STL_NR = slice(43, 60)
-MENGE_INTEGER_DIGITS = 8  # Menge is 11 digits stored without a separator: 8 integer + 3 decimal
+MENGE_INTEGER_DIGITS = (
+    8  # Menge is 11 digits stored without a separator: 8 integer + 3 decimal
+)
 
 POSART_NORMAL = "N"
 POSART_GRUND = "G"
@@ -96,14 +98,16 @@ def positionstyp_from_posart(posart1: str, posart2: str) -> str:
 
 @dataclass(frozen=True)
 class OzMask:
-    """The OZ structure from the Eroeffnungssatz: hierarchy segment lengths plus index length."""
+    """The OZ structure from the Eroeffnungssatz: hierarchy segment lengths plus index
+    length."""
 
     segment_lengths: tuple[int, ...]
     index_length: int
 
     @classmethod
     def from_mask(cls, mask: str) -> OzMask:
-        """Parse an OZMASKE like '1122PPPPI' into run lengths; the trailing 'I' run is the index."""
+        """Parse an OZMASKE like '1122PPPPI' into run lengths; the trailing 'I' run is
+        the index."""
         mask = mask.strip()
         if not mask:
             raise D83ParseError("Eroeffnungssatz carries no OZMASKE")
@@ -119,20 +123,28 @@ class OzMask:
             runs = runs[:-1]
         if not runs:
             raise D83ParseError(f"OZMASKE {mask!r} has no hierarchy segments")
-        return cls(segment_lengths=tuple(length for _, length in runs), index_length=index_length)
+        return cls(
+            segment_lengths=tuple(length for _, length in runs),
+            index_length=index_length,
+        )
 
     def split(self, raw_oz: str) -> list[str]:
-        """Split a raw OZ field into its filled segments (the index, when present, is last)."""
+        """Split a raw OZ field into its filled segments (the index, when present, is
+        last)."""
         segments: list[str] = []
         position = 0
         for length in self.segment_lengths:
             segment = raw_oz[position : position + length].strip()
             if not segment:
                 if raw_oz[position:].strip():
-                    raise D83ParseError(f"OZ field {raw_oz!r} has a gap in its segments")
+                    raise D83ParseError(
+                        f"OZ field {raw_oz!r} has a gap in its segments"
+                    )
                 return segments
             if not segment.isdigit():
-                raise D83ParseError(f"OZ segment {segment!r} in {raw_oz!r} is not numeric")
+                raise D83ParseError(
+                    f"OZ segment {segment!r} in {raw_oz!r} is not numeric"
+                )
             segments.append(segment)
             position += length
         index = raw_oz[position : position + self.index_length].strip()
@@ -149,7 +161,8 @@ class OzMask:
 
 
 def parse_menge(field: str) -> Decimal | None:
-    """The Menge field: 11 digits without separator (8 integer + 3 decimal); blank when unset."""
+    """The Menge field: 11 digits without separator (8 integer + 3 decimal); blank when
+    unset."""
     if not field.strip():
         return None
     try:

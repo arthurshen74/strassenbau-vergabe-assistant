@@ -5,8 +5,9 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from shared.db.metadata import metadata
 
-# Per-item drill-down of a finished eval run: one row per graded position/fixture/question.
-# payload is the grader's result dict (PositionResult / ChatFixtureResult shape per kind).
+# Per-item drill-down of a finished eval run: one row per graded
+# position/fixture/question. payload is the grader's result dict (PositionResult /
+# ChatFixtureResult shape per kind).
 eval_results = Table(
     "eval_results",
     metadata,

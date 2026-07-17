@@ -1,14 +1,15 @@
 """Google Static Maps client.
 
-Fetches static map PNGs: a single point (``fetch_static_map_png``, address geocoded inline) and a
-route between two points (``fetch_route_map_png``, the road polyline with origin/destination
-markers). Images are requested at a **4:3** aspect ratio (``size=320x240`` with ``scale=2`` -> a
-640x480 PNG; scale doubles the pixel density, not the geographic coverage). The key comes from
-``settings.google_static_maps_api_key``; the calls raise ``StaticMapError`` if it is unset or the
-request fails.
+Fetches static map PNGs: a single point (``fetch_static_map_png``, address geocoded
+inline) and a route between two points (``fetch_route_map_png``, the road polyline with
+origin/destination markers). Images are requested at a **4:3** aspect ratio
+(``size=320x240`` with ``scale=2`` -> a 640x480 PNG; scale doubles the pixel density,
+not the geographic coverage). The key comes from
+``settings.google_static_maps_api_key``; the calls raise ``StaticMapError`` if it is
+unset or the request fails.
 
-``static_map_id`` derives a deterministic content-addressed id from the request params so the
-same address/zoom/maptype always maps to one storage object.
+``static_map_id`` derives a deterministic content-addressed id from the request params
+so the same address/zoom/maptype always maps to one storage object.
 """
 
 from __future__ import annotations
@@ -36,7 +37,8 @@ PARAM_MAPTYPE = "maptype"
 PARAM_FORMAT = "format"
 PARAM_KEY = "key"
 
-# 4:3 aspect ratio: size=320x240 with scale=2 yields a 640x480 PNG (both base dims <= the 640 cap).
+# 4:3 aspect ratio: size=320x240 with scale=2 yields a 640x480 PNG (both base dims <=
+# the 640 cap).
 MAP_SIZE = "320x240"
 MAP_SCALE = 2
 MAP_FORMAT = "png"
@@ -58,7 +60,8 @@ class StaticMapError(Exception):
 
 
 def static_map_id(address: str, zoom: int, maptype: str) -> str:
-    """Content-addressed id for a rendered map, stable across calls with the same params."""
+    """Content-addressed id for a rendered map, stable across calls with the same
+    params."""
     raw = f"{address}|{zoom}|{maptype}|{MAP_SIZE}|{MAP_SCALE}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -107,20 +110,28 @@ async def fetch_route_map_png(
     maptype: str = MAPTYPE_ROADMAP,
     client: httpx.AsyncClient | None = None,
 ) -> bytes:
-    """Fetch a 4:3 (640x480) PNG of the route between two 'lat,lon' points: the road `polyline` if
-    given (else a straight segment), with a green origin marker and a red destination marker. Google
-    auto-fits the viewport to the path + markers, so no center/zoom is needed."""
+    """Fetch a 4:3 (640x480) PNG of the route between two 'lat,lon' points: the road
+    `polyline` if given (else a straight segment), with a green origin marker and a red
+    destination marker. Google auto-fits the viewport to the path + markers, so no
+    center/zoom is needed."""
     if not settings.google_static_maps_api_key:
         raise StaticMapError("GOOGLE_STATIC_MAPS_API_KEY is not configured")
 
-    weg = f"{ROUTE_PATH_STYLE}enc:{polyline}" if polyline else f"{ROUTE_PATH_STYLE}{origin}|{dest}"
+    weg = (
+        f"{ROUTE_PATH_STYLE}enc:{polyline}"
+        if polyline
+        else f"{ROUTE_PATH_STYLE}{origin}|{dest}"
+    )
     params = {
         PARAM_SIZE: MAP_SIZE,
         PARAM_SCALE: MAP_SCALE,
         PARAM_MAPTYPE: maptype,
         PARAM_FORMAT: MAP_FORMAT,
         PARAM_PATH: weg,
-        PARAM_MARKERS: [f"{ROUTE_ORIGIN_MARKER}|{origin}", f"{ROUTE_DEST_MARKER}|{dest}"],
+        PARAM_MARKERS: [
+            f"{ROUTE_ORIGIN_MARKER}|{origin}",
+            f"{ROUTE_DEST_MARKER}|{dest}",
+        ],
         PARAM_KEY: settings.google_static_maps_api_key,
     }
 

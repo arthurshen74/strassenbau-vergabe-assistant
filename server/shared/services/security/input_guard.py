@@ -1,9 +1,13 @@
 """Boundary validation for user chat input.
 
-A heuristic first line of defence in front of the prompt-level guardrails: it rejects input that
-is empty, oversize, carries control characters, or matches common prompt-injection / jailbreak
-phrasings before the text ever reaches the dispatcher LLM. It is not a substitute for the
-system-prompt guardrails -- both layers run. Violations raise InputRejectedError, which the chat
+A heuristic first line of defence in front of the prompt-level guardrails: it rejects
+input that
+is empty, oversize, carries control characters, or matches common prompt-injection /
+jailbreak
+phrasings before the text ever reaches the dispatcher LLM. It is not a substitute for
+the
+system-prompt guardrails -- both layers run. Violations raise InputRejectedError, which
+the chat
 route maps to HTTP 400.
 """
 
@@ -11,7 +15,8 @@ from __future__ import annotations
 
 import re
 
-# Upper bound on a single chat message; longer input is refused outright (cheap DoS guard).
+# Upper bound on a single chat message; longer input is refused outright (cheap DoS
+# guard).
 MAX_INPUT_CHARS = 8000
 
 # Rule identifiers surfaced on InputRejectedError (and, in turn, the 400 response).
@@ -20,12 +25,15 @@ RULE_TOO_LONG = "too_long"
 RULE_CONTROL_CHARS = "control_chars"
 RULE_PROMPT_INJECTION = "prompt_injection"
 
-# Control characters that never appear in legitimate chat text; tab, newline and carriage return
+# Control characters that never appear in legitimate chat text; tab, newline and
+# carriage return
 # are deliberately allowed.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
-# Special role-delimiter tokens and instruction-override / jailbreak phrasings. These are
-# heuristics, and a match is refused, so each pattern is kept specific to an attack shape rather
+# Special role-delimiter tokens and instruction-override / jailbreak phrasings. These
+# are
+# heuristics, and a match is refused, so each pattern is kept specific to an attack
+# shape rather
 # than to ordinary prose.
 _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     # ChatML-style role delimiters, e.g. <|im_start|>, <|endoftext|>.
@@ -78,7 +86,8 @@ class InputRejectedError(Exception):
 
 
 def guard_user_input(text: str) -> None:
-    """Validate raw user chat input, raising InputRejectedError on the first violation."""
+    """Validate raw user chat input, raising InputRejectedError on the first
+    violation."""
     if not text.strip():
         raise InputRejectedError(RULE_EMPTY, "message must not be empty")
     if len(text) > MAX_INPUT_CHARS:
@@ -86,7 +95,9 @@ def guard_user_input(text: str) -> None:
             RULE_TOO_LONG, f"message exceeds {MAX_INPUT_CHARS} characters"
         )
     if _CONTROL_CHARS.search(text):
-        raise InputRejectedError(RULE_CONTROL_CHARS, "message contains control characters")
+        raise InputRejectedError(
+            RULE_CONTROL_CHARS, "message contains control characters"
+        )
     for pattern in _INJECTION_PATTERNS:
         if pattern.search(text):
             raise InputRejectedError(

@@ -34,7 +34,8 @@ class IngestJobRepository:
         return IngestJob.model_validate(dict(row)) if row else None
 
     async def latest_for_document(self, document_uuid: UUID) -> IngestJob | None:
-        """The most recent ingest job for a document, or None if it has never been ingested."""
+        """The most recent ingest job for a document, or None if it has never been
+        ingested."""
         stmt = (
             select(ingest_jobs)
             .where(ingest_jobs.c.document_uuid == document_uuid)
@@ -51,10 +52,10 @@ class IngestJobRepository:
         *,
         expected_worker: str | None = None,
     ) -> IngestJob | None:
-        """Set a job's status and clear its lease. When expected_worker is given the write is
-        fenced (`AND locked_by = expected_worker`), so a worker whose job was reclaimed mid-run
-        cannot clobber the new owner's status. Returns the row, or None if not found or the lease
-        was lost."""
+        """Set a job's status and clear its lease. When expected_worker is given the
+        write is fenced (`AND locked_by = expected_worker`), so a worker whose job was
+        reclaimed mid-run cannot clobber the new owner's status. Returns the row, or
+        None if not found or the lease was lost."""
         stmt = update(ingest_jobs).where(ingest_jobs.c.job_uuid == job_uuid)
         if expected_worker is not None:
             stmt = stmt.where(ingest_jobs.c.locked_by == expected_worker)
@@ -65,8 +66,8 @@ class IngestJobRepository:
     async def status_for_project(self, project_uuid: UUID) -> list[IngestJobStatusRow]:
         """One row per job in the project: its status plus its latest progress event.
 
-        DISTINCT ON keeps only the newest event per job; the outer left join attaches it to the
-        job (queued jobs with no events yet have null latest_* fields)."""
+        DISTINCT ON keeps only the newest event per job; the outer left join attaches it
+        to the job (queued jobs with no events yet have null latest_* fields)."""
         latest_events = (
             select(
                 ingest_job_events.c.job_uuid,
@@ -92,7 +93,9 @@ class IngestJobRepository:
             .select_from(
                 ingest_jobs.join(
                     documents, ingest_jobs.c.document_uuid == documents.c.document_uuid
-                ).outerjoin(latest_events, latest_events.c.job_uuid == ingest_jobs.c.job_uuid)
+                ).outerjoin(
+                    latest_events, latest_events.c.job_uuid == ingest_jobs.c.job_uuid
+                )
             )
             .where(documents.c.project_uuid == project_uuid)
             .order_by(ingest_jobs.c.created_at)
@@ -103,11 +106,12 @@ class IngestJobRepository:
     async def claim_next(
         self, *, worker_id: str, lease_seconds: float, max_attempts: int
     ) -> IngestJob | None:
-        """Claim the oldest queued job, or reclaim an expired RUNNING one, and mark it RUNNING
-        under this worker's lease. FOR UPDATE SKIP LOCKED lets concurrent workers each grab a
-        distinct job without blocking. A RUNNING job is reclaimable once its lease has gone stale
-        (no flush bumped locked_at within lease_seconds) and it still has retry budget; the claim
-        increments attempts. Returns None when nothing is claimable."""
+        """Claim the oldest queued job, or reclaim an expired RUNNING one, and mark it
+        RUNNING under this worker's lease. FOR UPDATE SKIP LOCKED lets concurrent
+        workers each grab a distinct job without blocking. A RUNNING job is reclaimable
+        once its lease has gone stale (no flush bumped locked_at within lease_seconds)
+        and it still has retry budget; the claim increments attempts. Returns None when
+        nothing is claimable."""
         cutoff = func.now() - func.make_interval(0, 0, 0, 0, 0, 0, lease_seconds)
         expired = and_(
             ingest_jobs.c.status == IngestStatus.RUNNING,
@@ -126,23 +130,28 @@ class IngestJobRepository:
         if locked is None:
             return None
         row = (
-            await self.conn.execute(
-                update(ingest_jobs)
-                .where(ingest_jobs.c.job_uuid == locked)
-                .values(
-                    status=IngestStatus.RUNNING,
-                    locked_at=func.now(),
-                    locked_by=worker_id,
-                    attempts=ingest_jobs.c.attempts + 1,
+            (
+                await self.conn.execute(
+                    update(ingest_jobs)
+                    .where(ingest_jobs.c.job_uuid == locked)
+                    .values(
+                        status=IngestStatus.RUNNING,
+                        locked_at=func.now(),
+                        locked_by=worker_id,
+                        attempts=ingest_jobs.c.attempts + 1,
+                    )
+                    .returning(ingest_jobs)
                 )
-                .returning(ingest_jobs)
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         return IngestJob.model_validate(dict(row))
 
     async def touch_lease(self, job_uuid: UUID, worker_id: str) -> None:
-        """Refresh a job's lease (locked_at = now) while this worker still owns it. Called by the
-        activity flush so a live job's lease stays fresh and is not reclaimed."""
+        """Refresh a job's lease (locked_at = now) while this worker still owns it.
+        Called by the activity flush so a live job's lease stays fresh and is not
+        reclaimed."""
         await self.conn.execute(
             update(ingest_jobs)
             .where(
@@ -153,15 +162,16 @@ class IngestJobRepository:
         )
 
     async def park_exhausted(self, *, lease_seconds: float, max_attempts: int) -> int:
-        """Mark FAILED any RUNNING job whose lease has expired and whose retry budget is spent, so
-        a poison job (one that keeps crashing its worker) stops being reclaimed and surfaces to the
-        console. Returns the number parked."""
+        """Mark FAILED any RUNNING job whose lease has expired and whose retry budget is
+        spent, so a poison job (one that keeps crashing its worker) stops being
+        reclaimed and surfaces to the console. Returns the number parked."""
         cutoff = func.now() - func.make_interval(0, 0, 0, 0, 0, 0, lease_seconds)
         result = await self.conn.execute(
             update(ingest_jobs)
             .where(
                 ingest_jobs.c.status == IngestStatus.RUNNING,
-                func.coalesce(ingest_jobs.c.locked_at, ingest_jobs.c.created_at) < cutoff,
+                func.coalesce(ingest_jobs.c.locked_at, ingest_jobs.c.created_at)
+                < cutoff,
                 ingest_jobs.c.attempts >= max_attempts,
             )
             .values(status=IngestStatus.FAILED, locked_at=None)
@@ -169,21 +179,26 @@ class IngestJobRepository:
         return result.rowcount
 
     async def requeue(self, job_uuid: UUID) -> IngestJob | None:
-        """Reset a job in place to QUEUED, clearing its lease and retry count, so the worker
-        reprocesses it (ingestion is idempotent). Returns the row, or None if not found."""
+        """Reset a job in place to QUEUED, clearing its lease and retry count, so the
+        worker reprocesses it (ingestion is idempotent). Returns the row, or None if not
+        found."""
         row = (
-            await self.conn.execute(
-                update(ingest_jobs)
-                .where(ingest_jobs.c.job_uuid == job_uuid)
-                .values(
-                    status=IngestStatus.QUEUED,
-                    locked_at=None,
-                    locked_by=None,
-                    attempts=0,
+            (
+                await self.conn.execute(
+                    update(ingest_jobs)
+                    .where(ingest_jobs.c.job_uuid == job_uuid)
+                    .values(
+                        status=IngestStatus.QUEUED,
+                        locked_at=None,
+                        locked_by=None,
+                        attempts=0,
+                    )
+                    .returning(ingest_jobs)
                 )
-                .returning(ingest_jobs)
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
         return IngestJob.model_validate(dict(row)) if row else None
 
     async def list_for_console(
@@ -192,26 +207,24 @@ class IngestJobRepository:
         statuses: Sequence[IngestStatus] | None = None,
         project_uuid: UUID | None = None,
     ) -> list[IngestJobConsoleRow]:
-        """Jobs for the ops console, newest first, joined to each job's document file name and
-        project name, optionally filtered to a set of statuses and/or a project."""
-        stmt = (
-            select(
-                ingest_jobs.c.job_uuid,
-                ingest_jobs.c.document_uuid,
-                documents.c.file_name,
-                projects.c.project_name,
-                ingest_jobs.c.status,
-                ingest_jobs.c.attempts,
-                ingest_jobs.c.locked_by,
-                ingest_jobs.c.locked_at,
-                ingest_jobs.c.created_at,
-                ingest_jobs.c.updated_at,
-            )
-            .select_from(
-                ingest_jobs.join(
-                    documents, ingest_jobs.c.document_uuid == documents.c.document_uuid
-                ).join(projects, documents.c.project_uuid == projects.c.project_uuid)
-            )
+        """Jobs for the ops console, newest first, joined to each job's document file
+        name and project name, optionally filtered to a set of statuses and/or a
+        project."""
+        stmt = select(
+            ingest_jobs.c.job_uuid,
+            ingest_jobs.c.document_uuid,
+            documents.c.file_name,
+            projects.c.project_name,
+            ingest_jobs.c.status,
+            ingest_jobs.c.attempts,
+            ingest_jobs.c.locked_by,
+            ingest_jobs.c.locked_at,
+            ingest_jobs.c.created_at,
+            ingest_jobs.c.updated_at,
+        ).select_from(
+            ingest_jobs.join(
+                documents, ingest_jobs.c.document_uuid == documents.c.document_uuid
+            ).join(projects, documents.c.project_uuid == projects.c.project_uuid)
         )
         if statuses:
             stmt = stmt.where(ingest_jobs.c.status.in_(statuses))

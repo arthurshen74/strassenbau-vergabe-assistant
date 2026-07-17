@@ -14,7 +14,9 @@ class DocumentLayoutRegionRepository:
     def __init__(self, conn: AsyncConnection) -> None:
         self.conn = conn
 
-    async def get(self, document_uuid: UUID, model_version: str) -> DocumentLayout | None:
+    async def get(
+        self, document_uuid: UUID, model_version: str
+    ) -> DocumentLayout | None:
         stmt = select(document_layout_regions).where(
             document_layout_regions.c.document_uuid == document_uuid,
             document_layout_regions.c.model_version == model_version,

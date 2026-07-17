@@ -1,19 +1,21 @@
 """Worker process: two competing-consumer loops sharing one set of clients.
 
-The ingestion loop polls `IngestJobRepository.claim_next()` (SELECT ... FOR UPDATE SKIP LOCKED)
-for the oldest queued job, runs the full ingestion pipeline, and marks it DONE or FAILED; the
-eval loop (worker.eval_loop) does the same over the eval_runs queue with the shared graders.
-Several worker containers can run concurrently: the SKIP LOCKED claims hand each a distinct
-job/run, so Postgres is the allocator -- there is no central dispatcher. When a queue is empty
-its loop sleeps `settings.worker_poll_interval_seconds` before re-checking, waking immediately on
+The ingestion loop polls `IngestJobRepository.claim_next()` (SELECT ... FOR UPDATE SKIP
+LOCKED) for the oldest queued job, runs the full ingestion pipeline, and marks it DONE
+or FAILED; the eval loop (worker.eval_loop) does the same over the eval_runs queue with
+the shared graders. Several worker containers can run concurrently: the SKIP LOCKED
+claims hand each a distinct job/run, so Postgres is the allocator -- there is no central
+dispatcher. When a queue is empty its loop sleeps
+`settings.worker_poll_interval_seconds` before re-checking, waking immediately on
 SIGTERM/SIGINT so a clean stop lets in-flight work finish first.
 
     python -m worker.main
 
-Crash recovery: each claimed job holds a lease (locked_by + locked_at). An ActivityWriter refreshes
-locked_at while the job runs, so a worker killed mid-job lets its lease expire and another worker
-reclaims the job on a later poll (claim_next), retrying up to settings.worker_max_attempts before it
-is parked FAILED. Idle ticks run park_exhausted and prune old activity rows.
+Crash recovery: each claimed job holds a lease (locked_by + locked_at). An
+ActivityWriter refreshes locked_at while the job runs, so a worker killed mid-job lets
+its lease expire and another worker reclaims the job on a later poll (claim_next),
+retrying up to settings.worker_max_attempts before it is parked FAILED. Idle ticks run
+park_exhausted and prune old activity rows.
 """
 
 from __future__ import annotations
@@ -63,14 +65,15 @@ async def process_one(
     embeddings: EmbeddingsClient,
     langchain_ingestor: LangchainIngestor,
 ) -> bool:
-    """Claim and run one queued (or reclaimable) job under this worker's lease. Returns False when
-    nothing is claimable.
+    """Claim and run one queued (or reclaimable) job under this worker's lease. Returns
+    False when nothing is claimable.
 
-    The claim runs in its own transaction so the QUEUED/expired -> RUNNING transition commits and
-    the SKIP LOCKED row lock releases before the long ingest begins. An ActivityWriter streams
-    granular progress and keeps the lease fresh during the run; terminal status writes are fenced on
-    the lease (expected_worker), so a worker whose job was reclaimed mid-run cannot clobber the new
-    owner. A failure is marked FAILED and the exception is swallowed so the polling loop survives."""
+    The claim runs in its own transaction so the QUEUED/expired -> RUNNING transition
+    commits and the SKIP LOCKED row lock releases before the long ingest begins. An
+    ActivityWriter streams granular progress and keeps the lease fresh during the run;
+    terminal status writes are fenced on the lease (expected_worker), so a worker whose
+    job was reclaimed mid-run cannot clobber the new owner. A failure is marked FAILED
+    and the exception is swallowed so the polling loop survives."""
     async with uow_factory() as uow:
         job = await uow.ingest_jobs.claim_next(
             worker_id=worker_id,
@@ -95,7 +98,8 @@ async def process_one(
             document_uuid=job.document_uuid,
         ) as activity:
             activity.emit(
-                f"claimed (attempt {job.attempts}) by {worker_id}", IngestPhase.INGEST.value
+                f"claimed (attempt {job.attempts}) by {worker_id}",
+                IngestPhase.INGEST.value,
             )
             service = IngestionService(
                 uow_factory,
@@ -105,18 +109,22 @@ async def process_one(
                 langchain_ingestor,
                 activity=activity.emit,
             )
-            result = await service.ingest_document(job.document_uuid, job_uuid=job.job_uuid)
+            result = await service.ingest_document(
+                job.document_uuid, job_uuid=job.job_uuid
+            )
         async with uow_factory() as uow:
             done = await uow.ingest_jobs.set_status(
                 job.job_uuid, IngestStatus.DONE, expected_worker=worker_id
             )
         if done is None:
             logger.warning(
-                "[worker] job %s lease lost before DONE; another worker now owns it", job.job_uuid
+                "[worker] job %s lease lost before DONE; another worker now owns it",
+                job.job_uuid,
             )
             return True
         logger.info(
-            "[worker] job %s DONE: %d source lines, %d thumbnails, %d langchain chunks, "
+            "[worker] job %s DONE: %d source lines, %d thumbnails, %d langchain "
+            "chunks, "
             "%d document chunks, %d LV items, %d LV chunks",
             job.job_uuid,
             result.source_lines,
@@ -136,10 +144,13 @@ async def process_one(
 
 
 async def run_maintenance(uow_factory: UnitOfWorkFactory) -> None:
-    """Idle-time upkeep: park poison jobs (expired RUNNING past the retry cap) as FAILED so they
-    surface to the console, and archive activity rows older than the retention window (moved to the
-    cold table, not deleted, so a document's full history survives)."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.activity_retention_hours)
+    """Idle-time upkeep: park poison jobs (expired RUNNING past the retry cap) as FAILED
+    so they surface to the console, and archive activity rows older than the retention
+    window (moved to the cold table, not deleted, so a document's full history
+    survives)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        hours=settings.activity_retention_hours
+    )
     async with uow_factory() as uow:
         parked = await uow.ingest_jobs.park_exhausted(
             lease_seconds=settings.worker_lease_seconds,
@@ -162,7 +173,8 @@ async def ingest_loop(
     langchain_ingestor: LangchainIngestor,
     shutdown: asyncio.Event,
 ) -> None:
-    """Poll the ingest_jobs queue until shutdown, running idle maintenance between polls."""
+    """Poll the ingest_jobs queue until shutdown, running idle maintenance between
+    polls."""
     while not shutdown.is_set():
         ran = await process_one(
             uow_factory,
@@ -185,7 +197,8 @@ async def ingest_loop(
 
 
 async def run_worker() -> None:
-    # Install OTLP tracing before any client is built so ingestion LangChain runs are captured.
+    # Install OTLP tracing before any client is built so ingestion LangChain runs are
+    # captured.
     setup_phoenix_tracing(PHOENIX_PROJECT_NAME)
     worker_id = f"{socket.gethostname()}:{os.getpid()}"
     engine = make_engine(settings.database_url, pool_size=5, application_name="worker")
@@ -194,7 +207,8 @@ async def run_worker() -> None:
     sinks = build_telemetry_sinks(engine)
     embeddings = build_embeddings_client(sinks, engine)
     langchain_ingestor = LangchainIngestor(embeddings)
-    # Eval runs replay LLM extraction + reranked retrieval; ingestion never needs these two.
+    # Eval runs replay LLM extraction + reranked retrieval; ingestion never needs these
+    # two.
     llm = build_llm_client(sinks)
     reranker = build_rerank_client(sinks)
 
@@ -211,9 +225,10 @@ async def run_worker() -> None:
             worker_id,
             settings.worker_poll_interval_seconds,
         )
-        # Two competing-consumer loops share the process and clients: ingestion and eval runs.
-        # Both are I/O-bound, so one event loop carries them; a long eval run never blocks an
-        # ingest claim (and vice versa) because each polls its own queue.
+        # Two competing-consumer loops share the process and clients: ingestion and eval
+        # runs. Both are I/O-bound, so one event loop carries them; a long eval run
+        # never blocks an ingest claim (and vice versa) because each polls its own
+        # queue.
         await asyncio.gather(
             ingest_loop(
                 uow_factory,

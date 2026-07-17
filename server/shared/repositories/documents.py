@@ -34,8 +34,8 @@ class DocumentRepository:
         return [Document.model_validate(dict(r)) for r in rows]
 
     async def get_lv_document(self, project_uuid: UUID) -> Document | None:
-        """The project's single LV document. Backs the RETRIEVAL "Plus" filter and
-        the LV-item chat gate; the partial unique index guarantees at most one."""
+        """The project's single LV document. Backs the RETRIEVAL "Plus" filter and the
+        LV-item chat gate; the partial unique index guarantees at most one."""
         stmt = select(documents).where(
             documents.c.project_uuid == project_uuid,
             documents.c.document_type == DocumentType.LV_DOCUMENT,

@@ -1,7 +1,8 @@
 """The execution-log event a chat/stream call emits at the LLMClient boundary.
 
-Transport-neutral, like `UsageEvent` for usage. A sink turns it into a persisted row (or a
-log line). Captures the full request and response so a call can be inspected after the fact.
+Transport-neutral, like `UsageEvent` for usage. A sink turns it into a persisted row (or
+a log line). Captures the full request and response so a call can be inspected after the
+fact.
 """
 
 from __future__ import annotations

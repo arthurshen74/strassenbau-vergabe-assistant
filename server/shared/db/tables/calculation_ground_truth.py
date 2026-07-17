@@ -14,9 +14,11 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from shared.db.metadata import metadata
 
-# The expert-confirmed answer for one LV position's EKT calculation, captured at Gate B when the
-# Kalkulator marks the reviewed state as ground truth. One row per (project, position): re-saving a
-# position upserts it (latest wins); the variable_corrections log preserves the change history.
+# The expert-confirmed answer for one LV position's EKT calculation, captured at Gate B
+# when the
+# Kalkulator marks the reviewed state as ground truth. One row per (project, position):
+# re-saving a position upserts it (latest wins); the variable_corrections log preserves
+# the change history.
 calculation_ground_truth = Table(
     "calculation_ground_truth",
     metadata,
@@ -39,7 +41,8 @@ calculation_ground_truth = Table(
         ForeignKey("lv_items.lv_item_uuid", ondelete="CASCADE"),
         nullable=False,
     ),
-    # The run this gold was captured from; SET NULL so the gold outlives a deleted conversation.
+    # The run this gold was captured from; SET NULL so the gold outlives a deleted
+    # conversation.
     Column(
         "source_conversation_uuid",
         UUID(as_uuid=True),
@@ -49,9 +52,11 @@ calculation_ground_truth = Table(
     Column("oz", Text, nullable=True),
     Column("leistung_key", Text, nullable=False),
     Column("bauverfahren_key", Text, nullable=True),
-    # name -> {wert, einheit, art, quelle, overridden}: the endorsed value for every reviewed leaf.
+    # name -> {wert, einheit, art, quelle, overridden}: the endorsed value for every
+    # reviewed leaf.
     Column("gold_variables", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
-    # Owner lives in the auth DB; stored here as a plain UUID (the domain DB never joins to auth).
+    # Owner lives in the auth DB; stored here as a plain UUID (the domain DB never joins
+    # to auth).
     Column("created_by_user_id", UUID(as_uuid=True), nullable=False),
     Column(
         "created_at",

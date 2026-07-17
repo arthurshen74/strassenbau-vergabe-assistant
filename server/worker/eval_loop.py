@@ -1,8 +1,9 @@
 """Eval-run consumer: a second competing-consumer loop over the eval_runs queue, running
 alongside the ingestion loop in the same worker process. Claims a run, dispatches to the
-shared runner for its kind, streams progress into eval_run_events (each event also refreshes
-the lease, which is the heartbeat), and finalizes DONE with summary + per-item results, or
-FAILED with the error. Terminal writes are fenced on the lease, mirroring the ingest loop.
+shared runner for its kind, streams progress into eval_run_events (each event also
+refreshes the lease, which is the heartbeat), and finalizes DONE with summary + per-item
+results, or FAILED with the error. Terminal writes are fenced on the lease, mirroring
+the ingest loop.
 """
 
 from __future__ import annotations
@@ -43,7 +44,8 @@ async def _execute(
     reranker: RerankClient,
     emit,
 ) -> tuple[dict, dict, list[tuple[str, dict]]]:
-    """Dispatch to the runner for the run's kind; returns (summary, prompt_versions, rows)."""
+    """Dispatch to the runner for the run's kind; returns (summary, prompt_versions,
+    rows)."""
     params = run.params or {}
     if run.kind == EvalRunKind.CALCULATOR_GOLD:
         assert run.project_uuid is not None  # enforced at enqueue
@@ -94,8 +96,9 @@ async def process_one_eval(
     search: SearchClient,
     reranker: RerankClient,
 ) -> bool:
-    """Claim and execute one eval run under this worker's lease. Returns False when nothing is
-    claimable. A failure is marked FAILED and swallowed so the polling loop survives."""
+    """Claim and execute one eval run under this worker's lease. Returns False when
+    nothing is claimable. A failure is marked FAILED and swallowed so the polling loop
+    survives."""
     async with uow_factory() as uow:
         run = await uow.eval_runs.claim_next(
             worker_id=worker_id,
@@ -113,8 +116,8 @@ async def process_one_eval(
     )
 
     async def emit(message: str, *, run_uuid: UUID = run.eval_run_uuid) -> None:
-        # Each event commits immediately (own transaction) so the UI's poll sees live progress;
-        # the lease touch doubles as the heartbeat during long runs.
+        # Each event commits immediately (own transaction) so the UI's poll sees live
+        # progress; the lease touch doubles as the heartbeat during long runs.
         async with uow_factory() as uow:
             await uow.eval_run_events.add(run_uuid, message)
             await uow.eval_runs.touch_lease(run_uuid, worker_id)
@@ -145,7 +148,11 @@ async def process_one_eval(
                 run.eval_run_uuid,
             )
         else:
-            logger.info("[worker] eval run %s DONE (%d result rows)", run.eval_run_uuid, len(rows))
+            logger.info(
+                "[worker] eval run %s DONE (%d result rows)",
+                run.eval_run_uuid,
+                len(rows),
+            )
     except Exception as exc:
         logger.exception("[worker] eval run %s FAILED", run.eval_run_uuid)
         async with uow_factory() as uow:

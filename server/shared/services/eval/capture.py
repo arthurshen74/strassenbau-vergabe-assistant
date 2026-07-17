@@ -1,11 +1,11 @@
 """Re-run one position's extraction headlessly to its variable-gate proposals.
 
-Drives launch -> ... -> Gate 2 (Leistung/BV), records the system's own classification and default
-Bauverfahren choice, resumes with the GOLD recipe so the worklist is the right one, accepts the
-proposed Material at Gate 3 (for a
-material recipe), and stops at the variable gate holding the system's fresh proposals
-(`vorschlaege`). The price compute is never run -- only the extraction is evaluated. Pinning the gold
-recipe decouples extraction quality from classification, which is scored separately.
+Drives launch -> ... -> Gate 2 (Leistung/BV), records the system's own classification
+and default Bauverfahren choice, resumes with the GOLD recipe so the worklist is the
+right one, accepts the proposed Material at Gate 3 (for a material recipe), and stops at
+the variable gate holding the system's fresh proposals (`vorschlaege`). The price
+compute is never run -- only the extraction is evaluated. Pinning the gold recipe
+decouples extraction quality from classification, which is scored separately.
 """
 
 from __future__ import annotations
@@ -21,8 +21,11 @@ from shared.services.calculator.state import (
 )
 
 
-async def _drive_to_interrupt(app: Any, cfg: dict[str, Any], payload: Any) -> dict[str, Any] | None:
-    """Run until the next HITL interrupt or completion; return the interrupt payload, or None."""
+async def _drive_to_interrupt(
+    app: Any, cfg: dict[str, Any], payload: Any
+) -> dict[str, Any] | None:
+    """Run until the next HITL interrupt or completion; return the interrupt payload, or
+    None."""
     pending: dict[str, Any] | None = None
     async for update in app.astream(payload, cfg, stream_mode="updates"):
         if "__interrupt__" in update:
@@ -39,10 +42,10 @@ async def capture_extraction(
     gold_leistung_key: str,
     gold_bauverfahren_key: str | None,
 ) -> tuple[str | None, str | None, dict[str, dict[str, Any]]]:
-    """Return (system_leistung_key, system_bauverfahren_key, proposals). The system's Bauverfahren
-    is its Gate 2 default (what an unattended confirm would pick). proposals is the variable-gate
-    `vorschlaege` keyed by variable name; empty if the run never reached it (e.g. the gold Leistung
-    has no worklist)."""
+    """Return (system_leistung_key, system_bauverfahren_key, proposals). The system's
+    Bauverfahren is its Gate 2 default (what an unattended confirm would pick).
+    proposals is the variable-gate `vorschlaege` keyed by variable name; empty if the
+    run never reached it (e.g. the gold Leistung has no worklist)."""
     cfg = {"configurable": {"thread_id": thread_id}}
     payload = {
         "position": position,
@@ -52,16 +55,23 @@ async def capture_extraction(
     }
     gate2 = await _drive_to_interrupt(app, cfg, payload)
     if gate2 is None or gate2.get("stage") != STAGE_LEISTUNG_BV_REVIEW:
-        # Never reached Gate 2 (cancelled / degenerate): no classification, no proposals.
+        # Never reached Gate 2 (cancelled / degenerate): no classification, no
+        # proposals.
         return None, None, {}
     system_leistung_key = gate2.get("leistung_key")
     system_bauverfahren_key = gate2.get("bauverfahren_default")
     nxt = await _drive_to_interrupt(
         app,
         cfg,
-        Command(resume={"leistung_key": gold_leistung_key, "bauverfahren_key": gold_bauverfahren_key}),
+        Command(
+            resume={
+                "leistung_key": gold_leistung_key,
+                "bauverfahren_key": gold_bauverfahren_key,
+            }
+        ),
     )
-    # A material recipe pauses at Gate 3 first; accept the BM25 proposal to reach the variable gate.
+    # A material recipe pauses at Gate 3 first; accept the BM25 proposal to reach the
+    # variable gate.
     if nxt is not None and nxt.get("stage") == STAGE_MATERIAL_REVIEW:
         default = (nxt.get("baustoff_vorschlag") or {}).get("code")
         await _drive_to_interrupt(app, cfg, Command(resume={"baustoff_code": default}))

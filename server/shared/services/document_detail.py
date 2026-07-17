@@ -1,9 +1,9 @@
 """Read-side service for the Projects document-detail view.
 
 Assembles a document's header metadata + per-source chunk counts, lists its chunks from
-Elasticsearch (SimpleChunk or LangChain index), and lists its ingestion activity across the active
-and archive tables. Postgres reads use short read-only connections; chunk reads go through the
-shared SearchClient.
+Elasticsearch (SimpleChunk or LangChain index), and lists its ingestion activity across
+the active and archive tables. Postgres reads use short read-only connections; chunk
+reads go through the shared SearchClient.
 """
 
 from __future__ import annotations
@@ -39,12 +39,15 @@ class DocumentDetailService:
     async def get_detail(
         self, project_uuid: UUID, document_uuid: UUID
     ) -> DocumentDetailRead | None:
-        """Header metadata + chunk counts, or None if the document is not in the project."""
+        """Header metadata + chunk counts, or None if the document is not in the
+        project."""
         async with self._engine.connect() as conn:
             doc = await DocumentRepository(conn).get(document_uuid)
             if doc is None or doc.project_uuid != project_uuid:
                 return None
-            lv_item_uuids = await LVItemRepository(conn).list_uuids_by_document(document_uuid)
+            lv_item_uuids = await LVItemRepository(conn).list_uuids_by_document(
+                document_uuid
+            )
             last_ingest = await IngestJobEventRepository(conn).latest_event_ts(
                 document_uuid, IngestEvent.COMPLETED.value
             )
@@ -85,13 +88,20 @@ class DocumentDetailService:
             )
             return ChunkListRead(
                 items=[
-                    ChunkRead(chunk_id=c.chunk_id, source="langchain", page=c.page, text=c.text)
+                    ChunkRead(
+                        chunk_id=c.chunk_id,
+                        source="langchain",
+                        page=c.page,
+                        text=c.text,
+                    )
                     for c in items
                 ],
                 total=total,
             )
         async with self._engine.connect() as conn:
-            lv_item_uuids = await LVItemRepository(conn).list_uuids_by_document(document_uuid)
+            lv_item_uuids = await LVItemRepository(conn).list_uuids_by_document(
+                document_uuid
+            )
         views, total = await self._search.list_document_chunks(
             project_uuid,
             document_uuid,
@@ -121,9 +131,12 @@ class DocumentDetailService:
     async def list_activity(
         self, document_uuid: UUID, *, offset: int = 0, limit: int = 200
     ) -> ActivityListRead:
-        """A page of the document's ingestion activity (active ∪ archive) plus the total."""
+        """A page of the document's ingestion activity (active ∪ archive) plus the
+        total."""
         async with self._engine.connect() as conn:
             repo = IngestionActivityLogRepository(conn)
-            items = await repo.list_for_document(document_uuid, offset=offset, limit=limit)
+            items = await repo.list_for_document(
+                document_uuid, offset=offset, limit=limit
+            )
             total = await repo.count_for_document(document_uuid)
         return ActivityListRead(items=items, total=total)

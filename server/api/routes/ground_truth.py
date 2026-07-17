@@ -1,9 +1,11 @@
-"""Eval curation endpoints: browse/edit/delete calculation gold, read Gate-B corrections.
+"""Eval curation endpoints: browse/edit/delete calculation gold, read Gate-B
+corrections.
 
-Gold rows are listed with their staleness against the current recipe worklist, upserted (which
-also serves the "Gold neu bestätigen" re-stamp), and deleted. Corrections are read-only — they
-are only ever written by the Gate B capture flow (shared.services.ground_truth); here they feed
-the error-analysis view (filtered list + variable-by-reason summary).
+Gold rows are listed with their staleness against the current recipe worklist, upserted
+(which also serves the "Gold neu bestätigen" re-stamp), and deleted. Corrections are
+read-only — they are only ever written by the Gate B capture flow
+(shared.services.ground_truth); here they feed the error-analysis view (filtered list +
+variable-by-reason summary).
 """
 
 from __future__ import annotations
@@ -30,7 +32,9 @@ router = APIRouter(prefix="/projects", tags=["ground-truth"])
 
 async def _ensure_project(conn: AsyncConnection, project_uuid: UUID) -> None:
     if await ProjectRepository(conn).get(project_uuid) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
 
 
 @router.get("/{project_uuid}/ground-truth", response_model=list[GroundTruthRead])
@@ -42,7 +46,9 @@ async def list_ground_truth(
     return await GroundTruthService(conn).list_gold(project_uuid)
 
 
-@router.put("/{project_uuid}/ground-truth/{lv_item_uuid}", response_model=GroundTruthRead)
+@router.put(
+    "/{project_uuid}/ground-truth/{lv_item_uuid}", response_model=GroundTruthRead
+)
 async def upsert_ground_truth(
     project_uuid: UUID,
     lv_item_uuid: UUID,
@@ -59,7 +65,9 @@ async def upsert_ground_truth(
             user_id=principal.user_id,
         )
     except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)

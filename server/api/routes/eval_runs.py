@@ -1,6 +1,8 @@
-"""Eval-run endpoints: enqueue a run (the worker's eval loop picks it up via the eval_runs
-queue) and read runs, their live progress events, and per-item results. Not project-prefixed:
-a run's scope is optional (chat_values runs project-free); list filters by project instead.
+"""Eval-run endpoints: enqueue a run (the worker's eval loop picks it up via the
+eval_runs queue) and read runs, their live progress events, and per-item results. Not
+project-prefixed:
+a run's scope is optional (chat_values runs project-free); list filters by project
+instead.
 """
 
 from __future__ import annotations
@@ -25,7 +27,9 @@ async def enqueue_eval_run(
     principal: Principal = Depends(get_current_user),
 ) -> EvalRun:
     try:
-        return await EvalRunService(uow.conn).enqueue(payload, user_id=principal.user_id)
+        return await EvalRunService(uow.conn).enqueue(
+            payload, user_id=principal.user_id
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
@@ -44,7 +48,9 @@ async def list_eval_runs(
 async def _get_run(conn: AsyncConnection, eval_run_uuid: UUID) -> EvalRun:
     run = await EvalRunService(conn).get_run(eval_run_uuid)
     if run is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="eval run not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="eval run not found"
+        )
     return run
 
 

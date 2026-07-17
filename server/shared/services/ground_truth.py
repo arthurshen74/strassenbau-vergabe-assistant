@@ -1,17 +1,18 @@
 """Capture and curate EKT ground truth + variable corrections.
 
-Capture (Gate B): the Kalkulator accepts or overrides every proposed variable value. This service
-turns that review into two records: one VariableCorrection per overridden leaf (the model's
-proposal vs. the chosen value, with an optional reason), always; and, when the run is marked as
-ground truth, one upserted GroundTruth row holding the endorsed value for every leaf plus the
-confirmed recipe.
+Capture (Gate B): the Kalkulator accepts or overrides every proposed variable value.
+This service turns that review into two records: one VariableCorrection per overridden
+leaf (the model's proposal vs. the chosen value, with an optional reason), always; and,
+when the run is marked as ground truth, one upserted GroundTruth row holding the
+endorsed value for every leaf plus the confirmed recipe.
 
-Curation (eval UI): list gold with staleness against the current recipe worklist, upsert edited
-gold (validated against the catalog + worklist), delete, and read corrections (filtered list +
-error-analysis summary). Corrections have no write path here beyond Gate B — they are telemetry.
+Curation (eval UI): list gold with staleness against the current recipe worklist, upsert
+edited gold (validated against the catalog + worklist), delete, and read corrections
+(filtered list + error-analysis summary). Corrections have no write path here beyond
+Gate B — they are telemetry.
 
-The proposals come from the paused graph state (the pre-resume `vorschlaege`); the build/assess
-helpers are pure so they can be unit-tested without a database.
+The proposals come from the paused graph state (the pre-resume `vorschlaege`); the
+build/assess helpers are pure so they can be unit-tested without a database.
 """
 
 from __future__ import annotations
@@ -45,7 +46,8 @@ from shared.services.kalkulation_v2.model import Kalkulator
 from shared.services.kalkulation_v2.store import FORMELN, GEOM, KATALOG
 from shared.services.kalkulation_v2.worklist import benoetigte_variablen
 
-# AufloesungsMethode value stamped on an overridden value (matches the engine's quelle space).
+# AufloesungsMethode value stamped on an overridden value (matches the engine's quelle
+# space).
 QUELLE_OVERRIDE = "hitl"
 
 
@@ -63,8 +65,8 @@ def build_corrections(
     overrides: dict[str, Any],
     reasons: dict[str, Any],
 ) -> list[NewVariableCorrection]:
-    """One correction per overridden leaf: the proposal (value + provenance + confidence) vs. the
-    Kalkulator's value, with the optional reason tag."""
+    """One correction per overridden leaf: the proposal (value + provenance +
+    confidence) vs. the Kalkulator's value, with the optional reason tag."""
     corrections: list[NewVariableCorrection] = []
     for name, final in overrides.items():
         prop = proposals.get(name) or {}
@@ -92,9 +94,9 @@ def build_corrections(
 def build_gold_variables(
     proposals: dict[str, dict[str, Any]], overrides: dict[str, Any]
 ) -> dict[str, GoldVariable]:
-    """The endorsed value for every reviewed leaf: the override where one was made, else the
-    proposal. An overridden leaf is tagged hitl and flagged so the grader can split model accuracy
-    from expert adjustments."""
+    """The endorsed value for every reviewed leaf: the override where one was made, else
+    the proposal. An overridden leaf is tagged hitl and flagged so the grader can split
+    model accuracy from expert adjustments."""
     gold: dict[str, GoldVariable] = {}
     for name, prop in proposals.items():
         overridden = name in overrides
@@ -109,17 +111,23 @@ def build_gold_variables(
     return gold
 
 
-def recipe_worklist_names(leistung_key: str, bauverfahren_key: str | None) -> list[str] | None:
-    """The leaf variable names Gate B reviews for this recipe — the geometry leaf is excluded
-    (booked from the LV Menge, mirrors derive_required_variables in the calculator graph). None
-    when the catalog can no longer resolve the recipe: unknown Leistung, a Bauverfahren that is
-    not (or no longer) a candidate, or a worklist referencing a removed variable — all the gold
-    row predating a catalog change."""
+def recipe_worklist_names(
+    leistung_key: str, bauverfahren_key: str | None
+) -> list[str] | None:
+    """The leaf variable names Gate B reviews for this recipe — the geometry leaf is
+    excluded (booked from the LV Menge, mirrors derive_required_variables in the
+    calculator graph). None when the catalog can no longer resolve the recipe: unknown
+    Leistung, a Bauverfahren that is not (or no longer) a candidate, or a worklist
+    referencing a removed variable — all the gold row predating a catalog change."""
     leistung = LEISTUNGEN.get(leistung_key)
     if leistung is None:
         return None
     kand = kandidaten(leistung_key)
-    bv_key = bauverfahren_key if bauverfahren_key is not None else (kand[0] if kand else None)
+    bv_key = (
+        bauverfahren_key
+        if bauverfahren_key is not None
+        else (kand[0] if kand else None)
+    )
     if bv_key is None or bv_key not in kand:
         return None
     geom = GEOM.get(leistung.einheit)
@@ -133,9 +141,10 @@ def recipe_worklist_names(leistung_key: str, bauverfahren_key: str | None) -> li
 
 
 def assess_staleness(gold: GroundTruth) -> GroundTruthRead:
-    """Wrap a gold row with its drift against the current recipe worklist. A gold set whose
-    variable names diverge from the worklist grades misleadingly (stale names read as missed,
-    new names go un-graded), so any difference flags the row for re-confirmation."""
+    """Wrap a gold row with its drift against the current recipe worklist. A gold set
+    whose variable names diverge from the worklist grades misleadingly (stale names read
+    as missed, new names go un-graded), so any difference flags the row for
+    re-confirmation."""
     worklist = recipe_worklist_names(gold.leistung_key, gold.bauverfahren_key)
     if worklist is None:
         return GroundTruthRead(
@@ -158,14 +167,17 @@ def assess_staleness(gold: GroundTruth) -> GroundTruthRead:
 def validate_gold_recipe(
     leistung_key: str, bauverfahren_key: str | None, variable_names: Iterable[str]
 ) -> list[str]:
-    """Boundary validation for a curated upsert: the recipe must exist in the catalog and every
-    gold variable must be in its worklist (a subset is fine — it just reads as stale). Returns
-    human-readable problems; empty means valid."""
+    """Boundary validation for a curated upsert: the recipe must exist in the catalog
+    and every gold variable must be in its worklist (a subset is fine — it just reads as
+    stale). Returns human-readable problems; empty means valid."""
     if leistung_key not in LEISTUNGEN:
         return [f"leistung_key {leistung_key!r} ist nicht im Katalog"]
-    if bauverfahren_key is not None and bauverfahren_key not in kandidaten(leistung_key):
+    if bauverfahren_key is not None and bauverfahren_key not in kandidaten(
+        leistung_key
+    ):
         return [
-            f"bauverfahren_key {bauverfahren_key!r} ist kein Kandidat für {leistung_key!r}"
+            f"bauverfahren_key {bauverfahren_key!r} ist kein Kandidat für "
+            f"{leistung_key!r}"
         ]
     worklist = recipe_worklist_names(leistung_key, bauverfahren_key)
     unknown = sorted(set(variable_names).difference(worklist or []))
@@ -229,12 +241,15 @@ class GroundTruthService:
         payload: GroundTruthUpsert,
         user_id: UUID,
     ) -> GroundTruthRead:
-        """Curated create/edit of one position's gold record. Raises LookupError when the LV item
-        is not in this project, ValueError when the recipe/variables fail catalog validation.
-        Re-saving unchanged content re-stamps updated_at (the "Gold neu bestätigen" flow)."""
+        """Curated create/edit of one position's gold record. Raises LookupError when
+        the LV item is not in this project, ValueError when the recipe/variables fail
+        catalog validation. Re-saving unchanged content re-stamps updated_at (the "Gold
+        neu bestätigen" flow)."""
         item = await LVItemRepository(self._conn).get(lv_item_uuid)
         document = (
-            await DocumentRepository(self._conn).get(item.document_uuid) if item else None
+            await DocumentRepository(self._conn).get(item.document_uuid)
+            if item
+            else None
         )
         if item is None or document is None or document.project_uuid != project_uuid:
             raise LookupError("LV position not found in this project")
@@ -274,5 +289,7 @@ class GroundTruthService:
             project_uuid, variable_name=variable_name, reason=reason
         )
 
-    async def corrections_summary(self, project_uuid: UUID) -> list[CorrectionSummaryRow]:
+    async def corrections_summary(
+        self, project_uuid: UUID
+    ) -> list[CorrectionSummaryRow]:
         return await self._corrections.summary_by_project(project_uuid)

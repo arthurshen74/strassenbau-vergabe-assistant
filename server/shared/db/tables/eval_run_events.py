@@ -5,8 +5,8 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from shared.db.metadata import metadata
 
-# Append-only progress log of an eval run (one row per emitted message), the live feed the
-# UI polls while a run executes.
+# Append-only progress log of an eval run (one row per emitted message), the live feed
+# the UI polls while a run executes.
 eval_run_events = Table(
     "eval_run_events",
     metadata,

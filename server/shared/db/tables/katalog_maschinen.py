@@ -5,7 +5,8 @@ from sqlalchemy.dialects.postgresql import JSON
 
 from shared.db.tables.katalog_lifecycle import lifecycle_tabelle
 
-# JSON (not JSONB) to preserve object-key order on reload (byte-identical property bags).
+# JSON (not JSONB) to preserve object-key order on reload (byte-identical property
+# bags).
 katalog_maschinen = lifecycle_tabelle(
     "katalog_maschinen",
     "code",

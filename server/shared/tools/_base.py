@@ -1,9 +1,10 @@
 """Shared shape for dispatcher tools.
 
-A tool is purely declarative: a name + description the LLM sees, a Pydantic input model (the
-function parameters), and an async handler that executes it. Handlers run via **direct service
-calls** (no HTTP loopback) using the repositories on the `ToolContext`'s `UnitOfWork`; they carry
-no business logic of their own beyond shaping the result into a JSON-serializable dict.
+A tool is purely declarative: a name + description the LLM sees, a Pydantic input model
+(the function parameters), and an async handler that executes it. Handlers run via
+**direct service calls** (no HTTP loopback) using the repositories on the
+`ToolContext`'s `UnitOfWork`; they carry no business logic of their own beyond shaping
+the result into a JSON-serializable dict.
 """
 
 from __future__ import annotations
@@ -29,7 +30,8 @@ FUNCTION_PARAMETERS = "parameters"
 @dataclass(frozen=True)
 class ToolContext:
     """What a tool handler is allowed to touch: repositories (read-only here) and the
-    conversation's project scope. Project-chat tools must be scoped by `project_uuid`."""
+    conversation's project scope. Project-chat tools must be scoped by `project_uuid`.
+    """
 
     uow: UnitOfWork
     project_uuid: UUID | None = None

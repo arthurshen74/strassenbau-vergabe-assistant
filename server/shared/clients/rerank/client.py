@@ -1,10 +1,10 @@
 """OpenRouter rerank (cross-encoder) client.
 
-Sends a query and a list of candidate documents to the OpenRouter rerank endpoint
-and returns the candidates' original indices paired with their relevance scores,
-highest first. The model slug comes from `settings.cross_encoder_model`. Reranking
-is the only post-retrieval stage in RETRIEVAL.md; it bills `search_units`, recorded
-via the usage sink like every other OpenRouter call.
+Sends a query and a list of candidate documents to the OpenRouter rerank endpoint and
+returns the candidates' original indices paired with their relevance scores, highest
+first. The model slug comes from `settings.cross_encoder_model`. Reranking is the only
+post-retrieval stage in RETRIEVAL.md; it bills `search_units`, recorded via the usage
+sink like every other OpenRouter call.
 """
 
 from __future__ import annotations
@@ -58,7 +58,8 @@ class RerankClient:
         project_uuid: UUID | None = None,
         conversation_uuid: UUID | None = None,
     ) -> list[tuple[int, float]]:
-        """Return (original_index, relevance_score) pairs, highest score first, length <= top_n."""
+        """Return (original_index, relevance_score) pairs, highest score first, length
+        <= top_n."""
         if not documents:
             return []
 
@@ -85,7 +86,8 @@ class RerankClient:
 
         body = response.json()
         results = [
-            (item[FIELD_INDEX], item[FIELD_RELEVANCE_SCORE]) for item in body[FIELD_RESULTS]
+            (item[FIELD_INDEX], item[FIELD_RELEVANCE_SCORE])
+            for item in body[FIELD_RESULTS]
         ]
         results.sort(key=lambda pair: pair[1], reverse=True)
 
@@ -108,7 +110,9 @@ class RerankClient:
                 conversation_uuid=conversation_uuid,
             )
             if event.cost is None:
-                logger.warning("OpenRouter usage missing cost for model %s", event.model)
+                logger.warning(
+                    "OpenRouter usage missing cost for model %s", event.model
+                )
             await self._usage_sink.emit(event)
         except Exception:
             logger.exception("Failed to record rerank usage; continuing")

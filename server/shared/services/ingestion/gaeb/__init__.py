@@ -1,13 +1,17 @@
 """GAEB Leistungsverzeichnis parsers.
 
 Both exchange formats of the 83 phase (Angebotsaufforderung) parse into the same
-`LVParseResult` shape: the fixed-format GAEB 90 `*.d83` and the GAEB DA XML `*.x83`.
-A GAEB file is the project's LV by definition; `is_gaeb_lv_file` is the single
+`LVParseResult` shape: the fixed-format GAEB 90 `*.d83` and the GAEB DA XML `*.x83`. A
+GAEB file is the project's LV by definition; `is_gaeb_lv_file` is the single
 classification predicate, and `parse_gaeb_lv` dispatches to the right reader.
 """
 
 from shared.services.ingestion.gaeb.compose import GaebParseError
-from shared.services.ingestion.gaeb.d83.parse import GAEB_D83_SUFFIX, is_d83_file, parse_d83
+from shared.services.ingestion.gaeb.d83.parse import (
+    GAEB_D83_SUFFIX,
+    is_d83_file,
+    parse_d83,
+)
 from shared.services.ingestion.gaeb.d83.records import D83ParseError
 from shared.services.ingestion.gaeb.x83.parse import (
     GAEB_X83_SUFFIX,

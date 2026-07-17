@@ -1,10 +1,11 @@
 """Single OpenRouter transport for every LLM call in the system.
 
-All chat / structured-output traffic goes through `LLMClient`, which targets the OpenRouter
-chat-completions endpoint over `httpx`. Callers pass a model slug and, optionally, a Pydantic
-output model; with one, the response is JSON-schema-constrained and validated before return.
-The two failure modes callers must distinguish are surfaced as `RefusalError` (the model
-declined) and `OutputTruncatedError` (the model hit the token limit).
+All chat / structured-output traffic goes through `LLMClient`, which targets the
+OpenRouter chat-completions endpoint over `httpx`. Callers pass a model slug and,
+optionally, a Pydantic output model; with one, the response is JSON-schema-constrained
+and validated before return. The two failure modes callers must distinguish are surfaced
+as `RefusalError` (the model declined) and `OutputTruncatedError` (the model hit the
+token limit).
 """
 
 from __future__ import annotations
@@ -56,16 +57,17 @@ REASONING_EFFORT = "effort"
 REASONING_SUMMARY = "summary"
 REASONING_SUMMARY_DETAILED = "detailed"
 
-# response_format / json_schema sub-object keys and the response_format discriminator value.
+# response_format / json_schema sub-object keys and the response_format discriminator
+# value.
 RESPONSE_FORMAT_TYPE = "type"
 RESPONSE_FORMAT_JSON_SCHEMA = "json_schema"
 JSON_SCHEMA_NAME = "name"
 JSON_SCHEMA_STRICT = "strict"
 JSON_SCHEMA_SCHEMA = "schema"
 
-# Provider routing preferences (OpenRouter). require_parameters makes OpenRouter fail the request
-# if the routed provider can't honor response_format, rather than silently returning unconstrained
-# text; only meaningful when we send a schema.
+# Provider routing preferences (OpenRouter). require_parameters makes OpenRouter fail
+# the request if the routed provider can't honor response_format, rather than silently
+# returning unconstrained text; only meaningful when we send a schema.
 REQUEST_PROVIDER = "provider"
 PROVIDER_REQUIRE_PARAMETERS = "require_parameters"
 
@@ -112,15 +114,18 @@ class LLMError(Exception):
 
 
 class RefusalError(LLMError):
-    """The model declined to answer (refusal field set, or the response was content-filtered)."""
+    """The model declined to answer (refusal field set, or the response was
+    content-filtered)."""
 
 
 class OutputTruncatedError(LLMError):
-    """The model stopped at the token limit (finish_reason=length); the output is incomplete."""
+    """The model stopped at the token limit (finish_reason=length); the output is
+    incomplete."""
 
 
 class LLMClient:
-    """OpenRouter chat / structured-output transport built on a shared `httpx.AsyncClient`."""
+    """OpenRouter chat / structured-output transport built on a shared
+    `httpx.AsyncClient`."""
 
     def __init__(
         self,
@@ -135,7 +140,9 @@ class LLMClient:
         self._api_key = api_key if api_key is not None else settings.openrouter_api_key
         self._chat_url = chat_url or settings.openrouter_api_url_chat
         self._owns_client = client is None
-        self._client = client if client is not None else httpx.AsyncClient(timeout=timeout)
+        self._client = (
+            client if client is not None else httpx.AsyncClient(timeout=timeout)
+        )
         self._usage_sink = usage_sink or LoggingUsageSink()
         self._execution_log_sink = execution_log_sink or LoggingExecutionLogSink()
 
@@ -197,8 +204,9 @@ class LLMClient:
         document_uuid: UUID | None = None,
         conversation_uuid: UUID | None = None,
     ) -> str | T:
-        """Run a chat completion. With `output_model`, request JSON-schema-constrained output
-        and return a validated instance; without it, return the raw assistant text."""
+        """Run a chat completion. With `output_model`, request JSON-schema-constrained
+        output and return a validated instance; without it, return the raw assistant
+        text."""
         _, content = await self._invoke(
             model=model,
             messages=messages,
@@ -236,9 +244,10 @@ class LLMClient:
         document_uuid: UUID | None = None,
         conversation_uuid: UUID | None = None,
     ) -> tuple[T, str | None]:
-        """Like `chat` with a structured `output_model`, but also returns the provider's reasoning
-        summary (OpenRouter's `message.reasoning`). The summary is best-effort: None when the model
-        or routed provider emits none. `reasoning_effort` requests one when set."""
+        """Like `chat` with a structured `output_model`, but also returns the provider's
+        reasoning summary (OpenRouter's `message.reasoning`). The summary is
+        best-effort: None when the model or routed provider emits none.
+        `reasoning_effort` requests one when set."""
         message, content = await self._invoke(
             model=model,
             messages=messages,
@@ -277,15 +286,16 @@ class LLMClient:
         reasoning_effort: str | None,
         strict: bool = True,
     ) -> tuple[dict[str, Any], str]:
-        """Run one completion end to end: build payload, post, emit usage + execution log, raise on
-        refusal/truncation, and return the response message dict and its text content."""
+        """Run one completion end to end: build payload, post, emit usage + execution
+        log, raise on refusal/truncation, and return the response message dict and its
+        text content."""
         payload: dict[str, Any] = {
             REQUEST_MODEL: model,
             REQUEST_MESSAGES: [_serialize_message(m) for m in messages],
         }
         # Omit temperature when None: reasoning models (e.g. gpt-5.x) don't accept the
-        # parameter, and with provider.require_parameters set, sending it makes OpenRouter
-        # drop every endpoint that can't honor it.
+        # parameter, and with provider.require_parameters set, sending it makes
+        # OpenRouter drop every endpoint that can't honor it.
         if temperature is not None:
             payload[REQUEST_TEMPERATURE] = temperature
         if top_p is not None:
@@ -293,7 +303,9 @@ class LLMClient:
         if max_tokens is not None:
             payload[REQUEST_MAX_TOKENS] = max_tokens
         if output_model is not None:
-            payload[REQUEST_RESPONSE_FORMAT] = _json_schema_response_format(output_model, strict)
+            payload[REQUEST_RESPONSE_FORMAT] = _json_schema_response_format(
+                output_model, strict
+            )
             payload[REQUEST_PROVIDER] = {PROVIDER_REQUIRE_PARAMETERS: True}
         if reasoning_effort is not None:
             payload[REQUEST_REASONING] = {
@@ -302,10 +314,13 @@ class LLMClient:
             }
 
         sent_at = datetime.now(UTC)
-        response = await self._client.post(self._chat_url, headers=self._headers(), json=payload)
+        response = await self._client.post(
+            self._chat_url, headers=self._headers(), json=payload
+        )
         if response.is_error:
-            # Surface the provider's error body (model/routing/schema reason) at the boundary;
-            # raise_for_status() otherwise discards it, leaving callers a bare status code.
+            # Surface the provider's error body (model/routing/schema reason) at the
+            # boundary; raise_for_status() otherwise discards it, leaving callers a bare
+            # status code.
             logger.error(
                 "chat request failed: model=%s status=%s body=%s",
                 model,
@@ -316,8 +331,9 @@ class LLMClient:
         body = response.json()
         returned_at = datetime.now(UTC)
 
-        # Emit usage before the refusal/truncation checks: a content-filtered or length-truncated
-        # 200 still bills tokens, so the cost must be recorded even though we then raise.
+        # Emit usage before the refusal/truncation checks: a content-filtered or
+        # length-truncated 200 still bills tokens, so the cost must be recorded even
+        # though we then raise.
         await self._emit_usage(
             body,
             model=model,
@@ -346,7 +362,8 @@ class LLMClient:
         )
         success = error_message is None
 
-        # Record the execution log before raising, so a refused/truncated call is still captured.
+        # Record the execution log before raising, so a refused/truncated call is still
+        # captured.
         await self._emit_execution_log(
             payload,
             body,
@@ -354,7 +371,9 @@ class LLMClient:
             returned_at=returned_at,
             response_text=content,
             response_tool_calls=message.get(MESSAGE_TOOL_CALLS),
-            response_structured=_best_effort_json(content) if (output_model and success) else None,
+            response_structured=_best_effort_json(content)
+            if (output_model and success)
+            else None,
             finish_reason=finish_reason,
             success=success,
             error_message=error_message,
@@ -366,7 +385,9 @@ class LLMClient:
         )
 
         if is_refusal:
-            logger.warning("LLM refused: model=%s finish_reason=%s", model, finish_reason)
+            logger.warning(
+                "LLM refused: model=%s finish_reason=%s", model, finish_reason
+            )
             raise RefusalError(refusal or "content filtered")
         if is_truncated:
             logger.warning("LLM output truncated: model=%s", model)
@@ -392,9 +413,9 @@ class LLMClient:
         conversation_uuid: UUID | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream a chat completion. Yields `TextDelta` as content arrives, then one
-        `ToolCallsReady` if the model called tools, then `Done(finish_reason)`. Tools and
-        structured output are never combined here. Usage + execution log are emitted once the
-        stream ends."""
+        `ToolCallsReady` if the model called tools, then `Done(finish_reason)`. Tools
+        and structured output are never combined here. Usage + execution log are emitted
+        once the stream ends."""
         payload: dict[str, Any] = {
             REQUEST_MODEL: model,
             REQUEST_MESSAGES: [_serialize_message(m) for m in messages],
@@ -456,7 +477,9 @@ class LLMClient:
         returned_at = datetime.now(UTC)
 
         tool_calls = [
-            buf.to_tool_call() for _, buf in sorted(tool_bufs.items()) if buf.is_complete()
+            buf.to_tool_call()
+            for _, buf in sorted(tool_bufs.items())
+            if buf.is_complete()
         ]
         if tool_calls:
             yield ToolCallsReady(tool_calls=tool_calls)
@@ -526,7 +549,9 @@ class LLMClient:
                 chat_prompt_version=chat_prompt_version,
             )
             if event.cost is None:
-                logger.warning("OpenRouter usage missing cost for model %s", event.model)
+                logger.warning(
+                    "OpenRouter usage missing cost for model %s", event.model
+                )
             await self._usage_sink.emit(event)
         except Exception:
             logger.exception("Failed to record chat usage; continuing")
@@ -554,7 +579,11 @@ class LLMClient:
         try:
             messages: list[dict[str, Any]] = payload.get(REQUEST_MESSAGES, [])
             system_prompt = next(
-                (m.get(MESSAGE_CONTENT) for m in messages if m.get(MESSAGE_ROLE) == ROLE_SYSTEM),
+                (
+                    m.get(MESSAGE_CONTENT)
+                    for m in messages
+                    if m.get(MESSAGE_ROLE) == ROLE_SYSTEM
+                ),
                 None,
             )
             usage = body.get(RESPONSE_USAGE) or {}
@@ -607,7 +636,8 @@ def _best_effort_json(text: str) -> dict[str, Any] | None:
 
 
 class _ToolCallBuf:
-    """Assembles one streamed tool call: id/name arrive first, arguments append across chunks."""
+    """Assembles one streamed tool call: id/name arrive first, arguments append across
+    chunks."""
 
     def __init__(self) -> None:
         self.id: str | None = None
@@ -634,8 +664,9 @@ class _ToolCallBuf:
 def _json_schema_response_format(
     output_model: type[BaseModel], strict: bool = True
 ) -> dict[str, Any]:
-    # strict=True makes the provider enforce all-keys-required + additionalProperties:false; models
-    # with optional/defaulted fields must pass strict=False and lean on Pydantic validation instead.
+    # strict=True makes the provider enforce all-keys-required +
+    # additionalProperties:false; models with optional/defaulted fields must pass
+    # strict=False and lean on Pydantic validation instead.
     return {
         RESPONSE_FORMAT_TYPE: RESPONSE_FORMAT_JSON_SCHEMA,
         RESPONSE_FORMAT_JSON_SCHEMA: {

@@ -2,8 +2,8 @@
 
 Runs after `bootstrap_dbs` (which only creates the databases). Importing
 `shared.db.tables` registers every table on the shared metadata; `create_all` is
-idempotent (checkfirst), so re-running on each startup is a no-op once the schema
-is in place.
+idempotent (checkfirst), so re-running on each startup is a no-op once the schema is in
+place.
 """
 
 from __future__ import annotations

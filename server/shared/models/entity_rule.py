@@ -1,14 +1,14 @@
 """Domain models for DB-backed EntityRuler rules.
 
-`EntityRule` is one persisted row. `NewEntityRule` is the insert shape; the DB
-fills the uuid and timestamps. `EntityRuleUpdate` is a partial patch where every
-field is optional — an unset field leaves that column untouched (the repository
-drops `None`s before building the UPDATE).
+`EntityRule` is one persisted row. `NewEntityRule` is the insert shape; the DB fills the
+uuid and timestamps. `EntityRuleUpdate` is a partial patch where every field is optional
+— an unset field leaves that column untouched (the repository drops `None`s before
+building the UPDATE).
 
 `pattern` is spaCy's token-pattern DSL: a bare phrase string or a list of
-token-attribute dicts. It is genuinely heterogeneous (design D1), so it is typed
-as the union rather than a modeled schema; spaCy validates it at the write
-boundary before it is persisted.
+token-attribute dicts. It is genuinely heterogeneous (design D1), so it is typed as the
+union rather than a modeled schema; spaCy validates it at the write boundary before it
+is persisted.
 """
 
 from __future__ import annotations

@@ -1,13 +1,14 @@
 """Orchestrates document ingestion (INGESTION.md), end to end except job claiming.
 
-`ingest_document` renders one page thumbnail per page, runs the LangChain pipeline (PDF ->
-RecursiveCharacterTextSplitter chunks in the parallel vector index), runs the common extraction
-stage (PDF -> SourceLine), and simple-chunks every PDF into DOCUMENT chunks. LV items come
-exclusively from GAEB files (D83/X83), which take a short path instead: the file parses
-deterministically into LVItem rows and LV_ITEM chunks (no thumbnails, source lines, or
-DOCUMENT chunks). It is called directly with a `document_uuid`; passing a `job_uuid` enables
-IngestJobEvent progress logging, and omitting it runs jobless for isolated testing. The
-worker loop that claims jobs and drives this service is a separate step.
+`ingest_document` renders one page thumbnail per page, runs the LangChain pipeline (PDF
+-> RecursiveCharacterTextSplitter chunks in the parallel vector index), runs the common
+extraction stage (PDF -> SourceLine), and simple-chunks every PDF into DOCUMENT chunks.
+LV items come exclusively from GAEB files (D83/X83), which take a short path instead:
+the file parses deterministically into LVItem rows and LV_ITEM chunks (no thumbnails,
+source lines, or DOCUMENT chunks). It is called directly with a `document_uuid`; passing
+a `job_uuid` enables IngestJobEvent progress logging, and omitting it runs jobless for
+isolated testing. The worker loop that claims jobs and drives this service is a separate
+step.
 
 The repositories and clients are reached here and in the injected LangchainIngestor; the
 extraction, chunking, and GAEB submodules are pure."""
@@ -106,7 +107,8 @@ class IngestionService:
         if is_gaeb_lv_file(document.file_name):
             return await self._ingest_gaeb_document(document, job_uuid)
 
-        # Track the active phase so a failure event names where it broke; surfaced to the UI.
+        # Track the active phase so a failure event names where it broke; surfaced to
+        # the UI.
         phase = IngestPhase.INGEST
         try:
             pdf_bytes = await asyncio.to_thread(
@@ -125,7 +127,10 @@ class IngestionService:
             phase = IngestPhase.LANGCHAIN
             self._activity("running langchain pipeline", IngestPhase.LANGCHAIN)
             langchain_chunks = await self._langchain.ingest(
-                document_uuid, document.project_uuid, pdf_bytes, ingest_job_uuid=job_uuid
+                document_uuid,
+                document.project_uuid,
+                pdf_bytes,
+                ingest_job_uuid=job_uuid,
             )
             await self._emit(
                 job_uuid,
@@ -202,7 +207,9 @@ class IngestionService:
             )
             self._activity("parsing GAEB LV", IngestPhase.LV)
             result = parse_gaeb_lv(document.file_name, raw_bytes)
-            lv_items, lv_chunks = await self._persist_lv_result(document, result, job_uuid)
+            lv_items, lv_chunks = await self._persist_lv_result(
+                document, result, job_uuid
+            )
             await self._emit(
                 job_uuid,
                 event=IngestEvent.LV_ITEMS_INDEXED,
@@ -239,14 +246,18 @@ class IngestionService:
         pages_by_oz = {item.oz: item.pages for item in result.items}
         new_ozs = [item.oz for item in result.items]
 
-        # Upsert the parsed items (stable uuids) and drop any position that no longer exists,
-        # so a re-ingest neither collides on (document_uuid, oz) nor leaves stale rows.
+        # Upsert the parsed items (stable uuids) and drop any position that no longer
+        # exists, so a re-ingest neither collides on (document_uuid, oz) nor leaves
+        # stale rows.
         async with self._uow_factory() as uow:
-            items = await uow.lv_items.add_many(result.to_new_lv_items(document.document_uuid))
+            items = await uow.lv_items.add_many(
+                result.to_new_lv_items(document.document_uuid)
+            )
             removed = await uow.lv_items.delete_missing(document.document_uuid, new_ozs)
 
-        # Archive the Elasticsearch chunks of the removed positions; the survivors' prior
-        # chunks are archived per item below before re-indexing (their uuids are unchanged).
+        # Archive the Elasticsearch chunks of the removed positions; the survivors'
+        # prior chunks are archived per item below before re-indexing (their uuids are
+        # unchanged).
         for removed_uuid in removed:
             await self._search.archive_source(removed_uuid, SourceDocType.LV_ITEM)
 
@@ -264,13 +275,16 @@ class IngestionService:
                 document.document_uuid,
             )
             if index % settings.activity_lv_item_every == 0:
-                self._activity(f"LV item {item.oz} ({index}/{len(items)})", IngestPhase.LV)
+                self._activity(
+                    f"LV item {item.oz} ({index}/{len(items)})", IngestPhase.LV
+                )
         return len(items), lv_chunks
 
     async def _generate_thumbnails(self, document_uuid: UUID, pdf_bytes: bytes) -> int:
         """Render one thumbnail per page, store each in object storage, and upsert a
-        Thumbnail row per page (keyed by (document_uuid, page_number), so re-ingest replaces
-        in place). Rendering and the synchronous storage writes are offloaded to threads."""
+        Thumbnail row per page (keyed by (document_uuid, page_number), so re-ingest
+        replaces in place). Rendering and the synchronous storage writes are offloaded
+        to threads."""
         rendered = await asyncio.to_thread(render_thumbnails, pdf_bytes)
         if not rendered:
             return 0
@@ -309,9 +323,9 @@ class IngestionService:
         job_uuid: UUID | None,
         document_uuid: UUID,
     ) -> int:
-        """Embed the drafts, archive the source's prior chunks, then index the new ones. The owning
-        document_uuid (distinct from source_doc_uuid, which is the lv_item for LV chunks) tags the
-        embeddings' OpenRouter usage."""
+        """Embed the drafts, archive the source's prior chunks, then index the new ones.
+        The owning document_uuid (distinct from source_doc_uuid, which is the lv_item
+        for LV chunks) tags the embeddings' OpenRouter usage."""
         if not drafts:
             return 0
         vectors = await self._embeddings.embed(
@@ -321,7 +335,9 @@ class IngestionService:
             document_uuid=document_uuid,
         )
         activity_phase = (
-            IngestPhase.LV if source_doc_type is SourceDocType.LV_ITEM else IngestPhase.CHUNK
+            IngestPhase.LV
+            if source_doc_type is SourceDocType.LV_ITEM
+            else IngestPhase.CHUNK
         )
         chunks: list[NewSimpleChunk] = []
         for index, (draft, vector) in enumerate(zip(drafts, vectors), start=1):
@@ -346,14 +362,18 @@ class IngestionService:
         phase: IngestPhase,
         message: str,
     ) -> None:
-        """Log progress to stdout (always) and persist it in its own transaction when there is
-        a job; jobless runs only log."""
+        """Log progress to stdout (always) and persist it in its own transaction when
+        there is a job; jobless runs only log."""
         log_progress(event=event, phase=phase, message=message)
         if job_uuid is None:
             return
         async with self._uow_factory() as uow:
             await record_event(
-                uow.ingest_job_events, job_uuid, event=event, phase=phase, message=message
+                uow.ingest_job_events,
+                job_uuid,
+                event=event,
+                phase=phase,
+                message=message,
             )
 
     async def _emit_in_uow(
@@ -365,15 +385,15 @@ class IngestionService:
         phase: IngestPhase,
         message: str,
     ) -> None:
-        """Log progress to stdout and persist it within an already-open transaction (so the
-        event commits atomically with that stage's writes)."""
+        """Log progress to stdout and persist it within an already-open transaction (so
+        the event commits atomically with that stage's writes)."""
         log_progress(event=event, phase=phase, message=message)
         await record_event(
             uow.ingest_job_events, job_uuid, event=event, phase=phase, message=message
         )
 
     def _activity(self, message: str, phase: IngestPhase) -> None:
-        """Emit a granular activity line for the live console and the worker's lease heartbeat.
-        No-op for jobless runs, which have no activity sink wired."""
+        """Emit a granular activity line for the live console and the worker's lease
+        heartbeat. No-op for jobless runs, which have no activity sink wired."""
         if self._activity_emit is not None:
             self._activity_emit(message, phase.value)

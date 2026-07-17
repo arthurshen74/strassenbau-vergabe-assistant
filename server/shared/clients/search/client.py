@@ -1,8 +1,8 @@
 """Elasticsearch client for the SimpleChunk index.
 
-The single writer and reader of the `SimpleChunk` index. It owns the index mapping,
-bulk indexing, the Simple/Plus retrieval scope filters (RETRIEVAL.md), the dense kNN
-and BM25 lexical queries built over those filters, and the re-ingestion archival flow
+The single writer and reader of the `SimpleChunk` index. It owns the index mapping, bulk
+indexing, the Simple/Plus retrieval scope filters (RETRIEVAL.md), the dense kNN and BM25
+lexical queries built over those filters, and the re-ingestion archival flow
 (INGESTION.md). RRF fusion and cross-encoder reranking are the retrieval phase's
 concern, not this client's.
 """
@@ -38,9 +38,10 @@ FIELD_EMBEDDING = "embedding"
 FIELD_EMBEDDING_MODEL = "embedding_model"
 FIELD_ARCHIVED_AT = "archived_at"
 
-# LangChain index (idx-langchain-roadbuilders) fields for the chunk viewer: the chunk text and the
-# sortable metadata that give a stable reading order (PyPDF page + splitter start_index). The
-# document metadata key is owned by langchain_store (META_SOURCE_DOC_UUID).
+# LangChain index (idx-langchain-roadbuilders) fields for the chunk viewer: the chunk
+# text and the sortable metadata that give a stable reading order (PyPDF page + splitter
+# start_index). The document metadata key is owned by langchain_store
+# (META_SOURCE_DOC_UUID).
 LANGCHAIN_TEXT_FIELD = "text"
 LANGCHAIN_DOC_UUID_FIELD = f"metadata.{META_SOURCE_DOC_UUID}"
 LANGCHAIN_PAGE_FIELD = "metadata.page"
@@ -79,7 +80,8 @@ class SimpleChunkView(BaseModel):
 
 
 class LangchainChunk(BaseModel):
-    """A LangChain-index chunk projected for the viewer; ordered by (page, start_index)."""
+    """A LangChain-index chunk projected for the viewer; ordered by (page,
+    start_index)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -143,8 +145,8 @@ def simple_filter(project_uuid: UUID) -> dict[str, Any]:
 
 def plus_filter(project_uuid: UUID, lv_document_uuid: UUID) -> dict[str, Any]:
     """Plus scope: DOCUMENT chunks except the LV document's own chunks, plus the parsed
-    LV_ITEM chunks (RETRIEVAL.md). The LV document's simple chunks are excluded so the LV
-    content is not counted twice."""
+    LV_ITEM chunks (RETRIEVAL.md). The LV document's simple chunks are excluded so the
+    LV content is not counted twice."""
     return {
         "bool": {
             "filter": [
@@ -158,20 +160,28 @@ def plus_filter(project_uuid: UUID, lv_document_uuid: UUID) -> dict[str, Any]:
                                     "must": [
                                         {
                                             "term": {
-                                                FIELD_SOURCE_DOC_TYPE: SourceDocType.DOCUMENT.value
+                                                FIELD_SOURCE_DOC_TYPE: (
+                                                    SourceDocType.DOCUMENT.value
+                                                )
                                             }
                                         }
                                     ],
                                     "must_not": [
                                         {
                                             "term": {
-                                                FIELD_SOURCE_DOC_UUID: str(lv_document_uuid)
+                                                FIELD_SOURCE_DOC_UUID: str(
+                                                    lv_document_uuid
+                                                )
                                             }
                                         }
                                     ],
                                 }
                             },
-                            {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.LV_ITEM.value}},
+                            {
+                                "term": {
+                                    FIELD_SOURCE_DOC_TYPE: SourceDocType.LV_ITEM.value
+                                }
+                            },
                         ],
                     }
                 },
@@ -181,8 +191,8 @@ def plus_filter(project_uuid: UUID, lv_document_uuid: UUID) -> dict[str, Any]:
 
 
 def lv_items_filter(project_uuid: UUID) -> dict[str, Any]:
-    """LV scope: only the project's parsed LV_ITEM chunks (the structured positions), excluding
-    prose DOCUMENT chunks. Backs the agent's get_lv_context tool."""
+    """LV scope: only the project's parsed LV_ITEM chunks (the structured positions),
+    excluding prose DOCUMENT chunks. Backs the agent's get_lv_context tool."""
     return {
         "bool": {
             "filter": [
@@ -193,7 +203,9 @@ def lv_items_filter(project_uuid: UUID) -> dict[str, Any]:
     }
 
 
-def _source_query(source_doc_uuid: UUID, source_doc_type: SourceDocType) -> dict[str, Any]:
+def _source_query(
+    source_doc_uuid: UUID, source_doc_type: SourceDocType
+) -> dict[str, Any]:
     return {
         "bool": {
             "filter": [
@@ -225,7 +237,11 @@ def _document_footprint_query(
             {
                 "bool": {
                     "filter": [
-                        {"terms": {FIELD_SOURCE_DOC_UUID: [str(u) for u in lv_item_uuids]}},
+                        {
+                            "terms": {
+                                FIELD_SOURCE_DOC_UUID: [str(u) for u in lv_item_uuids]
+                            }
+                        },
                         {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.LV_ITEM.value}},
                     ]
                 }
@@ -245,7 +261,8 @@ def _hit_to_scored_chunk(hit: dict[str, Any]) -> ScoredChunk:
 
 
 class SearchClient:
-    """Owns the SimpleChunk index lifecycle, indexing, retrieval queries, and archival."""
+    """Owns the SimpleChunk index lifecycle, indexing, retrieval queries, and
+    archival."""
 
     def __init__(self, es: AsyncElasticsearch, index: str | None = None) -> None:
         self._es = es
@@ -308,7 +325,9 @@ class SearchClient:
             "field": FIELD_EMBEDDING,
             "query_vector": list(query_vector),
             "k": k,
-            "num_candidates": num_candidates if num_candidates is not None else max(2 * k, 50),
+            "num_candidates": num_candidates
+            if num_candidates is not None
+            else max(2 * k, 50),
             "filter": scope_filter,
         }
         resp = await self._es.search(index=self._index, knn=knn, size=k)
@@ -321,7 +340,8 @@ class SearchClient:
         *,
         size: int = settings.retriever_candidate_k,
     ) -> list[ScoredChunk]:
-        """BM25 lexical search over chunk_text, scoped by the same Simple/Plus filter."""
+        """BM25 lexical search over chunk_text, scoped by the same Simple/Plus
+        filter."""
         query = {
             "bool": {
                 "must": [{"match": {FIELD_CHUNK_TEXT: query_text}}],
@@ -339,9 +359,10 @@ class SearchClient:
         *,
         size: int = settings.retriever_candidate_k,
     ) -> list[ScoredChunk]:
-        """Exact-match the query against any of the given keyword fields (e.g. oz/stl_nr),
-        scoped by the same filter as the dense/lexical searches. Empty unless the query is the
-        exact value of one of those fields, so a prose query contributes nothing."""
+        """Exact-match the query against any of the given keyword fields (e.g.
+        oz/stl_nr), scoped by the same filter as the dense/lexical searches. Empty
+        unless the query is the exact value of one of those fields, so a prose query
+        contributes nothing."""
         query = {
             "bool": {
                 "filter": [scope_filter],
@@ -349,7 +370,9 @@ class SearchClient:
                     {
                         "bool": {
                             "minimum_should_match": 1,
-                            "should": [{"term": {field: query_text}} for field in fields],
+                            "should": [
+                                {"term": {field: query_text}} for field in fields
+                            ],
                         }
                     }
                 ],
@@ -374,7 +397,8 @@ class SearchClient:
             dest={"index": self._archive_index},
             script={
                 "lang": "painless",
-                "source": f"ctx._source.{FIELD_ARCHIVED_AT} = params.{FIELD_ARCHIVED_AT}",
+                "source": f"ctx._source.{FIELD_ARCHIVED_AT} = "
+                f"params.{FIELD_ARCHIVED_AT}",
                 "params": {FIELD_ARCHIVED_AT: archived_at},
             },
             refresh=True,
@@ -397,7 +421,8 @@ class SearchClient:
     async def count_document_chunks(
         self, project_uuid: UUID, document_uuid: UUID, lv_item_uuids: Sequence[UUID]
     ) -> int:
-        """Count a document's SimpleChunks (its DOCUMENT chunks + its items' LV_ITEM chunks)."""
+        """Count a document's SimpleChunks (its DOCUMENT chunks + its items' LV_ITEM
+        chunks)."""
         resp = await self._es.count(
             index=self._index,
             query=_document_footprint_query(project_uuid, document_uuid, lv_item_uuids),
@@ -464,8 +489,11 @@ class SearchClient:
         offset: int = 0,
         size: int = 50,
     ) -> tuple[list[LangchainChunk], int]:
-        """A document's LangChain chunks ordered by (page, start_index). Returns (page, total)."""
-        must: list[dict[str, Any]] = [{"term": {LANGCHAIN_DOC_UUID_FIELD: str(document_uuid)}}]
+        """A document's LangChain chunks ordered by (page, start_index). Returns (page,
+        total)."""
+        must: list[dict[str, Any]] = [
+            {"term": {LANGCHAIN_DOC_UUID_FIELD: str(document_uuid)}}
+        ]
         if text:
             must.append({"match": {LANGCHAIN_TEXT_FIELD: text}})
         resp = await self._es.search(
@@ -473,11 +501,20 @@ class SearchClient:
             query={"bool": {"must": must}},
             sort=[
                 {LANGCHAIN_PAGE_FIELD: {"order": "asc", "unmapped_type": "long"}},
-                {LANGCHAIN_START_INDEX_FIELD: {"order": "asc", "unmapped_type": "long"}},
+                {
+                    LANGCHAIN_START_INDEX_FIELD: {
+                        "order": "asc",
+                        "unmapped_type": "long",
+                    }
+                },
             ],
             from_=offset,
             size=size,
-            source_includes=[LANGCHAIN_TEXT_FIELD, LANGCHAIN_PAGE_FIELD, LANGCHAIN_START_INDEX_FIELD],
+            source_includes=[
+                LANGCHAIN_TEXT_FIELD,
+                LANGCHAIN_PAGE_FIELD,
+                LANGCHAIN_START_INDEX_FIELD,
+            ],
             track_total_hits=True,
             ignore_unavailable=True,
         )
@@ -510,7 +547,8 @@ class SearchClient:
             dest={"index": self._archive_index},
             script={
                 "lang": "painless",
-                "source": f"ctx._source.{FIELD_ARCHIVED_AT} = params.{FIELD_ARCHIVED_AT}",
+                "source": f"ctx._source.{FIELD_ARCHIVED_AT} = "
+                f"params.{FIELD_ARCHIVED_AT}",
                 "params": {FIELD_ARCHIVED_AT: archived_at},
             },
             refresh=True,

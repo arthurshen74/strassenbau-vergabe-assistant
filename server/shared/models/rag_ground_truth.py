@@ -1,8 +1,8 @@
 """Domain models for RAG reference questions (the retrieval/answer gold set).
 
-One RagGroundTruth is a curated question with the expert's gold answer and the Fundstellen
-(document + page) the answer comes from. Refs drive deterministic retrieval metrics; the answer
-drives answer grading. See shared.services.rag_ground_truth.
+One RagGroundTruth is a curated question with the expert's gold answer and the
+Fundstellen (document + page) the answer comes from. Refs drive deterministic retrieval
+metrics; the answer drives answer grading. See shared.services.rag_ground_truth.
 """
 
 from __future__ import annotations
@@ -25,7 +25,8 @@ class RagRef(BaseModel):
 
 
 class RagGroundTruthUpsert(BaseModel):
-    """Create/edit body: the curated content. Scope and audit fields come from the route."""
+    """Create/edit body: the curated content. Scope and audit fields come from the
+    route."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -52,7 +53,7 @@ class RagGroundTruth(NewRagGroundTruth):
 
 
 class RagGroundTruthRead(RagGroundTruth):
-    """Row plus the curation flag: a question without refs counts only toward answer grading,
-    not retrieval metrics."""
+    """Row plus the curation flag: a question without refs counts only toward answer
+    grading, not retrieval metrics."""
 
     refs_missing: bool = False

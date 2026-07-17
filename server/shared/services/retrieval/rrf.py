@@ -1,9 +1,9 @@
 """Reciprocal rank fusion over the per-query ranked lists from Elasticsearch.
 
-Fuses the dense and lexical result lists (one per query variant) into a single
-ranking. Deduplicates by chunk_uuid while retaining the SimpleChunk itself, so the
-downstream rerank and answer stages keep the full chunk. A single input list is a
-monotonic pass-through, since 1/(k+rank) strictly decreases with rank (RETRIEVAL.md).
+Fuses the dense and lexical result lists (one per query variant) into a single ranking.
+Deduplicates by chunk_uuid while retaining the SimpleChunk itself, so the downstream
+rerank and answer stages keep the full chunk. A single input list is a monotonic
+pass-through, since 1/(k+rank) strictly decreases with rank (RETRIEVAL.md).
 """
 
 from __future__ import annotations
@@ -53,7 +53,8 @@ def reciprocal_rank_fusion(
             scores[chunk_uuid] = scores.get(chunk_uuid, 0.0) + 1.0 / (k + rank)
             chunks.setdefault(chunk_uuid, hit.chunk)
             label_ranks = ranks.setdefault(chunk_uuid, {})
-            # A uuid should not appear twice in one ES list; keep the best rank if it does.
+            # A uuid should not appear twice in one ES list; keep the best rank if it
+            # does.
             if label not in label_ranks or rank < label_ranks[label]:
                 label_ranks[label] = rank
 

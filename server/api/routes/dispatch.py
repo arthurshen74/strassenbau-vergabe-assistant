@@ -39,8 +39,9 @@ async def dispatch(
     principal: Principal = Depends(get_current_user),
     dispatcher: Dispatcher = Depends(get_dispatcher),
 ) -> StreamingResponse:
-    """Single-shot command routing: no conversation, no persistence. Streams the same SSE envelopes
-    as a chat turn; the UI opens the resulting view tool in its main window."""
+    """Single-shot command routing: no conversation, no persistence. Streams the same
+    SSE envelopes as a chat turn; the UI opens the resulting view tool in its main
+    window."""
     try:
         guard_user_input(payload.content)
     except InputRejectedError as exc:
@@ -51,9 +52,9 @@ async def dispatch(
     events = dispatcher.dispatch(payload.content)
 
     async def event_stream() -> AsyncIterator[str]:
-        # The 200 + headers are already committed once streaming starts, so an exception here
-        # cannot become an HTTP error. Surface it as a ui_notice + done instead of letting the
-        # connection close silently, and log the cause server-side.
+        # The 200 + headers are already committed once streaming starts, so an exception
+        # here cannot become an HTTP error. Surface it as a ui_notice + done instead of
+        # letting the connection close silently, and log the cause server-side.
         try:
             async for event in events:
                 yield format_sse(event)
@@ -62,7 +63,10 @@ async def dispatch(
             yield format_sse(
                 {
                     EVENT: EVENT_UI_NOTICE,
-                    DATA: {DATA_CONTENT: NOTICE_PROCESSING_ERROR, DATA_LEVEL: NoticeLevel.ERROR},
+                    DATA: {
+                        DATA_CONTENT: NOTICE_PROCESSING_ERROR,
+                        DATA_LEVEL: NoticeLevel.ERROR,
+                    },
                 }
             )
             yield format_sse({EVENT: EVENT_DONE, DATA: {}})

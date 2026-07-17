@@ -1,8 +1,8 @@
 """API schemas for the entity_rules resource: Create / Read / Update.
 
-Mirrors models/entity_rule.py as boundary types for /entity-rules/* routes. The
-pattern travels as raw JSON (spaCy's DSL, design D1); the route validates it
-against a scratch spaCy pipeline before persisting (design D7).
+Mirrors models/entity_rule.py as boundary types for /entity-rules/* routes. The pattern
+travels as raw JSON (spaCy's DSL, design D1); the route validates it against a scratch
+spaCy pipeline before persisting (design D7).
 """
 
 from __future__ import annotations

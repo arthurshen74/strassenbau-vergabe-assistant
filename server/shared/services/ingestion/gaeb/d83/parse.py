@@ -1,13 +1,14 @@
 """GAEB 90 D83 reader: decode CP850 and walk the 80-column records into LV items.
 
-The reader is a small state machine over the Zeilenarten: `11`/`12` open an LV-Gruppe and
-name it (emitted as a Titel item), `21` starts a Teilleistung whose `25`/`26` records carry
-the Kurz-/Langtext, `20` starts a Hinweistext whose `26` records govern every following
-priced position until the enclosing LV-Gruppe closes (`31`); a Hinweistext that precedes a
-top-level LV-Gruppe is absorbed by that group, so it governs only that Abschnitt and not
-the rest of the file. `T1` records before the Eroeffnungssatz are a file-level Vorbemerkung
-that applies to every position. Price- and statistics-records (`23`, `27`, ...) carry
-nothing the LV emission needs and are skipped.
+The reader is a small state machine over the Zeilenarten: `11`/`12` open an LV-Gruppe
+and name it (emitted as a Titel item), `21` starts a Teilleistung whose `25`/`26`
+records carry the Kurz-/Langtext, `20` starts a Hinweistext whose `26` records govern
+every following priced position until the enclosing LV-Gruppe closes (`31`); a
+Hinweistext that precedes a top-level LV-Gruppe is absorbed by that group, so it governs
+only that Abschnitt and not the rest of the file. `T1` records before the
+Eroeffnungssatz are a file-level Vorbemerkung that applies to every position. Price- and
+statistics-records (`23`, `27`, ...) carry nothing the LV emission needs and are
+skipped.
 """
 
 from __future__ import annotations
@@ -29,9 +30,9 @@ HINWEIS_BLOCK_SEP = "\n\n"
 KURZTEXT_JOIN = " "
 
 # Bietertextergänzung furniture, blanked in place so column alignment (and thus the
-# dedenting) is preserved: a Langtext record may start with its two-digit Ergänzungszeilen
-# number plus the kind letter 'A' in the margin columns, and '... Freitext ...' prints a
-# bidder fill-in field. Neither is contract text.
+# dedenting) is preserved: a Langtext record may start with its two-digit
+# Ergänzungszeilen number plus the kind letter 'A' in the margin columns, and '...
+# Freitext ...' prints a bidder fill-in field. Neither is contract text.
 TEXTERGAENZUNG_PREFIX_RE = re.compile(r"^\d{2}A")
 TEXTERGAENZUNG_PREFIX_BLANK = "   "
 FREITEXT_MARKER = "... Freitext ..."
@@ -43,7 +44,8 @@ def is_d83_file(file_name: str) -> bool:
 
 
 def parse_d83(data: bytes) -> LVParseResult:
-    """Parse D83 bytes into the LVParseResult shape shared with the LV ingestion path."""
+    """Parse D83 bytes into the LVParseResult shape shared with the LV ingestion
+    path."""
     reader = _Reader()
     for line in data.decode(ENCODING).splitlines():
         if line.strip():
@@ -190,7 +192,8 @@ class _Reader:
         return [builder.finish() for builder in self._items], self._warnings
 
     def _set_sink(self, sink: _Sink) -> None:
-        """Switch the text sink, filing a completed Hinweis/Vorbemerkung block into scope."""
+        """Switch the text sink, filing a completed Hinweis/Vorbemerkung block into
+        scope."""
         if self._sink in (_Sink.HINWEIS, _Sink.VORBEMERKUNG) and self._block_lines:
             block = _dedent(self._block_lines)
             if block:
@@ -199,9 +202,9 @@ class _Reader:
         self._sink = sink
 
     def _store_block(self, block: str) -> None:
-        """File a finished text block into its governing scope: the open LV-Gruppe if any,
-        else a file-level Vorbemerkung (T1) that governs every position, else a Hinweis held
-        until the next top-level LV-Gruppe it introduces absorbs it."""
+        """File a finished text block into its governing scope: the open LV-Gruppe if
+        any, else a file-level Vorbemerkung (T1) that governs every position, else a
+        Hinweis held until the next top-level LV-Gruppe it introduces absorbs it."""
         if self._groups:
             self._groups[-1].hinweis_blocks.append(block)
         elif self._sink is _Sink.VORBEMERKUNG:
@@ -224,8 +227,9 @@ class _Reader:
         self._groups.append(_Group(builder=builder))
 
     def _absorb_pending_hinweis(self) -> None:
-        """Hand a Hinweis that preceded this LV-Gruppe to the group, so it governs only this
-        Abschnitt and pops at its Abschluss (ZA 31) instead of every later Abschnitt."""
+        """Hand a Hinweis that preceded this LV-Gruppe to the group, so it governs only
+        this Abschnitt and pops at its Abschluss (ZA 31) instead of every later
+        Abschnitt."""
         if self._pending_hinweis_blocks:
             self._groups[-1].hinweis_blocks = self._pending_hinweis_blocks
             self._pending_hinweis_blocks = []
@@ -245,9 +249,9 @@ class _Reader:
         self._position = builder
 
     def _governing_hinweis_blocks(self) -> list[str]:
-        """The Hinweis blocks in scope, outermost first: file-level Vorbemerkungen, a Hinweis
-        still waiting for its LV-Gruppe (it governs root positions before any group), then
-        each open group."""
+        """The Hinweis blocks in scope, outermost first: file-level Vorbemerkungen, a
+        Hinweis still waiting for its LV-Gruppe (it governs root positions before any
+        group), then each open group."""
         blocks = list(self._file_vorbemerkung_blocks)
         blocks.extend(self._pending_hinweis_blocks)
         for group in self._groups:
@@ -280,7 +284,9 @@ class _Reader:
         if self._sink is _Sink.GROUP_TITLE and self._groups:
             self._groups[-1].builder.kurztext_lines.append(content)
         else:
-            self._warnings.append("LV-Gruppe name (ZA 12) outside a group header ignored")
+            self._warnings.append(
+                "LV-Gruppe name (ZA 12) outside a group header ignored"
+            )
 
     def _format_oz(self, line: str) -> str:
         if self._mask is None:
@@ -289,9 +295,12 @@ class _Reader:
 
 
 def _dedent(lines: list[str]) -> str:
-    """Join text record lines, removing the common leading margin (typically three spaces)."""
+    """Join text record lines, removing the common leading margin (typically three
+    spaces)."""
     filled = [line for line in lines if line.strip()]
     if not filled:
         return ""
     margin = min(len(line) - len(line.lstrip(" ")) for line in filled)
-    return "\n".join(line[margin:] if line.strip() else "" for line in lines).strip("\n")
+    return "\n".join(line[margin:] if line.strip() else "" for line in lines).strip(
+        "\n"
+    )

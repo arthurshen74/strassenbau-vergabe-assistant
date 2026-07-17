@@ -1,8 +1,8 @@
 """API schemas for the PromptVersion resource: Create / Read.
 
-Mirrors models/prompt_version.py. PromptVersions are immutable and append-only;
-there is no Update DTO. `PromptVersionCreate` matches the repository's
-`NewPromptVersion` create-model (the repository assigns `version`).
+Mirrors models/prompt_version.py. PromptVersions are immutable and append-only; there is
+no Update DTO. `PromptVersionCreate` matches the repository's `NewPromptVersion`
+create-model (the repository assigns `version`).
 """
 
 from __future__ import annotations

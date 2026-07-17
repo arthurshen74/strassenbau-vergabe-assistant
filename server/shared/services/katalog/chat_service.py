@@ -1,12 +1,14 @@
-"""The katalog_chat turn brain: a streaming ReAct agent over the read-only Katalog tools.
+"""The katalog_chat turn brain: a streaming ReAct agent over the read-only Katalog
+tools.
 
-Mirrors `ProjectChatService` but for a global (non-project-scoped) catalog conversation: one
-`run_turn` drives a user→assistant turn, appends the user message, hands the history to a
-`KatalogChatAgent`, and relays the agent's tokens / tool calls / tool results as the same SSE
-envelopes the dispatcher and project chat emit. Messages persist in their own short transactions (the
-SSE response is long-lived and must not hold one transaction open); tool calls and results persist as
-function_call / function_call_output rows so the UI renders them inline. Agent telemetry is buffered
-during the run and drained to the usage / execution-log sinks afterward.
+Mirrors `ProjectChatService` but for a global (non-project-scoped) catalog conversation:
+one `run_turn` drives a user→assistant turn, appends the user message, hands the history
+to a `KatalogChatAgent`, and relays the agent's tokens / tool calls / tool results as
+the same SSE envelopes the dispatcher and project chat emit. Messages persist in their
+own short transactions (the SSE response is long-lived and must not hold one transaction
+open); tool calls and results persist as function_call / function_call_output rows so
+the UI renders them inline. Agent telemetry is buffered during the run and drained to
+the usage / execution-log sinks afterward.
 """
 
 from __future__ import annotations
@@ -61,8 +63,8 @@ class KatalogChatService:
     async def run_turn(
         self, conversation: Conversation, user_content: str
     ) -> AsyncIterator[dict[str, Any]]:
-        # One root span per turn so the agent's LangChain spans and the sink spans collapse into a
-        # single trace, grouped into the conversation's session.
+        # One root span per turn so the agent's LangChain spans and the sink spans
+        # collapse into a single trace, grouped into the conversation's session.
         with flow_span(
             "katalog_chat.turn", session_id=str(conversation.conversation_uuid)
         ):
@@ -83,10 +85,11 @@ class KatalogChatService:
 
         history = await self._load_history(conversation_id)
         messages = [
-            {ROLE: m.role, CONTENT: m.content} for m in to_user_assistant_messages(history)
+            {ROLE: m.role, CONTENT: m.content}
+            for m in to_user_assistant_messages(history)
         ]
-        # The Handbuch prompt owns the model choice (frontmatter) — load it per turn so an edit in
-        # the prompt editor takes effect on the next turn without a restart.
+        # The Handbuch prompt owns the model choice (frontmatter) — load it per turn so
+        # an edit in the prompt editor takes effect on the next turn without a restart.
         async with self._engine.connect() as conn:
             handbuch = await load_katalog_handbuch_prompt(conn)
         agent = KatalogChatAgent(
@@ -125,9 +128,13 @@ class KatalogChatService:
                             data=event.payload,
                         )
                     )
-                    yield _function_call_output(event.call_id, event.name, True, event.payload)
+                    yield _function_call_output(
+                        event.call_id, event.name, True, event.payload
+                    )
         except Exception:
-            logger.exception("katalog chat turn failed conversation=%s", conversation_id)
+            logger.exception(
+                "katalog chat turn failed conversation=%s", conversation_id
+            )
             yield _ui_notice(NOTICE_PROCESSING_ERROR, NoticeLevel.ERROR)
         finally:
             await self._emit_agent_telemetry(agent)
@@ -178,7 +185,9 @@ def _ui_notice(content: str, level: NoticeLevel = NoticeLevel.INFO) -> dict[str,
     return {EVENT: EVENT_UI_NOTICE, DATA: {DATA_CONTENT: content, DATA_LEVEL: level}}
 
 
-def _function_call(call_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+def _function_call(
+    call_id: str, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
     return {
         EVENT: EVENT_FUNCTION_CALL,
         DATA: {DATA_CALL_ID: call_id, DATA_NAME: name, DATA_ARGUMENTS: arguments},

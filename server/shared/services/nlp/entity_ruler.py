@@ -1,15 +1,15 @@
-"""DB-backed EntityRuler: pattern compilation, spaCy validation, and lazy
-invalidation of the ruler pipe on the shared spaCy singleton.
+"""DB-backed EntityRuler: pattern compilation, spaCy validation, and lazy invalidation
+of the ruler pipe on the shared spaCy singleton.
 
 `compile_pattern_dicts` turns stored rules into the list of pattern dicts spaCy's
 `EntityRuler.add_patterns` expects. `validate_pattern` compiles a single candidate
-against a throwaway blank pipeline (design D7) so a bad pattern is rejected at the
-write boundary, never against the live model.
+against a throwaway blank pipeline (design D7) so a bad pattern is rejected at the write
+boundary, never against the live model.
 
 Invalidation is an in-process dirty flag (design D3): any successful mutation calls
-`mark_dirty()`; `ensure_ruler_current` checks it (cheaply) at the top of analyze/
-render and rebuilds the `entity_ruler` pipe from the current enabled rules only when
-dirty. The API runs single-process, so no DB-backed version row is needed.
+`mark_dirty()`; `ensure_ruler_current` checks it (cheaply) at the top of analyze/ render
+and rebuilds the `entity_ruler` pipe from the current enabled rules only when dirty. The
+API runs single-process, so no DB-backed version row is needed.
 """
 
 from __future__ import annotations
@@ -31,9 +31,8 @@ _ENTITY_RULER_CONFIG = {"overwrite_ents": True}
 def compile_pattern_dicts(rules: list[EntityRule]) -> list[dict[str, Any]]:
     """Turn stored rules into spaCy EntityRuler pattern dicts.
 
-    Each dict carries `label` and `pattern`; `id` is included only when the rule
-    has a `pattern_id`, so it is echoed onto matched spans as `ent.ent_id_` for
-    provenance.
+    Each dict carries `label` and `pattern`; `id` is included only when the rule has a
+    `pattern_id`, so it is echoed onto matched spans as `ent.ent_id_` for provenance.
     """
     dicts: list[dict[str, Any]] = []
     for rule in rules:
@@ -47,8 +46,8 @@ def compile_pattern_dicts(rules: list[EntityRule]) -> list[dict[str, Any]]:
 def validate_pattern(label: str, pattern: EntityPattern) -> None:
     """Compile one candidate pattern against a scratch blank spaCy pipeline.
 
-    Raises ValueError with spaCy's underlying message if the pattern does not
-    compile. Never touches the live singleton.
+    Raises ValueError with spaCy's underlying message if the pattern does not compile.
+    Never touches the live singleton.
     """
     import spacy
 
@@ -75,9 +74,9 @@ async def ensure_ruler_current(nlp: Any, engine: AsyncEngine) -> None:
     """Rebuild the `entity_ruler` pipe from enabled rules if the ruler is dirty.
 
     No-op (and no DB read) when clean. On dirty, removes any existing ruler pipe,
-    re-adds it after the stock `ner`, and loads the current enabled patterns. The
-    dirty flag is cleared only after a successful rebuild, so a failed rebuild
-    leaves the ruler dirty and retries on the next call.
+    re-adds it after the stock `ner`, and loads the current enabled patterns. The dirty
+    flag is cleared only after a successful rebuild, so a failed rebuild leaves the
+    ruler dirty and retries on the next call.
     """
     global _dirty
     with _dirty_lock:

@@ -1,9 +1,9 @@
 """MinIO/S3 object storage client.
 
-Wraps a synchronous boto3 S3 client used for raw uploaded files and per-page
-thumbnails. The object-key helpers below are the single source of truth for how
-keys are laid out in the bucket; the same helpers feed the ``Thumbnail.object_key``
-and raw-file keys persisted in the database, so a layout change happens in one place.
+Wraps a synchronous boto3 S3 client used for raw uploaded files and per-page thumbnails.
+The object-key helpers below are the single source of truth for how keys are laid out in
+the bucket; the same helpers feed the ``Thumbnail.object_key`` and raw-file keys
+persisted in the database, so a layout change happens in one place.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ from shared.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Object-key layout. These prefixes are a storage contract: every writer and
-# reader of an object key derives it from the helpers below, never an inline literal.
+# Object-key layout. These prefixes are a storage contract: every writer and reader of
+# an object key derives it from the helpers below, never an inline literal.
 RAW_KEY_PREFIX = "raw"
 THUMBNAIL_KEY_PREFIX = "thumbnails"
 MAP_KEY_PREFIX = "maps"
@@ -41,7 +41,8 @@ def thumbnail_object_key(document_uuid: UUID, page_number: int) -> str:
 
 
 def map_object_key(project_uuid: UUID, map_id: str) -> str:
-    """Storage key for a rendered static map, addressed by a hash of its request params."""
+    """Storage key for a rendered static map, addressed by a hash of its request
+    params."""
     return f"{MAP_KEY_PREFIX}/{project_uuid}/{map_id}"
 
 
@@ -110,7 +111,9 @@ class StorageClient:
             logger.exception("presign_get failed: bucket=%s key=%s", self._bucket, key)
             raise
 
-    def presign_put(self, key: str, expires: int, content_type: str | None = None) -> str:
+    def presign_put(
+        self, key: str, expires: int, content_type: str | None = None
+    ) -> str:
         params: dict[str, str] = {"Bucket": self._bucket, "Key": key}
         if content_type is not None:
             params["ContentType"] = content_type

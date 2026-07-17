@@ -1,13 +1,13 @@
 """OpenRouter embeddings client.
 
-Sends a batch of strings to the OpenRouter embeddings endpoint and returns one
-vector per input. The model slug and the expected vector dimension come from
-`settings`; every returned vector is validated against `settings.embedding_dim`
-before being handed back to the caller.
+Sends a batch of strings to the OpenRouter embeddings endpoint and returns one vector
+per input. The model slug and the expected vector dimension come from `settings`; every
+returned vector is validated against `settings.embedding_dim` before being handed back
+to the caller.
 
-An injected `EmbeddingCache` is consulted first: only the texts that miss the
-cache are sent to OpenRouter, and the freshly computed vectors are written back.
-Usage telemetry is recorded only for the miss batch that actually hit the API.
+An injected `EmbeddingCache` is consulted first: only the texts that miss the cache are
+sent to OpenRouter, and the freshly computed vectors are written back. Usage telemetry
+is recorded only for the miss batch that actually hit the API.
 """
 
 from __future__ import annotations
@@ -172,7 +172,9 @@ class EmbeddingsClient:
                 conversation_uuid=conversation_uuid,
             )
             if event.cost is None:
-                logger.warning("OpenRouter usage missing cost for model %s", event.model)
+                logger.warning(
+                    "OpenRouter usage missing cost for model %s", event.model
+                )
             await self._usage_sink.emit(event)
         except Exception:
             logger.exception("Failed to record embeddings usage; continuing")

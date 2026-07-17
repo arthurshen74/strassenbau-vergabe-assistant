@@ -15,8 +15,8 @@ class SourceLineRepository:
         self.conn = conn
 
     async def add_many(self, lines: list[NewSourceLine]) -> list[SourceLine]:
-        """Bulk upsert on the (document_uuid, line_id) natural key; re-ingestion
-        replays the SourceLines for a document, so a replay updates in place."""
+        """Bulk upsert on the (document_uuid, line_id) natural key; re-ingestion replays
+        the SourceLines for a document, so a replay updates in place."""
         if not lines:
             return []
         stmt = pg_insert(source_lines).values([line.model_dump() for line in lines])

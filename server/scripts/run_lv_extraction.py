@@ -1,9 +1,10 @@
 """Run LV extraction against a real LV PDF and print the parsed items.
 
-For iterating on the lv_extraction prompt in isolation: it reads the PDF straight off disk,
-runs the common extraction + line-numbered rendering, calls the seeded LV_EXTRACTION prompt,
-and prints each resolved item plus any validation warnings. It reads the current prompt version
-and persists the prompt call's usage + execution log to Postgres (via the shared client factory).
+For iterating on the lv_extraction prompt in isolation: it reads the PDF straight off
+disk, runs the common extraction + line-numbered rendering, calls the seeded
+LV_EXTRACTION prompt, and prints each resolved item plus any validation warnings. It
+reads the current prompt version and persists the prompt call's usage + execution log to
+Postgres (via the shared client factory).
 
     python -m scripts.run_lv_extraction eval/context/P0372026/P0372026_LV.pdf
 
@@ -30,7 +31,8 @@ from shared.services.prompt_runner import PromptRunner
 async def main(pdf_path: str) -> None:
     source_lines_new = extract_source_lines(Path(pdf_path).read_bytes(), uuid4())
     # extract_source_lines returns NewSourceLine; the pure stages need SourceLine fields
-    # (a uuid per line) to slice from, so wrap them with synthetic uuids for this dry run.
+    # (a uuid per line) to slice from, so wrap them with synthetic uuids for this dry
+    # run.
     source_lines = [_as_source_line(line) for line in source_lines_new]
     rendered, kept = render_line_numbered(source_lines)
     print(f"{len(source_lines)} source lines, {len(kept)} after furniture strip")
