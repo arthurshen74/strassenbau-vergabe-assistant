@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from shared.models.enums import BlockType, RenderStyle
 from shared.models.nlp import (
     DEFAULT_INCLUDE_BLOCKS,
+    EntityStats,
     PosStats,
     ReflowedBlock,
     SentenceInfo,
@@ -88,3 +89,4 @@ class AnalyzeResponse(BaseModel):
     include_blocks: list[BlockType]
     sentences: list[SentenceInfo]
     pos: PosStats
+    entities: EntityStats

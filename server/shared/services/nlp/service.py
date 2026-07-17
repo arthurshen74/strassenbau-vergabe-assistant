@@ -26,7 +26,8 @@ from shared.models.nlp_schema import (
     SourceLineRead,
 )
 from shared.models.source_line import SourceLine
-from shared.services.nlp.analysis import analyze_blocks
+from shared.services.nlp.analysis import analyze_blocks, get_nlp
+from shared.services.nlp.entity_ruler import ensure_ruler_current
 from shared.services.nlp.layout import LayoutService
 from shared.services.nlp.reflow import reflow_document
 
@@ -87,7 +88,8 @@ class NlpService:
         self, document_uuid: UUID, include_blocks: list[BlockType]
     ) -> AnalyzeResponse:
         _, result = await self.get_reflow(document_uuid)
-        sentences, pos = await asyncio.to_thread(
+        await ensure_ruler_current(get_nlp(), self._engine)
+        sentences, pos, entities = await asyncio.to_thread(
             analyze_blocks, result.blocks, include_blocks
         )
         return AnalyzeResponse(
@@ -95,4 +97,5 @@ class NlpService:
             include_blocks=include_blocks,
             sentences=sentences,
             pos=pos,
+            entities=entities,
         )

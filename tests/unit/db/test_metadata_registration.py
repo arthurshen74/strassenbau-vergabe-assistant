@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "embedding_cache",
     "document_layout_regions",
     "nlp_render_cache",
+    "entity_rules",
     "calculation_ground_truth",
     "variable_corrections",
     "rag_ground_truth",

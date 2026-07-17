@@ -11,6 +11,7 @@ from shared.db.tables.conversations import conversations
 from shared.db.tables.document_layout_regions import document_layout_regions
 from shared.db.tables.documents import documents
 from shared.db.tables.embedding_cache import embedding_cache
+from shared.db.tables.entity_rules import entity_rules
 from shared.db.tables.eval_results import eval_results
 from shared.db.tables.eval_run_events import eval_run_events
 from shared.db.tables.eval_runs import eval_runs
@@ -53,6 +54,7 @@ __all__ = [
     "document_layout_regions",
     "documents",
     "embedding_cache",
+    "entity_rules",
     "eval_results",
     "eval_run_events",
     "eval_runs",

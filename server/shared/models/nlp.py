@@ -95,3 +95,33 @@ class PosStats(BaseModel):
     token_count: int
     ud: list[PosTagStats]
     stts: list[PosTagStats]
+
+
+class EntityOccurrence(BaseModel):
+    """One entity span found in a sentence. `pattern_id` is present only for
+    rule-derived entities carrying a spaCy pattern id; absent (None) for stock-model
+    guesses and for rules authored without an id — its presence is the provenance."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    sentence_hash: str
+    pattern_id: str | None = None
+
+
+class EntityLabelStats(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    count: int
+    occurrences: list[EntityOccurrence]
+
+
+class EntityStats(BaseModel):
+    """All entities found across the analyzed blocks, grouped by label
+    (descending count)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    total_count: int
+    labels: list[EntityLabelStats]

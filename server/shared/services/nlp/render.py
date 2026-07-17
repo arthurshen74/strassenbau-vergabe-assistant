@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from shared.db.unit_of_work import unit_of_work
 from shared.models.enums import RenderStyle
 from shared.services.nlp.analysis import get_nlp, spacy_model_version
+from shared.services.nlp.entity_ruler import ensure_ruler_current
 
 
 def render_cache_key(style: RenderStyle, text: str) -> str:
@@ -43,6 +44,7 @@ class RenderService:
 
     async def render(self, style: RenderStyle, text: str) -> str:
         if style is RenderStyle.ENT:
+            await ensure_ruler_current(get_nlp(), self._engine)
             return render_ent_html(text)
 
         cache_key = render_cache_key(RenderStyle.DEP, text)

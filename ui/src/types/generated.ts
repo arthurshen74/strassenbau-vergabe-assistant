@@ -823,6 +823,23 @@ export interface PosStats {
   stts: PosTagStats[];
 }
 
+export interface EntityOccurrence {
+  text: string;
+  sentence_hash: string;
+  pattern_id?: string | null;
+}
+
+export interface EntityLabelStats {
+  label: string;
+  count: number;
+  occurrences: EntityOccurrence[];
+}
+
+export interface EntityStats {
+  total_count: number;
+  labels: EntityLabelStats[];
+}
+
 export interface AnalyzeRequest {
   document_uuid: string;
   include_blocks?: ("prose" | "heading" | "list_item" | "table" | "caption" | "footnote" | "furniture")[];
@@ -833,6 +850,7 @@ export interface AnalyzeResponse {
   include_blocks: ("prose" | "heading" | "list_item" | "table" | "caption" | "footnote" | "furniture")[];
   sentences: SentenceInfo[];
   pos: PosStats;
+  entities: EntityStats;
 }
 
 export interface RenderRequest {
@@ -849,6 +867,43 @@ export interface RenderResponse {
    */
   style: "dep" | "ent";
   markup: string;
+}
+
+export interface EntityRuleRead {
+  entity_rule_uuid: string;
+  label: string;
+  pattern:
+    | string
+    | {
+        [k: string]: unknown;
+      }[];
+  pattern_id?: string | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EntityRuleCreate {
+  label: string;
+  pattern:
+    | string
+    | {
+        [k: string]: unknown;
+      }[];
+  pattern_id?: string | null;
+  enabled?: boolean;
+}
+
+export interface EntityRuleUpdate {
+  label?: string | null;
+  pattern?:
+    | string
+    | {
+        [k: string]: unknown;
+      }[]
+    | null;
+  pattern_id?: string | null;
+  enabled?: boolean | null;
 }
 
 // ---- Types pinned by scripts/export_schema.py ----

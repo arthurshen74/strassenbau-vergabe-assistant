@@ -18,6 +18,9 @@ from collections import defaultdict
 
 from shared.models.enums import BlockType
 from shared.models.nlp import (
+    EntityLabelStats,
+    EntityOccurrence,
+    EntityStats,
     PosStats,
     PosTagStats,
     ReflowedBlock,
@@ -56,14 +59,20 @@ def sentence_hash(text: str) -> str:
 
 def analyze_blocks(
     blocks: list[ReflowedBlock], include_blocks: list[BlockType]
-) -> tuple[list[SentenceInfo], PosStats]:
-    """Sentences and POS distribution over the blocks whose type is included."""
+) -> tuple[list[SentenceInfo], PosStats, EntityStats]:
+    """Sentences, POS distribution, and entities over the included blocks.
+
+    Entities come from the same pass: `sent.ents` is spaCy's char-range containment,
+    so each entity is attributed to the sentence it falls in. A rule-derived entity's
+    spaCy `ent_id_` (empty for stock-model guesses) becomes its `pattern_id`.
+    """
     nlp = get_nlp()
     included = [b for b in blocks if b.block_type in include_blocks]
 
     sentences: list[SentenceInfo] = []
     ud_tokens: dict[str, list[TokenInfo]] = defaultdict(list)
     stts_tokens: dict[str, list[TokenInfo]] = defaultdict(list)
+    occurrences_by_label: dict[str, list[EntityOccurrence]] = defaultdict(list)
     token_count = 0
 
     docs = nlp.pipe([b.text for b in included])  # type: ignore[attr-defined]
@@ -83,11 +92,33 @@ def analyze_blocks(
                 info = TokenInfo(text=token.text, lemma=token.lemma_, sentence_hash=s_hash)
                 ud_tokens[token.pos_].append(info)
                 stts_tokens[token.tag_].append(info)
+            for ent in sent.ents:
+                occurrences_by_label[ent.label_].append(
+                    EntityOccurrence(
+                        text=ent.text,
+                        sentence_hash=s_hash,
+                        pattern_id=ent.ent_id_ or None,
+                    )
+                )
 
-    return sentences, PosStats(
+    pos = PosStats(
         token_count=token_count,
         ud=_tag_stats(ud_tokens, token_count),
         stts=_tag_stats(stts_tokens, token_count),
+    )
+    return sentences, pos, _entity_stats(occurrences_by_label)
+
+
+def _entity_stats(
+    occurrences_by_label: dict[str, list[EntityOccurrence]],
+) -> EntityStats:
+    labels = [
+        EntityLabelStats(label=label, count=len(occs), occurrences=occs)
+        for label, occs in occurrences_by_label.items()
+    ]
+    labels.sort(key=lambda stats: stats.count, reverse=True)
+    return EntityStats(
+        total_count=sum(stats.count for stats in labels), labels=labels
     )
 
 

@@ -13,6 +13,7 @@ from api.routes import (
     calculations,
     conversations,
     dispatch,
+    entity_rules,
     eval_runs,
     ground_truth,
     health,
@@ -119,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(rag_ground_truth.router)
     app.include_router(eval_runs.router)
     app.include_router(nlp.router)
+    app.include_router(entity_rules.router)
     return app
 
 

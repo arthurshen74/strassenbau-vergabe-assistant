@@ -13,6 +13,7 @@ import {
   CommandLineIcon,
   DocumentTextIcon,
   FolderIcon,
+  TagIcon,
 } from '@heroicons/react/20/solid';
 import {
   PROMPT_TYPE_EKT_CALCULATOR,
@@ -36,6 +37,7 @@ const COMMANDS: { label: string; kind: MainWindowKind; Icon: CommandIcon }[] = [
   },
   { label: 'View Prompts', kind: 'prompts', Icon: DocumentTextIcon },
   { label: 'View Katalog', kind: 'katalog', Icon: BookOpenIcon },
+  { label: 'View Entity Rules', kind: 'entity_rules', Icon: TagIcon },
   {
     label: 'View Prompt Execution Log',
     kind: 'prompt_execution_log',

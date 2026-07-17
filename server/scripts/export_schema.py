@@ -47,6 +47,11 @@ from shared.models.ground_truth import (
     GroundTruthUpsert,
     VariableCorrection,
 )
+from shared.models.entity_rule_schema import (
+    EntityRuleCreate,
+    EntityRuleRead,
+    EntityRuleUpdate,
+)
 from shared.models.ingestion_activity import IngestionActivity
 from shared.models.katalog import (
     BundleBericht,
@@ -57,6 +62,9 @@ from shared.models.katalog import (
 from shared.models.lv_item import LVItem
 from shared.models.message_schema import MessageRead
 from shared.models.nlp import (
+    EntityLabelStats,
+    EntityOccurrence,
+    EntityStats,
     PosStats,
     PosTagStats,
     ReflowedBlock,
@@ -217,10 +225,19 @@ BODY_MODELS: list[type[BaseModel]] = [
     TokenInfo,
     PosTagStats,
     PosStats,
+    # Entities: occurrences nest in label stats, which nest in EntityStats
+    # (AnalyzeResponse.entities) — emit each so json2ts leaves no dangling ref.
+    EntityOccurrence,
+    EntityLabelStats,
+    EntityStats,
     AnalyzeRequest,
     AnalyzeResponse,
     RenderRequest,
     RenderResponse,
+    # Entity Rules admin CRUD: the read row and the create/update bodies.
+    EntityRuleRead,
+    EntityRuleCreate,
+    EntityRuleUpdate,
 ]
 
 # SSE payloads pinned for the discriminated unions, in this exact order.

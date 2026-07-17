@@ -21,16 +21,18 @@ import {
   DEFAULT_INCLUDE_BLOCKS,
   SELECTABLE_BLOCK_TYPES,
 } from './blockTypes';
+import { EntitiesTab } from './EntitiesTab';
 import { PosTab } from './PosTab';
 import { SentencesTab } from './SentencesTab';
 import { TextTab } from './TextTab';
 
-type Tab = 'text' | 'sentences' | 'pos';
+type Tab = 'text' | 'sentences' | 'pos' | 'entities';
 
 const TABS: { id: Tab; name: string }[] = [
   { id: 'text', name: 'Text' },
   { id: 'sentences', name: 'Sentences' },
   { id: 'pos', name: 'POS' },
+  { id: 'entities', name: 'Entities' },
 ];
 
 export function NlpAnalysisDialog({
@@ -147,6 +149,11 @@ export function NlpAnalysisDialog({
                 : analysis.isError ?
                   <div className="text-sm text-red-600">Analysis failed.</div>
                 : <PosTab analysis={analysis.data} />)}
+              {tab === 'entities' &&
+                (analysis.isPending ? <LoadingState label="Analyzing…" />
+                : analysis.isError ?
+                  <div className="text-sm text-red-600">Analysis failed.</div>
+                : <EntitiesTab analysis={analysis.data} />)}
             </div>
           </>
         }

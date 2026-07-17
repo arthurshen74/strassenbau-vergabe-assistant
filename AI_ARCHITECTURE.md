@@ -309,7 +309,8 @@ measures the live version.
 
 The NLP analysis modal (sidebar → Werkzeuge) turns a Baubeschreibung's raw `source_lines` into
 linguistically usable text and lets you inspect every intermediate step: reflowed blocks vs
-original lines, sentence segmentation with displacy renders, and POS distribution.
+original lines, sentence segmentation with displacy renders, POS distribution, and a domain-aware
+named-entity view.
 
 `source_lines` are visual layout lines (`pdftotext -bbox-layout`), not linguistic units: German
 justification hyphenates words across lines, letterheads repeat on every page, sentences span
@@ -328,8 +329,12 @@ flowchart TD
     JOIN --> FURN
     FURN --> BLOCKS[typed blocks: PROSE / HEADING / LIST_ITEM / TABLE / CAPTION / FOOTNOTE]
     BLOCKS --> REFLOW[dehyphenate, join lines, merge cross-page]
-    REFLOW -->|include-list filter| SPACY[spaCy de_core_news_lg]
-    SPACY --> OUT[sentences + POS stats + displacy renders]
+    REFLOW -->|include-list filter| SPACY[spaCy de_core_news_lg + entity_ruler]
+    RULES[(entity_rules table)] -->|enabled rules, only when dirty| ENSURE{{ensure_ruler_current}}
+    ADMIN[Entity Rules admin page] -->|CRUD, spaCy-validated writes| RULES
+    RULES -.->|mark_dirty on write| ENSURE
+    ENSURE -->|rebuild ruler pipe| SPACY
+    SPACY --> OUT[sentences + POS stats + entities + displacy renders]
 ```
 
 Key decisions (full rationale in `openspec/changes/nlp-analysis-modal/design.md`):
@@ -346,10 +351,24 @@ Key decisions (full rationale in `openspec/changes/nlp-analysis-modal/design.md`
 - **Models load lazily** (spaCy and Docling are module singletons, never loaded at API boot) and
   both expensive artifacts are cached: layout regions per document + Docling version, dep-SVGs
   by content hash including the spaCy model version.
-- Every block records its `line_id` range, so any sentence, token, or (future) entity resolves
-  back to page + bbox in the original PDF. The planned EntityRuler NER (fed from the Katalog
-  store) plugs into the same `ent` render path, which uses displacy manual mode precisely so the
-  entity source is swappable.
+- Every block records its `line_id` range, so any sentence, token, or entity resolves back to
+  page + bbox in the original PDF.
+- **Domain NER via a DB-backed EntityRuler.** The stock `de_core_news_lg` NER (PER/LOC/ORG/MISC,
+  trained on news) is near-blind on Baubeschreibung vocabulary — `Asphaltbeton AC` guesses LOC,
+  `Bauablaufplan` nothing. An `entity_ruler` pipe, compiled from the `entity_rules` table (label +
+  spaCy pattern JSONB + optional `pattern_id`, seeded once from a 240-rule authored fixture across
+  14 domain labels), runs after the stock `ner` with `overwrite_ents=True` so domain rules win over
+  generic mispredictions. Rules are CRUD-managed live from the **Entity Rules** admin page; every
+  write is validated against a scratch spaCy pipeline before it persists, and flips an in-process
+  dirty flag (the API is single-process — no version table needed) so the next `analyze`/`render`
+  rebuilds the pipe from the current enabled set. No restart, no redeploy to change a pattern.
+- **Entities are computed in the same pass** as sentences and POS: `AnalyzeResponse.entities`
+  groups every hit by label with per-occurrence text, sentence, and `pattern_id` provenance. The
+  modal's Entities tab ranks labels by frequency and marks each occurrence as a rule hit (its
+  `pattern_id`) or a stock-model guess (none) — making wrongly-predicted entities visible rather
+  than silently "fixed". The per-sentence `ent` displacy render uses manual mode, so it reflects
+  the ruler automatically. Generating patterns from Katalog rows is a natural, separately-scoped
+  follow-up.
 
 ## Model Access, Logging, and Tracing
 
