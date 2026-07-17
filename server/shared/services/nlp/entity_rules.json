@@ -1,0 +1,1992 @@
+[
+  {
+    "label": "DIN_NORM",
+    "pattern": [
+      {
+        "ORTH": "DIN"
+      },
+      {
+        "ORTH": "EN",
+        "OP": "?"
+      },
+      {
+        "ORTH": "ISO",
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,6}$"
+        }
+      },
+      {
+        "ORTH": "-",
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{1,3}$"
+        },
+        "OP": "?"
+      },
+      {
+        "ORTH": "/",
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{1,4}$"
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "din_full"
+  },
+  {
+    "label": "DIN_NORM",
+    "pattern": [
+      {
+        "ORTH": "EN"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,6}$"
+        }
+      },
+      {
+        "ORTH": "-",
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{1,3}$"
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "din_en_bare"
+  },
+  {
+    "label": "DIN_NORM",
+    "pattern": [
+      {
+        "ORTH": "ISO"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,6}$"
+        }
+      },
+      {
+        "ORTH": "-",
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{1,3}$"
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "din_iso_bare"
+  },
+  {
+    "label": "VOB_REF",
+    "pattern": [
+      {
+        "ORTH": "VOB"
+      },
+      {
+        "ORTH": "/"
+      },
+      {
+        "ORTH": {
+          "IN": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^ZTVE?(-[A-Za-zÄÖÜäöüß]+)?$"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]*$"
+        },
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]*$"
+        },
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,2}$"
+        },
+        "OP": "?"
+      },
+      {
+        "ORTH": "/",
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,2}$"
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "ztv"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^TLP?$"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]*$"
+        },
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]*$"
+        },
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,2}$"
+        },
+        "OP": "?"
+      },
+      {
+        "ORTH": "/",
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,2}$"
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "tl"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "TLS",
+    "id": "tl_bare_tls"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^TPD?$"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]*$"
+        },
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,2}$"
+        },
+        "OP": "?"
+      },
+      {
+        "ORTH": "/",
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,2}$"
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "tp"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^RAS-[A-Za-zÄÖÜäöüß]+$"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{1,2}$"
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "ras"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": [
+      {
+        "ORTH": "RStO"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,4}$"
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "rsto_spaced"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^RStO\\d{2,4}$"
+        }
+      }
+    ],
+    "id": "rsto_joined"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M TS E",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M RC",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M VV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M RC-AKR",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M RC AKR",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M KA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M KNP",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M EHS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M MA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M WA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M LP Beton",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M VaB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M BEP",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M ERL",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M AQ",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M VA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M TA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M FP",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M HMVA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M TI",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Gießereireststoffe",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M MHS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M GUB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M GUB UA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M AEBEL",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M HifüBau",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Fels",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Geok E",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M BmB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M EBGS-Lsw",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M SGS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Gab",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M QGeoE",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M FASV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M ZFSV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M BomF",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M BB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M BLG",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M FDVK E",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Ls",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M SET",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M SoB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M HMGM",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M KRC",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M HD",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M OPA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M KEP",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M VB-K",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M BgA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M AFS-H",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M A-UwS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M OOA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M RF",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M DBB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M WT",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M BEB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M DBT",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M TG",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M OB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M VuB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M FPgeb",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M FG",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M LP",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Bgriff",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M ELW",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M M LBP",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M UVS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Baumpflegearbeiten",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M EVB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M WRRL",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M URU",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M RR",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M FT",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Trenching",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M WBR",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M Uko",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M TU",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M VAS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M DV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M LV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M KWPT",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M HANV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M WBF",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M QVS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "M SNAR",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H FZ",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H EU",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H RepA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H LPM",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H Geo Mess",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H ZFSV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H SVA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H VVA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H IR",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H Al Abi",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H Re WA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H FA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H Fasern",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H HANV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H SR",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H FüPP",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H V-PUR",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H DBB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H KTSuB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H BaA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H SolA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H VwG",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H EEIS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H BVA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H VÖ",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H RM",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H RaS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H RS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H EBRA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H ArtB",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H VgeoRaum",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H RSV",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H Taumittelsprühanlagen",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H Abfallentsorgung",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H LiS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H QML",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H BEFG",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H VVBA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H FL",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H PA FRS",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H LaStreu",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H KWES",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H BeStreu",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "FGSV_REGELWERK",
+    "pattern": "H PMMA",
+    "id": "fgsv_merkblatt_hinweis"
+  },
+  {
+    "label": "VERWALTUNGSVORSCHRIFT",
+    "pattern": [
+      {
+        "ORTH": "ARS"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{1,2}$"
+        }
+      },
+      {
+        "ORTH": "/"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,4}$"
+        }
+      }
+    ]
+  },
+  {
+    "label": "RAL_GZ",
+    "pattern": [
+      {
+        "ORTH": "RAL-GZ"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,4}$"
+        },
+        "OP": "?"
+      }
+    ]
+  },
+  {
+    "label": "PARAGRAPH",
+    "pattern": [
+      {
+        "ORTH": "§"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d+[a-z]?$"
+        }
+      },
+      {
+        "LOWER": {
+          "IN": [
+            "abs.",
+            "absatz"
+          ]
+        },
+        "OP": "?"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d+$"
+        },
+        "OP": "?"
+      },
+      {
+        "ORTH": {
+          "IN": [
+            "VOB",
+            "BGB",
+            "StVO",
+            "StVZO",
+            "TVergG",
+            "EStG",
+            "EBV",
+            "BImSchG",
+            "BNatSchG",
+            "DenkmSchG",
+            "KrWG",
+            "SGB"
+          ]
+        },
+        "OP": "?"
+      },
+      {
+        "ORTH": "/",
+        "OP": "?"
+      },
+      {
+        "ORTH": {
+          "IN": [
+            "A",
+            "B",
+            "C"
+          ]
+        },
+        "OP": "?"
+      }
+    ]
+  },
+  {
+    "label": "GESETZ",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^[A-ZÄÖÜ][A-Za-zäöüßÄÖÜ\\-]*(gesetz|verordnung|richtlinie|Gesetz|Verordnung|Richtlinie)$"
+        }
+      }
+    ]
+  },
+  {
+    "label": "FACHBEHOERDE",
+    "pattern": "DAfStb"
+  },
+  {
+    "label": "FACHBEHOERDE",
+    "pattern": "BASt"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^(?!fräsasph)[a-zäöüß\\-]*asphalt[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_asphalt"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*bitumen[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_bitumen"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*beton[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_beton"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*gesteinskörnung[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_gesteinskörnung"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*fugenmasse[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_fugenmasse"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*fugenmaterial[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_fugenmaterial"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*splitt[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_splitt"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*schotter[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_schotter"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*mörtel[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_mörtel"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*pflaster[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_pflaster"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*naturstein[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_naturstein"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*granit[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_granit"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*zement[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_zement"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*rissmasse[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_rissmasse"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*bindemittel[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_bindemittel"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*farbe[a-zäöüß\\-]*$"
+        }
+      }
+    ],
+    "id": "baustoff_farbe"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": "Sand"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": "Leitdraht"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": "PmB"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": "Nst"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^(AC|MA)\\d{1,2}$"
+        }
+      }
+    ],
+    "id": "asphaltsorte_joined"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "ORTH": {
+          "IN": [
+            "AC",
+            "MA"
+          ]
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{1,2}$"
+        }
+      },
+      {
+        "ORTH": {
+          "IN": [
+            "D",
+            "T",
+            "B",
+            "N",
+            "S"
+          ]
+        },
+        "OP": "?"
+      },
+      {
+        "ORTH": {
+          "IN": [
+            "D",
+            "T",
+            "B",
+            "N",
+            "S"
+          ]
+        },
+        "OP": "?"
+      }
+    ],
+    "id": "asphaltsorte_spaced"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "LOWER": "bitumen"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,3}$"
+        }
+      },
+      {
+        "ORTH": "/"
+      },
+      {
+        "TEXT": {
+          "REGEX": "^\\d{2,3}$"
+        }
+      }
+    ],
+    "id": "bitumen_grade"
+  },
+  {
+    "label": "BAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^C\\d{2}[A-Z]{1,3}\\d(-[A-Z])?$"
+        }
+      }
+    ],
+    "id": "bitumen_emulsion_code"
+  },
+  {
+    "label": "AUSBAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*fräsgut[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "ausbaustoff_fräsgut"
+  },
+  {
+    "label": "AUSBAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*fräsasph[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "ausbaustoff_fräsasph"
+  },
+  {
+    "label": "AUSBAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*kehrgut[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "ausbaustoff_kehrgut"
+  },
+  {
+    "label": "AUSBAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*aushub[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "ausbaustoff_aushub"
+  },
+  {
+    "label": "AUSBAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*abbruch[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "ausbaustoff_abbruch"
+  },
+  {
+    "label": "AUSBAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*schälgut[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "ausbaustoff_schälgut"
+  },
+  {
+    "label": "AUSBAUSTOFF",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*ausbaumaterial[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "ausbaustoff_ausbaumaterial"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*verkehrssicher[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_verkehrssicher"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*baustelleneinr[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_baustelleneinr"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*anliegerinfo[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_anliegerinfo"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*deklarationsanaly[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_deklarationsanaly"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*beweissicher[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_beweissicher"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*aufgrabungsgenehm[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_aufgrabungsgenehm"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*bautagebuch[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_bautagebuch"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*deckenerneu[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_deckenerneu"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*umleitung[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_umleitung"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*vollsperr[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_vollsperr"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*wartung[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_wartung"
+  },
+  {
+    "label": "LEISTUNGEN",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "(?i)^[a-zäöüß\\-]*entsorg[a-zäöüß\\.\\-]*$"
+        }
+      }
+    ],
+    "id": "leistungen_entsorg"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "fräsen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "herstellen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "einbauen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "verdichten"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "entfernen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "aufnehmen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "abtragen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "verlegen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "verfüllen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "aufsprühen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "abbauen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "aufstellen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "umsetzen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "freilegen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "aufbrechen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "schneiden"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "kehren"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "trocknen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "mähen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "lösen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "abstreuen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "vergießen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "auftragen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "befestigen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "anspritzen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "säubern"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "trennen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "ausbauen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "abbrechen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "aufbringen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "abkehren"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "verschließen"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": [
+      {
+        "LEMMA": "feuerverzinken"
+      }
+    ],
+    "id": "bau_vorgaenge_lemma"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "herst",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "abb",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "aufb",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "verw",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "einb",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "Einbau",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "Abbau",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "Aufbau",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "Ausbau",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_VORGAENGE",
+    "pattern": "Abtrag",
+    "id": "bau_vorgaenge_truncated"
+  },
+  {
+    "label": "BAU_NORM",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^Bk\\d+(,\\d+)?(\\+Bk\\d+(,\\d+)?)*$"
+        }
+      }
+    ],
+    "id": "belastungsklasse"
+  },
+  {
+    "label": "BAU_NORM",
+    "pattern": [
+      {
+        "TEXT": {
+          "REGEX": "^BM-F\\d\\.?$"
+        }
+      }
+    ],
+    "id": "bodenmaterial_klasse"
+  },
+  {
+    "label": "EINHEIT",
+    "pattern": [
+      {
+        "LOWER": {
+          "IN": [
+            "st",
+            "psch",
+            "std"
+          ]
+        }
+      }
+    ],
+    "id": "einheit_billing_word"
+  },
+  {
+    "label": "EINHEIT",
+    "pattern": [
+      {
+        "ORTH": {
+          "IN": [
+            "m",
+            "d",
+            "t",
+            "h"
+          ]
+        }
+      }
+    ],
+    "id": "einheit_billing_single"
+  },
+  {
+    "label": "EINHEIT",
+    "pattern": [
+      {
+        "ORTH": {
+          "IN": [
+            "m2",
+            "m3",
+            "m²",
+            "m³"
+          ]
+        }
+      }
+    ],
+    "id": "einheit_billing_area_vol"
+  },
+  {
+    "label": "EINHEIT",
+    "pattern": [
+      {
+        "ORTH": {
+          "IN": [
+            "Mt",
+            "Wo"
+          ]
+        }
+      }
+    ],
+    "id": "einheit_billing_time"
+  },
+  {
+    "label": "EINHEIT",
+    "pattern": [
+      {
+        "LOWER": {
+          "IN": [
+            "mm",
+            "cm",
+            "kg",
+            "kn",
+            "mpa"
+          ]
+        }
+      }
+    ],
+    "id": "einheit_inline_simple"
+  },
+  {
+    "label": "EINHEIT",
+    "pattern": [
+      {
+        "ORTH": {
+          "IN": [
+            "g",
+            "t"
+          ]
+        }
+      },
+      {
+        "ORTH": "/"
+      },
+      {
+        "ORTH": {
+          "IN": [
+            "m2",
+            "m3",
+            "m²",
+            "m³"
+          ]
+        }
+      }
+    ],
+    "id": "einheit_inline_rate"
+  }
+]
