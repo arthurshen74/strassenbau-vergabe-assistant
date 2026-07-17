@@ -53,6 +53,7 @@ package = false
 [tool.uv.workspace]
 members = [
     "nlp-playground/layout-spike",
+    "nlp-textsummary",
 ]
 
 [tool.uv.sources]
