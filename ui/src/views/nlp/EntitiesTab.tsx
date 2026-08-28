@@ -3,12 +3,12 @@
 // either the rule that produced it (pattern id) or a "model guess" badge when no
 // rule matched. Each occurrence can be flagged (wrong label / not an entity).
 
-import { useState } from "react";
+import { useState } from 'react';
 
-import type { AnalyzeResponse } from "../../types/generated";
-import { Badge } from "../../components/ui/badge";
-import { FlagDialog } from "./FlagDialog";
-import type { FlagContext, FlagTarget } from "./flagTypes";
+import type { AnalyzeResponse } from '../../types/generated';
+import { Badge } from '../../components/ui/badge';
+import { FlagDialog } from './FlagDialog';
+import type { FlagContext, FlagTarget } from './flagTypes';
 
 // Key an occurrence for the flagged-indicator set (sentence + text + label).
 function occKey(label: string, sentenceHash: string, index: number): string {
@@ -53,7 +53,7 @@ export function EntitiesTab({
       spanEnd: start + occText.length,
       sentenceText: sentence,
       label,
-      allowedKinds: ["wrong_label", "not_an_entity"],
+      allowedKinds: ['wrong_label', 'not_an_entity'],
     });
     setDialogOpen(true);
   };
@@ -74,7 +74,7 @@ export function EntitiesTab({
     <div className="flex flex-col gap-4">
       {/* displacy renders dark-on-light, so the pane keeps a white background. */}
       <div
-        className="max-h-[25vh] overflow-y-auto rounded-md border border-zinc-200 bg-white p-2 text-sm dark:border-zinc-700"
+        className="max-h-[25vh] overflow-y-auto rounded-md border border-zinc-200 bg-white p-2 text-xs dark:border-zinc-700"
         dangerouslySetInnerHTML={{ __html: analysis.ent_html }}
       />
 
@@ -89,9 +89,9 @@ export function EntitiesTab({
               type="button"
               onClick={() => setSelectedLabel(stat.label)}
               className={`group flex items-center gap-2 rounded px-1 py-0.5 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${
-                selectedLabel === stat.label
-                  ? "bg-zinc-100 dark:bg-zinc-800"
-                  : ""
+                selectedLabel === stat.label ?
+                  'bg-zinc-100 dark:bg-zinc-800'
+                : ''
               }`}
               title={`${stat.count} occurrences`}
             >
@@ -130,7 +130,7 @@ export function EntitiesTab({
                   <tbody>
                     {selected.occurrences.map((occ, index) => {
                       const sentence =
-                        sentencesByHash.get(occ.sentence_hash) ?? "";
+                        sentencesByHash.get(occ.sentence_hash) ?? '';
                       const key = occKey(
                         selected.label,
                         occ.sentence_hash,
@@ -149,19 +149,16 @@ export function EntitiesTab({
                             {sentence}
                           </td>
                           <td className="py-0.5 pr-4">
-                            {occ.pattern_id ? (
+                            {occ.pattern_id ?
                               <span className="font-mono text-zinc-500">
                                 {occ.pattern_id}
                               </span>
-                            ) : (
-                              <Badge color="amber">model guess</Badge>
-                            )}
+                            : <Badge color="amber">model guess</Badge>}
                           </td>
                           <td className="py-0.5 text-right">
-                            {isFlagged ? (
+                            {isFlagged ?
                               <Badge color="red">flagged</Badge>
-                            ) : (
-                              <button
+                            : <button
                                 type="button"
                                 onClick={() =>
                                   openFlag(
@@ -175,7 +172,7 @@ export function EntitiesTab({
                               >
                                 flag
                               </button>
-                            )}
+                            }
                           </td>
                         </tr>
                       );

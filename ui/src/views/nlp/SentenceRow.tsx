@@ -39,7 +39,7 @@ function RenderPane({
   }
   return (
     <div
-      className={`overflow-x-auto rounded-md border border-zinc-200 p-2 dark:border-zinc-700 ${
+      className={`text-xs overflow-x-auto rounded-md border border-zinc-200 p-2 dark:border-zinc-700 ${
         style === 'dep' ? 'bg-white' : 'bg-white'
       }`}
       dangerouslySetInnerHTML={{ __html: render.data.markup }}
@@ -55,9 +55,10 @@ export function SentenceRow({
   onFlagMissed?: (target: FlagTarget) => void;
 }) {
   const [open, setOpen] = useState<RenderStyle | null>(null);
-  const [selection, setSelection] = useState<{ text: string; start: number } | null>(
-    null,
-  );
+  const [selection, setSelection] = useState<{
+    text: string;
+    start: number;
+  } | null>(null);
   const textRef = useRef<HTMLSpanElement>(null);
 
   // Capture a within-sentence text selection; reject selections that reach outside
@@ -127,9 +128,7 @@ export function SentenceRow({
       </div>
       {selection && onFlagMissed && (
         <div className="mt-1 flex items-center gap-2 pl-12">
-          <span className="text-[11px] text-zinc-500">
-            “{selection.text}”
-          </span>
+          <span className="text-[11px] text-zinc-500">“{selection.text}”</span>
           <button
             type="button"
             onClick={submitMiss}
