@@ -269,3 +269,4 @@ class ProjectInfoQuery(StrEnum):
     PROJECT_VERGABENUMMER = "project-vergabenummer"
     PROJECT_BAULEISTUNG = "project-bauleistung"
     PROJECT_LOCATION = "project-location"
+    PROJECT_VERGABESTELLE = "project-vergabestelle"

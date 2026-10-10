@@ -42,6 +42,7 @@ _MOCK_WERTE: dict[ProjectInfoQuery, str] = {
     ProjectInfoQuery.PROJECT_VERGABENUMMER: "VG-2025-0001",
     ProjectInfoQuery.PROJECT_BAULEISTUNG: "Straßenbau",
     ProjectInfoQuery.PROJECT_LOCATION: "Nordhausen",
+    ProjectInfoQuery.PROJECT_VERGABESTELLE: "Landesamt für Bau und Verkehr (mock)",
 }
 
 

@@ -15,6 +15,7 @@ PROJECT_INFO_TARGET_COLUMN: dict[ProjectInfoQuery, str] = {
     ProjectInfoQuery.PROJECT_VERGABENUMMER: "vergabe_id",
     ProjectInfoQuery.PROJECT_BAULEISTUNG: "bauleistung",
     ProjectInfoQuery.PROJECT_LOCATION: "location",
+    ProjectInfoQuery.PROJECT_VERGABESTELLE: "vergabestelle",
 }
 
 

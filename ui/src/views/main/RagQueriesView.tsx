@@ -32,9 +32,10 @@ const KEY_ORDER: Record<RagQueryKey, number> = {
   'project-name': 0,
   'project-massnahmenummer': 1,
   'project-vergabenummer': 2,
-  'project-bauleistung': 3,
-  'project-location': 4,
-  'project-description': 5,
+  'project-vergabestelle': 3,
+  'project-bauleistung': 4,
+  'project-location': 5,
+  'project-description': 6,
 };
 const RAG_QUERY_KEYS = (Object.keys(KEY_ORDER) as RagQueryKey[]).sort(
   (a, b) => KEY_ORDER[a] - KEY_ORDER[b],

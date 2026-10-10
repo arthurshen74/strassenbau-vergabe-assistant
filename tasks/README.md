@@ -45,6 +45,7 @@ The existing flow (create a project in a form, then upload documents) stays as i
 | 03 Recursive ZIP + ZIP-first create | `03-zip-first-create.md` | 01 | 02, 04 |
 | 04 RAG query versions (table, seed, API, editor UI) | `04-rag-query-versions.md` | - | 01, 02, 03 |
 | 05 Project-info job, worker loop, resolver | `05-project-info-job.md` | 03, 04 | 02 |
+| 06 Live ingest console | `06-ingest-console-live.md` | 05 | - |
 
 ## Execution waves (parallelism)
 
@@ -138,6 +139,8 @@ adds missing tables). Numbers are reserved here so parallel tasks do not collide
 | `sql/19_rag_query_versions.sql` | 04 |
 | `sql/20_project_info_jobs.sql` | 05 |
 | `sql/21_project_info_resolve_prompt_type.sql` | 05 |
+| `sql/22_rag_query_vergabestelle.sql` | 05 follow-up |
+| `sql/23_project_info_activity_log.sql` | 06 |
 
 Follow the header style of `sql/16_lv_texts.sql` and `sql/17_projects_massnahme.sql`:
 a comment block (what, why, mirrors which table file, idempotent, run-after), then

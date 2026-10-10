@@ -1,0 +1,8 @@
+name: Vergabestelle
+description: Öffentlicher Auftraggeber bzw. Stelle, die das Vergabeverfahren durchführt.
+query_text: >-
+  Welche Vergabestelle (öffentlicher Auftraggeber, ausschreibende Stelle) führt dieses
+  Vergabeverfahren durch und fordert zur Angebotsabgabe auf?
+answer_instruction: >-
+  Gib nur den Namen der Vergabestelle zurück, wie er im Dokument steht (Behörde bzw.
+  Organisation, ggf. mit Dienststelle), ohne Anschrift, Ansprechpartner oder Zusatztext.

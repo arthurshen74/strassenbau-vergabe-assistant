@@ -114,7 +114,8 @@ Three idempotent bootstrap scripts run on api start (or manually via
    enhancement list. Files run in number order and are idempotent; e.g. `20_project_info_jobs.sql`
    adds the Projektinfo queue and `21_project_info_resolve_prompt_type.sql` widens the
    `prompt_type` CHECKs for the `project_info_resolve` prompt. A new prompt type always needs such
-   a widening file before its prompt can be seeded.
+   a widening file before its prompt can be seeded; likewise a new RAG query key
+   (`22_rag_query_vergabestelle.sql` widens the `rag_query_versions.query_key` CHECK).
 3. `bootstrap_storage` — creates the MinIO bucket (retries up to 60 s while MinIO starts).
 
 Elasticsearch indexes are not bootstrapped — the search client ensures them at runtime.

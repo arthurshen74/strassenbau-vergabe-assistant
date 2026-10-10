@@ -96,7 +96,7 @@ flowchart TD
 
 A project created from a tender ZIP starts with only a placeholder name. Once its documents are
 ingested, the worker fills the header fields (Projektname, Maßnahmenummer, Vergabenummer,
-Bauleistung, Baustelle, Projektbeschreibung) from them in one project-level job.
+Vergabestelle, Bauleistung, Baustelle, Projektbeschreibung) from them in one project-level job.
 
 ```mermaid
 stateDiagram-v2

@@ -311,7 +311,8 @@ export interface RagQueryVersionRead {
     | "project-name"
     | "project-vergabenummer"
     | "project-bauleistung"
-    | "project-location";
+    | "project-location"
+    | "project-vergabestelle";
   language: string;
   version: number;
   name: string;

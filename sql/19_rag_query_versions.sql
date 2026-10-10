@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS rag_query_versions (
         CONSTRAINT ck_rag_query_versions_query_key_valid
         CHECK (query_key IN ('project-description', 'project-massnahmenummer', 'project-name',
                              'project-vergabenummer', 'project-bauleistung',
-                             'project-location')),
+                             'project-location', 'project-vergabestelle')),
     -- ISO 639-1, lower case.
     language text NOT NULL
         CONSTRAINT ck_rag_query_versions_language_valid

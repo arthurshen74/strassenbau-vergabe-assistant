@@ -23,6 +23,7 @@ const FIELD_LABELS: Record<ProjectInfoKey, string> = {
   "project-name": "Projektname",
   "project-massnahmenummer": "Maßnahmenummer",
   "project-vergabenummer": "Vergabenummer",
+  "project-vergabestelle": "Vergabestelle",
   "project-bauleistung": "Bauleistung",
   "project-location": "Baustelle",
   "project-description": "Beschreibung",
