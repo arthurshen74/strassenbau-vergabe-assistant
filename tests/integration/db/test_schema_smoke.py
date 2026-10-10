@@ -1,8 +1,8 @@
 """End-to-end DDL smoke test against real Postgres.
 
 Proves the Wave 2A schema builds (conftest create_all) and that the non-trivial
-constraints actually fire: the one-LV-per-project partial unique index, the
-document_type / status CHECKs, and the (document_uuid, oz) composite unique.
+constraints actually fire: the document_type / status CHECKs and the
+(document_uuid, oz) composite unique. Several LV documents per project are allowed.
 Uses Core directly (no repositories) so it validates the tables alone.
 """
 
@@ -62,12 +62,17 @@ async def test_project_round_trips(conn: AsyncConnection) -> None:
     assert name == "A1"
 
 
-async def test_one_lv_document_per_project_enforced(conn: AsyncConnection) -> None:
+async def test_several_lv_documents_per_project_allowed(conn: AsyncConnection) -> None:
     pid = await _make_project(conn)
-    await _add_document(conn, pid, DocumentType.LV_DOCUMENT.value, "lv1.pdf")
-    await _add_document(conn, pid, DocumentType.PROSE_DOCUMENT.value, "prose.pdf")
-    with pytest.raises(IntegrityError):
-        await _add_document(conn, pid, DocumentType.LV_DOCUMENT.value, "lv2.pdf")
+    await _add_document(conn, pid, DocumentType.LV_DOCUMENT.value, "lv1.x83")
+    await _add_document(conn, pid, DocumentType.LV_DOCUMENT.value, "lv2.d83")
+    rows = await conn.execute(
+        select(documents.c.document_uuid).where(
+            documents.c.project_uuid == pid,
+            documents.c.document_type == DocumentType.LV_DOCUMENT.value,
+        )
+    )
+    assert len(rows.all()) == 2
 
 
 async def test_document_type_check_constraint(conn: AsyncConnection) -> None:

@@ -7,7 +7,7 @@ from sqlalchemy import delete, func, insert, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from shared.db.tables.documents import documents
+from shared.db.tables.documents import LV_DOCUMENT_ORDER, documents
 from shared.db.tables.lv_items import lv_items
 from shared.models.enums import DocumentType
 from shared.models.lv_item import LVItem, NewLVItem
@@ -35,8 +35,15 @@ class LVItemRepository:
         return LVItem.model_validate(dict(row)) if row else None
 
     async def get_by_project_and_oz(self, project_uuid: UUID, oz: str) -> LVItem | None:
-        """Backs the LV_Item_Lookup gate. The schema's unique key is (document_uuid,
-        oz), so a project+oz lookup resolves through the project's LV document."""
+        """Backs the LV_Item_Lookup gate. The unique key is (document_uuid, oz), so with
+        several LV documents an oz can match more than once; this returns the first
+        match in document order (see list_by_project_and_oz for all of them)."""
+        matches = await self.list_by_project_and_oz(project_uuid, oz)
+        return matches[0] if matches else None
+
+    async def list_by_project_and_oz(self, project_uuid: UUID, oz: str) -> list[LVItem]:
+        """Every position with this oz across the project's LV documents, in document
+        order."""
         stmt = (
             select(lv_items)
             .join(documents, documents.c.document_uuid == lv_items.c.document_uuid)
@@ -45,12 +52,14 @@ class LVItemRepository:
                 documents.c.document_type == DocumentType.LV_DOCUMENT,
                 lv_items.c.oz == oz,
             )
+            .order_by(*LV_DOCUMENT_ORDER)
         )
-        row = (await self.conn.execute(stmt)).mappings().first()
-        return LVItem.model_validate(dict(row)) if row else None
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [LVItem.model_validate(dict(r)) for r in rows]
 
     async def list_by_project(self, project_uuid: UUID) -> list[LVItem]:
-        """All LV items for a project's LV document, ordered by oz."""
+        """All LV items across the project's LV documents, grouped by document (oldest
+        first) and ordered by oz within each."""
         stmt = (
             select(lv_items)
             .join(documents, documents.c.document_uuid == lv_items.c.document_uuid)
@@ -58,6 +67,16 @@ class LVItemRepository:
                 documents.c.project_uuid == project_uuid,
                 documents.c.document_type == DocumentType.LV_DOCUMENT,
             )
+            .order_by(*LV_DOCUMENT_ORDER, lv_items.c.oz)
+        )
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [LVItem.model_validate(dict(r)) for r in rows]
+
+    async def list_by_document(self, document_uuid: UUID) -> list[LVItem]:
+        """One document's LV items ordered by oz; empty for a prose document."""
+        stmt = (
+            select(lv_items)
+            .where(lv_items.c.document_uuid == document_uuid)
             .order_by(lv_items.c.oz)
         )
         rows = (await self.conn.execute(stmt)).mappings().all()

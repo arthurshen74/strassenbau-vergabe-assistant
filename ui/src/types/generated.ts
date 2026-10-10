@@ -477,7 +477,6 @@ export interface ContextChunk {
 export interface ScopeTrace {
   modality: "SIMPLE" | "PLUS";
   project_uuid: string;
-  lv_document_uuid?: string | null;
   es_filter: {
     [k: string]: unknown;
   };

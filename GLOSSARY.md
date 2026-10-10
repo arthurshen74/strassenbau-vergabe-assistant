@@ -36,7 +36,7 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Baubeschreibung** — Project description. A prose document describing the work to be performed, site conditions, sequencing constraints, and project context. Sets expectations that constrain how the LV items must be priced.
 
-**Leistungsverzeichnis** (LV) — Bill of services. A structured list of all work items to be priced, organised by Position. The contractually binding pricing document. The LV is the system's central artifact: it exists in two forms in a tender — as structured GAEB data (D83 or X83) and as a contractually binding LV PDF.
+**Leistungsverzeichnis** (LV) — Bill of services. A structured list of all work items to be priced, organised by Position. The contractually binding pricing document. The LV is the system's central artifact: it exists in two forms in a tender — as structured GAEB data (D83 or X83) and as a contractually binding LV PDF. A project can carry several LV files, each ingested as its own LV document (e.g. the same LV as X83 and D83, or one LV per Los).
 
 **Vertragsbedingungen** — General contract terms. Standard contract conditions, usually referencing VOB/B.
 

@@ -1,9 +1,10 @@
 """Run the EKT position-calculation agent on a real LV position from the command line.
 
-A thin harness over shared/services/calculator: it loads one LV position from the
-project's LV document, wires the agent's retrieval seam to RetrievalService, runs the
-LangGraph app, and walks the two HITL interrupts interactively (Gate A method review,
-Gate B variable review). The whole run is traced to Phoenix (docker-compose `phoenix`).
+A thin harness over shared/services/calculator: it loads one LV position by OZ from the
+project's LV documents (the first match in document order), wires the agent's retrieval
+seam to RetrievalService, runs the LangGraph app, and walks the two HITL interrupts
+interactively (Gate A method review, Gate B variable review). The whole run is traced
+to Phoenix (docker-compose `phoenix`).
 
     python -m scripts.run_calculator --project <uuid> --oz 01.02.0006 \
         --mock --leistung L_FRAESEN --set tiefe_cm=4 --set fraesgut_klasse=1

@@ -2,7 +2,7 @@
 
 Both exchange formats of the 83 phase (Angebotsaufforderung) parse into the same
 `LVParseResult` shape: the fixed-format GAEB 90 `*.d83` and the GAEB DA XML `*.x83`. A
-GAEB file is the project's LV by definition; `is_gaeb_lv_file` is the single
+GAEB file is an LV document by definition; `is_gaeb_lv_file` is the single
 classification predicate, and `parse_gaeb_lv` dispatches to the right reader.
 """
 

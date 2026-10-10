@@ -98,8 +98,8 @@ async def indexed() -> AsyncIterator[Indexed]:
     prose_uuid = uuid4()
     lv_item_uuid = uuid4()
 
-    # Three chunks spanning the Simple/Plus distinctions: a prose DOCUMENT chunk, the LV
-    # document's own DOCUMENT chunk (excluded by Plus), and a parsed LV_ITEM chunk.
+    # Three chunks spanning the Simple/Plus distinctions: a prose DOCUMENT chunk, a
+    # DOCUMENT chunk on the LV document, and a parsed LV_ITEM chunk (Plus only).
     chunks = [
         _new_chunk(
             project_uuid=project_uuid,
@@ -170,9 +170,9 @@ async def test_simple_scope_returns_only_document_chunks(indexed: Indexed) -> No
     assert {sc.chunk.chunk_uuid for sc in bm25} == expected
 
 
-async def test_plus_scope_swaps_lv_document_for_lv_items(indexed: Indexed) -> None:
-    scope = plus_filter(indexed.project_uuid, indexed.lv_document_uuid)
-    expected = {indexed.prose_id, indexed.lv_item_id}
+async def test_plus_scope_adds_lv_items_to_document_chunks(indexed: Indexed) -> None:
+    scope = plus_filter(indexed.project_uuid)
+    expected = {indexed.prose_id, indexed.lv_own_id, indexed.lv_item_id}
 
     knn = await indexed.client.knn_search(_make_vec(1), scope, k=10)
     assert {sc.chunk.chunk_uuid for sc in knn} == expected

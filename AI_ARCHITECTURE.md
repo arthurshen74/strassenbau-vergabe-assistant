@@ -33,7 +33,7 @@ flowchart TD
   chunking into embedded `DOCUMENT` chunks. This includes the LV print-layout PDF, which is
   treated as prose.
 - **LV items come exclusively from GAEB files.** A `.d83` (fixed-format CP850 records) or `.x83`
-  (GAEB DA XML) upload is the project's LV document by definition and parses deterministically —
+  (GAEB DA XML) upload is an LV document by definition and parses deterministically —
   no LLM. Every Hinweistext (D83 record `20`, X83 `Remark`) becomes a `Remark` node that records
   only what the file states with certainty: its structural parent (LV root or LV-Gruppe) and its
   sequence within that parent. A position's `hinweis` is the positional projection of those nodes
@@ -46,10 +46,12 @@ flowchart TD
   links the OZ hierarchy (`level`, `parent_oz`, `prev_oz`/`next_oz`). Items are chunked into
   `LV_ITEM` chunks from `langtext_resolved || langtext`, carrying denormalized `oz` and `stl_nr`;
   LV texts are chunked into `LV_TEXT` chunks (heading + body, `oz` = the Hinweis's LV-Gruppe).
-- **Uploading a GAEB file supersedes the project's LV**: the previous LV document is deleted first
-  (Postgres cascade for items, Elasticsearch archive for chunks), preserving the one-LV-document
-  invariant. Re-ingestion in general archives a source's prior chunks to the `_archive` index with
-  an `archived_at` stamp instead of overwriting; Postgres rows upsert on natural keys.
+- **A project can hold several LV documents**, one per GAEB file (e.g. the same LV as X83 and
+  D83, or one LV per Los). Uploading a GAEB file adds a new LV document next to the existing ones;
+  each keeps its own `lv_items`, `lv_texts` and chunks, all keyed by `document_uuid`, and deleting
+  one LV document leaves the others intact. Re-ingestion in general archives a source's prior
+  chunks to the `_archive` index with an `archived_at` stamp instead of overwriting; Postgres rows
+  upsert on natural keys.
 - An earlier LLM-based parse of LV **PDFs** (segmentation by line spans, verbatim slicing by code)
   is retired from the pipeline; it survives as a standalone harness
   (`python -m scripts.run_lv_extraction`) for experimentation.
@@ -81,11 +83,11 @@ flowchart TD
 
 - **Simple modality** searches `DOCUMENT` chunks only — every document's prose chunks, including
   the LV PDF's own.
-- **Plus modality** represents the LV structurally: `LV_ITEM` and `LV_TEXT` chunks (positions plus
-  the LV's Vorbemerkungen/Hinweise) plus the `DOCUMENT` chunks of everything *except* the LV
-  document (excluded so LV content isn't counted twice). Building the
-  filter resolves the project's LV document UUID first. If a project has no LV document, Plus
-  falls back to Simple instead of failing.
+- **Plus modality** represents the LV structurally: the `LV_ITEM` and `LV_TEXT` chunks of every
+  LV document of the project (positions plus each LV's Vorbemerkungen/Hinweise) plus all
+  `DOCUMENT` chunks. GAEB LV documents produce no `DOCUMENT` chunks, so LV content is not counted
+  twice. The filter needs no document lookup and works the same for zero, one or several LV
+  documents; with none, Plus returns what Simple would.
 - RRF fires whenever more than one ranked list exists (multi-query or BM25); the cross-encoder is
   the only post-retrieval stage. HyDE was evaluated and rejected: for legally binding tender text,
   hypothetical documents pull semantically-similar-but-irrelevant material into the context.

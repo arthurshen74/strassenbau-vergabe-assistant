@@ -118,7 +118,7 @@ All logic sits behind these route groups (SSE = streaming endpoint):
 | Group                                                          | Endpoints                                                                                                                                                                                                       |
 | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/health`                                                      | Liveness and DB connectivity checks.                                                                                                                                                                            |
-| `/projects`                                                    | Project/document CRUD, LV positions and hybrid LV search, document upload, (re-)ingest queueing, **SSE** per-project ingest status stream, thumbnail/map proxies from storage, document detail/chunks/activity. |
+| `/projects`                                                    | Project/document CRUD, LV positions and texts (project-wide and per LV document) and hybrid LV search, document upload, (re-)ingest queueing, **SSE** per-project ingest status stream, thumbnail/map proxies from storage, document detail/chunks/activity. |
 | `/projects/.../context`                                        | Project-context globals: read, per-variable history, HITL override, clear, RAG resolve, geocode, static and route map PNGs.                                                                                     |
 | `/conversations`                                               | Conversation CRUD, message history, per-conversation cost, auto-naming, and the central **SSE** `/turn` endpoint that streams a chat turn (project chat, position chat, Katalog chat, calculator resume).       |
 | `/dispatch`                                                    | **SSE** single-shot, stateless command-bar routing.                                                                                                                                                             |
@@ -150,7 +150,9 @@ The domain DB groups into six clusters:
 - **Project / document / ingest** — `projects` → `documents` → `source_lines` (canonical extracted
   text), `thumbnails`, `lv_items`, `lv_texts` (the LV's Vorbemerkungen, Hinweise and Nachtext),
   `ingest_jobs` → `ingest_job_events`, plus the high-frequency
-  `ingestion_activity_log` and its archive.
+  `ingestion_activity_log` and its archive. A project may hold any number of `LV_DOCUMENT`s (one
+  per GAEB file); each owns its `lv_items` and `lv_texts`, and project-wide LV listings return
+  them grouped by document, oldest first.
 - **Conversation** — `conversations` (discriminated by `prompt_type`; position chats also carry
   `lv_item_uuid` and a `calculation_status`) → `messages` (user / assistant / function_call /
   function_call_output).
@@ -207,7 +209,7 @@ erDiagram
     documents {
         uuid document_uuid PK
         uuid project_uuid FK
-        text document_type "LV_DOCUMENT | PROSE_DOCUMENT"
+        text document_type "LV_DOCUMENT (many per project) | PROSE_DOCUMENT"
         text file_name
         int number_of_pages
     }

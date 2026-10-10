@@ -27,7 +27,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import sys
 import traceback
 from uuid import UUID
 
@@ -43,7 +42,6 @@ from shared.db.engine import make_engine
 from shared.models.enums import RetrievalModality
 from shared.services.retrieval import (
     RetrievalConfig,
-    RetrievalError,
     RetrievalResult,
     RetrievalService,
 )
@@ -124,11 +122,7 @@ async def main() -> None:
 
     try:
         if args.question is not None:
-            try:
-                await _run_once(service, args.question, args.project, config, args.json)
-            except RetrievalError as exc:
-                print(f"retrieval error: {exc}", file=sys.stderr)
-                raise SystemExit(1) from exc
+            await _run_once(service, args.question, args.project, config, args.json)
         else:
             await _repl(service, args.project, config, args.json)
     finally:
@@ -176,8 +170,6 @@ async def _repl(
         # end it.
         try:
             await _run_once(service, question, project, config, as_json)
-        except RetrievalError as exc:
-            print(f"retrieval error: {exc}", file=sys.stderr)
         except Exception:
             traceback.print_exc()
 
@@ -203,8 +195,6 @@ def _print_trace(result: RetrievalResult) -> None:
     print(_banner("SCOPE"))
     print(f"  modality     : {result.scope.modality.value}")
     print(f"  project_uuid : {result.scope.project_uuid}")
-    if result.scope.lv_document_uuid is not None:
-        print(f"  lv_document  : {result.scope.lv_document_uuid}")
     print(
         f"  config       : multi_query={cfg.multi_query} bm25={cfg.use_bm25} "
         f"cross_encoder={cfg.use_cross_encoder} candidate_k={cfg.candidate_k} "

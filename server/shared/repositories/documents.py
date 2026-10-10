@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from shared.db.tables.documents import documents
+from shared.db.tables.documents import LV_DOCUMENT_ORDER, documents
 from shared.models.document import Document, NewDocument
 from shared.models.enums import DocumentType
 
@@ -33,15 +33,18 @@ class DocumentRepository:
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [Document.model_validate(dict(r)) for r in rows]
 
-    async def get_lv_document(self, project_uuid: UUID) -> Document | None:
-        """The project's single LV document. Backs the RETRIEVAL "Plus" filter and the
-        LV-item chat gate; the partial unique index guarantees at most one."""
-        stmt = select(documents).where(
-            documents.c.project_uuid == project_uuid,
-            documents.c.document_type == DocumentType.LV_DOCUMENT,
+    async def list_lv_documents(self, project_uuid: UUID) -> list[Document]:
+        """The project's LV documents (one per GAEB file), oldest first."""
+        stmt = (
+            select(documents)
+            .where(
+                documents.c.project_uuid == project_uuid,
+                documents.c.document_type == DocumentType.LV_DOCUMENT,
+            )
+            .order_by(*LV_DOCUMENT_ORDER)
         )
-        row = (await self.conn.execute(stmt)).mappings().first()
-        return Document.model_validate(dict(row)) if row else None
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [Document.model_validate(dict(r)) for r in rows]
 
     async def delete(self, document_uuid: UUID) -> None:
         stmt = delete(documents).where(documents.c.document_uuid == document_uuid)

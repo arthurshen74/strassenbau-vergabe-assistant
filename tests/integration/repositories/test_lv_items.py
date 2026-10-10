@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from shared.db.tables.documents import documents
 from shared.models.document import NewDocument
 from shared.models.enums import DocumentType
 from shared.models.lv_item import NewLVItem
@@ -175,3 +178,80 @@ async def test_delete_missing_empty_keep_removes_all(conn: AsyncConnection) -> N
 
     assert len(removed) == 2
     assert await repo.list_by_project(fx.project_uuid) == []
+
+
+async def _second_lv_document(conn: AsyncConnection, fx: Fixture) -> UUID:
+    """A second LV document created after the fixture's one."""
+    second = await DocumentRepository(conn).add(
+        NewDocument(
+            project_uuid=fx.project_uuid,
+            document_type=DocumentType.LV_DOCUMENT,
+            file_name="lv2.d83",
+            number_of_pages=0,
+        )
+    )
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    for document_uuid, created_at in (
+        (fx.lv_document_uuid, base),
+        (second.document_uuid, base + timedelta(minutes=1)),
+    ):
+        await conn.execute(
+            update(documents)
+            .where(documents.c.document_uuid == document_uuid)
+            .values(created_at=created_at)
+        )
+    return second.document_uuid
+
+
+async def test_list_by_project_groups_by_document(conn: AsyncConnection) -> None:
+    repo = LVItemRepository(conn)
+    fx = await _fixture(conn)
+    second = await _second_lv_document(conn, fx)
+    await repo.add_many([_item(second, "01.0010"), _item(second, "02.0010")])
+    await repo.add_many(
+        [_item(fx.lv_document_uuid, "03.0010"), _item(fx.lv_document_uuid, "01.0020")]
+    )
+
+    listed = await repo.list_by_project(fx.project_uuid)
+
+    assert [(i.document_uuid, i.oz) for i in listed] == [
+        (fx.lv_document_uuid, "01.0020"),
+        (fx.lv_document_uuid, "03.0010"),
+        (second, "01.0010"),
+        (second, "02.0010"),
+    ]
+
+
+async def test_list_by_project_and_oz_returns_every_match(
+    conn: AsyncConnection,
+) -> None:
+    repo = LVItemRepository(conn)
+    fx = await _fixture(conn)
+    second = await _second_lv_document(conn, fx)
+    await repo.add(_item(second, "01.0010"))
+    await repo.add(_item(fx.lv_document_uuid, "01.0010"))
+
+    matches = await repo.list_by_project_and_oz(fx.project_uuid, "01.0010")
+    first = await repo.get_by_project_and_oz(fx.project_uuid, "01.0010")
+
+    assert [m.document_uuid for m in matches] == [fx.lv_document_uuid, second]
+    assert first is not None
+    assert first.document_uuid == fx.lv_document_uuid
+
+
+async def test_list_by_document_only_that_document(conn: AsyncConnection) -> None:
+    repo = LVItemRepository(conn)
+    fx = await _fixture(conn)
+    second = await _second_lv_document(conn, fx)
+    await repo.add_many(
+        [_item(fx.lv_document_uuid, "02.0010"), _item(fx.lv_document_uuid, "01.0010")]
+    )
+    await repo.add(_item(second, "01.0010"))
+
+    listed = await repo.list_by_document(fx.lv_document_uuid)
+
+    assert [(i.document_uuid, i.oz) for i in listed] == [
+        (fx.lv_document_uuid, "01.0010"),
+        (fx.lv_document_uuid, "02.0010"),
+    ]
+    assert await repo.list_by_document(fx.prose_document_uuid) == []
