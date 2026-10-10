@@ -1,27 +1,24 @@
 // One ingest-console row: an ingest or Projektinfo job with its current step inline.
 
-import { ArrowPathIcon, CommandLineIcon } from "@heroicons/react/16/solid";
+import { ArrowPathIcon, CommandLineIcon } from '@heroicons/react/16/solid';
 
-import {
-  KIND_PROJECT_INFO,
-  type ConsoleJobStatus,
-} from "../../api/ingestJobs";
-import { Badge } from "../../components/ui/badge";
-import { TableCell, TableRow } from "../../components/ui/table";
-import type { ConsoleJobRead } from "../../types/generated";
+import { KIND_PROJECT_INFO, type ConsoleJobStatus } from '../../api/ingestJobs';
+import { Badge } from '../../components/ui/badge';
+import { TableCell, TableRow } from '../../components/ui/table';
+import type { ConsoleJobRead } from '../../types/generated';
 
 const STATUS_COLOR: Record<
   ConsoleJobStatus,
-  "zinc" | "blue" | "green" | "red"
+  'zinc' | 'blue' | 'green' | 'red'
 > = {
-  queued: "zinc",
-  running: "blue",
-  done: "green",
-  failed: "red",
+  queued: 'zinc',
+  running: 'blue',
+  done: 'green',
+  failed: 'red',
 };
 
 const ACTION =
-  "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-50";
+  'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-50';
 
 // Seconds-resolution age so a running step visibly ticks.
 function stepAge(iso: string, now: number): string {
@@ -47,28 +44,29 @@ export function ConsoleJobRow({
 }) {
   const step = [job.latest_phase && `[${job.latest_phase}]`, job.latest_message]
     .filter(Boolean)
-    .join(" ");
+    .join(' ');
 
   return (
     <TableRow>
-      <TableCell>{job.project_name}</TableCell>
-      <TableCell className="font-medium">
-        {job.kind === KIND_PROJECT_INFO ? (
+      <TableCell className="max-w-sm truncate">{job.project_name}</TableCell>
+      <TableCell className="font-medium max-w-sm truncate">
+        {job.kind === KIND_PROJECT_INFO ?
           <Badge color="indigo">Projektinfo</Badge>
-        ) : (
-          job.file_name
-        )}
+        : job.file_name}
       </TableCell>
       <TableCell>
         <Badge color={STATUS_COLOR[job.status]}>{job.status}</Badge>
       </TableCell>
-      <TableCell className="max-w-md">
-        {job.latest_message ? (
-          <div className="flex items-baseline gap-2 text-xs" title={step}>
+      <TableCell className="max-w-xs truncate">
+        {job.latest_message ?
+          <div
+            className="flex items-baseline gap-2 text-xs"
+            title={step}
+          >
             <span className="min-w-0 truncate">
               {job.latest_phase && (
                 <span className="text-amber-600 dark:text-amber-400">
-                  [{job.latest_phase}]{" "}
+                  [{job.latest_phase}]{' '}
                 </span>
               )}
               {job.latest_message}
@@ -79,13 +77,11 @@ export function ConsoleJobRow({
               </span>
             )}
           </div>
-        ) : (
-          <span className="text-xs text-zinc-400">—</span>
-        )}
+        : <span className="text-xs text-zinc-400">—</span>}
       </TableCell>
       <TableCell>{job.attempts}</TableCell>
       <TableCell className="font-mono text-xs text-zinc-500">
-        {job.locked_by ?? "—"}
+        {job.locked_by ?? '—'}
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
