@@ -69,6 +69,7 @@ class _FakeLangchain:
         pdf_bytes: bytes,
         *,
         ingest_job_uuid: UUID | None = None,
+        activity: Any = None,
     ) -> int:
         self.calls.append((document_uuid, project_uuid, ingest_job_uuid))
         return 0

@@ -126,7 +126,7 @@ All logic sits behind these route groups (SSE = streaming endpoint):
 | `/katalog`                                                     | Catalog reads per entity, bundle validate/save/activate/discard, catalog reload.                                                                                                                                |
 | `/eval-runs`                                                   | Enqueue eval runs, list runs, live progress events, per-item results.                                                                                                                                           |
 | `/projects/.../ground-truth`, `/projects/.../rag-ground-truth` | Curated calculation gold and RAG reference questions; Gate-B variable-correction views.                                                                                                                         |
-| `/ingest-jobs`                                                 | Ops console: list jobs, requeue, **SSE** granular activity stream.                                                                                                                                              |
+| `/ingest-jobs`                                                 | Ops console: list ingest + Projektinfo jobs, **SSE** list stream (snapshot on change), requeue, **SSE** granular activity stream per job.                                                                      |
 | `/prompts`, `/prompt-execution-logs`, `/usage`                 | Prompt Library (append-only versions), full LLM call log, OpenRouter cost log.                                                                                                                                  |
 | `/nlp`                                                         | NLP analysis modal: reflowed document text (typed blocks + classified lines), sentence/POS/entity analysis with a block-type include list (by `document_uuid` or ad-hoc `text`), full-text ent render, displacy renders (see AI_ARCHITECTURE.md "Document Reflow and NLP Analysis").  |
 | `/entity-rules`, `/ner-flags`                                  | Domain NER: EntityRuler rule CRUD (spaCy-validated); NER error flags — create-with-synchronous-LLM-analysis, list/filter, category summary, resolve/override, re-analyze, delete (see AI_ARCHITECTURE.md "NER Error Investigation").  |
@@ -164,7 +164,8 @@ The domain DB groups into six clusters:
   `ingest_jobs` → `ingest_job_events`, plus the high-frequency
   `ingestion_activity_log` and its archive. `project_info_jobs` holds one Projektinfo extraction
   per row (the header fields filled from the documents after ingestion, with the per-field
-  result). A project may hold any number of `LV_DOCUMENT`s (one
+  result) and streams its steps into `project_info_activity_log` (pruned, no archive). A
+  project may hold any number of `LV_DOCUMENT`s (one
   per GAEB file); each owns its `lv_items` and `lv_texts`, and project-wide LV listings return
   them grouped by document, oldest first.
 - **Conversation** — `conversations` (discriminated by `prompt_type`; position chats also carry
@@ -210,6 +211,7 @@ erDiagram
     documents ||--o{ ingest_jobs : "processed by"
     ingest_jobs ||--o{ ingest_job_events : "logs"
     ingest_jobs ||--o{ ingestion_activity_log : "streams"
+    project_info_jobs ||--o{ project_info_activity_log : "streams"
     conversations ||--o{ messages : "contains"
     lv_items |o--o{ conversations : "position chat (SET NULL)"
     lv_items ||--o| calculation_ground_truth : "gold per position"
@@ -490,16 +492,16 @@ block claims in another.
   `ingest_jobs`, `eval_runs` and `project_info_jobs` use identical mechanics; a
   `project_info_jobs` row is additionally claimable only while its project has no queued or
   running ingest job (failed ones do not block), so it runs after the project's documents.
-- **Heartbeat** — the ingestion activity writer flushes on a short interval and touches the lease
-  on every flush (even with nothing to write); eval runs touch the lease on every progress event,
-  project-info jobs after every query.
+- **Heartbeat** — the ingestion and project-info activity writers flush on a short interval and
+  touch the lease on every flush (even with nothing to write); eval runs touch the lease on every
+  progress event.
   The activity stream is the liveness signal.
 - **Crash recovery** — a dead worker stops refreshing `locked_at`; once the lease expires another
   worker reclaims the job, up to `WORKER_MAX_ATTEMPTS`. Terminal status writes are lease-fenced
   (`AND locked_by = expected_worker`), so a reclaimed job's original owner cannot clobber the new
   owner. Jobs that exhaust their attempts are parked as `failed`; the ingest console can requeue
-  them (ingestion is idempotent). Idle ticks also archive activity-log rows older than the
-  retention window into the archive table.
+  them (ingestion is idempotent). Idle ticks also archive ingestion activity rows older than the
+  retention window into the archive table and delete project-info activity rows past it.
 - **Scaling** — replicas compete on the same queues: `docker compose up --scale worker=N`. There
   is no dispatcher; Postgres is the allocator.
 
@@ -553,7 +555,13 @@ live in `DEVOPS.md`.
   format) and response (text, tool calls, structured output), token counts, and latency.
 - **OpenRouter usage** — one row per call with tokens and cost (credits, USD-denominated),
   attributed to project/document/conversation/ingest-job where known.
-- **Ingest console** — live SSE job activity, job statuses, requeue.
+- **Ingest console** — ingest and Projektinfo jobs in one list, with each job's latest activity
+  line inline. `GET /ingest-jobs/stream` keeps one connection per open console: the API re-runs
+  the list query every `INGEST_STATUS_POLL_INTERVAL_SECONDS` and sends the full list only when a
+  job's status, attempts, worker or latest line changed (no LISTEN/NOTIFY). The default view shows
+  queued and running jobs plus those finished in the last 15 minutes. Uploading documents or
+  creating a project from a ZIP opens it filtered to that project. Per-job activity terminal over
+  SSE, requeue for both job kinds.
 - **Health** — `GET /health` (liveness) and `GET /health/db` (readiness; used by the compose
   healthcheck).
 

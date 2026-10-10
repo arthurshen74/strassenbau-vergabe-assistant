@@ -125,6 +125,14 @@ stateDiagram-v2
 - Every query's outcome, including the evidence quote and query version, is stored on the job row
   and shown per field on the project page. `location` is stored as text; geocoding stays with the
   project-context resolver.
+- **Activity log.** Each step writes a line to `project_info_activity_log`, tagged with a
+  `ProjectInfoPhase`: `claim` (attempt, language, overwrite flag, how many query versions were
+  found), `retrieve` ("retrieving <key> (v<version>)", chunks after rerank, or "skip: no query
+  version"), `synthesize` (the LLM's `gefunden`, `konfidenz` and the start of `wert`) and `write`
+  (the columns written, or skips for columns already set, and the closing "done in x s, n of m
+  found"). Mock mode writes the same lines marked "(mock)". The lines are buffered and flushed
+  like the ingestion activity stream, and each flush also refreshes the job's lease. The ingest
+  console shows each job's latest line and streams the full log in its activity terminal.
 
 ## Project Chat Agent
 

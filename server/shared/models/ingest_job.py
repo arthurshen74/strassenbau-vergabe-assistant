@@ -40,20 +40,3 @@ class IngestJobStatusRow(BaseModel):
     latest_phase: str | None = None
     latest_message: str | None = None
     latest_ts: datetime | None = None
-
-
-class IngestJobConsoleRow(BaseModel):
-    """A console job row joined to its document file name and project name."""
-
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
-
-    job_uuid: UUID
-    document_uuid: UUID
-    file_name: str
-    project_name: str
-    status: IngestStatus
-    attempts: int
-    locked_by: str | None = None
-    locked_at: datetime | None = None
-    created_at: datetime
-    updated_at: datetime

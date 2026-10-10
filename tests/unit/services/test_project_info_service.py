@@ -15,6 +15,7 @@ from shared.models.project_info_job import ProjectInfoJob, ProjectInfoResult
 from shared.models.prompt_version import PromptVersion
 from shared.models.rag_query import RagQueryVersion
 from shared.services.project_info.llm import ProjektInfoAufloesung
+from shared.services.project_info.progress import ProjectInfoPhase
 from shared.services.project_info.service import NO_QUERY_VERSION, ProjectInfoService
 
 _NOW = datetime(2026, 10, 10, tzinfo=timezone.utc)
@@ -121,8 +122,14 @@ class _FakeLLM:
         return ProjektInfoAufloesung(gefunden=False, konfidenz=0.1), None
 
 
-async def _no_heartbeat() -> None:
-    pass
+class _Lines:
+    """Records (message, phase) activity lines."""
+
+    def __init__(self) -> None:
+        self.lines: list[tuple[str, str | None]] = []
+
+    def __call__(self, message: str, phase: str | None = None) -> None:
+        self.lines.append((message, phase))
 
 
 async def _run(
@@ -142,7 +149,7 @@ async def _run(
         retrieval=retrieval,  # type: ignore[arg-type]
         llm=llm,  # type: ignore[arg-type]
         prompt=_prompt(),
-        heartbeat=_no_heartbeat,
+        activity=_Lines(),
     )
     return result, projects, retrieval, llm
 
@@ -217,19 +224,52 @@ async def test_result_shape() -> None:
     }
 
 
-async def test_heartbeat_after_every_query() -> None:
-    beats: list[None] = []
+async def test_mock_mode_emits_phase_sequence(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "calculator_mock", True)
+    project = _project(vergabe_id="VG-manual")
+    queries = {key: _query(key) for key in ProjectInfoQuery if key is not ProjectInfoQuery.PROJECT_NAME}
+    lines = _Lines()
+    await ProjectInfoService(_factory(_FakeProjects(project), _FakeRagQueries(queries))).run(
+        _job(project.project_uuid, overwrite=False),
+        retrieval=_FakeRetrieval(),  # type: ignore[arg-type]
+        llm=_FakeLLM({}),  # type: ignore[arg-type]
+        prompt=None,
+        activity=lines,
+    )
 
-    async def heartbeat() -> None:
-        beats.append(None)
+    phases = [phase for _m, phase in lines.lines]
+    per_query = [ProjectInfoPhase.RETRIEVE, ProjectInfoPhase.RETRIEVE, ProjectInfoPhase.SYNTHESIZE]
+    expected = [ProjectInfoPhase.CLAIM]
+    for key in ProjectInfoQuery:
+        if key is ProjectInfoQuery.PROJECT_NAME:
+            expected.append(ProjectInfoPhase.RETRIEVE)  # skip: no query version
+            continue
+        expected.extend(per_query)
+        if key is ProjectInfoQuery.PROJECT_VERGABENUMMER:
+            expected.append(ProjectInfoPhase.WRITE)  # skip: column already set
+    expected.append(ProjectInfoPhase.WRITE)  # writing n columns
+    assert phases == expected
+    messages = [m for m, _p in lines.lines]
+    assert all(m.endswith("(mock)") for m in messages)
+    assert messages[0] == f"{len(queries)} of {len(ProjectInfoQuery)} query versions found (mock)"
+    assert "skip project-name: no query version (mock)" in messages
+    assert "skip project-vergabenummer: column vergabe_id already set (mock)" in messages
+    assert messages[-1].startswith(f"writing {len(queries) - 1} columns: ")
 
+
+async def test_live_lines_report_chunks_and_llm_answer() -> None:
+    lines = _Lines()
     projects = _FakeProjects(_project())
-    queries = {key: _query(key) for key in ProjectInfoQuery}
+    queries = {ProjectInfoQuery.PROJECT_LOCATION: _query(ProjectInfoQuery.PROJECT_LOCATION, version=2)}
     await ProjectInfoService(_factory(projects, _FakeRagQueries(queries))).run(
         _job(projects.project.project_uuid, overwrite=True),
         retrieval=_FakeRetrieval(),  # type: ignore[arg-type]
-        llm=_FakeLLM({}),  # type: ignore[arg-type]
+        llm=_FakeLLM({ProjectInfoQuery.PROJECT_LOCATION: "Erfurt"}),  # type: ignore[arg-type]
         prompt=_prompt(),
-        heartbeat=heartbeat,
+        activity=lines,
     )
-    assert len(beats) == len(ProjectInfoQuery)
+    messages = [m for m, _p in lines.lines]
+    assert "retrieving project-location (v2)" in messages
+    assert "1 chunks after rerank" in messages
+    assert "LLM: gefunden=True konfidenz=0.9: Erfurt" in messages
+    assert messages[-1] == "writing 1 columns: location"

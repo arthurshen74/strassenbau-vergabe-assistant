@@ -17,9 +17,11 @@ from shared.models.project import NewProject
 from shared.models.project_info_job import NewProjectInfoJob
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
+from shared.repositories.project_info_activity import ProjectInfoActivityLogRepository
 from shared.repositories.project_info_jobs import ProjectInfoJobRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.rag_queries import RagQueryVersionRepository
+from shared.services.project_info.progress import ProjectInfoPhase
 from shared.services.project_info.service import _MOCK_WERTE
 from worker.project_info_loop import process_one_project_info
 
@@ -80,6 +82,13 @@ async def test_project_info_job_runs_after_ingest_and_fills_project(
     assert updated.project_name == _MOCK_WERTE[ProjectInfoQuery.PROJECT_NAME]
     assert updated.vergabe_id == _MOCK_WERTE[ProjectInfoQuery.PROJECT_VERGABENUMMER]
     assert updated.location == _MOCK_WERTE[ProjectInfoQuery.PROJECT_LOCATION]
+
+    lines = await ProjectInfoActivityLogRepository(conn).tail(job.job_uuid, 0, 500)
+    assert {line.phase for line in lines} == set(ProjectInfoPhase)
+    assert lines[0].message.startswith("claimed (attempt 1) by test-worker")
+    assert lines[-1].message.startswith("done in ")
+    assert lines[-1].message.endswith(f"{len(ProjectInfoQuery)} of {len(ProjectInfoQuery)} found")
+    assert all(line.worker_id == "test-worker" for line in lines)
 
 
 async def test_project_info_empty_queue_returns_false(conn: AsyncConnection) -> None:

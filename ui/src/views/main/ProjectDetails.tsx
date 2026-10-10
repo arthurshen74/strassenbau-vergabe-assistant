@@ -52,7 +52,6 @@ import { LVTextsPanel } from "./LVTextsPanel";
 import { LvDocumentSelector } from "./LvDocumentSelector";
 import { ProjectContextPanel } from "./ProjectContextPanel";
 import { ProjectInfoStatus } from "./ProjectInfoStatus";
-import { SkippedZipEntriesNote } from "./SkippedZipEntriesNote";
 
 type ProjectTab = "lv" | "texts" | "documents" | "context";
 
@@ -77,13 +76,9 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 export function ProjectDetails({
   projectUuid,
   onBack,
-  skipped,
-  onDismissSkipped,
 }: {
   projectUuid: string;
   onBack: () => void;
-  skipped?: string[];
-  onDismissSkipped?: () => void;
 }) {
   const project = useProject(projectUuid);
   const documents = useProjectDocuments(projectUuid);
@@ -178,9 +173,6 @@ export function ProjectDetails({
         </div>
         {p.project_description && <Text>{p.project_description}</Text>}
         <ProjectInfoStatus projectUuid={projectUuid} />
-        {skipped && skipped.length > 0 && onDismissSkipped && (
-          <SkippedZipEntriesNote skipped={skipped} onDismiss={onDismissSkipped} />
-        )}
 
         <div className="border-b border-zinc-950/10 dark:border-white/10">
           <nav aria-label="Tabs" className="-mb-px flex space-x-8">

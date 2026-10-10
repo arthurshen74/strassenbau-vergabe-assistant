@@ -1,189 +1,206 @@
-// Ingest console (Option D): list ingest jobs with their lease/retry state, requeue a stuck or
-// failed job in place, and watch a job's live activity terminal.
+// Ingest console (Option D): ingest and Projektinfo jobs with their lease/retry state and
+// current step, kept live by the server's list stream; requeue a stuck or failed job in place,
+// and watch a job's live activity terminal. Opened after an upload with
+// `data: IngestConsoleData`, it starts filtered to that project.
 
-import { useState } from "react";
-import { ArrowPathIcon, CommandLineIcon } from "@heroicons/react/16/solid";
+import { useEffect, useState } from "react";
+import { XMarkIcon } from "@heroicons/react/16/solid";
 
 import {
-  ACTIVE_STATUSES,
-  useIngestJobs,
+  KIND_PROJECT_INFO,
+  useConsoleJobs,
   useRequeueIngestJob,
-  type IngestJobStatus,
+  useRequeueProjectInfoJob,
+  type ConsoleJobKind,
+  type ConsoleJobStatus,
 } from "../../api/ingestJobs";
+import { useProject } from "../../api/projects";
 import { Heading } from "../../components/ui/heading";
 import { Text } from "../../components/ui/text";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
 import { Select } from "../../components/ui/select";
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "../../components/ui/table";
 import { LoadingState } from "../../components/feedback/LoadingState";
 import { ErrorState } from "../../components/feedback/ErrorState";
-import { formatTimestamp } from "../../lib/format";
+import { ConsoleJobRow } from "./ConsoleJobRow";
 import { IngestActivityTerminal } from "./IngestActivityTerminal";
+import { SkippedZipEntriesNote } from "./SkippedZipEntriesNote";
 
-type StatusFilter = "" | "active" | IngestJobStatus;
+export interface IngestConsoleData {
+  projectUuid: string;
+  // ZIP entries a ZIP-first project create did not ingest.
+  skipped?: string[];
+}
+
+type StatusFilter = "active" | "all" | ConsoleJobStatus;
 
 const FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: "", label: "All" },
-  { value: "active", label: "Active / Queued" },
+  { value: "active", label: "Active" },
+  { value: "all", label: "All" },
   { value: "queued", label: "queued" },
   { value: "running", label: "running" },
   { value: "done", label: "done" },
   { value: "failed", label: "failed" },
 ];
 
-function filterStatuses(filter: StatusFilter): IngestJobStatus[] | undefined {
-  if (filter === "") return undefined;
-  if (filter === "active") return ACTIVE_STATUSES;
-  return [filter];
+const CLOCK_TICK_MS = 1000;
+
+function narrow(data: unknown): IngestConsoleData | null {
+  if (typeof data !== "object" || data === null || !("projectUuid" in data)) {
+    return null;
+  }
+  const { projectUuid, skipped } = data as Record<string, unknown>;
+  if (typeof projectUuid !== "string") return null;
+  return {
+    projectUuid,
+    skipped: Array.isArray(skipped)
+      ? skipped.filter((s): s is string => typeof s === "string")
+      : undefined,
+  };
 }
 
-const STATUS_COLOR: Record<IngestJobStatus, "zinc" | "blue" | "green" | "red"> =
-  {
-    queued: "zinc",
-    running: "blue",
-    done: "green",
-    failed: "red",
-  };
+// Re-renders once a second so the "Current step" ages tick between snapshots.
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
 
-const ACTION =
-  "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-50";
+export function IngestConsoleView({ data }: { data?: unknown }) {
+  const opened = narrow(data);
+  const [seenData, setSeenData] = useState(data);
+  const [filter, setFilter] = useState<StatusFilter>("active");
+  const [projectUuid, setProjectUuid] = useState(opened?.projectUuid ?? null);
+  const [skipped, setSkipped] = useState(opened?.skipped ?? []);
+  const [activityJob, setActivityJob] = useState<{
+    kind: ConsoleJobKind;
+    jobUuid: string;
+  } | null>(null);
+  // Re-opened with new data while mounted: adopt its project filter and skipped note.
+  if (data !== seenData) {
+    setSeenData(data);
+    setProjectUuid(opened?.projectUuid ?? null);
+    setSkipped(opened?.skipped ?? []);
+  }
 
-export function IngestConsoleView() {
-  const [filter, setFilter] = useState<StatusFilter>("");
-  const [activityJob, setActivityJob] = useState<string | null>(null);
-  const [manualRefreshing, setManualRefreshing] = useState(false);
-
-  const query = useIngestJobs({ statuses: filterStatuses(filter) });
-  const requeue = useRequeueIngestJob();
-  const rows = query.data ?? [];
-
-  // The list polls in the background; reflect only manual refetches on the button so it doesn't
-  // spin on every poll tick.
-  const onRefresh = async () => {
-    setManualRefreshing(true);
-    try {
-      await query.refetch();
-    } finally {
-      setManualRefreshing(false);
-    }
-  };
+  const now = useNow();
+  const { list, live } = useConsoleJobs({
+    active: filter === "active",
+    statuses: filter === "active" || filter === "all" ? undefined : [filter],
+    project_uuid: projectUuid ?? undefined,
+  });
+  const project = useProject(projectUuid ?? undefined);
+  const requeueIngest = useRequeueIngestJob();
+  const requeueProjectInfo = useRequeueProjectInfoJob();
+  const rows = list.data ?? [];
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex shrink-0 flex-col gap-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <Heading level={4}>Ingest Console</Heading>
-          <Button
-            plain
-            disabled={manualRefreshing}
-            onClick={onRefresh}
-            aria-label="Refresh jobs"
-          >
-            <ArrowPathIcon
-              className={manualRefreshing ? "animate-spin" : undefined}
-            />
-            Refresh
-          </Button>
+          <span
+            className={`size-2 rounded-full ${live ? "bg-green-500" : "bg-zinc-400"}`}
+            title={live ? "Live" : "Reconnecting…"}
+            aria-label={live ? "Live" : "Reconnecting"}
+          />
         </div>
 
-        <label className="flex w-56 flex-col gap-1 text-xs text-zinc-500">
-          Status
-          <Select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as StatusFilter)}
-          >
-            {FILTER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </Select>
-        </label>
+        <div className="flex items-end gap-3">
+          <label className="flex w-56 flex-col gap-1 text-xs text-zinc-500">
+            Status
+            <Select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as StatusFilter)}
+            >
+              {FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+          {projectUuid && (
+            <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-zinc-100 py-1 pr-1 pl-3 text-xs text-zinc-700 dark:bg-white/10 dark:text-zinc-200">
+              Project: {project.data?.project_name ?? "…"}
+              <button
+                type="button"
+                aria-label="Show all projects"
+                onClick={() => setProjectUuid(null)}
+                className="rounded-full p-0.5 hover:bg-zinc-200 dark:hover:bg-white/10"
+              >
+                <XMarkIcon className="size-3.5" />
+              </button>
+            </span>
+          )}
+        </div>
+
+        {skipped.length > 0 && (
+          <SkippedZipEntriesNote
+            skipped={skipped}
+            onDismiss={() => setSkipped([])}
+          />
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {query.isPending ? (
+        {list.isPending ? (
           <LoadingState label="Loading jobs…" />
-        ) : query.isError ? (
+        ) : list.isError ? (
           <ErrorState
-            message={(query.error as Error).message}
-            onRetry={() => query.refetch()}
+            message={(list.error as Error).message}
+            onRetry={() => list.refetch()}
           />
         ) : rows.length === 0 ? (
-          <Text>No ingest jobs.</Text>
+          <Text>No jobs.</Text>
         ) : (
           <Table dense>
             <TableHead>
               <TableRow>
-                <TableHeader>ID</TableHeader>
                 <TableHeader>Project</TableHeader>
                 <TableHeader>File</TableHeader>
                 <TableHeader>Status</TableHeader>
+                <TableHeader>Current step</TableHeader>
                 <TableHeader>Attempts</TableHeader>
                 <TableHeader>Worker</TableHeader>
-                <TableHeader>Updated</TableHeader>
                 <TableHeader>Actions</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((job) => (
-                <TableRow key={job.job_uuid}>
-                  <TableCell
-                    className="font-mono text-xs text-zinc-500"
-                    title={job.job_uuid}
-                  >
-                    {job.job_uuid.slice(0, 8)}
-                  </TableCell>
-                  <TableCell>{job.project_name}</TableCell>
-                  <TableCell className="font-medium">{job.file_name}</TableCell>
-                  <TableCell>
-                    <Badge color={STATUS_COLOR[job.status]}>{job.status}</Badge>
-                  </TableCell>
-                  <TableCell>{job.attempts}</TableCell>
-                  <TableCell className="font-mono text-xs text-zinc-500">
-                    {job.locked_by ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-zinc-500">
-                    {formatTimestamp(job.updated_at)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setActivityJob(job.job_uuid)}
-                        className={`${ACTION} text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-500/10`}
-                      >
-                        <CommandLineIcon className="size-4" />
-                        Activity
-                      </button>
-                      <button
-                        type="button"
-                        disabled={requeue.isPending}
-                        onClick={() => requeue.mutate(job.job_uuid)}
-                        className={`${ACTION} text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10`}
-                      >
-                        <ArrowPathIcon className="size-4" />
-                        Requeue
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map((job) => {
+                const requeue =
+                  job.kind === KIND_PROJECT_INFO
+                    ? requeueProjectInfo
+                    : requeueIngest;
+                return (
+                  <ConsoleJobRow
+                    key={job.job_uuid}
+                    job={job}
+                    now={now}
+                    requeuePending={requeue.isPending}
+                    onActivity={() =>
+                      setActivityJob({ kind: job.kind, jobUuid: job.job_uuid })
+                    }
+                    onRequeue={() => requeue.mutate(job.job_uuid)}
+                  />
+                );
+              })}
             </TableBody>
           </Table>
         )}
       </div>
 
       <IngestActivityTerminal
-        jobUuid={activityJob}
+        kind={activityJob?.kind ?? null}
+        jobUuid={activityJob?.jobUuid ?? null}
         onClose={() => setActivityJob(null)}
       />
     </div>

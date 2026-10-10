@@ -205,17 +205,30 @@ export interface IngestJobEventRead {
   ts: string;
 }
 
-export interface IngestJobConsoleRead {
+export interface ConsoleJobRead {
+  /**
+   * Which queue an ingest-console row comes from.
+   */
+  kind: "ingest" | "project_info";
   job_uuid: string;
-  document_uuid: string;
-  file_name: string;
+  project_uuid: string;
   project_name: string;
+  document_uuid: string | null;
+  file_name: string | null;
   status: "queued" | "running" | "done" | "failed";
   attempts: number;
   locked_by: string | null;
   locked_at: string | null;
   created_at: string;
   updated_at: string;
+  latest_phase: string | null;
+  latest_message: string | null;
+  latest_ts: string | null;
+}
+
+export interface ConsoleJobsSnapshot {
+  event: "console_jobs";
+  jobs: ConsoleJobRead[];
 }
 
 export interface IngestActivityLine {
@@ -223,6 +236,17 @@ export interface IngestActivityLine {
   id: number;
   job_uuid: string;
   document_uuid: string;
+  worker_id: string;
+  phase: string | null;
+  message: string;
+  ts: string;
+}
+
+export interface ProjectInfoActivityLine {
+  event: "project_info_activity";
+  id: number;
+  job_uuid: string;
+  project_uuid: string;
   worker_id: string;
   phase: string | null;
   message: string;

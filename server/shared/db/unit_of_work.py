@@ -37,6 +37,9 @@ from shared.repositories.ner_flags import NerFlagRepository
 from shared.repositories.nlp_render_cache import NlpRenderCacheRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.repositories.project_context_values import ProjectContextValueRepository
+from shared.repositories.project_info_activity import (
+    ProjectInfoActivityLogRepository,
+)
 from shared.repositories.project_info_jobs import ProjectInfoJobRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.prompt_execution_log import PromptExecutionLogRepository
@@ -72,6 +75,7 @@ class UnitOfWork:
         self.eval_results = EvalResultRepository(conn)
         self.project_context_values = ProjectContextValueRepository(conn)
         self.project_info_jobs = ProjectInfoJobRepository(conn)
+        self.project_info_activity = ProjectInfoActivityLogRepository(conn)
         self.katalog = KatalogRepository(conn)
         self.document_layout_regions = DocumentLayoutRegionRepository(conn)
         self.nlp_render_cache = NlpRenderCacheRepository(conn)

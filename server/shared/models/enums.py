@@ -48,6 +48,13 @@ class IngestStatus(StrEnum):
     FAILED = "failed"
 
 
+class ConsoleJobKind(StrEnum):
+    """Which queue an ingest-console row comes from."""
+
+    INGEST = "ingest"
+    PROJECT_INFO = "project_info"
+
+
 class PromptType(StrEnum):
     DISPATCHER = "dispatcher"
     PROJECT_CHAT = "project_chat"

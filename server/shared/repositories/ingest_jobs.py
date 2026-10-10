@@ -3,20 +3,22 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import and_, func, insert, or_, select, update
+from sqlalchemy import and_, func, insert, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.documents import documents
 from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
+from shared.db.tables.ingestion_activity_log import ingestion_activity_log
 from shared.db.tables.projects import projects
-from shared.models.enums import IngestStatus
+from shared.models.console_job import ConsoleJobRow
+from shared.models.enums import ConsoleJobKind, IngestStatus
 from shared.models.ingest_job import (
     IngestJob,
-    IngestJobConsoleRow,
     IngestJobStatusRow,
     NewIngestJob,
 )
+from shared.repositories.project_info_jobs import OPEN_STATUSES
 
 
 class IngestJobRepository:
@@ -206,30 +208,57 @@ class IngestJobRepository:
         *,
         statuses: Sequence[IngestStatus] | None = None,
         project_uuid: UUID | None = None,
-    ) -> list[IngestJobConsoleRow]:
+        recent_minutes: int | None = None,
+    ) -> list[ConsoleJobRow]:
         """Jobs for the ops console, newest first, joined to each job's document file
-        name and project name, optionally filtered to a set of statuses and/or a
-        project."""
+        name, project name and latest activity line, optionally filtered to a set of
+        statuses and/or a project. With `recent_minutes`, only open jobs and jobs
+        updated within that window are returned."""
+        latest = (
+            select(
+                ingestion_activity_log.c.phase.label("latest_phase"),
+                ingestion_activity_log.c.message.label("latest_message"),
+                ingestion_activity_log.c.ts.label("latest_ts"),
+            )
+            .where(ingestion_activity_log.c.job_uuid == ingest_jobs.c.job_uuid)
+            .order_by(ingestion_activity_log.c.id.desc())
+            .limit(1)
+            .lateral("latest_activity")
+        )
         stmt = select(
             ingest_jobs.c.job_uuid,
+            documents.c.project_uuid,
+            projects.c.project_name,
             ingest_jobs.c.document_uuid,
             documents.c.file_name,
-            projects.c.project_name,
             ingest_jobs.c.status,
             ingest_jobs.c.attempts,
             ingest_jobs.c.locked_by,
             ingest_jobs.c.locked_at,
             ingest_jobs.c.created_at,
             ingest_jobs.c.updated_at,
+            latest.c.latest_phase,
+            latest.c.latest_message,
+            latest.c.latest_ts,
         ).select_from(
             ingest_jobs.join(
                 documents, ingest_jobs.c.document_uuid == documents.c.document_uuid
-            ).join(projects, documents.c.project_uuid == projects.c.project_uuid)
+            )
+            .join(projects, documents.c.project_uuid == projects.c.project_uuid)
+            .outerjoin(latest, true())
         )
         if statuses:
             stmt = stmt.where(ingest_jobs.c.status.in_(statuses))
         if project_uuid is not None:
             stmt = stmt.where(documents.c.project_uuid == project_uuid)
+        if recent_minutes is not None:
+            cutoff = func.now() - func.make_interval(0, 0, 0, 0, 0, recent_minutes)
+            stmt = stmt.where(
+                or_(
+                    ingest_jobs.c.status.in_(OPEN_STATUSES),
+                    ingest_jobs.c.updated_at >= cutoff,
+                )
+            )
         stmt = stmt.order_by(ingest_jobs.c.created_at.desc())
         rows = (await self.conn.execute(stmt)).mappings().all()
-        return [IngestJobConsoleRow.model_validate(dict(r)) for r in rows]
+        return [ConsoleJobRow(kind=ConsoleJobKind.INGEST, **dict(r)) for r in rows]

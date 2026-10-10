@@ -12,7 +12,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from shared.models.enums import PromptType
-from shared.models.ingest_schema import IngestJobConsoleRead
+from shared.models.ingest_schema import ConsoleJobRead
 from shared.models.openrouter_usage_schema import OpenRouterUsageRead
 from shared.models.prompt_execution_log_schema import PromptExecutionLogSummary
 from shared.tools._base import ToolContext, ToolDefinition
@@ -65,7 +65,7 @@ async def _view_ingest_console(_args: _NoArgs, ctx: ToolContext) -> dict[str, ob
     rows = await ctx.uow.ingest_jobs.list_for_console()
     return {
         "jobs": [
-            IngestJobConsoleRead.model_validate(r).model_dump(mode="json")
+            ConsoleJobRead.model_validate(r).model_dump(mode="json")
             for r in rows[:_LOG_TOOL_LIMIT]
         ]
     }

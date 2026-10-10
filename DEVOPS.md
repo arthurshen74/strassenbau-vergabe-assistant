@@ -95,7 +95,7 @@ Copy `.env.example` to `.env` to start.
 | `ACTIVITY_FLUSH_SECONDS` | `1.0` (activity buffer flush = lease heartbeat; keep well below the lease) |
 | `ACTIVITY_THUMBNAIL_EVERY` / `ACTIVITY_EMBED_EVERY` / `ACTIVITY_LV_ITEM_EVERY` | `10` / `10` / `1` (progress-line granularity) |
 | `ACTIVITY_RETENTION_HOURS` | `24` (hot activity log before archive) |
-| `INGEST_STATUS_POLL_INTERVAL_SECONDS` | `1.5` (SSE status stream poll) |
+| `INGEST_STATUS_POLL_INTERVAL_SECONDS` | `1.5` (poll of the SSE status, activity and console list streams) |
 
 Connection URLs (domain/auth/test database, Elasticsearch, S3 endpoint) are derived properties —
 never set them directly.
@@ -116,6 +116,7 @@ Three idempotent bootstrap scripts run on api start (or manually via
    `prompt_type` CHECKs for the `project_info_resolve` prompt. A new prompt type always needs such
    a widening file before its prompt can be seeded; likewise a new RAG query key
    (`22_rag_query_vergabestelle.sql` widens the `rag_query_versions.query_key` CHECK).
+   `23_project_info_activity_log.sql` (run after 22) adds the Projektinfo jobs' activity log.
 3. `bootstrap_storage` — creates the MinIO bucket (retries up to 60 s while MinIO starts).
 
 Elasticsearch indexes are not bootstrapped — the search client ensures them at runtime.
@@ -162,8 +163,9 @@ embedding-heavy. The Postgres embedding cache absorbs re-ingestion of identical 
   latency, and success flag.
 - **OpenRouter usage** (UI, `/usagelog`) — per-call cost in USD-denominated credits, attributable
   to project/conversation/ingest job.
-- **Ingest console** (UI, `/ingestlog`) — live per-job activity stream over SSE, job statuses, and
-  one-click requeue of stuck or failed jobs (safe: ingestion is idempotent).
+- **Ingest console** (UI, `/ingestlog`) — ingest and Projektinfo jobs, live without refresh: each
+  job's current step inline, a per-job activity terminal over SSE, and one-click requeue of stuck
+  or failed jobs (safe: ingestion is idempotent). Opens by itself after an upload.
 - **Eval runs** (UI, per-project eval workspace) — queue state, live progress events, per-item
   results.
 - **Container logs** — `docker compose logs -f api worker`; the backend logs one line per failure

@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/16/solid';
 import type { ProjectFromZipResult, ProjectRead } from '../../types/generated';
 import { useProjects } from '../../api/projects';
+import { useMainWindowStore } from '../../store/mainWindow';
 import { useStartProjectChat } from './useStartProjectChat';
 import { Heading } from '../../components/ui/heading';
 import { Text } from '../../components/ui/text';
@@ -20,14 +21,10 @@ import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
 import { CreateProjectForm } from './CreateProjectForm';
 import { CreateProjectFromZipDialog } from './CreateProjectFromZipDialog';
+import type { IngestConsoleData } from './IngestConsoleView';
 import { ProjectDetails } from './ProjectDetails';
 
-// `skipped` carries the ZIP entries a ZIP-first create did not ingest, shown once on the
-// project page.
-type View =
-  | { mode: 'list' }
-  | { mode: 'create' }
-  | { mode: 'detail'; id: string; skipped?: string[] };
+type View = { mode: 'list' } | { mode: 'create' } | { mode: 'detail'; id: string };
 
 function normalize(data: unknown): ProjectRead[] | null {
   if (data == null) return null;
@@ -41,6 +38,7 @@ function normalize(data: unknown): ProjectRead[] | null {
 
 export function ProjectsView({ data }: { data?: unknown }) {
   const [view, setView] = useState<View>({ mode: 'list' });
+  const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
 
   if (view.mode === 'create') {
     return (
@@ -52,12 +50,7 @@ export function ProjectsView({ data }: { data?: unknown }) {
   }
   if (view.mode === 'detail') {
     return (
-      <ProjectDetails
-        projectUuid={view.id}
-        onBack={() => setView({ mode: 'list' })}
-        skipped={view.skipped}
-        onDismissSkipped={() => setView({ mode: 'detail', id: view.id })}
-      />
+      <ProjectDetails projectUuid={view.id} onBack={() => setView({ mode: 'list' })} />
     );
   }
   return (
@@ -65,13 +58,13 @@ export function ProjectsView({ data }: { data?: unknown }) {
       data={data}
       onOpen={(id) => setView({ mode: 'detail', id })}
       onNew={() => setView({ mode: 'create' })}
-      onCreatedFromZip={(result) =>
-        setView({
-          mode: 'detail',
-          id: result.project.project_uuid,
+      onCreatedFromZip={(result) => {
+        const consoleData: IngestConsoleData = {
+          projectUuid: result.project.project_uuid,
           skipped: result.skipped,
-        })
-      }
+        };
+        openMainWindow({ kind: 'ingest_console', data: consoleData });
+      }}
     />
   );
 }

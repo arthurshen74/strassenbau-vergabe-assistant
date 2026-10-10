@@ -1,19 +1,26 @@
-// Live terminal for one ingest job: streams its granular activity as a scrolling log.
+// Live terminal for one ingest or Projektinfo job: streams its granular activity as a
+// scrolling log.
 
 import { useLayoutEffect, useRef } from 'react';
 
-import { useIngestJobActivity } from '../../api/ingestJobs';
+import {
+  KIND_PROJECT_INFO,
+  useIngestJobActivity,
+  type ConsoleJobKind,
+} from '../../api/ingestJobs';
 import { Dialog, DialogBody, DialogTitle } from '../../components/ui/dialog';
 import { formatTimestamp } from '../../lib/format';
 
 export function IngestActivityTerminal({
+  kind,
   jobUuid,
   onClose,
 }: {
+  kind: ConsoleJobKind | null;
   jobUuid: string | null;
   onClose: () => void;
 }) {
-  const lines = useIngestJobActivity(jobUuid ?? undefined);
+  const lines = useIngestJobActivity(kind ?? undefined, jobUuid ?? undefined);
   const endRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -22,7 +29,9 @@ export function IngestActivityTerminal({
 
   return (
     <Dialog open={jobUuid !== null} onClose={onClose} size="3xl">
-      <DialogTitle>Ingestion activity</DialogTitle>
+      <DialogTitle>
+        {kind === KIND_PROJECT_INFO ? 'Projektinfo activity' : 'Ingestion activity'}
+      </DialogTitle>
       <DialogBody>
         <div className="max-h-[60vh] overflow-y-auto rounded bg-zinc-950 p-3 font-mono text-xs text-zinc-100">
           {lines.length === 0 ? (

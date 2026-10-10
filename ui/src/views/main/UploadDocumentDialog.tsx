@@ -2,9 +2,11 @@
 // project. The document type is auto-assigned from each filename: each GAEB file becomes a
 // new LV document next to any existing ones, everything else (including LV-print PDFs) is
 // prose. ZIP entries are auto-typed the same way server-side, by each entry's own filename.
+// A successful upload opens the ingest console filtered to the project.
 
 import { useState } from 'react';
 import { useUploadDocuments } from '../../api/projects';
+import { useMainWindowStore } from '../../store/mainWindow';
 import { DOCUMENT_TYPE_LV, classifyDocumentType } from '../../lib/documentType';
 import {
   Dialog,
@@ -15,6 +17,7 @@ import {
 import { Description, Field, Label } from '../../components/ui/fieldset';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import type { IngestConsoleData } from './IngestConsoleView';
 
 export function UploadDocumentDialog({
   projectUuid,
@@ -26,6 +29,7 @@ export function UploadDocumentDialog({
   onClose: () => void;
 }) {
   const upload = useUploadDocuments(projectUuid);
+  const openMainWindow = useMainWindowStore((s) => s.openMainWindow);
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +45,8 @@ export function UploadDocumentDialog({
     try {
       await upload.mutateAsync(files);
       close();
+      const data: IngestConsoleData = { projectUuid };
+      openMainWindow({ kind: 'ingest_console', data });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }

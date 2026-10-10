@@ -17,6 +17,7 @@ extraction, chunking, and GAEB submodules are pure."""
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
@@ -112,18 +113,30 @@ class IngestionService:
             )
 
         if is_gaeb_lv_file(document.file_name):
+            self._activity(f"start: {document.file_name} (GAEB)", IngestPhase.INGEST)
             return await self._ingest_gaeb_document(document, job_uuid)
+        self._activity(
+            f"start: {document.file_name} (PDF, {document.number_of_pages} pages)",
+            IngestPhase.INGEST,
+        )
 
         # Track the active phase so a failure event names where it broke; surfaced to
         # the UI.
         phase = IngestPhase.INGEST
         try:
-            pdf_bytes = await asyncio.to_thread(
-                self._storage.get_object, raw_object_key(document_uuid)
-            )
+            pdf_bytes = await self._download(document_uuid)
 
             phase = IngestPhase.THUMBNAILS
+            started = time.monotonic()
+            self._activity(
+                f"rendering {document.number_of_pages} pages", IngestPhase.THUMBNAILS
+            )
             thumbnails = await self._generate_thumbnails(document_uuid, pdf_bytes)
+            self._activity(
+                f"stored {thumbnails} thumbnails, thumbnails done in "
+                f"{time.monotonic() - started:.1f} s",
+                IngestPhase.THUMBNAILS,
+            )
             await self._emit(
                 job_uuid,
                 event=IngestEvent.THUMBNAILS_GENERATED,
@@ -132,12 +145,18 @@ class IngestionService:
             )
 
             phase = IngestPhase.LANGCHAIN
+            started = time.monotonic()
             self._activity("running langchain pipeline", IngestPhase.LANGCHAIN)
             langchain_chunks = await self._langchain.ingest(
                 document_uuid,
                 document.project_uuid,
                 pdf_bytes,
                 ingest_job_uuid=job_uuid,
+                activity=lambda message: self._activity(message, IngestPhase.LANGCHAIN),
+            )
+            self._activity(
+                f"langchain done in {time.monotonic() - started:.1f} s",
+                IngestPhase.LANGCHAIN,
             )
             await self._emit(
                 job_uuid,
@@ -147,7 +166,14 @@ class IngestionService:
             )
 
             phase = IngestPhase.EXTRACT
+            started = time.monotonic()
             new_lines = extract_source_lines(pdf_bytes, document_uuid)
+            self._activity(
+                f"extracted {len(new_lines)} source lines from "
+                f"{document.number_of_pages} pages in "
+                f"{time.monotonic() - started:.1f} s",
+                IngestPhase.EXTRACT,
+            )
             async with self._uow_factory() as uow:
                 source_lines = await uow.source_lines.add_many(new_lines)
                 await self._emit_in_uow(
@@ -159,11 +185,13 @@ class IngestionService:
                 )
 
             phase = IngestPhase.CHUNK
+            started = time.monotonic()
             doc_drafts = chunk_document(
                 source_lines,
                 project_uuid=document.project_uuid,
                 document_uuid=document_uuid,
             )
+            self._activity(f"{len(doc_drafts)} chunks drafted", IngestPhase.CHUNK)
             document_chunks = await self._embed_and_index(
                 doc_drafts,
                 document_uuid,
@@ -172,6 +200,9 @@ class IngestionService:
                 job_uuid,
                 document_uuid,
             )
+            self._activity(
+                f"chunks done in {time.monotonic() - started:.1f} s", IngestPhase.CHUNK
+            )
             await self._emit(
                 job_uuid,
                 event=IngestEvent.DOCUMENT_CHUNKS_INDEXED,
@@ -179,6 +210,7 @@ class IngestionService:
                 message=f"{document_chunks} document chunks",
             )
         except Exception as exc:
+            self._activity_failure(exc, phase)
             await self._emit(
                 job_uuid,
                 event=IngestEvent.FAILED,
@@ -210,11 +242,14 @@ class IngestionService:
         persist/index them. There are no pages, so thumbnails, source lines, and
         DOCUMENT chunks are skipped entirely."""
         try:
-            raw_bytes = await asyncio.to_thread(
-                self._storage.get_object, raw_object_key(document.document_uuid)
-            )
+            raw_bytes = await self._download(document.document_uuid)
             self._activity("parsing GAEB LV", IngestPhase.LV)
             result = parse_gaeb_lv(document.file_name, raw_bytes)
+            self._activity(
+                f"parsed {len(result.items)} items, {len(result.add_texts)} texts, "
+                f"{len(result.remarks)} remarks",
+                IngestPhase.LV,
+            )
             lv_items, lv_texts, lv_chunks = await self._persist_lv_result(
                 document, result, job_uuid
             )
@@ -225,6 +260,7 @@ class IngestionService:
                 message=f"{lv_items} LV items, {lv_texts} LV texts, {lv_chunks} chunks",
             )
         except Exception as exc:
+            self._activity_failure(exc, IngestPhase.LV)
             await self._emit(
                 job_uuid,
                 event=IngestEvent.FAILED,
@@ -267,6 +303,10 @@ class IngestionService:
             texts, removed_texts = await uow.lv_texts.replace(
                 document.document_uuid, result.to_new_lv_texts(document.document_uuid)
             )
+        self._activity(
+            f"removed {len(removed)} stale positions, {len(removed_texts)} stale texts",
+            IngestPhase.LV,
+        )
 
         # Archive the Elasticsearch chunks of the removed positions and texts; the
         # surviving items' prior chunks are archived per item below before re-indexing
@@ -377,8 +417,30 @@ class IngestionService:
             if index % settings.activity_embed_every == 0:
                 self._activity(f"embedded {index}/{len(drafts)} chunks", activity_phase)
         await self._search.archive_source(source_doc_uuid, source_doc_type)
+        # LV items index one small batch each; only the document batch gets lines.
+        if source_doc_type is SourceDocType.DOCUMENT:
+            self._activity("archived previous chunks", activity_phase)
         await self._search.index_chunks(chunks)
+        if source_doc_type is SourceDocType.DOCUMENT:
+            self._activity(
+                f"indexed {len(chunks)} chunks into {settings.elasticsearch_index}",
+                activity_phase,
+            )
         return len(chunks)
+
+    async def _download(self, document_uuid: UUID) -> bytes:
+        """Read the raw upload from object storage."""
+        self._activity("downloading from storage", IngestPhase.INGEST)
+        started = time.monotonic()
+        data = await asyncio.to_thread(
+            self._storage.get_object, raw_object_key(document_uuid)
+        )
+        self._activity(
+            f"downloaded {len(data) / 1024:.0f} KB ({len(data)} bytes) in "
+            f"{time.monotonic() - started:.1f} s",
+            IngestPhase.INGEST,
+        )
+        return data
 
     async def _emit(
         self,
@@ -417,6 +479,10 @@ class IngestionService:
         await record_event(
             uow.ingest_job_events, job_uuid, event=event, phase=phase, message=message
         )
+
+    def _activity_failure(self, exc: Exception, phase: IngestPhase) -> None:
+        message = str(exc)[:FAILURE_MESSAGE_LIMIT]
+        self._activity(f"failed: {type(exc).__name__}: {message}", phase)
 
     def _activity(self, message: str, phase: IngestPhase) -> None:
         """Emit a granular activity line for the live console and the worker's lease

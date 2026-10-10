@@ -66,7 +66,7 @@ function MainWindowBody({ view }: { view: MainWindowView }) {
     case 'prompt_usage_log':
       return <UsageLogView />;
     case 'ingest_console':
-      return <IngestConsoleView />;
+      return <IngestConsoleView data={view.data} />;
     case 'katalog':
       return <KatalogView />;
     case 'entity_rules':

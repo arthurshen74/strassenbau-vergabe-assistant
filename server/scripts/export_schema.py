@@ -23,16 +23,18 @@ from shared.models.document_schema import (
     DocumentRead,
 )
 from shared.models.ingest_schema import (
+    ConsoleJobRead,
+    ConsoleJobsSnapshot,
     IngestActivityLine,
     IngestCompleted,
     IngestError,
-    IngestJobConsoleRead,
     IngestJobEventRead,
     IngestJobRead,
     IngestProgress,
     IngestQueued,
     IngestStarted,
     IngestStatusRead,
+    ProjectInfoActivityLine,
 )
 from shared.models.eval_run import (
     EvalResult,
@@ -182,8 +184,10 @@ BODY_MODELS: list[type[BaseModel]] = [
     IngestJobRead,
     IngestStatusRead,
     IngestJobEventRead,
-    IngestJobConsoleRead,
+    ConsoleJobRead,
+    ConsoleJobsSnapshot,
     IngestActivityLine,
+    ProjectInfoActivityLine,
     IngestionActivity,
     ChatMessage,
     PromptVersionRead,

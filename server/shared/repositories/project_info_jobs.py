@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import and_, exists, func, insert, or_, select, update
+from sqlalchemy import and_, exists, func, insert, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from shared.db.tables.documents import documents
 from shared.db.tables.ingest_jobs import ingest_jobs
+from shared.db.tables.project_info_activity_log import project_info_activity_log
 from shared.db.tables.project_info_jobs import project_info_jobs
-from shared.models.enums import IngestStatus, ProjectInfoQuery
+from shared.db.tables.projects import projects
+from shared.models.console_job import ConsoleJobRow
+from shared.models.enums import ConsoleJobKind, IngestStatus, ProjectInfoQuery
 from shared.models.project_info_job import (
     NewProjectInfoJob,
     ProjectInfoJob,
@@ -171,3 +175,77 @@ class ProjectInfoJobRepository:
         )
         row = (await self.conn.execute(stmt)).mappings().first()
         return ProjectInfoJob.model_validate(dict(row)) if row else None
+
+    async def requeue(self, job_uuid: UUID) -> ProjectInfoJob | None:
+        """Reset a job in place to QUEUED, clearing its lease, retry count and error, so
+        the worker reruns it. Returns the row, or None if not found."""
+        stmt = (
+            update(project_info_jobs)
+            .where(project_info_jobs.c.job_uuid == job_uuid)
+            .values(
+                status=IngestStatus.QUEUED,
+                locked_at=None,
+                locked_by=None,
+                attempts=0,
+                error=None,
+            )
+            .returning(project_info_jobs)
+        )
+        row = (await self.conn.execute(stmt)).mappings().first()
+        return ProjectInfoJob.model_validate(dict(row)) if row else None
+
+    async def list_for_console(
+        self,
+        *,
+        statuses: Sequence[IngestStatus] | None = None,
+        project_uuid: UUID | None = None,
+        recent_minutes: int | None = None,
+    ) -> list[ConsoleJobRow]:
+        """Jobs for the ops console, newest first, joined to the project name and each
+        job's latest activity line; filters as IngestJobRepository.list_for_console."""
+        latest = (
+            select(
+                project_info_activity_log.c.phase.label("latest_phase"),
+                project_info_activity_log.c.message.label("latest_message"),
+                project_info_activity_log.c.ts.label("latest_ts"),
+            )
+            .where(project_info_activity_log.c.job_uuid == project_info_jobs.c.job_uuid)
+            .order_by(project_info_activity_log.c.id.desc())
+            .limit(1)
+            .lateral("latest_activity")
+        )
+        stmt = select(
+            project_info_jobs.c.job_uuid,
+            project_info_jobs.c.project_uuid,
+            projects.c.project_name,
+            project_info_jobs.c.status,
+            project_info_jobs.c.attempts,
+            project_info_jobs.c.locked_by,
+            project_info_jobs.c.locked_at,
+            project_info_jobs.c.created_at,
+            project_info_jobs.c.updated_at,
+            latest.c.latest_phase,
+            latest.c.latest_message,
+            latest.c.latest_ts,
+        ).select_from(
+            project_info_jobs.join(
+                projects, project_info_jobs.c.project_uuid == projects.c.project_uuid
+            ).outerjoin(latest, true())
+        )
+        if statuses:
+            stmt = stmt.where(project_info_jobs.c.status.in_(statuses))
+        if project_uuid is not None:
+            stmt = stmt.where(project_info_jobs.c.project_uuid == project_uuid)
+        if recent_minutes is not None:
+            cutoff = func.now() - func.make_interval(0, 0, 0, 0, 0, recent_minutes)
+            stmt = stmt.where(
+                or_(
+                    project_info_jobs.c.status.in_(OPEN_STATUSES),
+                    project_info_jobs.c.updated_at >= cutoff,
+                )
+            )
+        stmt = stmt.order_by(project_info_jobs.c.created_at.desc())
+        rows = (await self.conn.execute(stmt)).mappings().all()
+        return [
+            ConsoleJobRow(kind=ConsoleJobKind.PROJECT_INFO, **dict(r)) for r in rows
+        ]

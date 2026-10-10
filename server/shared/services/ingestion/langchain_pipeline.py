@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import asyncio
 import tempfile
+import time
+from collections.abc import Callable
 from pathlib import Path
 from uuid import UUID
 
@@ -44,6 +46,13 @@ CHUNK_OVERLAP = 200
 # not leak.
 META_SOURCE = "source"
 
+# Sink for one activity line; the IngestionService stamps the phase.
+StageEmit = Callable[[str], None]
+
+
+def _no_emit(_message: str) -> None:
+    pass
+
 
 class LangchainIngestor:
     """Loads, splits, embeds, and indexes a PDF into the LangChain vector store."""
@@ -68,21 +77,38 @@ class LangchainIngestor:
         pdf_bytes: bytes,
         *,
         ingest_job_uuid: UUID | None = None,
+        activity: StageEmit = _no_emit,
     ) -> int:
         """Index the PDF's chunks and return the chunk count."""
+        started = time.monotonic()
         chunks = await asyncio.to_thread(
             self._load_and_split, document_uuid, project_uuid, pdf_bytes
+        )
+        activity(
+            f"load + split -> {len(chunks)} chunks in "
+            f"{time.monotonic() - started:.1f} s"
         )
         if not chunks:
             return 0
         await asyncio.to_thread(self._delete_prior_vectors, document_uuid)
+        activity("deleted prior vectors")
+        started = time.monotonic()
         vectors = await self._embeddings.embed(
             [chunk.page_content for chunk in chunks],
             project_uuid=project_uuid,
             ingest_job_uuid=ingest_job_uuid,
             document_uuid=document_uuid,
         )
-        return await asyncio.to_thread(self._add_vectors, chunks, vectors)
+        activity(
+            f"embedded {len(vectors)} chunks in {time.monotonic() - started:.1f} s"
+        )
+        started = time.monotonic()
+        added = await asyncio.to_thread(self._add_vectors, chunks, vectors)
+        activity(
+            f"indexed {added} chunks into {settings.langchain_index} in "
+            f"{time.monotonic() - started:.1f} s"
+        )
+        return added
 
     def _load_and_split(
         self, document_uuid: UUID, project_uuid: UUID, pdf_bytes: bytes

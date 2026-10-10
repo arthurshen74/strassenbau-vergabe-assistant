@@ -15,7 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from shared.models.enums import IngestStatus
+from shared.models.enums import ConsoleJobKind, IngestStatus
 
 
 class IngestJobRead(BaseModel):
@@ -47,22 +47,37 @@ class IngestStatusRead(BaseModel):
     counts: dict[str, int]
 
 
-class IngestJobConsoleRead(BaseModel):
-    """A console job row: document/project labels, status, and lease + retry
-    bookkeeping."""
+class ConsoleJobRead(BaseModel):
+    """An ingest-console row: an ingest or Projektinfo job (`kind`), its labels, lease +
+    retry bookkeeping, and its latest activity line. `document_uuid` and `file_name` are
+    null for Projektinfo rows."""
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
+    kind: ConsoleJobKind
     job_uuid: UUID
-    document_uuid: UUID
-    file_name: str
+    project_uuid: UUID
     project_name: str
+    document_uuid: UUID | None
+    file_name: str | None
     status: IngestStatus
     attempts: int
     locked_by: str | None
     locked_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    latest_phase: str | None
+    latest_message: str | None
+    latest_ts: datetime | None
+
+
+class ConsoleJobsSnapshot(BaseModel):
+    """The full console list, streamed whenever it changed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["console_jobs"]
+    jobs: list[ConsoleJobRead]
 
 
 class IngestQueued(BaseModel):
@@ -118,6 +133,21 @@ class IngestActivityLine(BaseModel):
     id: int
     job_uuid: UUID
     document_uuid: UUID
+    worker_id: str
+    phase: str | None
+    message: str
+    ts: datetime
+
+
+class ProjectInfoActivityLine(BaseModel):
+    """One Projektinfo activity line streamed to the live ingest console terminal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["project_info_activity"]
+    id: int
+    job_uuid: UUID
+    project_uuid: UUID
     worker_id: str
     phase: str | None
     message: str

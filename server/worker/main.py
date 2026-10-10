@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import signal
 import socket
 import sys
@@ -100,6 +101,7 @@ async def process_one(
             job_uuid=job.job_uuid,
             document_uuid=job.document_uuid,
         ) as activity:
+            started = time.monotonic()
             activity.emit(
                 f"claimed (attempt {job.attempts}) by {worker_id}",
                 IngestPhase.INGEST.value,
@@ -114,6 +116,14 @@ async def process_one(
             )
             result = await service.ingest_document(
                 job.document_uuid, job_uuid=job.job_uuid
+            )
+            activity.emit(
+                f"done in {time.monotonic() - started:.1f} s: "
+                f"{result.source_lines} source lines, {result.thumbnails} thumbnails, "
+                f"{result.langchain_chunks} langchain chunks, "
+                f"{result.document_chunks} document chunks, {result.lv_items} LV "
+                f"items, {result.lv_texts} LV texts, {result.lv_chunks} LV chunks",
+                IngestPhase.INGEST.value,
             )
         async with uow_factory() as uow:
             done = await uow.ingest_jobs.set_status(
