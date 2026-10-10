@@ -4,8 +4,12 @@
 // or a bare array) renders directly; absent, the list fetches via REST.
 
 import { useState } from 'react';
-import { ChatBubbleLeftRightIcon, PlusIcon } from '@heroicons/react/16/solid';
-import type { ProjectRead } from '../../types/generated';
+import {
+  ArchiveBoxArrowDownIcon,
+  ChatBubbleLeftRightIcon,
+  PlusIcon,
+} from '@heroicons/react/16/solid';
+import type { ProjectFromZipResult, ProjectRead } from '../../types/generated';
 import { useProjects } from '../../api/projects';
 import { useStartProjectChat } from './useStartProjectChat';
 import { Heading } from '../../components/ui/heading';
@@ -15,9 +19,15 @@ import { Button } from '../../components/ui/button';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { ErrorState } from '../../components/feedback/ErrorState';
 import { CreateProjectForm } from './CreateProjectForm';
+import { CreateProjectFromZipDialog } from './CreateProjectFromZipDialog';
 import { ProjectDetails } from './ProjectDetails';
 
-type View = { mode: 'list' } | { mode: 'create' } | { mode: 'detail'; id: string };
+// `skipped` carries the ZIP entries a ZIP-first create did not ingest, shown once on the
+// project page.
+type View =
+  | { mode: 'list' }
+  | { mode: 'create' }
+  | { mode: 'detail'; id: string; skipped?: string[] };
 
 function normalize(data: unknown): ProjectRead[] | null {
   if (data == null) return null;
@@ -41,13 +51,27 @@ export function ProjectsView({ data }: { data?: unknown }) {
     );
   }
   if (view.mode === 'detail') {
-    return <ProjectDetails projectUuid={view.id} onBack={() => setView({ mode: 'list' })} />;
+    return (
+      <ProjectDetails
+        projectUuid={view.id}
+        onBack={() => setView({ mode: 'list' })}
+        skipped={view.skipped}
+        onDismissSkipped={() => setView({ mode: 'detail', id: view.id })}
+      />
+    );
   }
   return (
     <ProjectListBody
       data={data}
       onOpen={(id) => setView({ mode: 'detail', id })}
       onNew={() => setView({ mode: 'create' })}
+      onCreatedFromZip={(result) =>
+        setView({
+          mode: 'detail',
+          id: result.project.project_uuid,
+          skipped: result.skipped,
+        })
+      }
     />
   );
 }
@@ -56,14 +80,17 @@ function ProjectListBody({
   data,
   onOpen,
   onNew,
+  onCreatedFromZip,
 }: {
   data?: unknown;
   onOpen: (id: string) => void;
   onNew: () => void;
+  onCreatedFromZip: (result: ProjectFromZipResult) => void;
 }) {
   const provided = normalize(data);
   const query = useProjects();
   const startProjectChat = useStartProjectChat();
+  const [zipOpen, setZipOpen] = useState(false);
 
   if (provided === null) {
     if (query.isPending) return <LoadingState label="Loading projects…" />;
@@ -79,11 +106,25 @@ function ProjectListBody({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <Heading level={4}>Projects ({projects.length})</Heading>
-        <Button onClick={onNew}>
-          <PlusIcon />
-          Ingest New Project
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={onNew}>
+            <PlusIcon />
+            Ingest New Project
+          </Button>
+          <Button outline onClick={() => setZipOpen(true)}>
+            <ArchiveBoxArrowDownIcon />
+            Ingest Project from ZIP
+          </Button>
+        </div>
       </div>
+      <CreateProjectFromZipDialog
+        open={zipOpen}
+        onClose={() => setZipOpen(false)}
+        onCreated={(result) => {
+          setZipOpen(false);
+          onCreatedFromZip(result);
+        }}
+      />
       {projects.length === 0 ? (
         <Text>No projects yet.</Text>
       ) : (

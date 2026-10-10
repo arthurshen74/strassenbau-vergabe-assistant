@@ -213,8 +213,17 @@ Then open:
 - **API docs (OpenAPI)** — <http://localhost:8000/docs> (`/health/db` for readiness)
 - **Phoenix traces** — <http://localhost:6006> · **MinIO console** — <http://localhost:9001>
 
-**First project:** create a project in the UI, upload the tender's GAEB file plus its PDFs, and
-watch ingestion in the ingest console. Then ask questions in Project Chat, open the LV table, and
+**First project:** there are two ways to create one under Projects.
+
+- **Ingest Project from ZIP** — upload the tender ZIP as downloaded from the Vergabeplattform. The
+  project is named after the ZIP, and every PDF and GAEB file (`.x83`, `.d83`) inside it, nested
+  ZIPs included, is queued for ingestion; each GAEB file becomes its own LV document. Files of
+  other types are listed on the project page as not ingested.
+- **Ingest New Project** — fill in the project form, then upload the tender's GAEB file plus its
+  PDFs (or a ZIP of them) with **Ingest New Document**.
+
+Either way, watch ingestion on the project's Documents tab or in the ingest console. Then ask
+questions in Project Chat, open the LV table, and
 click **Position Chat** on a position to walk the four gates to a costed EKT. You can find project tender documents at some of the following websites:
 
 - [E-Vergabe Online](https://www.evergabe-online.de/start.html?0)

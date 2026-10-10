@@ -198,6 +198,13 @@ minimum:
 - **TLS and proxying** — nothing terminates TLS; a reverse proxy in front of api and ui is
   expected. Mind SSE when configuring it: response buffering and compression must be off for the
   streaming endpoints.
+- **Upload size** — the API has no request-body size limit; the reverse proxy is expected to set
+  one (e.g. nginx `client_max_body_size`) large enough for tender ZIPs, which reach several hundred
+  MB. Uploads are read fully into API memory. Once a ZIP is received, its expansion is capped by
+  module constants in `server/shared/services/project_service.py`: `ZIP_MAX_DEPTH = 5` (nesting
+  levels), `ZIP_MAX_ENTRIES = 1000` (files across all levels) and `ZIP_MAX_TOTAL_BYTES = 2 GiB`
+  (uncompressed bytes across all levels, read from the ZIP headers before extraction). Exceeding a
+  cap returns 413 naming the cap; raise the constant there to accept larger tenders.
 - **Elasticsearch security** — xpack security and TLS are disabled for the single-node dev setup.
 - **Exposed ports** — Postgres, Elasticsearch, and MinIO publish their ports to the host; bind
   them to localhost or drop the mappings in production.

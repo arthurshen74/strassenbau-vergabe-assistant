@@ -1,4 +1,5 @@
-"""API schemas for the Project resource: Create / Read / Update.
+"""API schemas for the Project resource: Create / Read / Update, and the result of
+creating a project from a ZIP.
 
 These DTOs are the HTTP boundary contract and are exported to the UI via
 scripts/export_schema.py. They mirror the domain model in models/project.py but form a
@@ -11,6 +12,8 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from shared.models.document_schema import DocumentRead
 
 
 class ProjectCreate(BaseModel):
@@ -53,3 +56,14 @@ class ProjectUpdate(BaseModel):
     vergabestelle: str | None = None
     location: str | None = None
     project_description: str | None = None
+
+
+class ProjectFromZipResult(BaseModel):
+    """A project created from one ZIP: the project, its queued documents, and the ZIP
+    entry paths that were not ingested."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project: ProjectRead
+    documents: list[DocumentRead]
+    skipped: list[str]

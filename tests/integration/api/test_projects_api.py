@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import io
+import zipfile
 from collections.abc import AsyncIterator
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+import shared.services.project_service as project_service
 from api.deps import get_connection, get_storage, get_uow
 from api.main import app
 from shared.db.unit_of_work import UnitOfWork
+from shared.models.enums import DocumentType, IngestStatus
 from shared.models.project import NewProject
+from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.projects import ProjectRepository
 
 
@@ -92,3 +98,79 @@ async def test_patch_rejects_empty_name_and_unknown_field(
 async def test_patch_missing_project_is_404(client: AsyncClient) -> None:
     resp = await client.patch(f"/projects/{uuid4()}", json={"location": "x"})
     assert resp.status_code == 404
+
+
+class _RecordingStorage:
+    def __init__(self) -> None:
+        self.put: list[str] = []
+
+    def put_object(self, key: str, data: bytes, content_type: str) -> None:
+        self.put.append(key)
+
+
+def _zip(entries: dict[str, bytes]) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, data in entries.items():
+            zf.writestr(name, data)
+    return buf.getvalue()
+
+
+async def test_create_from_zip_ingests_nested_files(
+    client: AsyncClient, conn: AsyncConnection
+) -> None:
+    storage = _RecordingStorage()
+    app.dependency_overrides[get_storage] = lambda: storage
+    nested = _zip({"Los2.d83": b"d83", "notes.txt": b"n"})
+    data = _zip({"Plan.pdf": b"%PDF", "Los1.x83": b"<GAEB/>", "Los2.zip": nested})
+
+    resp = await client.post(
+        "/projects/from-zip",
+        files={"file": ("Ausschreibung B247.zip", data, "application/zip")},
+    )
+
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["project"]["project_name"] == "Ausschreibung B247"
+    types = {d["file_name"]: d["document_type"] for d in body["documents"]}
+    assert types == {
+        "Plan.pdf": DocumentType.PROSE_DOCUMENT,
+        "Los1.x83": DocumentType.LV_DOCUMENT,
+        "Los2.d83": DocumentType.LV_DOCUMENT,
+    }
+    assert body["skipped"] == ["Los2.zip/notes.txt"]
+    assert len(storage.put) == 3
+    jobs = IngestJobRepository(conn)
+    for doc in body["documents"]:
+        job = await jobs.latest_for_document(UUID(doc["document_uuid"]))
+        assert job is not None
+        assert job.status == IngestStatus.QUEUED
+
+
+async def test_create_from_zip_rejects_non_zip_name(client: AsyncClient) -> None:
+    resp = await client.post(
+        "/projects/from-zip",
+        files={"file": ("Leistungsbeschreibung.docx", b"x", "application/msword")},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_from_zip_rejects_corrupt_zip(client: AsyncClient) -> None:
+    app.dependency_overrides[get_storage] = _RecordingStorage
+    resp = await client.post(
+        "/projects/from-zip", files={"file": ("tender.zip", b"x", "application/zip")}
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_from_zip_over_cap_is_413(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(project_service, "ZIP_MAX_ENTRIES", 1)
+    app.dependency_overrides[get_storage] = _RecordingStorage
+    data = _zip({"a.pdf": b"x", "b.pdf": b"y"})
+    resp = await client.post(
+        "/projects/from-zip", files={"file": ("tender.zip", data, "application/zip")}
+    )
+    assert resp.status_code == 413
+    assert "ZIP_MAX_ENTRIES" in resp.json()["detail"]

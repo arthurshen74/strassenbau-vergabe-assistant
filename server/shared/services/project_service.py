@@ -1,9 +1,11 @@
 """Business logic for projects and their documents.
 
 Reads translate domain models to API DTOs. `ingest_documents` is the upload path: each
-uploaded file (or, for a `.zip`, each flattened entry) is stored to object storage under
-`raw/{document_uuid}`, recorded as a `Document`, and enqueued as a queued `IngestJob`
-for the worker to process later. Storage writes are offloaded to a thread because the
+uploaded file (or, for a `.zip`, each entry of the recursively expanded archive) is
+stored to object storage under `raw/{document_uuid}`, recorded as a `Document`, and
+enqueued as a queued `IngestJob` for the worker to process later. `create_from_zip` is
+the ZIP-first path: it creates a project named after the ZIP and ingests every PDF and
+GAEB file inside it the same way. Storage writes are offloaded to a thread because the
 StorageClient is synchronous boto3. The document type comes from the filename alone: a
 GAEB file (D83/X83) is an LV document by definition and is added next to any LV
 documents the project already has; everything else -- including the LV print-layout PDF
@@ -36,20 +38,41 @@ from shared.models.enums import DocumentType
 from shared.models.ingest_job import IngestJob, NewIngestJob
 from shared.models.lv_item import LVItem
 from shared.models.lv_text import LVText
-from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from shared.models.project import NewProject
+from shared.models.project_schema import (
+    ProjectCreate,
+    ProjectFromZipResult,
+    ProjectRead,
+    ProjectUpdate,
+)
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.lv_texts import LVTextRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
-from shared.services.ingestion.gaeb import is_gaeb_lv_file
+from shared.services.ingestion.gaeb import (
+    GAEB_D83_SUFFIX,
+    GAEB_X83_SUFFIX,
+    is_gaeb_lv_file,
+)
 
 logger = logging.getLogger(__name__)
 
 CONTENT_TYPE_PDF = "application/pdf"
 CONTENT_TYPE_DEFAULT = "application/octet-stream"
 ZIP_SUFFIX = ".zip"
+PDF_SUFFIX = ".pdf"
+INGESTIBLE_SUFFIXES = frozenset({PDF_SUFFIX, GAEB_D83_SUFFIX, GAEB_X83_SUFFIX})
+DEFAULT_PROJECT_NAME = "Projekt"
+
+# Caps on one recursive ZIP expansion; raise them here for larger tenders.
+ZIP_MAX_DEPTH = 5
+ZIP_MAX_ENTRIES = 1000
+ZIP_MAX_TOTAL_BYTES = 2 * 1024**3
+
+MACOS_JUNK_DIR = "__MACOSX"
+COLLISION_SEPARATOR = "__"
 
 
 @dataclass(frozen=True)
@@ -59,6 +82,18 @@ class UploadInput:
     file_name: str
     content_type: str
     data: bytes
+
+
+@dataclass(frozen=True)
+class ZipExpansion:
+    """The ingestible files of a ZIP and the entry paths that were left out."""
+
+    uploads: list[UploadInput]
+    skipped: list[str]
+
+
+class ZipTooLargeError(Exception):
+    """A ZIP expansion exceeded one of the ZIP_MAX_* caps."""
 
 
 class ProjectService:
@@ -90,8 +125,6 @@ class ProjectService:
         return ProjectRead.model_validate(found) if found else None
 
     async def create(self, payload: ProjectCreate) -> ProjectRead:
-        from shared.models.project import NewProject
-
         created = await self.projects.add(NewProject(**payload.model_dump()))
         return ProjectRead.model_validate(created)
 
@@ -233,35 +266,51 @@ class ProjectService:
         project_uuid: UUID,
         uploads: list[UploadInput],
     ) -> list[DocumentRead]:
-        """Store each file (zip entries flattened) and create Document + queued
+        """Store each file (zips expanded recursively) and create Document + queued
         IngestJob rows."""
         assert self.storage is not None, "ingest requires a storage client"
         created: list[DocumentRead] = []
         for upload in uploads:
             if upload.file_name.lower().endswith(ZIP_SUFFIX):
-                for entry in _expand_zip(upload.data):
-                    created.append(
-                        await self._ingest_one(
-                            project_uuid,
-                            entry,
-                            _classify_document_type(entry.file_name),
-                        )
-                    )
+                for entry in expand_zip(upload.data).uploads:
+                    created.append(await self._ingest_one(project_uuid, entry))
             else:
-                created.append(
-                    await self._ingest_one(
-                        project_uuid, upload, _classify_document_type(upload.file_name)
-                    )
-                )
+                created.append(await self._ingest_one(project_uuid, upload))
         return created
 
+    async def create_from_zip(
+        self, file_name: str, data: bytes
+    ) -> ProjectFromZipResult:
+        """Create a project named after the ZIP and ingest every PDF and GAEB file in
+        it. The ZIP is expanded before the project is inserted so an oversized or
+        corrupt archive creates nothing."""
+        assert self.storage is not None, "ingest requires a storage client"
+        expansion = expand_zip(data, allowed_suffixes=INGESTIBLE_SUFFIXES)
+        project = await self.projects.add(
+            NewProject(project_name=_project_name_from_zip(file_name))
+        )
+        documents = [
+            await self._ingest_one(project.project_uuid, upload)
+            for upload in expansion.uploads
+        ]
+        await self._after_zip_ingest(project.project_uuid)
+        return ProjectFromZipResult(
+            project=ProjectRead.model_validate(project),
+            documents=documents,
+            skipped=expansion.skipped,
+        )
+
+    async def _after_zip_ingest(self, project_uuid: UUID) -> None:
+        """Runs after a ZIP-created project's documents are enqueued. Task 05 enqueues
+        the project-info job here; until then it does nothing."""
+
     async def _ingest_one(
-        self, project_uuid: UUID, upload: UploadInput, document_type: DocumentType
+        self, project_uuid: UUID, upload: UploadInput
     ) -> DocumentRead:
         doc = await self.documents.add(
             NewDocument(
                 project_uuid=project_uuid,
-                document_type=document_type,
+                document_type=_classify_document_type(upload.file_name),
                 file_name=upload.file_name,
                 number_of_pages=_count_pdf_pages(upload),
             )
@@ -286,18 +335,125 @@ def _classify_document_type(file_name: str) -> DocumentType:
     return DocumentType.PROSE_DOCUMENT
 
 
-def _expand_zip(data: bytes) -> list[UploadInput]:
-    """Flatten a zip to its files: directory structure and macOS junk are dropped."""
+def _project_name_from_zip(file_name: str) -> str:
+    """The ZIP's file name without directory and `.zip` suffix (any case)."""
+    name = PurePosixPath(file_name).name
+    if name.lower().endswith(ZIP_SUFFIX):
+        name = name[: -len(ZIP_SUFFIX)]
+    return name.strip() or DEFAULT_PROJECT_NAME
+
+
+def expand_zip(
+    data: bytes, *, allowed_suffixes: frozenset[str] | None = None
+) -> ZipExpansion:
+    """Flatten a zip, and every zip nested in it, to its files.
+
+    Directory structure, dotfiles and macOS junk are dropped silently. With
+    `allowed_suffixes`, files with any other suffix go to `skipped`; a corrupt nested
+    zip always does. Skipped entries are named by their path, nested levels joined with
+    `/`. Raises ZipTooLargeError past a ZIP_MAX_* cap and zipfile.BadZipFile if `data`
+    itself is not a zip."""
+    walk = _ZipWalk(allowed_suffixes)
+    walk.expand(data, prefix="", outer_stem="", depth=1)
+    return ZipExpansion(uploads=_dedupe_names(walk.found), skipped=walk.skipped)
+
+
+@dataclass(frozen=True)
+class _ZipEntry:
+    parent: str
+    upload: UploadInput
+
+
+class _ZipWalk:
+    """Depth-first expansion state shared across nesting levels: caps and results."""
+
+    def __init__(self, allowed_suffixes: frozenset[str] | None) -> None:
+        self.allowed_suffixes = allowed_suffixes
+        self.entries = 0
+        self.total_bytes = 0
+        self.found: list[_ZipEntry] = []
+        self.skipped: list[str] = []
+
+    def expand(self, data: bytes, *, prefix: str, outer_stem: str, depth: int) -> None:
+        if depth > ZIP_MAX_DEPTH:
+            raise ZipTooLargeError(f"zip nesting exceeds ZIP_MAX_DEPTH={ZIP_MAX_DEPTH}")
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                self._count(info)
+                # Zips made on Windows use backslash separators.
+                path = PurePosixPath(info.filename.replace("\\", "/"))
+                name = path.name
+                if not name or name.startswith(".") or MACOS_JUNK_DIR in path.parts:
+                    continue
+                logical_path = f"{prefix}{path}"
+                suffix = path.suffix.lower()
+                if suffix == ZIP_SUFFIX:
+                    self._expand_nested(zf, info, logical_path, path.stem, depth)
+                    continue
+                if (
+                    self.allowed_suffixes is not None
+                    and suffix not in self.allowed_suffixes
+                ):
+                    self.skipped.append(logical_path)
+                    continue
+                content_type = mimetypes.guess_type(name)[0] or CONTENT_TYPE_DEFAULT
+                upload = UploadInput(name, content_type, zf.read(info))
+                self.found.append(_ZipEntry(path.parent.name or outer_stem, upload))
+
+    def _expand_nested(
+        self,
+        zf: zipfile.ZipFile,
+        info: zipfile.ZipInfo,
+        logical_path: str,
+        stem: str,
+        depth: int,
+    ) -> None:
+        try:
+            self.expand(
+                zf.read(info),
+                prefix=f"{logical_path}/",
+                outer_stem=stem,
+                depth=depth + 1,
+            )
+        except zipfile.BadZipFile:
+            logger.warning("skipping corrupt nested zip %s", logical_path)
+            self.skipped.append(logical_path)
+
+    def _count(self, info: zipfile.ZipInfo) -> None:
+        """Charge one entry against the caps before it is read."""
+        self.entries += 1
+        if self.entries > ZIP_MAX_ENTRIES:
+            raise ZipTooLargeError(
+                f"zip has more than ZIP_MAX_ENTRIES={ZIP_MAX_ENTRIES} files"
+            )
+        self.total_bytes += info.file_size
+        if self.total_bytes > ZIP_MAX_TOTAL_BYTES:
+            raise ZipTooLargeError(
+                f"zip unpacks to more than ZIP_MAX_TOTAL_BYTES={ZIP_MAX_TOTAL_BYTES} "
+                "bytes"
+            )
+
+
+def _dedupe_names(entries: list[_ZipEntry]) -> list[UploadInput]:
+    """Keep each basename once; a repeat is prefixed with its parent directory name
+    (`Los2__LV.pdf`), then numbered before the suffix (`Los2__LV-2.pdf`) if it still
+    collides, so the suffix that classifies the file is kept."""
+    used: set[str] = set()
     out: list[UploadInput] = []
-    with zipfile.ZipFile(io.BytesIO(data)) as zf:
-        for info in zf.infolist():
-            if info.is_dir():
-                continue
-            name = PurePosixPath(info.filename).name
-            if not name or name.startswith(".") or "__MACOSX" in info.filename:
-                continue
-            content_type = mimetypes.guess_type(name)[0] or CONTENT_TYPE_DEFAULT
-            out.append(UploadInput(name, content_type, zf.read(info)))
+    for entry in entries:
+        name = entry.upload.file_name
+        if name in used and entry.parent:
+            name = f"{entry.parent}{COLLISION_SEPARATOR}{name}"
+        if name in used:
+            path = PurePosixPath(name)
+            n = 2
+            while f"{path.stem}-{n}{path.suffix}" in used:
+                n += 1
+            name = f"{path.stem}-{n}{path.suffix}"
+        used.add(name)
+        out.append(UploadInput(name, entry.upload.content_type, entry.upload.data))
     return out
 
 
@@ -305,7 +461,7 @@ def _count_pdf_pages(upload: UploadInput) -> int:
     """Page count for PDFs (0 for anything else or on a parse error)."""
     if (
         upload.content_type != CONTENT_TYPE_PDF
-        and not upload.file_name.lower().endswith(".pdf")
+        and not upload.file_name.lower().endswith(PDF_SUFFIX)
     ):
         return 0
     try:

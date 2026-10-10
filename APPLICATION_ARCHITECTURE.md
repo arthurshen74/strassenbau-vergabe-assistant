@@ -118,7 +118,7 @@ All logic sits behind these route groups (SSE = streaming endpoint):
 | Group                                                          | Endpoints                                                                                                                                                                                                       |
 | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/health`                                                      | Liveness and DB connectivity checks.                                                                                                                                                                            |
-| `/projects`                                                    | Project/document CRUD, LV positions and texts (project-wide and per LV document) and hybrid LV search, document upload, (re-)ingest queueing, **SSE** per-project ingest status stream, thumbnail/map proxies from storage, document detail/chunks/activity. |
+| `/projects`                                                    | Project/document CRUD, LV positions and texts (project-wide and per LV document) and hybrid LV search, document upload, ZIP-first project creation (`POST /projects/from-zip`), (re-)ingest queueing, **SSE** per-project ingest status stream, thumbnail/map proxies from storage, document detail/chunks/activity. |
 | `/projects/.../context`                                        | Project-context globals: read, per-variable history, HITL override, clear, RAG resolve, geocode, static and route map PNGs.                                                                                     |
 | `/conversations`                                               | Conversation CRUD, message history, per-conversation cost, auto-naming, and the central **SSE** `/turn` endpoint that streams a chat turn (project chat, position chat, Katalog chat, calculator resume).       |
 | `/dispatch`                                                    | **SSE** single-shot, stateless command-bar routing.                                                                                                                                                             |
@@ -130,6 +130,18 @@ All logic sits behind these route groups (SSE = streaming endpoint):
 | `/prompts`, `/prompt-execution-logs`, `/usage`                 | Prompt Library (append-only versions), full LLM call log, OpenRouter cost log.                                                                                                                                  |
 | `/nlp`                                                         | NLP analysis modal: reflowed document text (typed blocks + classified lines), sentence/POS/entity analysis with a block-type include list (by `document_uuid` or ad-hoc `text`), full-text ent render, displacy renders (see AI_ARCHITECTURE.md "Document Reflow and NLP Analysis").  |
 | `/entity-rules`, `/ner-flags`                                  | Domain NER: EntityRuler rule CRUD (spaCy-validated); NER error flags — create-with-synchronous-LLM-analysis, list/filter, category summary, resolve/override, re-analyze, delete (see AI_ARCHITECTURE.md "NER Error Investigation").  |
+
+Documents enter through two entry points in `ProjectService`, both ending in the same per-file
+step (store the blob under `raw/{document_uuid}`, insert the `documents` row typed by filename,
+insert a queued `ingest_jobs` row) inside one Unit of Work:
+
+- `POST /projects/{uuid}/documents` — files into an existing project; a `.zip` upload is expanded
+  recursively and every non-junk entry is ingested.
+- `POST /projects/from-zip` — one tender ZIP creates a project named after the ZIP stem; the ZIP is
+  expanded recursively (nested ZIPs included, capped by `ZIP_MAX_*`, see DEVOPS.md), only
+  `.pdf`/`.x83`/`.d83` entries are ingested and the rest come back as `skipped`. Each GAEB file
+  becomes its own LV document. The ZIP is expanded before the project row is inserted, so a corrupt
+  or oversized archive creates nothing.
 
 FastAPI serves the generated OpenAPI documentation at `/docs`. CORS is restricted to the Vite dev
 origin. Authentication is a development stub: `get_current_user()` returns a fixed administrator

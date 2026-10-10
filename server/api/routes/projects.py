@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import zipfile
 from collections.abc import AsyncIterator
 from typing import Literal
 from uuid import UUID
@@ -37,7 +38,12 @@ from shared.models.enums import SourceDocType
 from shared.models.ingest_schema import IngestJobRead
 from shared.models.lv_item import LVItem
 from shared.models.lv_text import LVText
-from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from shared.models.project_schema import (
+    ProjectCreate,
+    ProjectFromZipResult,
+    ProjectRead,
+    ProjectUpdate,
+)
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
@@ -47,7 +53,12 @@ from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.document_detail import DocumentDetailService
 from shared.services.ingestion.status_stream import HEARTBEAT, stream_project_status
 from shared.services.lv_item_search import LVItemSearchService
-from shared.services.project_service import ProjectService, UploadInput
+from shared.services.project_service import (
+    ZIP_SUFFIX,
+    ProjectService,
+    UploadInput,
+    ZipTooLargeError,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -124,6 +135,36 @@ async def create_project(
     service: ProjectService = Depends(get_writable_project_service),
 ) -> ProjectRead:
     return await service.create(payload)
+
+
+@router.post(
+    "/from-zip",
+    response_model=ProjectFromZipResult,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_project_from_zip(
+    file: UploadFile = File(...),
+    service: ProjectService = Depends(get_writable_project_service),
+) -> ProjectFromZipResult:
+    """Create a project named after the ZIP and ingest every PDF, X83 and D83 in it,
+    nested ZIPs included. Registered before the /{project_uuid} routes."""
+    file_name = file.filename or ""
+    if not file_name.lower().endswith(ZIP_SUFFIX):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="file must be a .zip",
+        )
+    try:
+        return await service.create_from_zip(file_name, await file.read())
+    except zipfile.BadZipFile:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="file is not a valid zip",
+        )
+    except ZipTooLargeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)
+        )
 
 
 @router.get("/{project_uuid}", response_model=ProjectRead)

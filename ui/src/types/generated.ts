@@ -38,6 +38,12 @@ export interface ProjectUpdate {
   project_description?: string | null;
 }
 
+export interface ProjectFromZipResult {
+  project: ProjectRead;
+  documents: DocumentRead[];
+  skipped: string[];
+}
+
 export interface ProjectContextValue {
   project_context_value_uuid: string;
   project_uuid: string;

@@ -1,8 +1,8 @@
 // Query/mutation hooks for projects + their documents.
 //
-// Document upload is multipart (a file or a flat ZIP), so it can't go through the
-// JSON `api` client — it uses a raw fetch with FormData and lets the browser set
-// the multipart boundary.
+// Document upload and ZIP-first project creation are multipart, so they can't go through the
+// JSON `api` client — they use a raw fetch with FormData and let the browser set the
+// multipart boundary.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiBase } from './client';
@@ -12,6 +12,7 @@ import type {
   LVItem,
   LVText,
   ProjectCreate,
+  ProjectFromZipResult,
   ProjectRead,
   ProjectUpdate,
 } from '../types/generated';
@@ -155,6 +156,34 @@ async function postDocuments(projectUuid: string, files: File[]): Promise<Docume
     throw new Error(`Upload failed: ${detail}`);
   }
   return (await res.json()) as DocumentRead[];
+}
+
+async function postProjectZip(file: File): Promise<ProjectFromZipResult> {
+  const form = new FormData();
+  form.append('file', file);
+  // No Content-Type header: the browser sets the multipart boundary.
+  const res = await fetch(`${apiBase}/projects/from-zip`, { method: 'POST', body: form });
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch {
+      // non-JSON error body; keep the status
+    }
+    throw new Error(`Upload failed: ${detail}`);
+  }
+  return (await res.json()) as ProjectFromZipResult;
+}
+
+// Creates a project named after the ZIP and queues every PDF/GAEB file inside it (nested ZIPs
+// included); entries that were not ingested come back in `skipped`.
+export function useCreateProjectFromZip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: postProjectZip,
+    onSuccess: () => qc.invalidateQueries({ queryKey: projectKeys.all }),
+  });
 }
 
 export function useIngestDocument(projectUuid: string) {

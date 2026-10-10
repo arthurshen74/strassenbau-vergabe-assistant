@@ -96,7 +96,12 @@ from shared.models.project_context_schema import (
     ProjectContextRead,
     ProjectContextUpdate,
 )
-from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from shared.models.project_schema import (
+    ProjectCreate,
+    ProjectFromZipResult,
+    ProjectRead,
+    ProjectUpdate,
+)
 from shared.models.rag_ground_truth import (
     RagGroundTruthRead,
     RagGroundTruthUpsert,
@@ -153,6 +158,7 @@ BODY_MODELS: list[type[BaseModel]] = [
     ProjectRead,
     ProjectCreate,
     ProjectUpdate,
+    ProjectFromZipResult,
     # Project context (global variables): the flat current view, the editable subset,
     # and the governance history (ProjectContextValue is nested in the history, so it
     # must be emitted too).
