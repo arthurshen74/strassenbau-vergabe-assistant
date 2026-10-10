@@ -2,6 +2,19 @@
 
 Depends on: 01 (per-document routes, no LV replace). Parallel with 03, 04, 05.
 
+## Use a worktree
+
+Work in a dedicated git worktree and branch, never in the main checkout:
+
+```bash
+git worktree add ../swa-task02 -b task/02-multi-lv-ui
+```
+
+Follow the "Worktree setup" section of `tasks/README.md` for the rest: per-worktree
+`uv sync` and `npm ci`, your own test database (`POSTGRES_DB=roadbuilders_t02`
+for pytest), one shared compose stack that you never start or restart, migrations
+verified on a scratch database only, and no commits unless asked.
+
 ## Goal
 
 The project page lets the user pick which LV document the "LV Positions" and "LV-Texte"

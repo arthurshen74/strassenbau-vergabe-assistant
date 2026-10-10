@@ -2,6 +2,19 @@
 
 Depends on: nothing. Blocks: 02, 03.
 
+## Use a worktree
+
+Work in a dedicated git worktree and branch, never in the main checkout:
+
+```bash
+git worktree add ../swa-task01 -b task/01-multi-lv-backend
+```
+
+Follow the "Worktree setup" section of `tasks/README.md` for the rest: per-worktree
+`uv sync` and `npm ci`, your own test database (`POSTGRES_DB=roadbuilders_t01`
+for pytest), one shared compose stack that you never start or restart, migrations
+verified on a scratch database only, and no commits unless asked.
+
 ## Goal
 
 A project may hold any number of GAEB LV documents. Each keeps its own LV items, LV texts

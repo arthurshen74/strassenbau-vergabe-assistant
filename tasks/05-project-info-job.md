@@ -4,6 +4,19 @@ Depends on: 04 (queries, `ProjectInfoQuery`, setting), 03 (the `_after_zip_inges
 The table, repository, service and worker loop can be built before 03 lands; only the
 enqueue call and the end-to-end check need it.
 
+## Use a worktree
+
+Work in a dedicated git worktree and branch, never in the main checkout:
+
+```bash
+git worktree add ../swa-task05 -b task/05-project-info-job
+```
+
+Follow the "Worktree setup" section of `tasks/README.md` for the rest: per-worktree
+`uv sync` and `npm ci`, your own test database (`POSTGRES_DB=roadbuilders_t05`
+for pytest), one shared compose stack that you never start or restart, migrations
+verified on a scratch database only, and no commits unless asked.
+
 ## Goal
 
 After the ZIP flow has enqueued a project's documents, exactly one project-level job waits

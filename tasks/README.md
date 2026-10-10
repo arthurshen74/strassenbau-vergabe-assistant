@@ -83,6 +83,48 @@ Shared files that more than one task edits (coordinate or rebase, never overwrit
 `server/shared/db/unit_of_work.py` (04, 05), `server/scripts/export_schema.py` (04, 05),
 `server/shared/models/enums.py` (04 adds `ProjectInfoQuery`, 05 adds a `PromptType`).
 
+## Worktree setup (one worktree per task)
+
+Each task runs in its own git worktree and branch; Arthur merges the branches into main at
+the end of each wave, runs the full suite on main, applies the wave's migrations to the dev
+database, and starts the next wave from main.
+
+```bash
+# from the main checkout, after the current work is committed
+git worktree add ../swa-task01 -b task/01-multi-lv
+cd ../swa-task01
+uv sync                      # per-worktree .venv
+(cd ui && npm ci)            # per-worktree node_modules
+```
+
+The `tasks/` folder is tracked, so every worktree carries this plan.
+
+Rules for an agent inside a worktree:
+
+- **One shared compose stack.** Postgres, Elasticsearch, MinIO and Phoenix run once, from
+  the main checkout. Never run `docker compose up`, `restart` or `down` from a worktree: a
+  second stack collides on the ports and would mount an empty `./data`.
+- **Own test database.** The integration fixture drops and recreates every table in
+  `{POSTGRES_DB}_test` at session start, so concurrent agents must not share it. Create one
+  per task on the shared Postgres and point pytest at it:
+
+  ```bash
+  docker exec strassenbau-vergabe-assistant-postgres \
+    psql -U roadbuilders -d postgres -c "CREATE DATABASE roadbuilders_t01_test"
+  POSTGRES_DB=roadbuilders_t01 PYTHONPATH=server uv run pytest tests/integration/...
+  ```
+
+  Only the test URL is derived from that variable in tests; the dev database `roadbuilders`
+  is untouched. Run `tests/integration/search` only in the final check, since those tests
+  write to the shared ES index by name.
+- **The api, worker and ui containers serve main's code** (they bind-mount the main
+  checkout's `server/` and `ui/`). Code in a worktree is verified with tests, tsc and eslint.
+  Browser verification against `localhost:5173` happens on main after the merge.
+- **Migrations** are verified on a scratch database inside the task and applied to the dev
+  database by Arthur after the wave is merged.
+- Commit on the task branch only if asked; otherwise leave the tree and report. Never touch
+  main from a worktree.
+
 ## Reserved migration numbers
 
 Migrations are hand-written SQL in `sql/` (there is no migration tool; `create_all` only
@@ -127,11 +169,10 @@ create a scratch DB, create the referenced parent tables as stubs, run the scrip
 
 ## Current state to be aware of
 
-- The working tree already carries uncommitted work: `lv_texts` (table, repo, parser,
-  chunks, UI tab) and the project header fields (`massnahmenummer`, `bauleistung`, nullable
-  `vergabe_id` / `vergabestelle` / `project_description`, `PATCH /projects/{uuid}`,
-  `EditProjectDialog`). Build on it; do not revert it.
-- `sql/16_lv_texts.sql` and `sql/17_projects_massnahme.sql` exist and are applied to the
-  dev DB.
+- Commit `1cc45d1` carries the groundwork this plan builds on: `lv_texts` (table, repo,
+  parser, chunks, UI tab) and the project header fields (`massnahmenummer`, `bauleistung`,
+  nullable `vergabe_id` / `vergabestelle` / `project_description`, `PATCH /projects/{uuid}`,
+  `EditProjectDialog`). `sql/16_lv_texts.sql` and `sql/17_projects_massnahme.sql` are
+  applied to the dev DB.
 - The live ES index has no `LV_TEXT` chunks yet; that is a data problem the owner will
   solve by re-ingesting, not a code problem.

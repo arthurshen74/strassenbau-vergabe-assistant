@@ -2,6 +2,19 @@
 
 Depends on: nothing. Parallel with 01, 02, 03. Task 05 consumes the repository.
 
+## Use a worktree
+
+Work in a dedicated git worktree and branch, never in the main checkout:
+
+```bash
+git worktree add ../swa-task04 -b task/04-rag-query-versions
+```
+
+Follow the "Worktree setup" section of `tasks/README.md` for the rest: per-worktree
+`uv sync` and `npm ci`, your own test database (`POSTGRES_DB=roadbuilders_t04`
+for pytest), one shared compose stack that you never start or restart, migrations
+verified on a scratch database only, and no commits unless asked.
+
 ## Goal
 
 A `rag_query_versions` table holds the questions the project-info step asks, one row per

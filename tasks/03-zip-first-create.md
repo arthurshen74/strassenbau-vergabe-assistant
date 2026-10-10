@@ -3,6 +3,19 @@
 Depends on: 01 (a ZIP with two GAEB files must not trigger the old LV replace).
 Parallel with 02, 04. Task 05 adds one call into the service method you create here.
 
+## Use a worktree
+
+Work in a dedicated git worktree and branch, never in the main checkout:
+
+```bash
+git worktree add ../swa-task03 -b task/03-zip-first-create
+```
+
+Follow the "Worktree setup" section of `tasks/README.md` for the rest: per-worktree
+`uv sync` and `npm ci`, your own test database (`POSTGRES_DB=roadbuilders_t03`
+for pytest), one shared compose stack that you never start or restart, migrations
+verified on a scratch database only, and no commits unless asked.
+
 ## Goal
 
 `POST /projects/from-zip` takes one ZIP, creates a project named after the ZIP, expands
