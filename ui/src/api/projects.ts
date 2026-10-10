@@ -25,6 +25,11 @@ export const projectKeys = {
   lvTexts: (uuid: string) => ['project', uuid, 'lv-texts'] as const,
   lvItemSearch: (uuid: string, q: string) =>
     ['project', uuid, 'lv-items', 'search', q] as const,
+  // Under the documents prefix, so invalidating a project's documents refetches these too.
+  documentLvItems: (uuid: string, documentUuid: string) =>
+    ['project', uuid, 'documents', documentUuid, 'lv-items'] as const,
+  documentLvTexts: (uuid: string, documentUuid: string) =>
+    ['project', uuid, 'documents', documentUuid, 'lv-texts'] as const,
 };
 
 export function useProjects() {
@@ -58,12 +63,36 @@ export function useProjectLvItems(uuid: string | undefined) {
   });
 }
 
-// The LV document's Vorbemerkungen, Hinweise and Nachtext in document order.
+// Every LV document's Vorbemerkungen, Hinweise and Nachtext in document order.
 export function useProjectLvTexts(uuid: string | undefined) {
   return useQuery({
     queryKey: uuid ? projectKeys.lvTexts(uuid) : ['project', 'none', 'lv-texts'],
     queryFn: () => api.get<LVText[]>(`/projects/${uuid}/lv-texts`),
     enabled: !!uuid,
+  });
+}
+
+// One LV document's positions ordered by oz.
+export function useDocumentLvItems(projectUuid: string, documentUuid: string | undefined) {
+  return useQuery({
+    queryKey: documentUuid
+      ? projectKeys.documentLvItems(projectUuid, documentUuid)
+      : ['project', projectUuid, 'documents', 'none', 'lv-items'],
+    queryFn: () =>
+      api.get<LVItem[]>(`/projects/${projectUuid}/documents/${documentUuid}/lv-items`),
+    enabled: !!documentUuid,
+  });
+}
+
+// One LV document's Vorbemerkungen, Hinweise and Nachtext in document order.
+export function useDocumentLvTexts(projectUuid: string, documentUuid: string | undefined) {
+  return useQuery({
+    queryKey: documentUuid
+      ? projectKeys.documentLvTexts(projectUuid, documentUuid)
+      : ['project', projectUuid, 'documents', 'none', 'lv-texts'],
+    queryFn: () =>
+      api.get<LVText[]>(`/projects/${projectUuid}/documents/${documentUuid}/lv-texts`),
+    enabled: !!documentUuid,
   });
 }
 
@@ -149,8 +178,8 @@ export function useDeleteDocument(projectUuid: string) {
 export function useUploadDocuments(projectUuid: string) {
   const qc = useQueryClient();
   return useMutation({
-    // The server derives each document's type from its filename (GAEB .d83/.x83 -> LV,
-    // everything else -> prose), so the whole batch goes in one request.
+    // The server derives each document's type from its filename (each GAEB .d83/.x83 -> a
+    // new LV document, everything else -> prose), so the whole batch goes in one request.
     mutationFn: (files: File[]) => postDocuments(projectUuid, files),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: projectKeys.documents(projectUuid) });

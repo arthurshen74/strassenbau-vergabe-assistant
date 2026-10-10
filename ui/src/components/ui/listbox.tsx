@@ -81,8 +81,8 @@ export function Listbox<T>({
         className={clsx(
           // Anchor positioning
           '[--anchor-offset:-1.625rem] [--anchor-padding:--spacing(4)] sm:[--anchor-offset:-1.375rem]',
-          // Base styles
-          'isolate w-max min-w-[calc(var(--button-width)+1.75rem)] scroll-py-1 rounded-xl p-1 select-none',
+          // Base styles; z-50 lifts the portaled panel above the z-10 main window overlay
+          'isolate z-50 w-max min-w-[calc(var(--button-width)+1.75rem)] scroll-py-1 rounded-xl p-1 select-none',
           // Invisible border that is only visible in `forced-colors` mode for accessibility purposes
           'outline outline-transparent focus:outline-hidden',
           // Handle scrolling when menu won't fit in viewport
@@ -109,7 +109,7 @@ export function ListboxOption<T>({
   Headless.ListboxOptionProps<'div', T>,
   'as' | 'className'
 >) {
-  let sharedClasses = clsx(
+  const sharedClasses = clsx(
     // Base
     'flex min-w-0 items-center',
     // Icons

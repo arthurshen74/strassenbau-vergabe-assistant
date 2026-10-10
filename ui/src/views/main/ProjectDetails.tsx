@@ -23,6 +23,7 @@ import { useProjectIngestStatus } from "../../api/ingest";
 import { useStartProjectChat } from "./useStartProjectChat";
 import { useMainWindowStore } from "../../store/mainWindow";
 import { useNlpModalStore } from "../../store/nlpModal";
+import { DOCUMENT_TYPE_LV } from "../../lib/documentType";
 import type { DocumentRead } from "../../types/generated";
 import { IngestStatusCell } from "./IngestStatusCell";
 import { IngestButton } from "./IngestButton";
@@ -48,9 +49,17 @@ import { EditProjectDialog } from "./EditProjectDialog";
 import { DocumentDetailDialog } from "./DocumentDetailDialog";
 import { LVItemsTable } from "./LVItemsTable";
 import { LVTextsPanel } from "./LVTextsPanel";
+import { LvDocumentSelector } from "./LvDocumentSelector";
 import { ProjectContextPanel } from "./ProjectContextPanel";
 
 type ProjectTab = "lv" | "texts" | "documents" | "context";
+
+// Newest first; ties (one upload request) break on document_uuid like the server's LV order.
+function newestFirst(a: DocumentRead, b: DocumentRead): number {
+  if (a.created_at !== b.created_at)
+    return a.created_at < b.created_at ? 1 : -1;
+  return a.document_uuid < b.document_uuid ? 1 : -1;
+}
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
@@ -83,6 +92,9 @@ export function ProjectDetails({
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [tab, setTab] = useState<ProjectTab>("lv");
+  const [selectedLvDocumentUuid, setSelectedLvDocumentUuid] = useState<
+    string | null
+  >(null);
 
   if (project.isPending) return <LoadingState label="Loading project…" />;
   if (project.isError) {
@@ -95,6 +107,13 @@ export function ProjectDetails({
   }
   const p = project.data;
   const docs = documents.data ?? [];
+  const lvDocuments = docs
+    .filter((d) => d.document_type === DOCUMENT_TYPE_LV)
+    .sort(newestFirst);
+  // Falls back to the newest LV document when nothing is picked or the pick was deleted.
+  const selectedLvDocument =
+    lvDocuments.find((d) => d.document_uuid === selectedLvDocumentUuid) ??
+    lvDocuments[0];
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -191,6 +210,11 @@ export function ProjectDetails({
                     }
                   />
                   <span>{t.name}</span>
+                  {t.id === "documents" && lvDocuments.length > 1 && (
+                    <Badge color="amber" className="ml-2">
+                      {lvDocuments.length} LV
+                    </Badge>
+                  )}
                 </button>
               );
             })}
@@ -199,8 +223,26 @@ export function ProjectDetails({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-        {tab === "lv" && <LVItemsTable projectUuid={projectUuid} />}
-        {tab === "texts" && <LVTextsPanel projectUuid={projectUuid} />}
+        {(tab === "lv" || tab === "texts") && (
+          <LvDocumentSelector
+            lvDocuments={lvDocuments}
+            selected={selectedLvDocument}
+            onChange={setSelectedLvDocumentUuid}
+          />
+        )}
+        {tab === "lv" && (
+          <LVItemsTable
+            key={selectedLvDocument?.document_uuid}
+            projectUuid={projectUuid}
+            documentUuid={selectedLvDocument?.document_uuid}
+          />
+        )}
+        {tab === "texts" && (
+          <LVTextsPanel
+            projectUuid={projectUuid}
+            documentUuid={selectedLvDocument?.document_uuid}
+          />
+        )}
 
         {tab === "context" && <ProjectContextPanel projectUuid={projectUuid} />}
 
@@ -235,7 +277,9 @@ export function ProjectDetails({
                     <TableCell>
                       <Badge
                         color={
-                          d.document_type === "LV_DOCUMENT" ? "amber" : "zinc"
+                          d.document_type === DOCUMENT_TYPE_LV
+                            ? "amber"
+                            : "zinc"
                         }
                       >
                         {d.document_type}

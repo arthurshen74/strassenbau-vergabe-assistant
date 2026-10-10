@@ -1,4 +1,4 @@
-// LV-Texte tab body: the LV document's free text outside the positions, in document order.
+// LV-Texte tab body: one LV document's free text outside the positions, in document order.
 // Vortext and Nachtext are the Zusätzlichen Texte (GAEB 90 T-lines, GAEB XML AddText);
 // Hinweise are the Hinweistexte, each tagged with the LV-Gruppe it sits in ("LV" at the root).
 
@@ -7,7 +7,7 @@ import { Subheading } from "../../components/ui/heading";
 import { Text } from "../../components/ui/text";
 import { LoadingState } from "../../components/feedback/LoadingState";
 import { ErrorState } from "../../components/feedback/ErrorState";
-import { useProjectLvTexts } from "../../api/projects";
+import { useDocumentLvTexts } from "../../api/projects";
 import type { LVText } from "../../types/generated";
 
 const ROOT_SCOPE_LABEL = "LV";
@@ -56,9 +56,17 @@ function Section({ title, texts }: { title: string; texts: LVText[] }) {
   );
 }
 
-export function LVTextsPanel({ projectUuid }: { projectUuid: string }) {
-  const texts = useProjectLvTexts(projectUuid);
+export function LVTextsPanel({
+  projectUuid,
+  documentUuid,
+}: {
+  projectUuid: string;
+  documentUuid: string | undefined;
+}) {
+  const texts = useDocumentLvTexts(projectUuid, documentUuid);
+  const empty = <Text>This LV carries no Vorbemerkungen, Hinweise or Nachtext.</Text>;
 
+  if (!documentUuid) return empty;
   if (texts.isPending) return <LoadingState label="Loading LV texts…" />;
   if (texts.isError) {
     return (
@@ -69,9 +77,7 @@ export function LVTextsPanel({ projectUuid }: { projectUuid: string }) {
     );
   }
   const all = texts.data;
-  if (all.length === 0) {
-    return <Text>This LV carries no Vorbemerkungen, Hinweise or Nachtext.</Text>;
-  }
+  if (all.length === 0) return empty;
   const vortext = all.filter((t) => t.kind === "ADD_TEXT" && t.placement !== "after");
   const nachtext = all.filter((t) => t.kind === "ADD_TEXT" && t.placement === "after");
   const hinweise = all.filter((t) => t.kind === "REMARK");

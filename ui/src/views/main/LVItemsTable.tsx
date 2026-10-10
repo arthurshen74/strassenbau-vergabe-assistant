@@ -1,6 +1,7 @@
-// LV Positions tab body: a searchable table of the project's LV items (OZ, Kurztext, Langtext,
+// LV Positions tab body: a searchable table of one LV document's items (OZ, Kurztext, Langtext,
 // Menge, Einheit). Submitting a query runs the hybrid BM25/semantic search over the project's
-// LV_ITEM chunks and re-orders the table by relevance; clearing it restores the full list.
+// LV_ITEM chunks, keeps the hits from this document and re-orders the table by relevance;
+// clearing it restores the full list.
 // Clicking a row opens the full position in a detail dialog.
 
 import { useState } from "react";
@@ -10,7 +11,7 @@ import {
   MagnifyingGlassIcon,
 } from "@heroicons/react/16/solid";
 
-import { useLvItemSearch, useProjectLvItems } from "../../api/projects";
+import { useDocumentLvItems, useLvItemSearch } from "../../api/projects";
 import { nlpSourceForLvItem } from "./lvNlpPreset";
 import { useNlpModalStore } from "../../store/nlpModal";
 import { Button } from "../../components/ui/button";
@@ -30,8 +31,14 @@ import type { LVItem } from "../../types/generated";
 import { LVItemDetailDialog } from "./LVItemDetailDialog";
 import { useRunCalculation } from "./useRunCalculation";
 
-export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
-  const lvItems = useProjectLvItems(projectUuid);
+export function LVItemsTable({
+  projectUuid,
+  documentUuid,
+}: {
+  projectUuid: string;
+  documentUuid: string | undefined;
+}) {
+  const lvItems = useDocumentLvItems(projectUuid, documentUuid);
   const { runCalculation, starting } = useRunCalculation(projectUuid);
   const openNlpAnalysis = useNlpModalStore((s) => s.openNlpAnalysis);
   const [selected, setSelected] = useState<LVItem | null>(null);
@@ -39,6 +46,7 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
   const [query, setQuery] = useState("");
   const search = useLvItemSearch(projectUuid, query);
 
+  if (!documentUuid) return <Text>No LV positions yet.</Text>;
   if (lvItems.isPending) return <LoadingState label="Loading LV positions…" />;
   if (lvItems.isError) {
     return (
@@ -53,7 +61,11 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
   if (allItems.length === 0) return <Text>No LV positions yet.</Text>;
 
   const searching = query.length > 0;
-  const items = searching ? (search.data ?? []) : allItems;
+  const searchHits = search.data ?? [];
+  const items = searching
+    ? searchHits.filter((i) => i.document_uuid === documentUuid)
+    : allItems;
+  const hiddenHits = searching ? searchHits.length - items.length : 0;
 
   // Neighbors of the open item within the currently displayed list, for the dialog's Back/Next.
   const selectedIndex = selected
@@ -96,6 +108,12 @@ export function LVItemsTable({ projectUuid }: { projectUuid: string }) {
           </Button>
         )}
       </form>
+      {hiddenHits > 0 && (
+        <Text>
+          {hiddenHits} {hiddenHits === 1 ? "match" : "matches"} in other LV
+          documents hidden.
+        </Text>
+      )}
 
       {searching && search.isPending ? (
         <LoadingState label="Searching…" />

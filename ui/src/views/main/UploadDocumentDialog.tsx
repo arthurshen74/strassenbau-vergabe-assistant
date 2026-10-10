@@ -1,7 +1,7 @@
 // Upload one or more documents (PDF, GAEB .d83/.x83, or a flat ZIP of files) into a
-// project. The document type is auto-assigned from each filename: a GAEB file is the LV
-// document, everything else (including LV-print PDFs) is prose. ZIP entries are
-// auto-typed the same way server-side, by each entry's own filename.
+// project. The document type is auto-assigned from each filename: each GAEB file becomes a
+// new LV document next to any existing ones, everything else (including LV-print PDFs) is
+// prose. ZIP entries are auto-typed the same way server-side, by each entry's own filename.
 
 import { useState } from 'react';
 import { useUploadDocuments } from '../../api/projects';
@@ -12,7 +12,7 @@ import {
   DialogBody,
   DialogTitle,
 } from '../../components/ui/dialog';
-import { Field, Label } from '../../components/ui/fieldset';
+import { Description, Field, Label } from '../../components/ui/fieldset';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 
@@ -81,6 +81,11 @@ export function UploadDocumentDialog({
                 );
               })}
             </ul>
+            {files.some((f) => classifyDocumentType(f.name) === DOCUMENT_TYPE_LV) && (
+              <Description className="mt-2">
+                Each GAEB file becomes its own LV document; existing LV documents are kept.
+              </Description>
+            )}
           </Field>
         )}
         {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}

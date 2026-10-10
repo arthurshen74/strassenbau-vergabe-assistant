@@ -3,8 +3,8 @@
 // Opens GET /projects/{id}/ingest/stream while the component is mounted and folds
 // each IngestEvent into a map keyed by document_uuid. The stream is long-lived
 // (it also catches files uploaded later), so it reconnects on transient errors and
-// is aborted on unmount. When a document finishes ingesting, the project's LV items
-// have changed, so we invalidate that query off the same stream.
+// is aborted on unmount. When a document finishes ingesting, the project's documents and
+// LV data have changed, so we invalidate those queries off the same stream.
 
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -64,10 +64,12 @@ export function useProjectIngestStatus(
                 ...prev,
                 [event.document_uuid]: toStatus(event),
               }));
-              // Completed ingest means new LV items; refetch the list (and any active search,
-              // which shares the lv-items key prefix).
+              // Completed ingest means new LV items and texts. The lv-items prefix covers any
+              // active search; the documents prefix covers the per-document LV queries.
               if (event.event === 'ingest_completed') {
                 void qc.invalidateQueries({ queryKey: projectKeys.lvItems(uuid) });
+                void qc.invalidateQueries({ queryKey: projectKeys.lvTexts(uuid) });
+                void qc.invalidateQueries({ queryKey: projectKeys.documents(uuid) });
               }
             },
           });
