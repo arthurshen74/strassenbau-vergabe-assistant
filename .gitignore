@@ -166,7 +166,7 @@ docker/data/
 
 eval/context/
 eval/generator/.cache/
-tasks/
+
 
 diagrams/
 .pi
