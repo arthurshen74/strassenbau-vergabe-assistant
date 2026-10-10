@@ -46,6 +46,7 @@ The existing flow (create a project in a form, then upload documents) stays as i
 | 04 RAG query versions (table, seed, API, editor UI) | `04-rag-query-versions.md` | - | 01, 02, 03 |
 | 05 Project-info job, worker loop, resolver | `05-project-info-job.md` | 03, 04 | 02 |
 | 06 Live ingest console | `06-ingest-console-live.md` | 05 | - |
+| 07 Form documents (Formblätter): detection, role, XFA/AcroForm extraction, skipped Bieter forms | `07-form-documents.md` | 06 | - |
 
 ## Execution waves (parallelism)
 
