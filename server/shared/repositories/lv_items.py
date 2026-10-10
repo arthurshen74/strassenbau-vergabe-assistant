@@ -7,6 +7,7 @@ from sqlalchemy import delete, func, insert, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from shared.db.batching import insert_batches
 from shared.db.tables.documents import LV_DOCUMENT_ORDER, documents
 from shared.db.tables.lv_items import lv_items
 from shared.models.enums import DocumentType
@@ -129,20 +130,21 @@ class LVItemRepository:
         bumping last_ingestion. A re-ingestion replays a document's LV items and updates
         them in place, so each lv_item_uuid stays stable and its Elasticsearch chunks
         (keyed by that uuid) remain addressable for re-archival."""
-        if not items:
-            return []
-        stmt = pg_insert(lv_items).values([item.model_dump() for item in items])
-        overwrite = {
-            name: stmt.excluded[name]
-            for name in NewLVItem.model_fields
-            if name not in LV_NATURAL_KEY
-        }
-        overwrite[COL_LAST_INGESTION] = func.now()
-        stmt = stmt.on_conflict_do_update(
-            index_elements=list(LV_NATURAL_KEY), set_=overwrite
-        ).returning(lv_items)
-        rows = (await self.conn.execute(stmt)).mappings().all()
-        return [LVItem.model_validate(dict(r)) for r in rows]
+        result: list[LVItem] = []
+        for batch in insert_batches(lv_items, items):
+            stmt = pg_insert(lv_items).values(batch)
+            overwrite = {
+                name: stmt.excluded[name]
+                for name in NewLVItem.model_fields
+                if name not in LV_NATURAL_KEY
+            }
+            overwrite[COL_LAST_INGESTION] = func.now()
+            stmt = stmt.on_conflict_do_update(
+                index_elements=list(LV_NATURAL_KEY), set_=overwrite
+            ).returning(lv_items)
+            rows = (await self.conn.execute(stmt)).mappings().all()
+            result.extend(LVItem.model_validate(dict(r)) for r in rows)
+        return result
 
     async def delete_missing(
         self, document_uuid: UUID, keep_ozs: Sequence[str]

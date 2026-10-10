@@ -69,3 +69,12 @@ async def test_add_many_upserts_on_natural_key(conn: AsyncConnection) -> None:
     assert [line.line_id for line in listed] == [1, 2, 3]
     by_id = {line.line_id: line.line_text for line in listed}
     assert by_id[2] == "b-updated"
+
+
+async def test_add_many_exceeds_bind_parameter_limit(conn: AsyncConnection) -> None:
+    repo = SourceLineRepository(conn)
+    doc = await _document(conn)
+    # 7000 rows x 5 bound columns is past asyncpg's 32767 parameter cap.
+    added = await repo.add_many([_line(doc, i, f"l{i}") for i in range(7000)])
+    assert len(added) == 7000
+    assert len(await repo.list_by_document(doc)) == 7000

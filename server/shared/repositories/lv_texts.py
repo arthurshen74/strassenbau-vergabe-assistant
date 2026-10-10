@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from shared.db.batching import insert_batches
 from shared.db.tables.documents import LV_DOCUMENT_ORDER, documents
 from shared.db.tables.lv_texts import lv_texts
 from shared.models.enums import DocumentType
@@ -65,13 +66,10 @@ class LVTextRepository:
             .scalars()
             .all()
         )
-        if not texts:
-            return [], removed
-        stmt = (
-            insert(lv_texts).values([t.model_dump() for t in texts]).returning(lv_texts)
-        )
-        rows = (await self.conn.execute(stmt)).mappings().all()
-        created = sorted(
-            (LVText.model_validate(dict(r)) for r in rows), key=lambda t: t.sequence
-        )
+        created: list[LVText] = []
+        for batch in insert_batches(lv_texts, texts):
+            stmt = insert(lv_texts).values(batch).returning(lv_texts)
+            rows = (await self.conn.execute(stmt)).mappings().all()
+            created.extend(LVText.model_validate(dict(r)) for r in rows)
+        created.sort(key=lambda t: t.sequence)
         return created, removed

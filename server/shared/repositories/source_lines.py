@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from shared.db.batching import insert_batches
 from shared.db.tables.source_lines import source_lines
 from shared.models.source_line import NewSourceLine, SourceLine
 
@@ -17,19 +18,20 @@ class SourceLineRepository:
     async def add_many(self, lines: list[NewSourceLine]) -> list[SourceLine]:
         """Bulk upsert on the (document_uuid, line_id) natural key; re-ingestion replays
         the SourceLines for a document, so a replay updates in place."""
-        if not lines:
-            return []
-        stmt = pg_insert(source_lines).values([line.model_dump() for line in lines])
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["document_uuid", "line_id"],
-            set_={
-                "page": stmt.excluded.page,
-                "bbox": stmt.excluded.bbox,
-                "line_text": stmt.excluded.line_text,
-            },
-        ).returning(source_lines)
-        rows = (await self.conn.execute(stmt)).mappings().all()
-        return [SourceLine.model_validate(dict(r)) for r in rows]
+        result: list[SourceLine] = []
+        for batch in insert_batches(source_lines, lines):
+            stmt = pg_insert(source_lines).values(batch)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["document_uuid", "line_id"],
+                set_={
+                    "page": stmt.excluded.page,
+                    "bbox": stmt.excluded.bbox,
+                    "line_text": stmt.excluded.line_text,
+                },
+            ).returning(source_lines)
+            rows = (await self.conn.execute(stmt)).mappings().all()
+            result.extend(SourceLine.model_validate(dict(r)) for r in rows)
+        return result
 
     async def list_by_document(self, document_uuid: UUID) -> list[SourceLine]:
         stmt = (
