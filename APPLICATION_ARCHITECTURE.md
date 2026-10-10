@@ -160,6 +160,10 @@ The domain DB groups into six clusters:
   `calculation_ground_truth`, `rag_ground_truth`, and the append-only `variable_corrections`.
 - **Prompt / usage / observability** — append-only `prompt_versions`, the full-fidelity
   `prompt_execution_log`, `openrouter_usage`, `embedding_cache`.
+- **Project-info RAG queries** — append-only `rag_query_versions`, versioned like prompts: one
+  row per `(query_key, language, version)`. `query_key` is the `ProjectInfoQuery` enum (each key
+  maps to a fixed `projects` header column); `query_text` is the retrieval question and
+  `answer_instruction` the synthesis rule. Edited in the RAG Queries view.
 - **NLP analysis caches** — `document_layout_regions` (Docling layout output per document and
   model version; PDFs are immutable so inference runs once) and `nlp_render_cache` (displacy
   dep-SVGs keyed by sha256 of spaCy model + version + style + sentence text).
@@ -327,6 +331,14 @@ erDiagram
         text model_name
         text system_prompt
     }
+    rag_query_versions {
+        uuid rag_query_version_uuid PK
+        text query_key "unique with language, version"
+        text language "ISO 639-1"
+        int version "append-only, per key + language"
+        text query_text "retrieval question"
+        text answer_instruction "synthesis rule"
+    }
     prompt_execution_log {
         uuid log_uuid PK
         text model
@@ -427,7 +439,8 @@ object-key order survives reload.
   `onupdate now()`.
 - Controlled vocabularies are Python `StrEnum`s mirrored by CHECK constraints (`document_type`,
   `status`, `kind`, `quelle`, …). Money and quantities are `Numeric`, never float.
-- Two versioning idioms: append-only (`prompt_versions` — new row per edit, callers pin a version)
+- Two versioning idioms: append-only (`prompt_versions`, `rag_query_versions` — new row per
+  edit, callers pin a version or read the latest)
   and SCD-2 (`project_context_values`, the Katalog — `version` + validity window + current-row
   flag or `aktiv` status).
 - German domain terms are never translated in identifiers: `lv_items.kurztext`, `menge`,

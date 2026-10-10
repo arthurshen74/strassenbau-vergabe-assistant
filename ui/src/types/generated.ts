@@ -263,6 +263,36 @@ export interface PromptVersionCreate {
   reasoning_effort?: string | null;
 }
 
+export interface RagQueryVersionRead {
+  rag_query_version_uuid: string;
+  /**
+   * Keys of the versioned RAG queries that fill the project header fields. Each key
+   * maps to one fixed `projects` column (see `shared.models.rag_query`).
+   */
+  query_key:
+    | "project-description"
+    | "project-massnahmenummer"
+    | "project-name"
+    | "project-vergabenummer"
+    | "project-bauleistung"
+    | "project-location";
+  language: string;
+  version: number;
+  name: string;
+  description: string;
+  query_text: string;
+  answer_instruction: string;
+  created_at: string;
+}
+
+export interface RagQueryVersionCreate {
+  language?: string;
+  name: string;
+  description: string;
+  query_text: string;
+  answer_instruction: string;
+}
+
 export interface ConversationRead {
   conversation_uuid: string;
   user_uuid: string;

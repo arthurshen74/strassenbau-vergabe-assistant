@@ -1,0 +1,8 @@
+name: Projektbeschreibung
+description: Kurzbeschreibung der Maßnahme für die Projektübersicht.
+query_text: >-
+  Worum geht es bei dieser Baumaßnahme? Art der Bauleistung, Straße bzw. Abschnitt,
+  Umfang und wesentliche Arbeiten laut Baubeschreibung und Leistungsverzeichnis.
+answer_instruction: >-
+  Fasse die Maßnahme in 2 bis 4 Sätzen zusammen (Art der Arbeiten, Ort/Strecke,
+  Umfang). Keine Aufzählung, keine Einleitung, keine Quellenangaben.

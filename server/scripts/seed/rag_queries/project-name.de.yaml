@@ -1,0 +1,8 @@
+name: Maßnahme (Projektname)
+description: Titel der Maßnahme, wie er auf dem Deckblatt steht.
+query_text: >-
+  Wie lautet die Bezeichnung der Baumaßnahme (Titel der Maßnahme) auf dem Deckblatt der
+  Vergabeunterlagen?
+answer_instruction: >-
+  Gib nur den Titel der Maßnahme zurück, wie er in den Unterlagen steht (Straße,
+  Ortslage, Art der Maßnahme). Keine Vergabenummer, kein Zusatztext.

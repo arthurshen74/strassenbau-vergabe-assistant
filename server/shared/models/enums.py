@@ -254,3 +254,15 @@ class NerFailureCategory(StrEnum):
 class NerFlagStatus(StrEnum):
     OPEN = "open"
     RESOLVED = "resolved"
+
+
+class ProjectInfoQuery(StrEnum):
+    """Keys of the versioned RAG queries that fill the project header fields. Each key
+    maps to one fixed `projects` column (see `shared.models.rag_query`)."""
+
+    PROJECT_DESCRIPTION = "project-description"
+    PROJECT_MASSNAHMENUMMER = "project-massnahmenummer"
+    PROJECT_NAME = "project-name"
+    PROJECT_VERGABENUMMER = "project-vergabenummer"
+    PROJECT_BAULEISTUNG = "project-bauleistung"
+    PROJECT_LOCATION = "project-location"

@@ -1,0 +1,8 @@
+name: Bauleistung
+description: Bezeichnung der zu vergebenden Bauleistung.
+query_text: >-
+  Wie wird die zu vergebende Bauleistung in der Aufforderung zur Angebotsabgabe bzw. auf
+  dem Deckblatt bezeichnet?
+answer_instruction: >-
+  Gib nur die Bezeichnung der Bauleistung zurück, wie sie im Dokument steht. Kein
+  Zusatztext.

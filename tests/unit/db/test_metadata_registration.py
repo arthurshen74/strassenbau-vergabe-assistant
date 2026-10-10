@@ -27,6 +27,7 @@ EXPECTED_TABLES = {
     "calculation_ground_truth",
     "variable_corrections",
     "rag_ground_truth",
+    "rag_query_versions",
     "eval_runs",
     "eval_run_events",
     "eval_results",

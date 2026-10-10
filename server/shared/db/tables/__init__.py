@@ -50,6 +50,7 @@ from shared.db.tables.projects import projects
 from shared.db.tables.prompt_execution_log import prompt_execution_log
 from shared.db.tables.prompt_versions import prompt_versions
 from shared.db.tables.rag_ground_truth import rag_ground_truth
+from shared.db.tables.rag_query_versions import rag_query_versions
 from shared.db.tables.source_lines import source_lines
 from shared.db.tables.thumbnails import thumbnails
 from shared.db.tables.variable_corrections import variable_corrections
@@ -95,6 +96,7 @@ __all__ = [
     "prompt_execution_log",
     "prompt_versions",
     "rag_ground_truth",
+    "rag_query_versions",
     "source_lines",
     "thumbnails",
     "variable_corrections",

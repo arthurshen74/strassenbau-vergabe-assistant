@@ -67,6 +67,7 @@ Copy `.env.example` to `.env` to start.
 | `CROSS_ENCODER_MODEL` | `cohere/rerank-4-fast` |
 | `MULTI_QUERY_N` | `5` |
 | `RETRIEVER_CANDIDATE_K` / `RETRIEVER_TOP_K` | `50` / `10` |
+| `PROJECT_INFO_LANGUAGE` | `de` (ISO 639-1 language of the project-info RAG queries) |
 | `CALCULATOR_MODEL` / `KATALOG_CHAT_MODEL` | `openai/gpt-5.4` |
 | `CALCULATOR_REASONING_EFFORT` | `low` |
 | `CALCULATOR_MOCK` | `false` (canned LLM replies for offline runs) |
@@ -119,12 +120,14 @@ Seeding, run once after first boot:
 
 ```bash
 PYTHONPATH=server uv run python -m scripts.seed.prompts        # prompt library
+PYTHONPATH=server uv run python -m scripts.seed.rag_queries    # project-info RAG queries
 PYTHONPATH=server uv run python -m scripts.seed.seed_katalog   # calculation catalog
 ```
 
 The two behave differently by design. **Prompt seeding is append-only and not idempotent**: every
 run publishes a new version of every `.prompt` file, and the application reads the latest — this
-is also the mechanism for shipping prompt changes. **Katalog seeding is guarded**: it aborts if
+is also the mechanism for shipping prompt changes. RAG query seeding works the same way: every run
+publishes a new version of every `<query_key>.<language>.yaml` file. **Katalog seeding is guarded**: it aborts if
 any catalog table has rows; `--reset` truncates and reseeds. Type generation for the UI
 (`npm run gen:types`) reruns whenever backend DTOs change.
 

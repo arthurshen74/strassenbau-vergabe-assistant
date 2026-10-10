@@ -26,6 +26,7 @@ from api.routes import (
     prompt_execution_logs,
     prompts,
     rag_ground_truth,
+    rag_queries,
     usage,
 )
 from shared.clients.factory import (
@@ -113,6 +114,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(health.router)
     app.include_router(prompts.router)
+    app.include_router(rag_queries.router)
     app.include_router(conversations.router)
     app.include_router(dispatch.router)
     app.include_router(projects.router)

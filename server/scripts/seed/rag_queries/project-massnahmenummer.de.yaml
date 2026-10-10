@@ -1,0 +1,8 @@
+name: Maßnahmenummer
+description: Nummer der Maßnahme laut Auftraggeber.
+query_text: >-
+  Welche Maßnahmenummer (Projektnummer, Maßnahme-Nr., Bauvorhaben-Nr.) trägt diese
+  Baumaßnahme laut Deckblatt oder Aufforderung zur Angebotsabgabe?
+answer_instruction: >-
+  Gib nur die Maßnahmenummer wörtlich zurück, ohne Zusatz. Wenn mehrere Nummern genannt
+  sind, die vom Auftraggeber als Maßnahme-/Projektnummer bezeichnete.

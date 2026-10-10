@@ -40,6 +40,7 @@ from shared.repositories.project_context_values import ProjectContextValueReposi
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.prompt_execution_log import PromptExecutionLogRepository
 from shared.repositories.prompt_versions import PromptVersionRepository
+from shared.repositories.rag_queries import RagQueryVersionRepository
 from shared.repositories.source_lines import SourceLineRepository
 from shared.repositories.thumbnails import ThumbnailRepository
 from shared.repositories.variable_corrections import VariableCorrectionRepository
@@ -60,6 +61,7 @@ class UnitOfWork:
         self.lv_items = LVItemRepository(conn)
         self.lv_texts = LVTextRepository(conn)
         self.prompt_versions = PromptVersionRepository(conn)
+        self.rag_queries = RagQueryVersionRepository(conn)
         self.conversations = ConversationRepository(conn)
         self.messages = MessageRepository(conn)
         self.ground_truth = GroundTruthRepository(conn)

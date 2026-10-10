@@ -21,6 +21,7 @@ interface DispatchSlashCommand extends SlashCommandSpec {
 const DISPATCH_SLASH_COMMANDS: DispatchSlashCommand[] = [
   { name: '/projects', description: 'View Projects', kind: 'projects' },
   { name: '/prompts', description: 'View Prompts', kind: 'prompts' },
+  { name: '/ragqueries', description: 'View RAG Queries', kind: 'rag_queries' },
   { name: '/ingestlog', description: 'View Ingest Console', kind: 'ingest_console' },
   { name: '/execlog', description: 'View Prompt Execution Log', kind: 'prompt_execution_log' },
   { name: '/usagelog', description: 'View Usage Log', kind: 'prompt_usage_log' },

@@ -20,6 +20,8 @@ from shared.models.project import Project
 from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from shared.models.prompt_version import NewPromptVersion, PromptVersion
 from shared.models.prompt_version_schema import PromptVersionCreate, PromptVersionRead
+from shared.models.rag_query import RagQueryVersion
+from shared.models.rag_query_schema import RagQueryVersionCreate, RagQueryVersionRead
 
 # Read DTO -> domain model: every exposed field must exist on the domain model with
 # the same annotation.
@@ -29,6 +31,7 @@ READ_PARITY: list[tuple[type[BaseModel], type[BaseModel]]] = [
     (IngestJobRead, IngestJob),
     (IngestJobEventRead, IngestJobEvent),
     (PromptVersionRead, PromptVersion),
+    (RagQueryVersionRead, RagQueryVersion),
 ]
 
 ALL_DTOS: list[type[BaseModel]] = [
@@ -46,6 +49,8 @@ ALL_DTOS: list[type[BaseModel]] = [
     IngestError,
     PromptVersionRead,
     PromptVersionCreate,
+    RagQueryVersionRead,
+    RagQueryVersionCreate,
 ]
 
 

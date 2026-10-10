@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     retriever_candidate_k: int = 50
     retriever_top_k: int = 10
 
+    # ISO 639-1 language of the project-info RAG queries.
+    project_info_language: str = "de"
+
     # EKT calculator agent: the OpenRouter model behind its three LLM sites, and the
     # offline mock toggle (canned replies, wired to the FSS demo position).
     calculator_model: str = "openai/gpt-5.4"
