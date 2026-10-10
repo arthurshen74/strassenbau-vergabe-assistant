@@ -161,13 +161,19 @@ The domain DB groups into six clusters:
 
 - **Project / document / ingest** — `projects` → `documents` → `source_lines` (canonical extracted
   text), `thumbnails`, `lv_items`, `lv_texts` (the LV's Vorbemerkungen, Hinweise and Nachtext),
-  `ingest_jobs` → `ingest_job_events`, plus the high-frequency
+  `form_fields` (the label/value rows of a fillable form), `ingest_jobs` → `ingest_job_events`,
+  plus the high-frequency
   `ingestion_activity_log` and its archive. `project_info_jobs` holds one Projektinfo extraction
   per row (the header fields filled from the documents after ingestion, with the per-field
   result) and streams its steps into `project_info_activity_log` (pruned, no archive). A
   project may hold any number of `LV_DOCUMENT`s (one
   per GAEB file); each owns its `lv_items` and `lv_texts`, and project-wide LV listings return
-  them grouped by document, oldest first.
+  them grouped by document, oldest first. The server assigns `document_type` at upload: a GAEB
+  file is an `LV_DOCUMENT`, a fillable PDF form (an XFA packet, or an AcroForm with at least 3
+  fillable fields) is a `FORM_DOCUMENT`, everything else a `PROSE_DOCUMENT`. A form carries its
+  `form_role` (`vergabestelle` | `bieter` | `unbekannt`, from the Formblatt in the filename) and
+  `form_id` (e.g. `FB 312-B`, `HVA B-StB 121`); a Bieter form's ingest job is created `skipped`
+  and is only ingested when requeued.
 - **Conversation** — `conversations` (discriminated by `prompt_type`; position chats also carry
   `lv_item_uuid` and a `calculation_status`) → `messages` (user / assistant / function_call /
   function_call_output).
@@ -208,6 +214,7 @@ erDiagram
     documents ||--o{ thumbnails : "rendered as"
     documents ||--o{ lv_items : "parsed into"
     documents ||--o{ lv_texts : "LV-level texts"
+    documents ||--o{ form_fields : "form fields"
     documents ||--o{ ingest_jobs : "processed by"
     ingest_jobs ||--o{ ingest_job_events : "logs"
     ingest_jobs ||--o{ ingestion_activity_log : "streams"
@@ -230,9 +237,20 @@ erDiagram
     documents {
         uuid document_uuid PK
         uuid project_uuid FK
-        text document_type "LV_DOCUMENT (many per project) | PROSE_DOCUMENT"
+        text document_type "LV_DOCUMENT (many per project) | PROSE_DOCUMENT | FORM_DOCUMENT"
         text file_name
         int number_of_pages
+        text form_role "vergabestelle|bieter|unbekannt, set iff FORM_DOCUMENT"
+        text form_id "Formblatt id, nullable"
+    }
+    form_fields {
+        uuid document_uuid PK,FK
+        int field_order PK "reading order"
+        text section "XFA subform or Seite n"
+        text name
+        text label "nullable"
+        text value "checkbox: ja|nein"
+        int page
     }
     source_lines {
         uuid source_line_uuid PK
@@ -276,7 +294,7 @@ erDiagram
     ingest_jobs {
         uuid job_uuid PK
         uuid document_uuid FK
-        text status "queued|running|done|failed"
+        text status "queued|running|done|failed|skipped"
         tstz locked_at "lease"
         text locked_by "worker id"
         int attempts
@@ -449,12 +467,12 @@ object-key order survives reload.
 
 - **Elasticsearch** holds the chunk documents and vectors; Postgres holds no chunk table. Each
   chunk carries `project_uuid` (scoping), `source_doc_uuid` + `source_doc_type`
-  (`DOCUMENT` | `LV_ITEM` | `LV_TEXT`; the uuid resolves to a document, an `lv_items` row or an
-  `lv_texts` row accordingly), and provenance fields. Field names are shared constants in
+  (`DOCUMENT` | `FORM` | `LV_ITEM` | `LV_TEXT`; the uuid resolves to a document for the first
+  two, an `lv_items` row or an `lv_texts` row accordingly), and provenance fields. Field names are shared constants in
   `clients/search/client.py` — the same constant is used for indexing and search. Re-ingestion
   moves a document's prior chunks to the `_archive` index rather than deleting them. Because
-  `source_lines`, `lv_items` and `lv_texts` are canonical in Postgres, both indexes are fully
-  rebuildable.
+  `source_lines`, `lv_items`, `lv_texts` and `form_fields` are canonical in Postgres, both indexes
+  are fully rebuildable.
 - **MinIO** identity lives in key-prefix conventions (`raw/`, `thumbnail/`, `map/` — helpers in
   `clients/storage/client.py`) and, for thumbnails, in `thumbnails.object_key` + `bucket`.
 - **Auth boundary**: owner columns (`conversations.user_uuid`, `*_created_by_user_id`) are plain

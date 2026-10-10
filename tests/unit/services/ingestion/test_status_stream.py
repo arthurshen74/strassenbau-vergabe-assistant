@@ -118,3 +118,14 @@ def test_only_changed_jobs_emit() -> None:
     events, _ = diff_status(state, rows)
     assert len(events) == 1
     assert events[0]["data"]["job_uuid"] == str(job_a)
+
+
+def test_skipped_job_emits_ingest_skipped() -> None:
+    doc, job = uuid4(), uuid4()
+
+    events, _ = diff_status(
+        {}, [_row(document_uuid=doc, job_uuid=job, status=IngestStatus.SKIPPED)]
+    )
+
+    assert [e["event"] for e in events] == ["ingest_skipped"]
+    assert events[0]["data"]["document_uuid"] == str(doc)

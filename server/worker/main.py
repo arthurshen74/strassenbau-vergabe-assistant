@@ -122,7 +122,8 @@ async def process_one(
                 f"{result.source_lines} source lines, {result.thumbnails} thumbnails, "
                 f"{result.langchain_chunks} langchain chunks, "
                 f"{result.document_chunks} document chunks, {result.lv_items} LV "
-                f"items, {result.lv_texts} LV texts, {result.lv_chunks} LV chunks",
+                f"items, {result.lv_texts} LV texts, {result.lv_chunks} LV chunks, "
+                f"{result.form_fields} form fields",
                 IngestPhase.INGEST.value,
             )
         async with uow_factory() as uow:

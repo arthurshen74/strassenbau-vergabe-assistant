@@ -23,6 +23,12 @@ export function IngestStatusCell({ status }: { status: DocIngestStatus | undefin
       );
     case 'done':
       return <Badge color="green">Done</Badge>;
+    case 'skipped':
+      return (
+        <Badge color="amber" title="Bieterformular, nicht indexiert">
+          Skipped
+        </Badge>
+      );
     case 'failed':
       return (
         <Badge color="red" title={status.message}>

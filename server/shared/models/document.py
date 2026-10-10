@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from shared.models.enums import DocumentType
+from shared.models.enums import DocumentType, FormRole
 
 
 class Document(BaseModel):
@@ -17,6 +17,8 @@ class Document(BaseModel):
     file_name: str
     document_description: str | None = None
     number_of_pages: int
+    form_role: FormRole | None = None
+    form_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -31,3 +33,5 @@ class NewDocument(BaseModel):
     file_name: str
     document_description: str | None = None
     number_of_pages: int
+    form_role: FormRole | None = None
+    form_id: str | None = None

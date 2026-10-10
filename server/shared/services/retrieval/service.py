@@ -50,6 +50,9 @@ PREVIEW_LENGTH = 160
 # Hex characters of a uuid shown in a context source header.
 UUID_ABBREV_LENGTH = 8
 
+# Chunks keyed by an LV item or text rather than a paged document.
+LV_SOURCE_DOC_TYPES = frozenset({SourceDocType.LV_ITEM, SourceDocType.LV_TEXT})
+
 _tracer = trace.get_tracer(__name__)
 
 
@@ -304,12 +307,9 @@ def _context_chunk(source_number: int, chunk: SimpleChunk) -> ContextChunk:
 
 
 def _thumbnail_ref(chunk: SimpleChunk) -> ThumbnailRef | None:
-    """The first-page thumbnail of a DOCUMENT chunk's own document. LV_ITEM and
-    LV_TEXT chunks come from GAEB files, which have no pages, so they get none."""
-    if (
-        chunk.source_doc_type is not SourceDocType.DOCUMENT
-        or not chunk.source_doc_pages
-    ):
+    """The first-page thumbnail of a DOCUMENT or FORM chunk's own document. LV_ITEM
+    and LV_TEXT chunks come from GAEB files, which have no pages, so they get none."""
+    if chunk.source_doc_type in LV_SOURCE_DOC_TYPES or not chunk.source_doc_pages:
         return None
     return ThumbnailRef(
         document_uuid=chunk.source_doc_uuid, page_number=chunk.source_doc_pages[0]

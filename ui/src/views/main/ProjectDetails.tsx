@@ -23,7 +23,13 @@ import { useProjectIngestStatus } from "../../api/ingest";
 import { useStartProjectChat } from "./useStartProjectChat";
 import { useMainWindowStore } from "../../store/mainWindow";
 import { useNlpModalStore } from "../../store/nlpModal";
-import { DOCUMENT_TYPE_LV } from "../../lib/documentType";
+import {
+  DOCUMENT_TYPE_COLOR,
+  DOCUMENT_TYPE_LV,
+  DOCUMENT_TYPE_PROSE,
+  documentTypeLabel,
+  formSummary,
+} from "../../lib/documentType";
 import type { DocumentRead } from "../../types/generated";
 import { IngestStatusCell } from "./IngestStatusCell";
 import { IngestButton } from "./IngestButton";
@@ -275,16 +281,15 @@ export function ProjectDetails({
                       <div className="max-w-[350px] whitespace-normal break-words">
                         {d.file_name}
                       </div>
+                      {d.form_role && (
+                        <div className="mt-0.5 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                          {formSummary(d.form_id, d.form_role)}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        color={
-                          d.document_type === DOCUMENT_TYPE_LV
-                            ? "amber"
-                            : "zinc"
-                        }
-                      >
-                        {d.document_type}
+                      <Badge color={DOCUMENT_TYPE_COLOR[d.document_type]}>
+                        {documentTypeLabel(d.document_type)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -310,7 +315,7 @@ export function ProjectDetails({
                         >
                           <MagnifyingGlassIcon />
                         </Button>
-                        {d.document_type === "PROSE_DOCUMENT" &&
+                        {d.document_type === DOCUMENT_TYPE_PROSE &&
                           ingestStatus[d.document_uuid]?.status === "done" && (
                             <Button
                               plain
@@ -333,6 +338,9 @@ export function ProjectDetails({
                             ingestStatus[d.document_uuid]?.status ===
                               "queued" ||
                             ingestStatus[d.document_uuid]?.status === "running"
+                          }
+                          skipped={
+                            ingestStatus[d.document_uuid]?.status === "skipped"
                           }
                         />
                         <Button
@@ -365,6 +373,7 @@ export function ProjectDetails({
       />
 
       <DocumentDetailDialog
+        key={docDetail?.document_uuid}
         projectUuid={projectUuid}
         document={docDetail}
         open={docDetail !== null}

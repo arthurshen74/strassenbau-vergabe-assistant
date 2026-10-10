@@ -38,6 +38,8 @@ function statusText(job: ProjectInfoJobRead): string {
       return "läuft";
     case "failed":
       return "fehlgeschlagen";
+    case "skipped":
+      return "übersprungen";
     case "done": {
       const results = Object.values(job.result ?? {});
       const found = results.filter((r) => r.gefunden).length;

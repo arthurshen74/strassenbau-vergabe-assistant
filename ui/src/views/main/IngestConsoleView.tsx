@@ -46,6 +46,7 @@ const FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "running", label: "running" },
   { value: "done", label: "done" },
   { value: "failed", label: "failed" },
+  { value: "skipped", label: "skipped" },
 ];
 
 const CLOCK_TICK_MS = 1000;

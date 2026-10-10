@@ -12,15 +12,23 @@ provenance (source, confidence, evidence). System processes, stores, and the dat
 
 ## Ingestion Pipeline
 
-Ingestion runs in the worker (job mechanics in `APPLICATION_ARCHITECTURE.md`). Two input paths:
+Ingestion runs in the worker (job mechanics in `APPLICATION_ARCHITECTURE.md`). The document type
+is decided at upload, server-side, and the worker dispatches on it: LV (GAEB), FORM (fillable PDF
+form) or PROSE (every other PDF).
 
 ```mermaid
 flowchart TD
-    PDF["PDF upload"] --> EX["extract text lines<br/>(pdfplumber, per visual line)"]
+    PDF["PDF upload (prose)"] --> EX["extract text lines<br/>(poppler pdftotext -bbox-layout)"]
     EX --> SL[("source_lines — Postgres<br/>canonical per-line text")]
     PDF --> TH["render page thumbnails → MinIO"]
     SL --> SPL["text splitter"]
     SPL -->|"source_doc_type = DOCUMENT"| SC[("SimpleChunk index — Elasticsearch<br/>embedding + BM25")]
+    FORM["PDF upload (fillable form)"] --> FX["form extractor<br/>(XFA packets / AcroForm fields)"]
+    FORM --> TH
+    FX --> SL
+    FX --> FF[("form_fields — Postgres")]
+    SL --> FSPL["one chunk per form section"]
+    FSPL -->|"source_doc_type = FORM"| SC
     GAEB["GAEB upload (.d83 / .x83)"] --> GP["deterministic GAEB parse<br/>(no LLM)"]
     GP --> LVI[("lv_items — Postgres")]
     GP --> LVT[("lv_texts — Postgres")]
@@ -28,10 +36,32 @@ flowchart TD
     LVT -->|"chunk heading + body, source_doc_type = LV_TEXT"| SC
 ```
 
-- **Every PDF** gets the common stage: per-line text extraction into `source_lines` (the canonical
-  text — the search index is fully rebuildable from it), page thumbnails to MinIO, and simple
-  chunking into embedded `DOCUMENT` chunks. This includes the LV print-layout PDF, which is
-  treated as prose.
+- **Every prose PDF** gets the common stage: per-line text extraction into `source_lines` (the
+  canonical text — the search index is fully rebuildable from it), page thumbnails to MinIO, and
+  simple chunking into embedded `DOCUMENT` chunks. This includes the LV print-layout PDF, which is
+  treated as prose. Poppler renders static text and the appearance streams of filled AcroForm
+  text fields with their geometry; it does not render checkbox or radio state in a usable form,
+  and it does not render dynamic XFA forms at all (those yield Adobe's "Please wait..." page).
+- **Fillable forms (Formblätter)** are detected from the bytes, not the name: a PDF with an XFA
+  packet, or an AcroForm with at least 3 fillable (non-pushbutton) fields. An `/AcroForm`
+  dictionary alone is not enough — plans, Gutachten and flattened Formblätter often carry one
+  with zero fields and stay prose. The form's role comes from the Formblatt token in the filename
+  (`FB 312-B`, `HVA_B_StB_121`, `VHB_221`, `EFB-Preis`), looked up per family in a code table
+  (`forms/role.py`), then from Bieter title keywords, else `unbekannt`. **Bieter forms are stored
+  but not ingested** (job `skipped`; "Trotzdem indexieren" requeues it); Vergabestelle and unknown
+  forms are extracted in one pass into `source_lines` and structured `form_fields`. XFA is read
+  from the embedded `template` + `datasets` XML (static `<draw>` text as lines, each field as
+  `label: value`, checkboxes as `ja`/`nein`; scripts are not evaluated, so script-hidden fields
+  are emitted anyway, and XFA lines carry no geometry). AcroForm keeps the poppler page text and
+  appends a `label: ja|nein` line per labelled (`/TU`) checkbox or radio. Each form section (an
+  XFA subform, or `Seite n`) starts a `## ` heading line, and the form is chunked per section into
+  `FORM` chunks — never splitting a line, continuing an over-long section under its heading.
+  Forms skip the LangChain pass. Thumbnails are still rendered (for XFA they show the
+  placeholder page, so the document dialog opens on the Felder tab).
+  Known limitations: XFA lines have no geometry, so nothing can be highlighted on an XFA
+  thumbnail; `unbekannt` forms are indexed without a role filter; a flattened Formblatt (zero
+  fields) stays a `PROSE_DOCUMENT` and gets no Formblatt id or role; a PDF bundling several
+  Formblätter takes the role of its first token.
 - **LV items come exclusively from GAEB files.** A `.d83` (fixed-format CP850 records) or `.x83`
   (GAEB DA XML) upload is an LV document by definition and parses deterministically —
   no LLM. Every Hinweistext (D83 record `20`, X83 `Remark`) becomes a `Remark` node that records
@@ -56,8 +86,9 @@ flowchart TD
   is retired from the pipeline; it survives as a standalone harness
   (`python -m scripts.run_lv_extraction`) for experimentation.
 
-A second, LangChain-managed index (`idx-langchain-roadbuilders`) is populated in parallel and
-serves as an alternative chunking/embedding path inspectable per document in the UI.
+A second, LangChain-managed index (`idx-langchain-roadbuilders`) is populated in parallel for
+prose PDFs and serves as an alternative chunking/embedding path inspectable per document in the
+UI.
 
 ## Retrieval
 
@@ -81,11 +112,12 @@ flowchart TD
     RER --> K["top-10 context, numbered sources"]
 ```
 
-- **Simple modality** searches `DOCUMENT` chunks only — every document's prose chunks, including
-  the LV PDF's own.
+- **Simple modality** searches `DOCUMENT` and `FORM` chunks — every document's prose chunks,
+  including the LV PDF's own, and the extracted forms. A `FORM` chunk is cited by page like a
+  `DOCUMENT` chunk.
 - **Plus modality** represents the LV structurally: the `LV_ITEM` and `LV_TEXT` chunks of every
   LV document of the project (positions plus each LV's Vorbemerkungen/Hinweise) plus all
-  `DOCUMENT` chunks. GAEB LV documents produce no `DOCUMENT` chunks, so LV content is not counted
+  `DOCUMENT` and `FORM` chunks. GAEB LV documents produce no `DOCUMENT` chunks, so LV content is not counted
   twice. The filter needs no document lookup and works the same for zero, one or several LV
   documents; with none, Plus returns what Simple would.
 - RRF fires whenever more than one ranked list exists (multi-query or BM25); the cross-encoder is
@@ -372,7 +404,7 @@ from an LV item's "NLP-Analyse" action (that item's Langtext + Hinweis as ad-hoc
 `source_lines` are visual layout lines (`pdftotext -bbox-layout`), not linguistic units: German
 justification hyphenates words across lines, letterheads repeat on every page, sentences span
 pages, and tables shred into cell fragments. The reflow pipeline fixes this with a hybrid of the
-existing poppler extraction (authoritative *text*, AcroForm-capable) and the Docling layout model
+existing poppler extraction (authoritative *text*, including filled AcroForm text fields) and the Docling layout model
 (*structure*), validated in the layout spike (`nlp-playground/layout-spike/`):
 
 ```mermaid

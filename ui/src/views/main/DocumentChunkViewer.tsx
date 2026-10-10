@@ -1,10 +1,15 @@
-// Paged chunk table for a document. Toggle SimpleChunks vs LangChain; for SimpleChunks filter by
-// source-doc-type and search the text. Each row shows the index, a short preview, and metadata;
+// Paged chunk table for a document. Toggle SimpleChunks vs LangChain (forms have no LangChain
+// chunks, so `simpleOnly` hides the toggle); for SimpleChunks filter by source-doc-type and
+// search the text. Each row shows the index, a short preview, and metadata;
 // clicking a row opens the full chunk text in a modal. Numbered paging via PageNav.
 
 import { useState } from 'react';
 
-import { useDocumentChunks, type ChunkFilters } from '../../api/documents';
+import {
+  useDocumentChunks,
+  type ChunkFilters,
+  type SourceDocType,
+} from '../../api/documents';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -40,15 +45,19 @@ function info(c: ChunkRead): string {
   return parts.join(' · ') || '—';
 }
 
+const SOURCE_DOC_TYPES: SourceDocType[] = ['DOCUMENT', 'FORM', 'LV_ITEM', 'LV_TEXT'];
+
 export function DocumentChunkViewer({
   projectUuid,
   documentUuid,
+  simpleOnly = false,
 }: {
   projectUuid: string;
   documentUuid: string;
+  simpleOnly?: boolean;
 }) {
   const [source, setSource] = useState<'simple' | 'langchain'>('simple');
-  const [docType, setDocType] = useState<'' | 'DOCUMENT' | 'LV_ITEM' | 'LV_TEXT'>('');
+  const [docType, setDocType] = useState<'' | SourceDocType>('');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -70,35 +79,39 @@ export function DocumentChunkViewer({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          Source
-          <Select
-            value={source}
-            onChange={(e) => {
-              setSource(e.target.value as 'simple' | 'langchain');
-              setPage(1);
-            }}
-            className="w-40"
-          >
-            <option value="simple">SimpleChunks</option>
-            <option value="langchain">LangChain</option>
-          </Select>
-        </label>
+        {!simpleOnly && (
+          <label className="flex flex-col gap-1 text-xs text-zinc-500">
+            Source
+            <Select
+              value={source}
+              onChange={(e) => {
+                setSource(e.target.value as 'simple' | 'langchain');
+                setPage(1);
+              }}
+              className="w-40"
+            >
+              <option value="simple">SimpleChunks</option>
+              <option value="langchain">LangChain</option>
+            </Select>
+          </label>
+        )}
         {source === 'simple' && (
           <label className="flex flex-col gap-1 text-xs text-zinc-500">
             Source type
             <Select
               value={docType}
               onChange={(e) => {
-                setDocType(e.target.value as '' | 'DOCUMENT' | 'LV_ITEM' | 'LV_TEXT');
+                setDocType(e.target.value as '' | SourceDocType);
                 setPage(1);
               }}
               className="w-40"
             >
               <option value="">All</option>
-              <option value="DOCUMENT">DOCUMENT</option>
-              <option value="LV_ITEM">LV_ITEM</option>
-              <option value="LV_TEXT">LV_TEXT</option>
+              {SOURCE_DOC_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
             </Select>
           </label>
         )}

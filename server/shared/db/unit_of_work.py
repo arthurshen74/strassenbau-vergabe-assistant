@@ -25,6 +25,7 @@ from shared.repositories.entity_rules import EntityRuleRepository
 from shared.repositories.eval_results import EvalResultRepository
 from shared.repositories.eval_run_events import EvalRunEventRepository
 from shared.repositories.eval_runs import EvalRunRepository
+from shared.repositories.form_fields import FormFieldRepository
 from shared.repositories.ground_truth import GroundTruthRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
@@ -58,6 +59,7 @@ class UnitOfWork:
         self.projects = ProjectRepository(conn)
         self.documents = DocumentRepository(conn)
         self.source_lines = SourceLineRepository(conn)
+        self.form_fields = FormFieldRepository(conn)
         self.thumbnails = ThumbnailRepository(conn)
         self.ingest_jobs = IngestJobRepository(conn)
         self.ingest_job_events = IngestJobEventRepository(conn)

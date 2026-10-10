@@ -13,9 +13,9 @@ import { openEventStream } from './sse';
 import { projectKeys } from './projects';
 import { log } from '../lib/logger';
 import { parseIngestPayload } from '../lib/sse-events';
-import type { IngestEvent } from '../types/generated';
+import type { IngestEvent, IngestJobRead } from '../types/generated';
 
-export type IngestStatusValue = 'queued' | 'running' | 'done' | 'failed';
+export type IngestStatusValue = IngestJobRead['status'];
 
 export interface DocIngestStatus {
   status: IngestStatusValue;
@@ -35,6 +35,8 @@ function toStatus(event: IngestEvent): DocIngestStatus {
       return { status: 'running', phase: event.phase, message: event.message };
     case 'ingest_completed':
       return { status: 'done' };
+    case 'ingest_skipped':
+      return { status: 'skipped' };
     case 'ingest_error':
       return { status: 'failed', phase: event.phase ?? undefined, message: event.message };
   }

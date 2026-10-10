@@ -1,5 +1,6 @@
 // Per-document (re-)ingest button. Queues a job; disabled while the document is already
-// queued/running (from the live status stream) or while the request is in flight.
+// queued/running (from the live status stream) or while the request is in flight. On a
+// skipped Bieter form it reads "Trotzdem indexieren": the same requeue ingests it.
 
 import { ArrowPathIcon } from '@heroicons/react/16/solid';
 import { useIngestDocument } from '../../api/projects';
@@ -9,10 +10,12 @@ export function IngestButton({
   projectUuid,
   documentUuid,
   active,
+  skipped = false,
 }: {
   projectUuid: string;
   documentUuid: string;
   active: boolean;
+  skipped?: boolean;
 }) {
   const ingest = useIngestDocument(projectUuid);
   const disabled = active || ingest.isPending;
@@ -24,7 +27,7 @@ export function IngestButton({
       aria-label="Ingest document"
     >
       <ArrowPathIcon className={ingest.isPending ? 'animate-spin' : undefined} />
-      Ingest
+      {skipped ? 'Trotzdem indexieren' : 'Ingest'}
     </Button>
   );
 }

@@ -10,7 +10,7 @@ import pytest
 import shared.services.project_service as project_service
 from shared.config import settings
 from shared.models.document import Document, NewDocument
-from shared.models.enums import DocumentType
+from shared.models.enums import DocumentType, FormRole, IngestStatus
 from shared.models.project import NewProject, Project
 from shared.models.project_info_job import NewProjectInfoJob
 from shared.services.project_service import (
@@ -18,10 +18,11 @@ from shared.services.project_service import (
     ProjectService,
     UploadInput,
     ZipTooLargeError,
-    _classify_document_type,
     _count_pdf_pages,
+    classify_document,
     expand_zip,
 )
+from tests.form_pdfs import acroform_pdf, three_field_form
 
 
 def _zip(entries: dict[str, bytes]) -> bytes:
@@ -140,20 +141,41 @@ def test_count_pdf_pages_non_pdf_is_zero() -> None:
     assert _count_pdf_pages(UploadInput("notes.txt", "text/plain", b"hello")) == 0
 
 
-def test_classify_document_type_gaeb_is_lv() -> None:
-    assert _classify_document_type("anything.d83") == DocumentType.LV_DOCUMENT
-    assert _classify_document_type("P22039_LV1.D83") == DocumentType.LV_DOCUMENT
-    assert _classify_document_type("projekt_lv.x83") == DocumentType.LV_DOCUMENT
-    assert (
-        _classify_document_type("P630394379990126_LV.X83") == DocumentType.LV_DOCUMENT
-    )
+LV = (DocumentType.LV_DOCUMENT, None, None)
+PROSE = (DocumentType.PROSE_DOCUMENT, None, None)
 
 
-def test_classify_document_type_prose_for_everything_else() -> None:
+@pytest.mark.parametrize(
+    "file_name",
+    ["anything.d83", "P22039_LV1.D83", "projekt_lv.x83", "P630394379990126_LV.X83"],
+)
+def test_classify_document_gaeb_is_lv(file_name: str) -> None:
+    assert classify_document(file_name, b"<GAEB/>") == LV
+
+
+def test_classify_document_prose_for_everything_else() -> None:
     # The LV print-layout PDF is prose too: LV items come from GAEB files only.
-    assert _classify_document_type("Projekt_LV1.pdf") == DocumentType.PROSE_DOCUMENT
-    assert _classify_document_type("Projekt_LV1.txt") == DocumentType.PROSE_DOCUMENT
-    assert _classify_document_type("anhang.pdf") == DocumentType.PROSE_DOCUMENT
+    assert classify_document("Projekt_LV1.pdf", b"%PDF") == PROSE
+    assert classify_document("Projekt_LV1.txt", b"x") == PROSE
+    assert classify_document("anhang.pdf", b"%PDF") == PROSE
+
+
+def test_classify_document_zero_field_acroform_is_prose() -> None:
+    assert classify_document("LV Los 1-3.pdf", acroform_pdf([])) == PROSE
+
+
+def test_classify_document_fillable_pdf_is_a_form_with_role() -> None:
+    data = three_field_form()
+    assert classify_document("T1.1 FB 312-B Aufforderung.pdf", data) == (
+        DocumentType.FORM_DOCUMENT,
+        FormRole.VERGABESTELLE,
+        "FB 312-B",
+    )
+    assert classify_document("Baustelleninformationsschild.pdf", data) == (
+        DocumentType.FORM_DOCUMENT,
+        FormRole.UNBEKANNT,
+        None,
+    )
 
 
 def _document(
@@ -208,9 +230,11 @@ class _FakeStorage:
 class _FakeIngestJobs:
     def __init__(self) -> None:
         self.added: list[UUID] = []
+        self.statuses: dict[UUID, IngestStatus] = {}
 
     async def add(self, new) -> None:  # noqa: ANN001 - mirrors the repo signature loosely
         self.added.append(new.document_uuid)
+        self.statuses[new.document_uuid] = new.status
 
 
 def _service(documents: _FakeDocuments) -> ProjectService:
@@ -368,3 +392,35 @@ async def test_create_from_zip_bad_zip_creates_no_project() -> None:
     with pytest.raises(zipfile.BadZipFile):
         await service.create_from_zip("x.zip", b"x")
     assert projects.added == []
+
+
+async def test_bieter_form_is_enqueued_skipped_others_queued() -> None:
+    documents = _FakeDocuments()
+    service = _service(documents)
+    form = three_field_form()
+
+    created = await service.ingest_documents(
+        uuid4(),
+        [
+            UploadInput("T1.6 FB 331-B Angebotsschreiben.pdf", "application/pdf", form),
+            UploadInput("T1.1 FB 312-B Aufforderung.pdf", "application/pdf", form),
+            UploadInput("Plan.pdf", "application/pdf", acroform_pdf([])),
+        ],
+    )
+
+    jobs = service.ingest_jobs
+    assert isinstance(jobs, _FakeIngestJobs)
+    by_name = {d.file_name: d for d in created}
+    bieter = by_name["T1.6 FB 331-B Angebotsschreiben.pdf"]
+    assert (bieter.document_type, bieter.form_role, bieter.form_id) == (
+        DocumentType.FORM_DOCUMENT,
+        FormRole.BIETER,
+        "FB 331-B",
+    )
+    assert jobs.statuses[bieter.document_uuid] is IngestStatus.SKIPPED
+    vergabestelle = by_name["T1.1 FB 312-B Aufforderung.pdf"]
+    assert vergabestelle.form_role is FormRole.VERGABESTELLE
+    assert jobs.statuses[vergabestelle.document_uuid] is IngestStatus.QUEUED
+    plan = by_name["Plan.pdf"]
+    assert (plan.document_type, plan.form_role) == (DocumentType.PROSE_DOCUMENT, None)
+    assert jobs.statuses[plan.document_uuid] is IngestStatus.QUEUED

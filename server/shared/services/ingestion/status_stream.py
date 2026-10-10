@@ -24,6 +24,7 @@ from shared.models.ingest_schema import (
     IngestError,
     IngestProgress,
     IngestQueued,
+    IngestSkipped,
     IngestStarted,
 )
 from shared.models.sse_schema import DATA, EVENT
@@ -31,7 +32,12 @@ from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.services.ingestion.progress import IngestEvent as IngestEventName
 
 IngestEventModel = (
-    IngestQueued | IngestStarted | IngestProgress | IngestCompleted | IngestError
+    IngestQueued
+    | IngestStarted
+    | IngestProgress
+    | IngestCompleted
+    | IngestSkipped
+    | IngestError
 )
 
 # A job's emitted view: a change in (status, latest event ts) triggers a new event.
@@ -73,6 +79,12 @@ def _event_for_row(row: IngestJobStatusRow) -> IngestEventModel:
     if row.status is IngestStatus.DONE:
         return IngestCompleted(
             event="ingest_completed",
+            job_uuid=row.job_uuid,
+            document_uuid=row.document_uuid,
+        )
+    if row.status is IngestStatus.SKIPPED:
+        return IngestSkipped(
+            event="ingest_skipped",
             job_uuid=row.job_uuid,
             document_uuid=row.document_uuid,
         )

@@ -74,7 +74,7 @@ async def run_ingest_job(job_uuid: UUID) -> None:
         logger.info(
             "[ingest] job %s DONE: %d source lines, %d thumbnails, %d langchain "
             "chunks, "
-            "%d document chunks, %d LV items, %d LV chunks",
+            "%d document chunks, %d LV items, %d LV chunks, %d form fields",
             job_uuid,
             result.source_lines,
             result.thumbnails,
@@ -82,6 +82,7 @@ async def run_ingest_job(job_uuid: UUID) -> None:
             result.document_chunks,
             result.lv_items,
             result.lv_chunks,
+            result.form_fields,
         )
     finally:
         langchain_ingestor.close()

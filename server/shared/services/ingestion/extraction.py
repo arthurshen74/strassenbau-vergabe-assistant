@@ -1,13 +1,13 @@
 """Common ingestion stage: PDF bytes to per-line SourceLine rows.
 
 Text is extracted with poppler's `pdftotext -bbox-layout`, which renders the page's
-content *and* its AcroForm field appearances (filled-in dates, checkboxes, free-text
-fields) and emits word/line geometry as XHTML. This matters for the construction forms
-in the corpus, whose contractual data lives in fillable form fields that the PDF content
-stream alone does not carry; it also reconstructs word spacing that a raw content-stream
-extractor drops. Each `<line>` becomes one SourceLine, enumerated into a single gap-free
-`line_id` that runs across pages, so the same integer is the stable reference the LV
-extraction segments on (INGESTION.md)."""
+content *and* the appearance streams of filled AcroForm text fields, and emits word/line
+geometry as XHTML; it also reconstructs word spacing that a raw content-stream extractor
+drops. It does not give checkbox or radio state in a usable form and does not render
+dynamic XFA forms at all; fillable forms go through `forms/` instead, which reuses this
+function for an AcroForm's page text. Each `<line>` becomes one SourceLine, enumerated
+into a single gap-free `line_id` that runs across pages, so the same integer is the
+stable reference the LV extraction segments on (INGESTION.md)."""
 
 from __future__ import annotations
 

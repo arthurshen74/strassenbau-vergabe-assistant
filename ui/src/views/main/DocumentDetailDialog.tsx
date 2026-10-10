@@ -1,21 +1,30 @@
 // Document detail dialog opened from a Projects document row: header metadata plus underline tabs
-// for thumbnails, chunks (Simple/LangChain), and the ingestion log (active ∪ archive).
+// for thumbnails, chunks (Simple/LangChain), and the ingestion log (active ∪ archive). A form
+// document gets a first tab with its extracted fields and opens on it, since an XFA form's
+// thumbnail is only Adobe's placeholder page.
 
 import { useState } from 'react';
-import { PhotoIcon, QueueListIcon, Squares2X2Icon } from '@heroicons/react/20/solid';
+import {
+  PhotoIcon,
+  QueueListIcon,
+  Squares2X2Icon,
+  TableCellsIcon,
+} from '@heroicons/react/20/solid';
 
-import { useDocumentDetail } from '../../api/documents';
+import { useDocumentDetail, useDocumentFormFields } from '../../api/documents';
 import { Dialog, DialogBody, DialogTitle } from '../../components/ui/dialog';
 import { Select } from '../../components/ui/select';
 import { Text } from '../../components/ui/text';
 import { LoadingState } from '../../components/feedback/LoadingState';
 import { formatCost, formatTimestamp } from '../../lib/format';
+import { DOCUMENT_TYPE_FORM, formRoleLabel } from '../../lib/documentType';
 import { DocumentThumbnailViewer } from './DocumentThumbnailViewer';
 import { DocumentChunkViewer } from './DocumentChunkViewer';
 import { DocumentActivityLog } from './DocumentActivityLog';
+import { FormFieldsTable } from './FormFieldsTable';
 import type { DocumentRead } from '../../types/generated';
 
-type Section = 'thumbnails' | 'chunks' | 'log';
+type Section = 'fields' | 'thumbnails' | 'chunks' | 'log';
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
@@ -37,16 +46,33 @@ export function DocumentDetailDialog({
   open: boolean;
   onClose: () => void;
 }) {
-  const [section, setSection] = useState<Section>('thumbnails');
+  const isForm = document?.document_type === DOCUMENT_TYPE_FORM;
+  const [chosen, setSection] = useState<Section | null>(null);
+  const section: Section = chosen ?? (isForm ? 'fields' : 'thumbnails');
   const detail = useDocumentDetail(projectUuid, document?.document_uuid);
+  const formFields = useDocumentFormFields(
+    projectUuid,
+    isForm ? document?.document_uuid : undefined,
+  );
   const d = detail.data;
 
   const tabs = d
     ? [
+        ...(isForm
+          ? [
+              {
+                id: 'fields' as const,
+                name: `Felder (${formFields.data?.length ?? '…'})`,
+                icon: TableCellsIcon,
+              },
+            ]
+          : []),
         { id: 'thumbnails' as const, name: `Thumbnails (${d.number_of_pages})`, icon: PhotoIcon },
         {
           id: 'chunks' as const,
-          name: `Chunks (${d.simple_chunk_count} / ${d.langchain_chunk_count})`,
+          name: isForm
+            ? `Chunks (${d.simple_chunk_count})`
+            : `Chunks (${d.simple_chunk_count} / ${d.langchain_chunk_count})`,
           icon: Squares2X2Icon,
         },
         { id: 'log' as const, name: 'Ingestion Log', icon: QueueListIcon },
@@ -69,7 +95,14 @@ export function DocumentDetailDialog({
                 value={d.last_ingest_date ? formatTimestamp(d.last_ingest_date) : '—'}
               />
               <Meta label="SimpleChunks" value={String(d.simple_chunk_count)} />
-              <Meta label="LangChain chunks" value={String(d.langchain_chunk_count)} />
+              {d.form_role ? (
+                <>
+                  <Meta label="Formblatt" value={d.form_id ?? '—'} />
+                  <Meta label="Rolle" value={formRoleLabel(d.form_role)} />
+                </>
+              ) : (
+                <Meta label="LangChain chunks" value={String(d.langchain_chunk_count)} />
+              )}
               <Meta label="Ingestion cost" value={formatCost(d.ingestion_cost)} />
             </div>
 
@@ -123,6 +156,7 @@ export function DocumentDetailDialog({
               </div>
             </div>
 
+            {section === 'fields' && <FormFieldsTable query={formFields} />}
             {section === 'thumbnails' && (
               <DocumentThumbnailViewer
                 projectUuid={projectUuid}
@@ -134,6 +168,7 @@ export function DocumentDetailDialog({
               <DocumentChunkViewer
                 projectUuid={projectUuid}
                 documentUuid={document.document_uuid}
+                simpleOnly={isForm}
               />
             )}
             {section === 'log' && (

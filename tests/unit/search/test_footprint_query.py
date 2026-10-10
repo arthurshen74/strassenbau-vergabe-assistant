@@ -18,7 +18,7 @@ from shared.clients.search.client import (
 from shared.models.enums import SourceDocType
 
 
-def test_footprint_query_without_lv_items_matches_only_document_chunks() -> None:
+def test_footprint_query_without_lv_items_matches_only_own_page_chunks() -> None:
     project_uuid = uuid4()
     document_uuid = uuid4()
 
@@ -31,7 +31,14 @@ def test_footprint_query_without_lv_items_matches_only_document_chunks() -> None
     assert len(should) == 1
     assert should[0]["bool"]["filter"] == [
         {"term": {FIELD_SOURCE_DOC_UUID: str(document_uuid)}},
-        {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.DOCUMENT.value}},
+        {
+            "terms": {
+                FIELD_SOURCE_DOC_TYPE: [
+                    SourceDocType.DOCUMENT.value,
+                    SourceDocType.FORM.value,
+                ]
+            }
+        },
     ]
 
 

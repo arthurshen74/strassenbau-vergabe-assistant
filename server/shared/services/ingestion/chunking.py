@@ -1,8 +1,9 @@
 """Simple chunking: text units to SimpleChunk drafts (no embeddings).
 
-Every document is chunked into `DOCUMENT` chunks from its SourceLine text; LV items are
-additionally chunked into `LV_ITEM` chunks from their resolved long text, and the LV's
-Vorbemerkungen/Hinweise into `LV_TEXT` chunks (INGESTION.md).
+Every prose document is chunked into `DOCUMENT` chunks from its SourceLine text, and a
+form into `FORM` chunks, one or more per form section; LV items are chunked into
+`LV_ITEM` chunks from their resolved long text, and the LV's Vorbemerkungen/Hinweise
+into `LV_TEXT` chunks (INGESTION.md).
 This module is pure: it produces `ChunkDraft`s carrying everything a `NewSimpleChunk`
 needs except the embedding, which the service fills after calling the embeddings client.
 """
@@ -18,6 +19,7 @@ from shared.models.enums import SourceDocType
 from shared.models.lv_item import LVItem
 from shared.models.lv_text import LVText
 from shared.models.source_line import SourceLine
+from shared.services.ingestion.forms.model import FORM_SECTION_PREFIX
 from shared.services.ingestion.lv.types import hinweis_text
 
 # Which underlying field a chunk's text was drawn from (denormalised onto every chunk).
@@ -77,6 +79,49 @@ def chunk_document(
             chunk_text=text,
         )
         for index, (text, pages) in enumerate(zip(texts, pages_per_chunk))
+    ]
+
+
+def chunk_form(
+    source_lines: list[SourceLine],
+    *,
+    project_uuid: UUID,
+    document_uuid: UUID,
+) -> list[ChunkDraft]:
+    """Chunk a form's SourceLines into FORM chunks: a section heading line starts a new
+    chunk, a line is never split, and a chunk that would exceed CHUNK_SIZE is closed
+    and continued in a chunk that repeats the heading. No overlap. Pages come from the
+    content lines, not the heading."""
+    groups: list[tuple[SourceLine | None, list[SourceLine]]] = []
+    heading: SourceLine | None = None
+    content: list[SourceLine] = []
+    size = 0
+    for line in sorted(source_lines, key=lambda line: line.line_id):
+        if line.line_text.startswith(FORM_SECTION_PREFIX):
+            if content:
+                groups.append((heading, content))
+            heading, content, size = line, [], len(line.line_text)
+            continue
+        if content and size + 1 + len(line.line_text) > CHUNK_SIZE:
+            groups.append((heading, content))
+            content, size = [], len(heading.line_text) if heading else 0
+        size += len(line.line_text) + (1 if size else 0)
+        content.append(line)
+    if content:
+        groups.append((heading, content))
+    return [
+        ChunkDraft(
+            source_doc_uuid=document_uuid,
+            source_doc_type=SourceDocType.FORM,
+            source_doc_field=SOURCE_DOC_FIELD_DOCUMENT,
+            source_doc_pages=sorted({line.page for line in lines}),
+            chunk_index=index,
+            project_uuid=project_uuid,
+            chunk_text="\n".join(
+                line.line_text for line in ([head, *lines] if head else lines)
+            ),
+        )
+        for index, (head, lines) in enumerate(groups)
     ]
 
 

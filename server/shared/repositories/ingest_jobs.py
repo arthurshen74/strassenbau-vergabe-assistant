@@ -213,7 +213,7 @@ class IngestJobRepository:
         """Jobs for the ops console, newest first, joined to each job's document file
         name, project name and latest activity line, optionally filtered to a set of
         statuses and/or a project. With `recent_minutes`, only open jobs and jobs
-        updated within that window are returned."""
+        finished within that window are returned (a skipped job never is)."""
         latest = (
             select(
                 ingestion_activity_log.c.phase.label("latest_phase"),
@@ -256,7 +256,10 @@ class IngestJobRepository:
             stmt = stmt.where(
                 or_(
                     ingest_jobs.c.status.in_(OPEN_STATUSES),
-                    ingest_jobs.c.updated_at >= cutoff,
+                    and_(
+                        ingest_jobs.c.updated_at >= cutoff,
+                        ingest_jobs.c.status != IngestStatus.SKIPPED,
+                    ),
                 )
             )
         stmt = stmt.order_by(ingest_jobs.c.created_at.desc())

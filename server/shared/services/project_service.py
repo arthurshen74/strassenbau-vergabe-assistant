@@ -5,11 +5,13 @@ uploaded file (or, for a `.zip`, each entry of the recursively expanded archive)
 stored to object storage under `raw/{document_uuid}`, recorded as a `Document`, and
 enqueued as a queued `IngestJob` for the worker to process later. `create_from_zip` is
 the ZIP-first path: it creates a project named after the ZIP, ingests every PDF and
-GAEB file inside it the same way, and enqueues the project's Projektinfo job. Storage writes are offloaded to a thread because the
-StorageClient is synchronous boto3. The document type comes from the filename alone: a
-GAEB file (D83/X83) is an LV document by definition and is added next to any LV
-documents the project already has; everything else -- including the LV print-layout PDF
--- is prose.
+GAEB file inside it the same way, and enqueues the project's Projektinfo job. Storage
+writes are offloaded to a thread because the StorageClient is synchronous boto3. The
+document type is decided here, server-side: a GAEB file (D83/X83) is an LV document by
+definition and is added next to any LV documents the project already has; a PDF that is
+a fillable form (decided from its bytes) is a form document whose role comes from its
+filename, and a Bieter form is enqueued as skipped; everything else -- including the LV
+print-layout PDF -- is prose.
 
 `delete_document` is the inverse: the DB row delete cascades to the document's
 thumbnails, source_lines, lv_items, and ingest_jobs, while the Elasticsearch chunks and
@@ -35,7 +37,7 @@ from shared.clients.storage.client import StorageClient, raw_object_key
 from shared.config import settings
 from shared.models.document import NewDocument
 from shared.models.document_schema import DocumentRead
-from shared.models.enums import DocumentType
+from shared.models.enums import DocumentType, FormRole, IngestStatus
 from shared.models.ingest_job import IngestJob, NewIngestJob
 from shared.models.lv_item import LVItem
 from shared.models.lv_text import LVText
@@ -54,6 +56,8 @@ from shared.repositories.lv_texts import LVTextRepository
 from shared.repositories.project_info_jobs import ProjectInfoJobRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
+from shared.services.ingestion.forms.detect import detect_form_kind
+from shared.services.ingestion.forms.role import classify_form_role
 from shared.services.ingestion.gaeb import (
     GAEB_D83_SUFFIX,
     GAEB_X83_SUFFIX,
@@ -321,12 +325,17 @@ class ProjectService:
     async def _ingest_one(
         self, project_uuid: UUID, upload: UploadInput
     ) -> DocumentRead:
+        document_type, form_role, form_id = classify_document(
+            upload.file_name, upload.data
+        )
         doc = await self.documents.add(
             NewDocument(
                 project_uuid=project_uuid,
-                document_type=_classify_document_type(upload.file_name),
+                document_type=document_type,
                 file_name=upload.file_name,
                 number_of_pages=_count_pdf_pages(upload),
+                form_role=form_role,
+                form_id=form_id,
             )
         )
         assert self.storage is not None
@@ -336,17 +345,30 @@ class ProjectService:
             upload.data,
             upload.content_type,
         )
-        await self.ingest_jobs.add(NewIngestJob(document_uuid=doc.document_uuid))
+        status = (
+            IngestStatus.SKIPPED
+            if form_role is FormRole.BIETER
+            else IngestStatus.QUEUED
+        )
+        await self.ingest_jobs.add(
+            NewIngestJob(document_uuid=doc.document_uuid, status=status)
+        )
         return DocumentRead.model_validate(doc)
 
 
-def _classify_document_type(file_name: str) -> DocumentType:
-    """Assign the document type from the filename, mirroring classifyDocumentType in
-    ui/src/lib/documentType.ts: a GAEB D83/X83 file is an LV document by definition;
-    everything else -- including the LV print-layout PDF -- is prose."""
+def classify_document(
+    file_name: str, data: bytes
+) -> tuple[DocumentType, FormRole | None, str | None]:
+    """(document type, form role, form id) of an upload. A GAEB D83/X83 file is an LV
+    document by definition; a PDF that is a fillable form is a form document with its
+    role and Formblatt id from the filename; everything else -- including the LV
+    print-layout PDF -- is prose."""
     if is_gaeb_lv_file(file_name):
-        return DocumentType.LV_DOCUMENT
-    return DocumentType.PROSE_DOCUMENT
+        return DocumentType.LV_DOCUMENT, None, None
+    if file_name.lower().endswith(PDF_SUFFIX) and detect_form_kind(data) is not None:
+        role, form_id = classify_form_role(file_name)
+        return DocumentType.FORM_DOCUMENT, role, form_id
+    return DocumentType.PROSE_DOCUMENT, None, None
 
 
 def _project_name_from_zip(file_name: str) -> str:

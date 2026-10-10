@@ -14,12 +14,22 @@ from enum import StrEnum
 class DocumentType(StrEnum):
     LV_DOCUMENT = "LV_DOCUMENT"
     PROSE_DOCUMENT = "PROSE_DOCUMENT"
+    FORM_DOCUMENT = "FORM_DOCUMENT"
+
+
+class FormRole(StrEnum):
+    """Who fills a Formblatt: issued by the Vergabestelle, or filled by the Bieter."""
+
+    VERGABESTELLE = "vergabestelle"
+    BIETER = "bieter"
+    UNBEKANNT = "unbekannt"
 
 
 class SourceDocType(StrEnum):
     LV_ITEM = "LV_ITEM"
     LV_TEXT = "LV_TEXT"
     DOCUMENT = "DOCUMENT"
+    FORM = "FORM"
 
 
 class LVTextKind(StrEnum):
@@ -46,6 +56,8 @@ class IngestStatus(StrEnum):
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
+    # Set at enqueue for a Bieter form; never claimed, requeue ingests it.
+    SKIPPED = "skipped"
 
 
 class ConsoleJobKind(StrEnum):

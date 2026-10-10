@@ -62,7 +62,7 @@ export interface ProjectInfoJobRead {
   project_uuid: string;
   language: string;
   overwrite: boolean;
-  status: "queued" | "running" | "done" | "failed";
+  status: "queued" | "running" | "done" | "failed" | "skipped";
   attempts: number;
   error?: string | null;
   result?: {
@@ -130,17 +130,19 @@ export interface ProjectContextHistory {
 export interface DocumentRead {
   document_uuid: string;
   project_uuid: string;
-  document_type: "LV_DOCUMENT" | "PROSE_DOCUMENT";
+  document_type: "LV_DOCUMENT" | "PROSE_DOCUMENT" | "FORM_DOCUMENT";
   file_name: string;
   document_description?: string | null;
   number_of_pages: number;
+  form_role?: ("vergabestelle" | "bieter" | "unbekannt") | null;
+  form_id?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface DocumentCreate {
   project_uuid: string;
-  document_type: "LV_DOCUMENT" | "PROSE_DOCUMENT";
+  document_type: "LV_DOCUMENT" | "PROSE_DOCUMENT" | "FORM_DOCUMENT";
   file_name: string;
   document_description?: string | null;
   number_of_pages: number;
@@ -149,13 +151,24 @@ export interface DocumentCreate {
 export interface DocumentDetailRead {
   document_uuid: string;
   file_name: string;
-  document_type: "LV_DOCUMENT" | "PROSE_DOCUMENT";
+  document_type: "LV_DOCUMENT" | "PROSE_DOCUMENT" | "FORM_DOCUMENT";
   number_of_pages: number;
+  form_role?: ("vergabestelle" | "bieter" | "unbekannt") | null;
+  form_id?: string | null;
   upload_date: string;
   last_ingest_date?: string | null;
   simple_chunk_count: number;
   langchain_chunk_count: number;
   ingestion_cost: number | string;
+}
+
+export interface FormFieldRead {
+  field_order: number;
+  section: string;
+  name: string;
+  label?: string | null;
+  value: string;
+  page: number;
 }
 
 export interface ChunkRead {
@@ -183,13 +196,13 @@ export interface ActivityListRead {
 export interface IngestJobRead {
   job_uuid: string;
   document_uuid: string;
-  status: "queued" | "running" | "done" | "failed";
+  status: "queued" | "running" | "done" | "failed" | "skipped";
   created_at: string;
   updated_at: string;
 }
 
 export interface IngestStatusRead {
-  status: "queued" | "running" | "done" | "failed";
+  status: "queued" | "running" | "done" | "failed" | "skipped";
   failing_phase: string | null;
   counts: {
     [k: string]: number;
@@ -215,7 +228,7 @@ export interface ConsoleJobRead {
   project_name: string;
   document_uuid: string | null;
   file_name: string | null;
-  status: "queued" | "running" | "done" | "failed";
+  status: "queued" | "running" | "done" | "failed" | "skipped";
   attempts: number;
   locked_by: string | null;
   locked_at: string | null;
@@ -558,7 +571,7 @@ export interface ThumbnailRef {
 export interface ContextChunk {
   source_number: number;
   chunk_uuid: string;
-  source_doc_type: "LV_ITEM" | "LV_TEXT" | "DOCUMENT";
+  source_doc_type: "LV_ITEM" | "LV_TEXT" | "DOCUMENT" | "FORM";
   source_doc_uuid: string;
   oz?: string | null;
   stl_nr?: string | null;
@@ -578,7 +591,7 @@ export interface ScopeTrace {
 export interface HitTrace {
   chunk_uuid: string;
   score: number;
-  source_doc_type: "LV_ITEM" | "LV_TEXT" | "DOCUMENT";
+  source_doc_type: "LV_ITEM" | "LV_TEXT" | "DOCUMENT" | "FORM";
   source_doc_uuid: string;
   oz?: string | null;
   source_doc_pages: number[];
@@ -1177,6 +1190,12 @@ export interface IngestCompleted {
   document_uuid: string;
 }
 
+export interface IngestSkipped {
+  event: "ingest_skipped";
+  job_uuid: string;
+  document_uuid: string;
+}
+
 export interface IngestError {
   event: "ingest_error";
   job_uuid: string;
@@ -1243,6 +1262,7 @@ export type IngestEvent =
   | IngestStarted
   | IngestProgress
   | IngestCompleted
+  | IngestSkipped
   | IngestError;
 export type SSEEvent =
   | SSETextDelta

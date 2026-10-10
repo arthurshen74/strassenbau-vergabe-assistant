@@ -21,6 +21,7 @@ from shared.models.document_schema import (
     DocumentCreate,
     DocumentDetailRead,
     DocumentRead,
+    FormFieldRead,
 )
 from shared.models.ingest_schema import (
     ConsoleJobRead,
@@ -32,6 +33,7 @@ from shared.models.ingest_schema import (
     IngestJobRead,
     IngestProgress,
     IngestQueued,
+    IngestSkipped,
     IngestStarted,
     IngestStatusRead,
     ProjectInfoActivityLine,
@@ -178,6 +180,7 @@ BODY_MODELS: list[type[BaseModel]] = [
     DocumentRead,
     DocumentCreate,
     DocumentDetailRead,
+    FormFieldRead,
     ChunkRead,
     ChunkListRead,
     ActivityListRead,
@@ -288,6 +291,7 @@ INGEST_EVENT_MODELS: list[type[BaseModel]] = [
     IngestStarted,
     IngestProgress,
     IngestCompleted,
+    IngestSkipped,
     IngestError,
 ]
 

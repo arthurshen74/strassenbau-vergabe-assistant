@@ -102,6 +102,18 @@ async def test_ingest_recent_minutes_window(conn: AsyncConnection) -> None:
     assert {r.job_uuid for r in everything} == {recent, stale, queued}
 
 
+async def test_skipped_job_is_not_active(conn: AsyncConnection) -> None:
+    project_uuid = await _project(conn)
+    _d1, skipped = await _ingest_job(conn, project_uuid, IngestStatus.SKIPPED)
+
+    repo = IngestJobRepository(conn)
+    assert await repo.list_for_console(project_uuid=project_uuid, recent_minutes=15) == []
+    listed = await repo.list_for_console(
+        project_uuid=project_uuid, statuses=[IngestStatus.SKIPPED]
+    )
+    assert [r.job_uuid for r in listed] == [skipped]
+
+
 async def test_project_info_rows_and_window(conn: AsyncConnection) -> None:
     project_uuid = await _project(conn)
     repo = ProjectInfoJobRepository(conn)

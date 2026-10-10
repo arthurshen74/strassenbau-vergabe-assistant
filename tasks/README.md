@@ -142,6 +142,7 @@ adds missing tables). Numbers are reserved here so parallel tasks do not collide
 | `sql/21_project_info_resolve_prompt_type.sql` | 05 |
 | `sql/22_rag_query_vergabestelle.sql` | 05 follow-up |
 | `sql/23_project_info_activity_log.sql` | 06 |
+| `sql/24_form_documents.sql` | 07 |
 
 Follow the header style of `sql/16_lv_texts.sql` and `sql/17_projects_massnahme.sql`:
 a comment block (what, why, mirrors which table file, idempotent, run-after), then

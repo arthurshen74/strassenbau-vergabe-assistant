@@ -33,6 +33,7 @@ from shared.models.document_schema import (
     ChunkListRead,
     DocumentDetailRead,
     DocumentRead,
+    FormFieldRead,
 )
 from shared.models.enums import SourceDocType
 from shared.models.ingest_schema import IngestJobRead
@@ -477,6 +478,26 @@ async def list_document_chunks(
         offset=offset,
         size=limit,
     )
+
+
+@router.get(
+    "/{project_uuid}/documents/{document_uuid}/form-fields",
+    response_model=list[FormFieldRead],
+)
+async def list_document_form_fields(
+    project_uuid: UUID,
+    document_uuid: UUID,
+    _principal: Principal = Depends(get_current_user),
+    service: DocumentDetailService = Depends(get_document_detail_service),
+) -> list[FormFieldRead]:
+    """A form document's extracted fields in reading order; 404 for any other
+    document."""
+    fields = await service.list_form_fields(project_uuid, document_uuid)
+    if fields is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="form document not found"
+        )
+    return fields
 
 
 @router.get(

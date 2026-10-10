@@ -7,6 +7,7 @@ EXPECTED_TABLES = {
     "projects",
     "documents",
     "source_lines",
+    "form_fields",
     "thumbnails",
     "ingest_jobs",
     "ingest_job_events",

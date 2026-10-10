@@ -50,6 +50,10 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Baupläne** — Construction drawings. Plan sheets showing layout, profiles, cross-sections, drainage, and details. Not always provided in road tenders; when provided, typically as PDF.
 
+**Formblatt** (pl. Formblätter) — A standardised tender form from a federal or state form set: VHB (Vergabe- und Vertragshandbuch des Bundes, e.g. `VHB 221` Zuschlagskalkulation), HVA B-StB (Handbuch für die Vergabe und Ausführung von Bauleistungen im Straßen- und Brückenbau, e.g. `HVA B-StB 121` Angebotsschreiben), the WSV forms (`FB 312-B` Aufforderung zur Abgabe eines Angebots), and EFB-Preis. The same number means different things in different families. Usually supplied as a fillable PDF; the system ingests it as a `FORM_DOCUMENT` with its Formblatt id and role.
+
+**Form role** — Who fills a Formblatt. A **Vergabestelle** form is issued filled-in by the procurement office (Aufforderung, Teilnahmebedingungen, BVB) and carries tender facts such as Vergabenummer and Fristen; it is extracted and indexed. A **Bieter** form is to be filled by the bidder (Angebotsschreiben, Eigenerklärungen, Kalkulationsblätter); only its pre-filled header is set, so it is stored but not indexed unless requeued ("Trotzdem indexieren"). A form the filename does not identify is **unbekannt** and is indexed.
+
 **Karten** — Maps. Site location maps, regional plans, traffic-management plans, environmental overlays. Distinct from these tender documents, the system also renders its own site and route maps via geocoding in chat and calculation.
 
 ## GAEB and LV Structure
@@ -256,7 +260,11 @@ project-info extraction.
 
 **Usage sink** — A small async interface (`UsageSink`) an OpenRouter client emits a `UsageEvent` to after each call. `LoggingUsageSink` logs one line (default); `DatabaseUsageSink` persists to `openrouter_usage`.
 
-**Ingest console** — The ops view of the worker queues: ingest jobs (one per document) and Projektinfo jobs (one per run) in one list, each with its status, lease, attempts and latest activity line. It stays live through a server-side stream, opens filtered to the project after an upload, and can requeue a stuck or failed job or open its full activity log. The default "Active" view shows queued and running jobs plus those finished in the last 15 minutes.
+**XFA** — XML Forms Architecture, Adobe's dynamic PDF form format. The form layout and the filled-in values live in XML packets (`template`, `datasets`) inside the PDF; the page content only says "Please wait... upgrade Adobe Reader". The system reads the XML and never renders XFA.
+
+**AcroForm** — The standard PDF form format: fields with names, optional `/TU` labels and values in the PDF's field dictionary, plus a rendered appearance per widget. A PDF can carry an `/AcroForm` dictionary with zero fields (common for plans and flattened forms); only one with at least 3 fillable fields counts as a form.
+
+**Ingest console** — The ops view of the worker queues: ingest jobs (one per document) and Projektinfo jobs (one per run) in one list, each with its status, lease, attempts and latest activity line. It stays live through a server-side stream, opens filtered to the project after an upload, and can requeue a stuck or failed job or open its full activity log. The default "Active" view shows queued and running jobs plus those finished in the last 15 minutes; skipped Bieter forms appear only under "All" or the `skipped` filter.
 
 **Projektinfo** — The project header fields (Projektname/Maßnahme, Maßnahmenummer, Vergabenummer, Vergabestelle, Bauleistung, Baustelle, Projektbeschreibung) read from the tender documents after ingestion. Filled by one `project_info_jobs` row per run, which the worker claims once the project's ingest jobs are no longer queued or running; it runs every RAG Query (Projektinfo) and writes only values the documents support. Status and per-field evidence show on the project page, which can also start a re-run.
 

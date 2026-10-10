@@ -1,9 +1,9 @@
 """Read-side service for the Projects document-detail view.
 
 Assembles a document's header metadata + per-source chunk counts, lists its chunks from
-Elasticsearch (SimpleChunk or LangChain index), and lists its ingestion activity across
-the active and archive tables. Postgres reads use short read-only connections; chunk
-reads go through the shared SearchClient.
+Elasticsearch (SimpleChunk or LangChain index), lists a form's extracted fields, and
+lists its ingestion activity across the active and archive tables. Postgres reads use
+short read-only connections; chunk reads go through the shared SearchClient.
 """
 
 from __future__ import annotations
@@ -19,9 +19,11 @@ from shared.models.document_schema import (
     ChunkListRead,
     ChunkRead,
     DocumentDetailRead,
+    FormFieldRead,
 )
-from shared.models.enums import SourceDocType
+from shared.models.enums import DocumentType, SourceDocType
 from shared.repositories.documents import DocumentRepository
+from shared.repositories.form_fields import FormFieldRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingestion_activity import IngestionActivityLogRepository
 from shared.repositories.lv_items import LVItemRepository
@@ -62,6 +64,8 @@ class DocumentDetailService:
             file_name=doc.file_name,
             document_type=doc.document_type,
             number_of_pages=doc.number_of_pages,
+            form_role=doc.form_role,
+            form_id=doc.form_id,
             upload_date=doc.created_at,
             last_ingest_date=last_ingest,
             simple_chunk_count=simple_count,
@@ -124,6 +128,22 @@ class DocumentDetailService:
             ],
             total=total,
         )
+
+    async def list_form_fields(
+        self, project_uuid: UUID, document_uuid: UUID
+    ) -> list[FormFieldRead] | None:
+        """A form's extracted fields in reading order, or None if the document is not a
+        form in the project."""
+        async with self._engine.connect() as conn:
+            doc = await DocumentRepository(conn).get(document_uuid)
+            if (
+                doc is None
+                or doc.project_uuid != project_uuid
+                or doc.document_type is not DocumentType.FORM_DOCUMENT
+            ):
+                return None
+            fields = await FormFieldRepository(conn).list_for_document(document_uuid)
+        return [FormFieldRead.model_validate(f) for f in fields]
 
     async def list_activity(
         self, document_uuid: UUID, *, offset: int = 0, limit: int = 200

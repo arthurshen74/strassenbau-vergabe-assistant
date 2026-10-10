@@ -14,10 +14,11 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 
 from shared.db.metadata import metadata
-from shared.models.enums import DocumentType
+from shared.models.enums import DocumentType, FormRole
 
 # The CHECK predicate is built from the enum so a rename can't drift.
 _DOCUMENT_TYPES_SQL = ", ".join(f"'{t.value}'" for t in DocumentType)
+_FORM_ROLES_SQL = ", ".join(f"'{r.value}'" for r in FormRole)
 
 documents = Table(
     "documents",
@@ -39,6 +40,9 @@ documents = Table(
     Column("file_name", Text, nullable=False),
     Column("document_description", Text, nullable=True),
     Column("number_of_pages", Integer, nullable=False),
+    Column("form_role", Text, nullable=True),
+    # Formblatt identity from the filename, e.g. "FB 312-B", "HVA B-StB 121".
+    Column("form_id", Text, nullable=True),
     Column(
         "created_at",
         DateTime(timezone=True),
@@ -54,6 +58,13 @@ documents = Table(
     ),
     CheckConstraint(
         f"document_type IN ({_DOCUMENT_TYPES_SQL})", name="document_type_valid"
+    ),
+    CheckConstraint(f"form_role IN ({_FORM_ROLES_SQL})", name="form_role_valid"),
+    # Exactly the form documents carry a role.
+    CheckConstraint(
+        f"(document_type = '{DocumentType.FORM_DOCUMENT.value}') = "
+        "(form_role IS NOT NULL)",
+        name="document_type_form_role",
     ),
 )
 

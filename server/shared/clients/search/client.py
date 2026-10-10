@@ -52,6 +52,9 @@ GERMAN_ANALYZER = "german"
 BM25_SIMILARITY = "BM25"
 VECTOR_SIMILARITY = "cosine"
 
+# Source types of a document's own page text (prose and form), keyed by document_uuid.
+PAGE_TEXT_SOURCE_DOC_TYPES = [SourceDocType.DOCUMENT.value, SourceDocType.FORM.value]
+
 # Async transport: the project standardises on httpx (aiohttp is not a dependency).
 NODE_CLASS = "httpxasync"
 
@@ -132,21 +135,21 @@ def _archive_mapping() -> dict[str, Any]:
 
 
 def simple_filter(project_uuid: UUID) -> dict[str, Any]:
-    """Simple scope: project chunks whose source_doc_type is DOCUMENT (RETRIEVAL.md)."""
+    """Simple scope: the project's DOCUMENT and FORM chunks (RETRIEVAL.md)."""
     return {
         "bool": {
             "filter": [
                 {"term": {FIELD_PROJECT_UUID: str(project_uuid)}},
-                {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.DOCUMENT.value}},
+                {"terms": {FIELD_SOURCE_DOC_TYPE: PAGE_TEXT_SOURCE_DOC_TYPES}},
             ]
         }
     }
 
 
 def plus_filter(project_uuid: UUID) -> dict[str, Any]:
-    """Plus scope: the project's DOCUMENT chunks plus the parsed LV_ITEM and LV_TEXT
-    chunks of every LV document (RETRIEVAL.md). GAEB LV documents produce no DOCUMENT
-    chunks, so no LV content is counted twice."""
+    """Plus scope: the project's DOCUMENT and FORM chunks plus the parsed LV_ITEM and
+    LV_TEXT chunks of every LV document (RETRIEVAL.md). GAEB LV documents produce no
+    DOCUMENT chunks, so no LV content is counted twice."""
     return {
         "bool": {
             "filter": [
@@ -154,7 +157,7 @@ def plus_filter(project_uuid: UUID) -> dict[str, Any]:
                 {
                     "terms": {
                         FIELD_SOURCE_DOC_TYPE: [
-                            SourceDocType.DOCUMENT.value,
+                            *PAGE_TEXT_SOURCE_DOC_TYPES,
                             SourceDocType.LV_ITEM.value,
                             SourceDocType.LV_TEXT.value,
                         ]
@@ -194,16 +197,16 @@ def _source_query(
 def _document_footprint_query(
     project_uuid: UUID, document_uuid: UUID, lv_source_uuids: Sequence[UUID]
 ) -> dict[str, Any]:
-    """Every chunk a document put in the index: its own DOCUMENT chunks (keyed by
-    document_uuid) and, for an LV document, the LV_ITEM / LV_TEXT chunks of its parsed
-    items and texts (keyed by lv_item_uuid / lv_text_uuid, not document_uuid). Scoped
-    to project_uuid as a guard."""
+    """Every chunk a document put in the index: its own DOCUMENT or FORM chunks (keyed
+    by document_uuid) and, for an LV document, the LV_ITEM / LV_TEXT chunks of its
+    parsed items and texts (keyed by lv_item_uuid / lv_text_uuid, not document_uuid).
+    Scoped to project_uuid as a guard."""
     should: list[dict[str, Any]] = [
         {
             "bool": {
                 "filter": [
                     {"term": {FIELD_SOURCE_DOC_UUID: str(document_uuid)}},
-                    {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.DOCUMENT.value}},
+                    {"terms": {FIELD_SOURCE_DOC_TYPE: PAGE_TEXT_SOURCE_DOC_TYPES}},
                 ]
             }
         }

@@ -1,13 +1,14 @@
 // Upload one or more documents (PDF, GAEB .d83/.x83, or a flat ZIP of files) into a
-// project. The document type is auto-assigned from each filename: each GAEB file becomes a
-// new LV document next to any existing ones, everything else (including LV-print PDFs) is
-// prose. ZIP entries are auto-typed the same way server-side, by each entry's own filename.
-// A successful upload opens the ingest console filtered to the project.
+// project. The server assigns each document's type: each GAEB file becomes a new LV
+// document next to any existing ones, a fillable PDF form becomes a form document, and
+// everything else (including LV-print PDFs) is prose. The picked files only show their
+// format; the real type appears in the documents table after upload. A successful upload
+// opens the ingest console filtered to the project.
 
 import { useState } from 'react';
 import { useUploadDocuments } from '../../api/projects';
 import { useMainWindowStore } from '../../store/mainWindow';
-import { DOCUMENT_TYPE_LV, classifyDocumentType } from '../../lib/documentType';
+import { GAEB_LV_PATTERN } from '../../lib/documentType';
 import {
   Dialog,
   DialogActions,
@@ -68,10 +69,10 @@ export function UploadDocumentDialog({
         </Field>
         {files.length > 0 && (
           <Field>
-            <Label>Auto-assigned document type</Label>
+            <Label>Selected files</Label>
             <ul className="mt-2 flex flex-col gap-1.5">
               {files.map((f, i) => {
-                const type = classifyDocumentType(f.name);
+                const gaeb = GAEB_LV_PATTERN.test(f.name);
                 return (
                   <li
                     key={`${f.name}-${i}`}
@@ -80,14 +81,12 @@ export function UploadDocumentDialog({
                     <span className="truncate text-zinc-700 dark:text-zinc-300">
                       {f.name}
                     </span>
-                    <Badge color={type === DOCUMENT_TYPE_LV ? 'indigo' : 'zinc'}>
-                      {type}
-                    </Badge>
+                    <Badge color={gaeb ? 'amber' : 'zinc'}>{gaeb ? 'GAEB' : 'PDF'}</Badge>
                   </li>
                 );
               })}
             </ul>
-            {files.some((f) => classifyDocumentType(f.name) === DOCUMENT_TYPE_LV) && (
+            {files.some((f) => GAEB_LV_PATTERN.test(f.name)) && (
               <Description className="mt-2">
                 Each GAEB file becomes its own LV document; existing LV documents are kept.
               </Description>

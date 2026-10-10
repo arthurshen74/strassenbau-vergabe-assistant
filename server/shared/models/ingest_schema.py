@@ -114,6 +114,16 @@ class IngestCompleted(BaseModel):
     document_uuid: UUID
 
 
+class IngestSkipped(BaseModel):
+    """A Bieter form stored but not ingested; requeueing ingests it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["ingest_skipped"]
+    job_uuid: UUID
+    document_uuid: UUID
+
+
 class IngestError(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -155,6 +165,11 @@ class ProjectInfoActivityLine(BaseModel):
 
 
 IngestEvent = Annotated[
-    IngestQueued | IngestStarted | IngestProgress | IngestCompleted | IngestError,
+    IngestQueued
+    | IngestStarted
+    | IngestProgress
+    | IngestCompleted
+    | IngestSkipped
+    | IngestError,
     Field(discriminator="event"),
 ]

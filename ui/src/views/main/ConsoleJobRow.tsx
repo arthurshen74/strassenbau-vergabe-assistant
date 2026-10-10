@@ -9,12 +9,13 @@ import type { ConsoleJobRead } from '../../types/generated';
 
 const STATUS_COLOR: Record<
   ConsoleJobStatus,
-  'zinc' | 'blue' | 'green' | 'red'
+  'zinc' | 'blue' | 'green' | 'red' | 'amber'
 > = {
   queued: 'zinc',
   running: 'blue',
   done: 'green',
   failed: 'red',
+  skipped: 'amber',
 };
 
 const ACTION =

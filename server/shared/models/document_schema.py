@@ -12,7 +12,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from shared.models.enums import DocumentType
+from shared.models.enums import DocumentType, FormRole
 from shared.models.ingestion_activity import IngestionActivity
 
 
@@ -25,6 +25,8 @@ class DocumentRead(BaseModel):
     file_name: str
     document_description: str | None = None
     number_of_pages: int
+    form_role: FormRole | None = None
+    form_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -48,6 +50,8 @@ class DocumentDetailRead(BaseModel):
     file_name: str
     document_type: DocumentType
     number_of_pages: int
+    form_role: FormRole | None = None
+    form_id: str | None = None
     upload_date: datetime
     last_ingest_date: datetime | None = None
     simple_chunk_count: int
@@ -87,3 +91,16 @@ class ActivityListRead(BaseModel):
 
     items: list[IngestionActivity]
     total: int
+
+
+class FormFieldRead(BaseModel):
+    """One extracted form field for the document-detail Felder tab."""
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    field_order: int
+    section: str
+    name: str
+    label: str | None = None
+    value: str
+    page: int

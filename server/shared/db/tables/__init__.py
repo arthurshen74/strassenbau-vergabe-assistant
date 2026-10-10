@@ -15,6 +15,7 @@ from shared.db.tables.entity_rules import entity_rules
 from shared.db.tables.eval_results import eval_results
 from shared.db.tables.eval_run_events import eval_run_events
 from shared.db.tables.eval_runs import eval_runs
+from shared.db.tables.form_fields import form_fields
 from shared.db.tables.ingest_job_events import ingest_job_events
 from shared.db.tables.ingest_jobs import ingest_jobs
 from shared.db.tables.ingestion_activity_log import ingestion_activity_log
@@ -67,6 +68,7 @@ __all__ = [
     "eval_results",
     "eval_run_events",
     "eval_runs",
+    "form_fields",
     "ingest_job_events",
     "ingest_jobs",
     "ingestion_activity_log",

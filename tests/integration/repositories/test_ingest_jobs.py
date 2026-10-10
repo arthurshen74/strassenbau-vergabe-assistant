@@ -143,3 +143,19 @@ async def test_status_for_project_scopes_to_the_project(conn: AsyncConnection) -
 
     rows = await repo.status_for_project(project_a)
     assert [r.document_uuid for r in rows] == [doc_a]
+
+
+async def test_skipped_job_is_never_claimed_until_requeued(conn: AsyncConnection) -> None:
+    repo = IngestJobRepository(conn)
+    doc = await _document(conn)
+    skipped = await repo.add(
+        NewIngestJob(document_uuid=doc, status=IngestStatus.SKIPPED)
+    )
+    assert skipped.status == IngestStatus.SKIPPED
+
+    assert await repo.claim_next(worker_id="w1", lease_seconds=60.0, max_attempts=3) is None
+
+    requeued = await repo.requeue(skipped.job_uuid)
+    assert requeued is not None and requeued.status == IngestStatus.QUEUED
+    claimed = await repo.claim_next(worker_id="w1", lease_seconds=60.0, max_attempts=3)
+    assert claimed is not None and claimed.job_uuid == skipped.job_uuid

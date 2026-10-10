@@ -1,18 +1,20 @@
 """Orchestrates document ingestion (INGESTION.md), end to end except job claiming.
 
-`ingest_document` renders one page thumbnail per page, runs the LangChain pipeline (PDF
--> RecursiveCharacterTextSplitter chunks in the parallel vector index), runs the common
-extraction stage (PDF -> SourceLine), and simple-chunks every PDF into DOCUMENT chunks.
-LV items come exclusively from GAEB files (D83/X83), which take a short path instead:
-the file parses deterministically into LVItem rows and LV_ITEM chunks plus the LV-level
-texts (Vorbemerkungen, Hinweise) as LVText rows and LV_TEXT chunks (no thumbnails,
-source lines, or DOCUMENT chunks). It is called directly with a `document_uuid`; passing
-a `job_uuid` enables IngestJobEvent progress logging, and omitting it runs jobless for
-isolated testing. The worker loop that claims jobs and drives this service is a separate
-step.
+`ingest_document` dispatches on the document type set at upload. A prose PDF gets one
+thumbnail per page, the LangChain pipeline (PDF -> RecursiveCharacterTextSplitter chunks
+in the parallel vector index), the common extraction stage (PDF -> SourceLine), and
+DOCUMENT chunks. A form gets thumbnails, the form extractor (SourceLines plus FormField
+rows, read from the XFA packets or the AcroForm fields) and FORM chunks per form
+section; it skips the LangChain pass. LV items come exclusively from GAEB files
+(D83/X83), which take a short path instead: the file parses deterministically into
+LVItem rows and LV_ITEM chunks plus the LV-level texts (Vorbemerkungen, Hinweise) as
+LVText rows and LV_TEXT chunks (no thumbnails, source lines, or DOCUMENT chunks). It is
+called directly with a `document_uuid`; passing a `job_uuid` enables IngestJobEvent
+progress logging, and omitting it runs jobless for isolated testing. The worker loop
+that claims jobs and drives this service is a separate step.
 
 The repositories and clients are reached here and in the injected LangchainIngestor; the
-extraction, chunking, and GAEB submodules are pure."""
+extraction, chunking, forms, and GAEB submodules are pure."""
 
 from __future__ import annotations
 
@@ -33,17 +35,21 @@ from shared.clients.storage.client import (
 from shared.config import settings
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.document import Document
-from shared.models.enums import SourceDocType
+from shared.models.enums import DocumentType, SourceDocType
 from shared.models.simple_chunk import NewSimpleChunk
 from shared.models.thumbnail import NewThumbnail
 from shared.services.ingestion.chunking import (
     ChunkDraft,
     chunk_document,
+    chunk_form,
     chunk_lv_item,
     chunk_lv_text,
 )
 from shared.services.ingestion.extraction import extract_source_lines
-from shared.services.ingestion.gaeb import is_gaeb_lv_file, parse_gaeb_lv
+from shared.services.ingestion.forms.detect import detect_form_kind
+from shared.services.ingestion.forms.extraction import extract_form
+from shared.services.ingestion.forms.model import FORM_SECTION_PREFIX
+from shared.services.ingestion.gaeb import parse_gaeb_lv
 from shared.services.ingestion.langchain_pipeline import LangchainIngestor
 from shared.services.ingestion.lv.types import LVParseResult
 from shared.services.ingestion.progress import (
@@ -62,6 +68,13 @@ ActivityEmit = Callable[[str, str | None], None]
 # Cap on the exception text persisted in a failure event (surfaced to the UI).
 FAILURE_MESSAGE_LIMIT = 500
 
+# Source types whose chunks are a document's own page text (not per LV item / text).
+PAGE_TEXT_SOURCE_TYPES = frozenset({SourceDocType.DOCUMENT, SourceDocType.FORM})
+
+
+class NotAFormError(Exception):
+    """A FORM_DOCUMENT whose bytes no longer detect as a form."""
+
 
 class DocumentNotFoundError(Exception):
     """No Document exists for the requested document_uuid."""
@@ -78,6 +91,7 @@ class IngestionResult:
     lv_items: int
     lv_texts: int
     lv_chunks: int  # LV_ITEM + LV_TEXT chunks
+    form_fields: int
 
 
 class IngestionService:
@@ -112,9 +126,15 @@ class IngestionService:
                 message=document.file_name,
             )
 
-        if is_gaeb_lv_file(document.file_name):
+        if document.document_type is DocumentType.LV_DOCUMENT:
             self._activity(f"start: {document.file_name} (GAEB)", IngestPhase.INGEST)
             return await self._ingest_gaeb_document(document, job_uuid)
+        if document.document_type is DocumentType.FORM_DOCUMENT:
+            self._activity(
+                f"start: {document.file_name} (form, {document.number_of_pages} pages)",
+                IngestPhase.INGEST,
+            )
+            return await self._ingest_form_document(document, job_uuid)
         self._activity(
             f"start: {document.file_name} (PDF, {document.number_of_pages} pages)",
             IngestPhase.INGEST,
@@ -233,6 +253,118 @@ class IngestionService:
             lv_items=0,
             lv_texts=0,
             lv_chunks=0,
+            form_fields=0,
+        )
+
+    async def _ingest_form_document(
+        self, document: Document, job_uuid: UUID | None
+    ) -> IngestionResult:
+        """Form path: thumbnails, then the form extractor (source lines + form fields)
+        and FORM chunks per section. No LangChain pass."""
+        document_uuid = document.document_uuid
+        phase = IngestPhase.INGEST
+        try:
+            pdf_bytes = await self._download(document_uuid)
+
+            phase = IngestPhase.THUMBNAILS
+            started = time.monotonic()
+            thumbnails = await self._generate_thumbnails(document_uuid, pdf_bytes)
+            self._activity(
+                f"stored {thumbnails} thumbnails in {time.monotonic() - started:.1f} s",
+                IngestPhase.THUMBNAILS,
+            )
+            await self._emit(
+                job_uuid,
+                event=IngestEvent.THUMBNAILS_GENERATED,
+                phase=IngestPhase.THUMBNAILS,
+                message=f"{thumbnails} thumbnails",
+            )
+
+            phase = IngestPhase.EXTRACT
+            started = time.monotonic()
+            kind = detect_form_kind(pdf_bytes)
+            if kind is None:
+                raise NotAFormError(document.file_name)
+            extraction = extract_form(pdf_bytes, document_uuid, kind)
+            sections = sum(
+                1
+                for line in extraction.lines
+                if line.line_text.startswith(FORM_SECTION_PREFIX)
+            )
+            self._activity(
+                f"form ({kind}): {len(extraction.fields)} fields, {sections} sections",
+                IngestPhase.EXTRACT,
+            )
+            self._activity(
+                f"extracted {len(extraction.lines)} source lines in "
+                f"{time.monotonic() - started:.1f} s",
+                IngestPhase.EXTRACT,
+            )
+            async with self._uow_factory() as uow:
+                source_lines = await uow.source_lines.add_many(extraction.lines)
+                await uow.form_fields.delete_for_document(document_uuid)
+                form_fields = await uow.form_fields.add_many(extraction.fields)
+                await self._emit_in_uow(
+                    uow,
+                    job_uuid,
+                    event=IngestEvent.SOURCE_LINES_PERSISTED,
+                    phase=IngestPhase.EXTRACT,
+                    message=(
+                        f"{len(source_lines)} source lines, "
+                        f"{len(form_fields)} form fields"
+                    ),
+                )
+
+            phase = IngestPhase.CHUNK
+            started = time.monotonic()
+            drafts = chunk_form(
+                source_lines,
+                project_uuid=document.project_uuid,
+                document_uuid=document_uuid,
+            )
+            self._activity(f"{len(drafts)} chunks drafted", IngestPhase.CHUNK)
+            document_chunks = await self._embed_and_index(
+                drafts,
+                document_uuid,
+                SourceDocType.FORM,
+                document.project_uuid,
+                job_uuid,
+                document_uuid,
+            )
+            self._activity(
+                f"chunks done in {time.monotonic() - started:.1f} s", IngestPhase.CHUNK
+            )
+            await self._emit(
+                job_uuid,
+                event=IngestEvent.DOCUMENT_CHUNKS_INDEXED,
+                phase=IngestPhase.CHUNK,
+                message=f"{document_chunks} form chunks",
+            )
+        except Exception as exc:
+            self._activity_failure(exc, phase)
+            await self._emit(
+                job_uuid,
+                event=IngestEvent.FAILED,
+                phase=phase,
+                message=str(exc)[:FAILURE_MESSAGE_LIMIT],
+            )
+            raise
+
+        await self._emit(
+            job_uuid,
+            event=IngestEvent.COMPLETED,
+            phase=IngestPhase.INGEST,
+            message="ingestion complete",
+        )
+        return IngestionResult(
+            source_lines=len(source_lines),
+            thumbnails=thumbnails,
+            langchain_chunks=0,
+            document_chunks=document_chunks,
+            lv_items=0,
+            lv_texts=0,
+            lv_chunks=0,
+            form_fields=len(form_fields),
         )
 
     async def _ingest_gaeb_document(
@@ -283,6 +415,7 @@ class IngestionService:
             lv_items=lv_items,
             lv_texts=lv_texts,
             lv_chunks=lv_chunks,
+            form_fields=0,
         )
 
     async def _persist_lv_result(
@@ -400,11 +533,8 @@ class IngestionService:
             ingest_job_uuid=job_uuid,
             document_uuid=document_uuid,
         )
-        activity_phase = (
-            IngestPhase.CHUNK
-            if source_doc_type is SourceDocType.DOCUMENT
-            else IngestPhase.LV
-        )
+        page_text = source_doc_type in PAGE_TEXT_SOURCE_TYPES
+        activity_phase = IngestPhase.CHUNK if page_text else IngestPhase.LV
         chunks: list[NewSimpleChunk] = []
         for index, (draft, vector) in enumerate(zip(drafts, vectors), start=1):
             chunks.append(
@@ -418,10 +548,10 @@ class IngestionService:
                 self._activity(f"embedded {index}/{len(drafts)} chunks", activity_phase)
         await self._search.archive_source(source_doc_uuid, source_doc_type)
         # LV items index one small batch each; only the document batch gets lines.
-        if source_doc_type is SourceDocType.DOCUMENT:
+        if page_text:
             self._activity("archived previous chunks", activity_phase)
         await self._search.index_chunks(chunks)
-        if source_doc_type is SourceDocType.DOCUMENT:
+        if page_text:
             self._activity(
                 f"indexed {len(chunks)} chunks into {settings.elasticsearch_index}",
                 activity_phase,

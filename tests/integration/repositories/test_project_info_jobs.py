@@ -99,6 +99,14 @@ async def test_failed_ingest_job_does_not_block(conn: AsyncConnection) -> None:
     assert claimed is not None and claimed.job_uuid == info
 
 
+async def test_skipped_ingest_job_does_not_block(conn: AsyncConnection) -> None:
+    project = await _project(conn)
+    await _ingest_job(conn, project, IngestStatus.SKIPPED)
+    info = await _info_job(conn, project)
+    claimed = await _claim(ProjectInfoJobRepository(conn))
+    assert claimed is not None and claimed.job_uuid == info
+
+
 async def test_other_projects_open_ingest_jobs_do_not_block(conn: AsyncConnection) -> None:
     busy = await _project(conn)
     await _ingest_job(conn, busy, IngestStatus.QUEUED)

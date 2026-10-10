@@ -17,7 +17,26 @@ def test_lv_items_filter_scopes_project_and_lv_item_only() -> None:
     assert {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.DOCUMENT.value}} not in terms
 
 
-def test_plus_filter_spans_documents_and_every_lv_source() -> None:
+def test_simple_filter_spans_documents_and_forms() -> None:
+    project_uuid = uuid4()
+    assert simple_filter(project_uuid) == {
+        "bool": {
+            "filter": [
+                {"term": {FIELD_PROJECT_UUID: str(project_uuid)}},
+                {
+                    "terms": {
+                        FIELD_SOURCE_DOC_TYPE: [
+                            SourceDocType.DOCUMENT.value,
+                            SourceDocType.FORM.value,
+                        ]
+                    }
+                },
+            ]
+        }
+    }
+
+
+def test_plus_filter_spans_documents_forms_and_every_lv_source() -> None:
     project_uuid = uuid4()
     assert plus_filter(project_uuid) == {
         "bool": {
@@ -27,6 +46,7 @@ def test_plus_filter_spans_documents_and_every_lv_source() -> None:
                     "terms": {
                         FIELD_SOURCE_DOC_TYPE: [
                             SourceDocType.DOCUMENT.value,
+                            SourceDocType.FORM.value,
                             SourceDocType.LV_ITEM.value,
                             SourceDocType.LV_TEXT.value,
                         ]

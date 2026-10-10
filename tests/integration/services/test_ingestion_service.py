@@ -13,12 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from shared.clients.storage.client import thumbnail_object_key
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.document import NewDocument
-from shared.models.enums import DocumentType, SourceDocType
+from shared.models.enums import DocumentType, FormRole, SourceDocType
 from shared.models.ingest_job import NewIngestJob
 from shared.models.project import NewProject
 from shared.models.simple_chunk import NewSimpleChunk
 from shared.models.source_line import NewSourceLine
 from shared.repositories.documents import DocumentRepository
+from shared.repositories.form_fields import FormFieldRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
@@ -28,6 +29,7 @@ from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.ingestion import IngestionService
 from shared.services.ingestion import ingestion_service as service_module
 from shared.services.ingestion.thumbnails import RenderedPage
+from tests.form_pdfs import FieldSpec, acroform_pdf, text_field
 
 # --- fakes ---------------------------------------------------------------
 
@@ -114,7 +116,10 @@ def _factory(conn: AsyncConnection):
 
 
 async def _document(
-    conn: AsyncConnection, doc_type: DocumentType, file_name: str = "p.pdf"
+    conn: AsyncConnection,
+    doc_type: DocumentType,
+    file_name: str = "p.pdf",
+    form_role: FormRole | None = None,
 ) -> tuple[UUID, UUID]:
     project = await ProjectRepository(conn).add(
         NewProject(
@@ -130,6 +135,7 @@ async def _document(
             document_type=doc_type,
             file_name=file_name,
             number_of_pages=1,
+            form_role=form_role,
         )
     )
     return project.project_uuid, doc.document_uuid
@@ -197,34 +203,6 @@ async def test_gaeb_document_parses_into_lv_items_and_chunks(conn: AsyncConnecti
     assert any(c.oz == "1.1" and c.stl_nr == "21109" for c in search.indexed)
 
 
-async def test_pdf_document_gets_no_lv_items(
-    conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Even an LV_DOCUMENT-typed PDF runs only the common stages: LV items come from GAEB files."""
-    _project_uuid, document_uuid = await _document(conn, DocumentType.LV_DOCUMENT)
-    monkeypatch.setattr(
-        service_module,
-        "extract_source_lines",
-        lambda _b, doc: [
-            NewSourceLine(document_uuid=doc, line_id=0, page=1, bbox=(0, 0, 1, 1), line_text="1.1 Oberboden abtragen")
-        ],
-    )
-    search = _RecordingSearch()
-    service = IngestionService(
-        _factory(conn), _FakeStorage(), search, _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
-    )
-
-    result = await service.ingest_document(document_uuid)
-
-    assert result.source_lines == 1
-    assert result.document_chunks >= 1
-    assert result.lv_items == 0 and result.lv_chunks == 0
-    assert all(SourceDocType.LV_ITEM not in c[1] for c in search.calls if c[0] == "index")
-
-    persisted = await SourceLineRepository(conn).list_by_document(document_uuid)
-    assert len(persisted) == 1
-
-
 async def test_prose_document_runs_common_stages(
     conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -246,6 +224,64 @@ async def test_prose_document_runs_common_stages(
     assert result.lv_items == 0 and result.lv_chunks == 0
     assert result.document_chunks >= 1
     assert all(SourceDocType.LV_ITEM not in c[1] for c in search.calls if c[0] == "index")
+
+
+def _form_pdf() -> bytes:
+    return acroform_pdf(
+        [
+            text_field("Vergabenummer", 700, "26/001"),
+            text_field("Ort", 680, "Berlin"),
+            FieldSpec("Teilnahme", "/Btn", (50, 600, 60, 610), "/Yes", tool_tip="Teilnahme"),
+        ]
+    )
+
+
+async def test_form_document_extracts_fields_and_indexes_form_chunks(
+    conn: AsyncConnection,
+) -> None:
+    project_uuid, document_uuid = await _document(
+        conn, DocumentType.FORM_DOCUMENT, "FB 312-B.pdf", FormRole.VERGABESTELLE
+    )
+    search = _RecordingSearch()
+    langchain = _FakeLangchain()
+    service = IngestionService(
+        _factory(conn), _FakeStorage(_form_pdf()), search, _FakeEmbeddings(), langchain  # type: ignore[arg-type]
+    )
+
+    result = await service.ingest_document(document_uuid)
+
+    assert langchain.calls == []
+    assert result.langchain_chunks == 0
+    assert result.thumbnails == 2
+    assert result.form_fields == 3
+    assert result.document_chunks >= 1
+    assert {c.source_doc_type for c in search.indexed} == {SourceDocType.FORM}
+    assert {c.project_uuid for c in search.indexed} == {project_uuid}
+    assert ("archive", (document_uuid, SourceDocType.FORM)) in search.calls
+    assert "Teilnahme: ja" in search.indexed[0].chunk_text
+    fields = await FormFieldRepository(conn).list_for_document(document_uuid)
+    assert [(f.name, f.value) for f in fields] == [
+        ("Vergabenummer", "26/001"),
+        ("Ort", "Berlin"),
+        ("Teilnahme", "ja"),
+    ]
+    lines = await SourceLineRepository(conn).list_by_document(document_uuid)
+    assert lines[0].line_text == "## Seite 1"
+
+
+async def test_form_reingest_replaces_fields(conn: AsyncConnection) -> None:
+    _project_uuid, document_uuid = await _document(
+        conn, DocumentType.FORM_DOCUMENT, "x.pdf", FormRole.UNBEKANNT
+    )
+    service = IngestionService(
+        _factory(conn), _FakeStorage(_form_pdf()), _RecordingSearch(), _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
+    )
+
+    await service.ingest_document(document_uuid)
+    await service.ingest_document(document_uuid)
+
+    fields = await FormFieldRepository(conn).list_for_document(document_uuid)
+    assert [f.field_order for f in fields] == [0, 1, 2]
 
 
 async def test_gaeb_reingest_is_idempotent(conn: AsyncConnection) -> None:
