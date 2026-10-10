@@ -5,10 +5,9 @@ uploaded file (or, for a `.zip`, each flattened entry) is stored to object stora
 `raw/{document_uuid}`, recorded as a `Document`, and enqueued as a queued `IngestJob`
 for the worker to process later. Storage writes are offloaded to a thread because the
 StorageClient is synchronous boto3. The document type comes from the filename alone: a
-GAEB file (D83/X83) is the LV document by definition and supersedes the project's
-existing one (the old document is deleted first, removing its LV items from Postgres and
-its chunks from Elasticsearch); everything else -- including the LV print-layout PDF --
-is prose.
+GAEB file (D83/X83) is an LV document by definition and is added next to any LV
+documents the project already has; everything else -- including the LV print-layout PDF
+-- is prose.
 
 `delete_document` is the inverse: the DB row delete cascades to the document's
 thumbnails, source_lines, lv_items, and ingest_jobs, while the Elasticsearch chunks and
@@ -117,6 +116,28 @@ class ProjectService:
     async def list_lv_texts(self, project_uuid: UUID) -> list[LVText]:
         assert self.lv_texts is not None
         return await self.lv_texts.list_by_project(project_uuid)
+
+    async def list_document_lv_items(
+        self, project_uuid: UUID, document_uuid: UUID
+    ) -> list[LVItem] | None:
+        """One document's LV items; None if the document is not in the project."""
+        assert self.lv_items is not None
+        if not await self._in_project(project_uuid, document_uuid):
+            return None
+        return await self.lv_items.list_by_document(document_uuid)
+
+    async def list_document_lv_texts(
+        self, project_uuid: UUID, document_uuid: UUID
+    ) -> list[LVText] | None:
+        """One document's LV texts; None if the document is not in the project."""
+        assert self.lv_texts is not None
+        if not await self._in_project(project_uuid, document_uuid):
+            return None
+        return await self.lv_texts.list_by_document(document_uuid)
+
+    async def _in_project(self, project_uuid: UUID, document_uuid: UUID) -> bool:
+        doc = await self.documents.get(document_uuid)
+        return doc is not None and doc.project_uuid == project_uuid
 
     async def delete_document(self, project_uuid: UUID, document_uuid: UUID) -> bool:
         """Remove a document and everything derived from it. The DB delete cascades to
@@ -237,13 +258,6 @@ class ProjectService:
     async def _ingest_one(
         self, project_uuid: UUID, upload: UploadInput, document_type: DocumentType
     ) -> DocumentRead:
-        if document_type == DocumentType.LV_DOCUMENT:
-            existing = await self.documents.get_lv_document(project_uuid)
-            if existing is not None:
-                # A GAEB upload supersedes the project's LV: drop the previous LV
-                # document with all its LV items (Postgres cascade) and chunks
-                # (Elasticsearch).
-                await self.delete_document(project_uuid, existing.document_uuid)
         doc = await self.documents.add(
             NewDocument(
                 project_uuid=project_uuid,
@@ -265,7 +279,7 @@ class ProjectService:
 
 def _classify_document_type(file_name: str) -> DocumentType:
     """Assign the document type from the filename, mirroring classifyDocumentType in
-    ui/src/lib/documentType.ts: a GAEB D83/X83 file is the LV document by definition;
+    ui/src/lib/documentType.ts: a GAEB D83/X83 file is an LV document by definition;
     everything else -- including the LV print-layout PDF -- is prose."""
     if is_gaeb_lv_file(file_name):
         return DocumentType.LV_DOCUMENT

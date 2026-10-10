@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import pytest
-from sqlalchemy.exc import IntegrityError
+from datetime import UTC, datetime, timedelta
+from uuid import UUID
+
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from shared.db.tables.documents import documents
 from shared.models.document import NewDocument
 from shared.models.enums import DocumentType
 from shared.models.project import NewProject
@@ -52,30 +55,47 @@ async def test_list_by_project(conn: AsyncConnection) -> None:
     assert {d.file_name for d in listed} == {"lv.pdf", "a.pdf", "b.pdf"}
 
 
-async def test_get_lv_document(conn: AsyncConnection) -> None:
+async def _set_created_at(
+    conn: AsyncConnection, document_uuid: UUID, created_at: datetime
+) -> None:
+    await conn.execute(
+        update(documents)
+        .where(documents.c.document_uuid == document_uuid)
+        .values(created_at=created_at)
+    )
+
+
+async def test_two_lv_documents_in_one_project(conn: AsyncConnection) -> None:
+    repo = DocumentRepository(conn)
+    pid = await _project(conn)
+    await repo.add(_doc(pid, DocumentType.LV_DOCUMENT, "lv.x83"))
+    await repo.add(_doc(pid, DocumentType.LV_DOCUMENT, "lv.d83"))
+    listed = await repo.list_lv_documents(pid)
+    assert {d.file_name for d in listed} == {"lv.x83", "lv.d83"}
+
+
+async def test_list_lv_documents_oldest_first_without_prose(
+    conn: AsyncConnection,
+) -> None:
+    repo = DocumentRepository(conn)
+    pid = await _project(conn)
+    newer = await repo.add(_doc(pid, DocumentType.LV_DOCUMENT, "los2.d83"))
+    await repo.add(_doc(pid, DocumentType.PROSE_DOCUMENT, "prose.pdf"))
+    older = await repo.add(_doc(pid, DocumentType.LV_DOCUMENT, "los1.x83"))
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    await _set_created_at(conn, older.document_uuid, base)
+    await _set_created_at(conn, newer.document_uuid, base + timedelta(minutes=1))
+
+    listed = await repo.list_lv_documents(pid)
+
+    assert [d.file_name for d in listed] == ["los1.x83", "los2.d83"]
+
+
+async def test_list_lv_documents_empty_when_absent(conn: AsyncConnection) -> None:
     repo = DocumentRepository(conn)
     pid = await _project(conn)
     await repo.add(_doc(pid, DocumentType.PROSE_DOCUMENT, "prose.pdf"))
-    lv = await repo.add(_doc(pid, DocumentType.LV_DOCUMENT, "lv.pdf"))
-    found = await repo.get_lv_document(pid)
-    assert found is not None
-    assert found.document_uuid == lv.document_uuid
-    assert found.document_type == DocumentType.LV_DOCUMENT
-
-
-async def test_get_lv_document_none_when_absent(conn: AsyncConnection) -> None:
-    repo = DocumentRepository(conn)
-    pid = await _project(conn)
-    await repo.add(_doc(pid, DocumentType.PROSE_DOCUMENT, "prose.pdf"))
-    assert await repo.get_lv_document(pid) is None
-
-
-async def test_second_lv_document_raises(conn: AsyncConnection) -> None:
-    repo = DocumentRepository(conn)
-    pid = await _project(conn)
-    await repo.add(_doc(pid, DocumentType.LV_DOCUMENT, "lv1.pdf"))
-    with pytest.raises(IntegrityError):
-        await repo.add(_doc(pid, DocumentType.LV_DOCUMENT, "lv2.pdf"))
+    assert await repo.list_lv_documents(pid) == []
 
 
 async def test_delete_removes(conn: AsyncConnection) -> None:

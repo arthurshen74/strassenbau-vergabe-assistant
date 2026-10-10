@@ -25,7 +25,6 @@ class ScopeTrace(BaseModel):
 
     modality: RetrievalModality
     project_uuid: UUID
-    lv_document_uuid: UUID | None = None
     es_filter: dict[str, Any]
 
 
@@ -70,10 +69,9 @@ class RerankTrace(BaseModel):
 
 
 class ThumbnailRef(BaseModel):
-    """Points a context source at the page thumbnail it came from. For a DOCUMENT chunk
-    the document is the chunk's own source; for an LV_ITEM chunk it is the project's LV
-    document (the item's pages live there). Absent when the chunk has no page or no
-    thumbnail applies."""
+    """Points a DOCUMENT context source at the page thumbnail it came from: the chunk's
+    own document and first page. Absent for LV_ITEM / LV_TEXT chunks (GAEB files have no
+    pages) and for chunks without a page."""
 
     model_config = ConfigDict(extra="forbid")
 

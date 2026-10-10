@@ -78,21 +78,13 @@ def test_to_user_assistant_messages_drops_tool_rows_and_empty_assistants() -> No
 
 def test_thumbnail_ref_document_uses_own_doc() -> None:
     chunk = _chunk(SourceDocType.DOCUMENT, [3, 4])
-    ref = _thumbnail_ref(chunk, thumbnail_document_uuid=uuid4())
+    ref = _thumbnail_ref(chunk)
     assert ref is not None
     assert ref.document_uuid == chunk.source_doc_uuid
     assert ref.page_number == 3
 
 
-def test_thumbnail_ref_lv_item_uses_lv_document() -> None:
-    chunk = _chunk(SourceDocType.LV_ITEM, [7])
-    lv_doc = uuid4()
-    ref = _thumbnail_ref(chunk, thumbnail_document_uuid=lv_doc)
-    assert ref is not None
-    assert ref.document_uuid == lv_doc
-    assert ref.page_number == 7
-
-
-def test_thumbnail_ref_absent_without_pages_or_lv_document() -> None:
-    assert _thumbnail_ref(_chunk(SourceDocType.DOCUMENT, []), uuid4()) is None
-    assert _thumbnail_ref(_chunk(SourceDocType.LV_ITEM, [2]), None) is None
+def test_thumbnail_ref_absent_for_lv_chunks_and_pageless_documents() -> None:
+    assert _thumbnail_ref(_chunk(SourceDocType.DOCUMENT, [])) is None
+    assert _thumbnail_ref(_chunk(SourceDocType.LV_ITEM, [2])) is None
+    assert _thumbnail_ref(_chunk(SourceDocType.LV_TEXT, [])) is None

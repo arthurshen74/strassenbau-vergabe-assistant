@@ -54,12 +54,6 @@ def test_all_tables_registered() -> None:
     assert set(metadata.tables) == EXPECTED_TABLES
 
 
-def test_one_lv_document_partial_index_present() -> None:
-    documents = metadata.tables["documents"]
-    index_names = {ix.name for ix in documents.indexes}
-    assert "uq_one_lv_document_per_project" in index_names
-
-
 def test_lv_items_oz_unique_per_document() -> None:
     lv_items = metadata.tables["lv_items"]
     unique_cols = {

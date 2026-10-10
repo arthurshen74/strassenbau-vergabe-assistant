@@ -42,12 +42,13 @@ from shared.clients.openrouter.usage import UsageEvent
 from shared.clients.search import lv_items_filter
 from shared.clients.storage.client import StorageClient, map_object_key
 from shared.config import settings
-from shared.models.enums import RetrievalModality
+from shared.models.document import Document
 from shared.models.lv_item import LVItem
+from shared.repositories.documents import DocumentRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.services.aggregate_lv import AggregateLVService
 from shared.services.aggregate_lv_models import AggregateResult
-from shared.services.retrieval import RetrievalConfig, RetrievalError, RetrievalService
+from shared.services.retrieval import RetrievalConfig, RetrievalService
 from shared.services.retrieval.service import format_context
 
 # OpenRouter usage-accounting opt-in; without it the chat response carries no cost.
@@ -74,6 +75,7 @@ TOOL_CALCULATE_EKT = "calculate_ekt"
 # Tool-result payload keys the UI reads out of `data`.
 RESULT_LV_ITEM = "lv_item"
 RESULT_LV_ITEMS = "lv_items"
+RESULT_FILE_NAME = "file_name"
 RESULT_MAP_ID = "map_id"
 RESULT_MAP_ADDRESS = "address"
 RESULT_MAP_ZOOM = "zoom"
@@ -195,26 +197,61 @@ class ProjectChatAgent:
 
         @tool(TOOL_GET_LV_ALL, response_format="content_and_artifact")
         async def get_lv_all() -> tuple[str, dict[str, Any]]:
-            """Every LV position in the project (OZ, Kurztext, Menge, Einheit). Large;
-            prefer the narrower LV tools unless the whole list is genuinely needed."""
+            """Every LV position in the project (OZ, Kurztext, Menge, Einheit), grouped
+            by LV file. Large; prefer the narrower LV tools unless the whole list is
+            genuinely needed."""
             async with self._engine.connect() as conn:
-                items = await LVItemRepository(conn).list_by_project(self._project_uuid)
-            return _format_items(items), {RESULT_LV_ITEMS: _dump_items(items)}
+                lv_documents = await DocumentRepository(conn).list_lv_documents(
+                    self._project_uuid
+                )
+                lv_repo = LVItemRepository(conn)
+                groups = [
+                    (doc, await lv_repo.list_by_document(doc.document_uuid))
+                    for doc in lv_documents
+                ]
+            return _format_groups(groups), {
+                RESULT_LV_ITEMS: [
+                    _dump_item(item, doc.file_name)
+                    for doc, items in groups
+                    for item in items
+                ]
+            }
 
         @tool(TOOL_GET_LV_SINGLE_ITEM, response_format="content_and_artifact")
         async def get_lv_single_item(oz: str) -> tuple[str, dict[str, Any]]:
-            """One LV position by its exact Ordnungszahl (e.g. '01.02.0030')."""
+            """One LV position by its exact Ordnungszahl (e.g. '01.02.0030'). With
+            several LV files the same OZ can match once per file; all matches are
+            listed."""
             async with self._engine.connect() as conn:
-                item = await LVItemRepository(conn).get_by_project_and_oz(
+                lv_documents = await DocumentRepository(conn).list_lv_documents(
+                    self._project_uuid
+                )
+                items = await LVItemRepository(conn).list_by_project_and_oz(
                     self._project_uuid, oz
                 )
-            content = (
-                f"Position {item.oz}: {item.kurztext} — {item.menge} {item.einheit}"
-                if item is not None
-                else f"Keine Position zur Ordnungszahl {oz} gefunden."
+            file_names = {d.document_uuid: d.file_name for d in lv_documents}
+            if not items:
+                return f"Keine Position zur Ordnungszahl {oz} gefunden.", {
+                    RESULT_LV_ITEM: None
+                }
+            if len(items) == 1:
+                i = items[0]
+                return (
+                    f"Position {i.oz}: {i.kurztext} — {i.menge} {i.einheit}",
+                    {RESULT_LV_ITEM: _dump_item(i, file_names[i.document_uuid])},
+                )
+            lines = [
+                f"{file_names[i.document_uuid]}: {i.oz} | {i.kurztext} | "
+                f"{i.menge} {i.einheit}"
+                for i in items
+            ]
+            content = f"{len(items)} Positionen zur Ordnungszahl {oz}:\n" + "\n".join(
+                lines
             )
             return content, {
-                RESULT_LV_ITEM: item.model_dump(mode="json") if item else None
+                RESULT_LV_ITEMS: [
+                    _dump_item(i, file_names[i.document_uuid]) for i in items
+                ]
             }
 
         @tool(TOOL_GET_LV_GROUP_ITEMS, response_format="content_and_artifact")
@@ -299,27 +336,13 @@ class ProjectChatAgent:
     async def _retrieve(
         self, query: str, *, scope_override: dict[str, Any] | None
     ) -> tuple[str, dict[str, Any]]:
-        try:
-            ctx = await self._retrieval.retrieve_context(
-                query,
-                self._project_uuid,
-                self._config,
-                scope_override=scope_override,
-                conversation_uuid=self._conversation_uuid,
-            )
-        except RetrievalError:
-            # PLUS needs an LV document; fall back to SIMPLE rather than failing the
-            # tool call.
-            fallback = self._config.model_copy(
-                update={"modality": RetrievalModality.SIMPLE}
-            )
-            ctx = await self._retrieval.retrieve_context(
-                query,
-                self._project_uuid,
-                fallback,
-                scope_override=scope_override,
-                conversation_uuid=self._conversation_uuid,
-            )
+        ctx = await self._retrieval.retrieve_context(
+            query,
+            self._project_uuid,
+            self._config,
+            scope_override=scope_override,
+            conversation_uuid=self._conversation_uuid,
+        )
         # Offset source numbers so [n] citations stay unique across multiple context
         # calls this turn.
         renumbered = [
@@ -384,10 +407,23 @@ def _dump_items(items: list[LVItem]) -> list[dict[str, Any]]:
     return [i.model_dump(mode="json") for i in items]
 
 
+def _dump_item(item: LVItem, file_name: str) -> dict[str, Any]:
+    return {**item.model_dump(mode="json"), RESULT_FILE_NAME: file_name}
+
+
 def _format_items(items: list[LVItem]) -> str:
     if not items:
         return "Keine Positionen gefunden."
     return "\n".join(f"{i.oz} | {i.kurztext} | {i.menge} {i.einheit}" for i in items)
+
+
+def _format_groups(groups: list[tuple[Document, list[LVItem]]]) -> str:
+    """One block per LV file: a header line with the file name, then its positions."""
+    if not any(items for _, items in groups):
+        return "Keine Positionen gefunden."
+    return "\n\n".join(
+        f"LV-Datei {doc.file_name}:\n{_format_items(items)}" for doc, items in groups
+    )
 
 
 def _format_aggregate(result: AggregateResult) -> str:

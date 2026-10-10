@@ -40,12 +40,7 @@ function TraceDetails({
           </DisclosureButton>
           <DisclosurePanel className="mt-2 space-y-2 rounded-md bg-zinc-50 p-2 font-mono text-[11px] text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
             {scope && (
-              <div>
-                scope: {scope.modality}
-                {scope.lv_document_uuid
-                  ? ` · lv_doc ${scope.lv_document_uuid.slice(0, 8)}`
-                  : ''}
-              </div>
+              <div>scope: {scope.modality}</div>
             )}
             <div>
               <div className="font-semibold">queries</div>

@@ -182,7 +182,8 @@ async def list_lv_items(
     project_uuid: UUID,
     service: ProjectService = Depends(get_project_service),
 ) -> list[LVItem]:
-    """All LV positions for the project's LV document, ordered by oz."""
+    """All LV positions across the project's LV documents, grouped by document (oldest
+    first) and ordered by oz within each."""
     return await service.list_lv_items(project_uuid)
 
 
@@ -191,8 +192,43 @@ async def list_lv_texts(
     project_uuid: UUID,
     service: ProjectService = Depends(get_project_service),
 ) -> list[LVText]:
-    """The LV document's Vorbemerkungen, Hinweise and Nachtext, in document order."""
+    """The Vorbemerkungen, Hinweise and Nachtext of every LV document, grouped by
+    document (oldest first) and in sequence within each."""
     return await service.list_lv_texts(project_uuid)
+
+
+@router.get(
+    "/{project_uuid}/documents/{document_uuid}/lv-items", response_model=list[LVItem]
+)
+async def list_document_lv_items(
+    project_uuid: UUID,
+    document_uuid: UUID,
+    service: ProjectService = Depends(get_project_service),
+) -> list[LVItem]:
+    """One document's LV positions ordered by oz; empty for a prose document."""
+    items = await service.list_document_lv_items(project_uuid, document_uuid)
+    if items is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="document not found"
+        )
+    return items
+
+
+@router.get(
+    "/{project_uuid}/documents/{document_uuid}/lv-texts", response_model=list[LVText]
+)
+async def list_document_lv_texts(
+    project_uuid: UUID,
+    document_uuid: UUID,
+    service: ProjectService = Depends(get_project_service),
+) -> list[LVText]:
+    """One document's LV texts in sequence; empty for a prose document."""
+    texts = await service.list_document_lv_texts(project_uuid, document_uuid)
+    if texts is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="document not found"
+        )
+    return texts
 
 
 @router.get("/{project_uuid}/lv-items/search", response_model=list[LVItem])
@@ -243,13 +279,10 @@ async def ingest_status_stream(
 async def upload_documents(
     project_uuid: UUID,
     files: list[UploadFile] = File(...),
-    # Deletable service: a GAEB upload replaces the project's existing LV document,
-    # which needs the thumbnail/LV/search dependencies of the delete path.
-    service: ProjectService = Depends(get_deletable_project_service),
+    service: ProjectService = Depends(get_writable_project_service),
 ) -> list[DocumentRead]:
-    """Upload project documents. The document type comes from each filename: GAEB
-    D83/X83 files become the LV document (replacing an existing one); everything else is
-    prose."""
+    """Upload project documents. The document type comes from each filename: each GAEB
+    D83/X83 file becomes an additional LV document; everything else is prose."""
     if await service.get(project_uuid) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="project not found"

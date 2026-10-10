@@ -75,21 +75,9 @@ def _document(
 
 
 class _FakeDocuments:
-    def __init__(self, lv_document: Document | None = None) -> None:
-        self.lv_document = lv_document
-        self.added: list[Document] = []
+    def __init__(self, existing: list[Document] | None = None) -> None:
+        self.documents = list(existing or [])
         self.deleted: list[UUID] = []
-
-    async def get_lv_document(self, project_uuid: UUID) -> Document | None:
-        return self.lv_document
-
-    async def get(self, document_uuid: UUID) -> Document | None:
-        if (
-            self.lv_document is not None
-            and self.lv_document.document_uuid == document_uuid
-        ):
-            return self.lv_document
-        return None
 
     async def add(self, new: NewDocument) -> Document:
         now = datetime.now(tz=UTC)
@@ -99,50 +87,11 @@ class _FakeDocuments:
             updated_at=now,
             **new.model_dump(),
         )
-        self.added.append(doc)
-        if doc.document_type == DocumentType.LV_DOCUMENT:
-            self.lv_document = doc
+        self.documents.append(doc)
         return doc
 
     async def delete(self, document_uuid: UUID) -> None:
         self.deleted.append(document_uuid)
-        if (
-            self.lv_document is not None
-            and self.lv_document.document_uuid == document_uuid
-        ):
-            self.lv_document = None
-
-
-class _FakeThumbnails:
-    async def list_by_document(self, document_uuid: UUID) -> list:
-        return []
-
-
-class _FakeLVItems:
-    def __init__(self, uuids: list[UUID] | None = None) -> None:
-        self.uuids = uuids or []
-
-    async def list_uuids_by_document(self, document_uuid: UUID) -> list[UUID]:
-        return self.uuids
-
-
-class _FakeLVTexts:
-    def __init__(self, uuids: list[UUID] | None = None) -> None:
-        self.uuids = uuids or []
-
-    async def list_uuids_by_document(self, document_uuid: UUID) -> list[UUID]:
-        return self.uuids
-
-
-class _FakeSearch:
-    def __init__(self) -> None:
-        self.archived: list[tuple[UUID, UUID, list[UUID]]] = []
-
-    async def archive_and_delete_document(
-        self, project_uuid: UUID, document_uuid: UUID, lv_source_uuids: list[UUID]
-    ) -> int:
-        self.archived.append((project_uuid, document_uuid, lv_source_uuids))
-        return 0
 
 
 class _FakeStorage:
@@ -165,50 +114,47 @@ class _FakeIngestJobs:
         self.added.append(new.document_uuid)
 
 
-def _service(
-    documents: _FakeDocuments,
-    lv_items: _FakeLVItems | None = None,
-    lv_texts: _FakeLVTexts | None = None,
-) -> ProjectService:
+def _service(documents: _FakeDocuments) -> ProjectService:
     return ProjectService(
         None,  # type: ignore[arg-type]
         documents,  # type: ignore[arg-type]
         _FakeIngestJobs(),  # type: ignore[arg-type]
         storage=_FakeStorage(),  # type: ignore[arg-type]
-        thumbnails=_FakeThumbnails(),  # type: ignore[arg-type]
-        lv_items=lv_items or _FakeLVItems(),  # type: ignore[arg-type]
-        search=_FakeSearch(),  # type: ignore[arg-type]
-        lv_texts=lv_texts or _FakeLVTexts(),  # type: ignore[arg-type]
     )
 
 
-async def test_gaeb_upload_replaces_existing_lv_document() -> None:
+def _lv_documents(documents: _FakeDocuments) -> list[Document]:
+    return [
+        d for d in documents.documents if d.document_type == DocumentType.LV_DOCUMENT
+    ]
+
+
+async def test_gaeb_upload_adds_second_lv_document() -> None:
     project_uuid = uuid4()
-    existing = _document(project_uuid, "old_lv.d83", DocumentType.LV_DOCUMENT)
-    documents = _FakeDocuments(lv_document=existing)
-    lv_items = _FakeLVItems([uuid4()])
-    lv_texts = _FakeLVTexts([uuid4()])
-    service = _service(documents, lv_items, lv_texts)
+    existing = _document(project_uuid, "Projekt_LV.d83", DocumentType.LV_DOCUMENT)
+    documents = _FakeDocuments([existing])
+    service = _service(documents)
 
     created = await service.ingest_documents(
         project_uuid,
         [UploadInput("Projekt_LV.x83", "application/octet-stream", b"<GAEB/>")],
     )
 
-    assert documents.deleted == [existing.document_uuid]
-    search = service.search
-    assert isinstance(search, _FakeSearch)
-    # Both the items' and the texts' chunk keys are handed to the archive call.
-    assert search.archived == [
-        (project_uuid, existing.document_uuid, lv_items.uuids + lv_texts.uuids)
-    ]
+    assert documents.deleted == []
+    storage = service.storage
+    assert isinstance(storage, _FakeStorage)
+    assert storage.deleted_keys == []
     assert [d.document_type for d in created] == [DocumentType.LV_DOCUMENT]
+    assert [d.file_name for d in _lv_documents(documents)] == [
+        "Projekt_LV.d83",
+        "Projekt_LV.x83",
+    ]
 
 
-async def test_lv_named_pdf_uploads_as_prose_without_touching_lv_document() -> None:
+async def test_lv_named_pdf_uploads_as_prose() -> None:
     project_uuid = uuid4()
     existing = _document(project_uuid, "Projekt_LV.d83", DocumentType.LV_DOCUMENT)
-    documents = _FakeDocuments(lv_document=existing)
+    documents = _FakeDocuments([existing])
     service = _service(documents)
 
     created = await service.ingest_documents(
@@ -233,3 +179,19 @@ async def test_zip_types_gaeb_as_lv_and_lv_named_pdf_as_prose() -> None:
     types = {d.file_name: d.document_type for d in created}
     assert types["Projekt_LV.d83"] == DocumentType.LV_DOCUMENT
     assert types["Projekt_LV1.pdf"] == DocumentType.PROSE_DOCUMENT
+
+
+async def test_zip_with_two_gaeb_files_creates_two_lv_documents() -> None:
+    documents = _FakeDocuments()
+    service = _service(documents)
+    data = _zip({"Los1.x83": b"a", "Los2.d83": b"b"})
+
+    await service.ingest_documents(
+        uuid4(),
+        [UploadInput("batch.zip", "application/zip", data)],
+    )
+
+    assert sorted(d.file_name for d in _lv_documents(documents)) == [
+        "Los1.x83",
+        "Los2.d83",
+    ]

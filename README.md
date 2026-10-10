@@ -28,8 +28,9 @@ rebuildable), rendered into page thumbnails, and chunked and embedded for semant
 structured LV comes from the tender's **GAEB file** (`.d83` or `.x83`), which parses
 deterministically — no LLM — into LV positions with resolved back-references ("wie in voriger
 Position"), the Hinweise in each position's scope, the full OZ hierarchy, and the LV-level
-Vorbemerkungen/Nachtext (GAEB 90 T-lines, GAEB XML `AddText`). Uploading a GAEB file makes it the
-project's LV document; re-ingestion archives prior search data instead of overwriting it.
+Vorbemerkungen/Nachtext (GAEB 90 T-lines, GAEB XML `AddText`). Each uploaded GAEB file becomes
+its own LV document, so a project can carry several (e.g. one per Los); re-ingestion archives prior
+search data instead of overwriting it.
 
 ### Retrieval
 

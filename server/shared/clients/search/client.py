@@ -143,49 +143,21 @@ def simple_filter(project_uuid: UUID) -> dict[str, Any]:
     }
 
 
-def plus_filter(project_uuid: UUID, lv_document_uuid: UUID) -> dict[str, Any]:
-    """Plus scope: DOCUMENT chunks except the LV document's own chunks, plus the parsed
-    LV_ITEM and LV_TEXT chunks (RETRIEVAL.md). The LV document's simple chunks are
-    excluded so the LV content is not counted twice."""
+def plus_filter(project_uuid: UUID) -> dict[str, Any]:
+    """Plus scope: the project's DOCUMENT chunks plus the parsed LV_ITEM and LV_TEXT
+    chunks of every LV document (RETRIEVAL.md). GAEB LV documents produce no DOCUMENT
+    chunks, so no LV content is counted twice."""
     return {
         "bool": {
             "filter": [
                 {"term": {FIELD_PROJECT_UUID: str(project_uuid)}},
                 {
-                    "bool": {
-                        "minimum_should_match": 1,
-                        "should": [
-                            {
-                                "bool": {
-                                    "must": [
-                                        {
-                                            "term": {
-                                                FIELD_SOURCE_DOC_TYPE: (
-                                                    SourceDocType.DOCUMENT.value
-                                                )
-                                            }
-                                        }
-                                    ],
-                                    "must_not": [
-                                        {
-                                            "term": {
-                                                FIELD_SOURCE_DOC_UUID: str(
-                                                    lv_document_uuid
-                                                )
-                                            }
-                                        }
-                                    ],
-                                }
-                            },
-                            {
-                                "terms": {
-                                    FIELD_SOURCE_DOC_TYPE: [
-                                        SourceDocType.LV_ITEM.value,
-                                        SourceDocType.LV_TEXT.value,
-                                    ]
-                                }
-                            },
-                        ],
+                    "terms": {
+                        FIELD_SOURCE_DOC_TYPE: [
+                            SourceDocType.DOCUMENT.value,
+                            SourceDocType.LV_ITEM.value,
+                            SourceDocType.LV_TEXT.value,
+                        ]
                     }
                 },
             ]

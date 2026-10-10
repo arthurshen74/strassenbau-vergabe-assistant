@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from shared.db.tables.documents import documents
+from shared.db.tables.documents import LV_DOCUMENT_ORDER, documents
 from shared.db.tables.lv_texts import lv_texts
 from shared.models.enums import DocumentType
 from shared.models.lv_text import LVText, NewLVText
@@ -26,7 +26,8 @@ class LVTextRepository:
         return [LVText.model_validate(dict(r)) for r in rows]
 
     async def list_by_project(self, project_uuid: UUID) -> list[LVText]:
-        """All LV texts of the project's LV document, in document order."""
+        """All LV texts across the project's LV documents, grouped by document (oldest
+        first) and in sequence within each."""
         stmt = (
             select(lv_texts)
             .join(documents, documents.c.document_uuid == lv_texts.c.document_uuid)
@@ -34,7 +35,7 @@ class LVTextRepository:
                 documents.c.project_uuid == project_uuid,
                 documents.c.document_type == DocumentType.LV_DOCUMENT,
             )
-            .order_by(lv_texts.c.sequence)
+            .order_by(*LV_DOCUMENT_ORDER, lv_texts.c.sequence)
         )
         rows = (await self.conn.execute(stmt)).mappings().all()
         return [LVText.model_validate(dict(r)) for r in rows]

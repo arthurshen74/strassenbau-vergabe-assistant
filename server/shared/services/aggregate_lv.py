@@ -71,6 +71,7 @@ class AggregateLVService:
         ]
 
         async with self._engine.connect() as conn:
+            # Spans every LV document of the project.
             items = await LVItemRepository(conn).list_by_project(project_uuid)
             trace.append(
                 AggregateTraceEntry(
