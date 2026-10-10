@@ -46,6 +46,7 @@ from shared.db.tables.ner_flags import ner_flags
 from shared.db.tables.nlp_render_cache import nlp_render_cache
 from shared.db.tables.openrouter_usage import openrouter_usage
 from shared.db.tables.project_context_values import project_context_values
+from shared.db.tables.project_info_jobs import project_info_jobs
 from shared.db.tables.projects import projects
 from shared.db.tables.prompt_execution_log import prompt_execution_log
 from shared.db.tables.prompt_versions import prompt_versions
@@ -92,6 +93,7 @@ __all__ = [
     "nlp_render_cache",
     "openrouter_usage",
     "project_context_values",
+    "project_info_jobs",
     "projects",
     "prompt_execution_log",
     "prompt_versions",

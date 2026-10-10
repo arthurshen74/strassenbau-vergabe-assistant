@@ -96,6 +96,8 @@ from shared.models.project_context_schema import (
     ProjectContextRead,
     ProjectContextUpdate,
 )
+from shared.models.project_info_job import ProjectInfoResult
+from shared.models.project_info_schema import ProjectInfoJobRead, ProjectInfoRunRequest
 from shared.models.project_schema import (
     ProjectCreate,
     ProjectFromZipResult,
@@ -159,6 +161,11 @@ BODY_MODELS: list[type[BaseModel]] = [
     ProjectCreate,
     ProjectUpdate,
     ProjectFromZipResult,
+    # Projektinfo job: the re-run body and the polled job record (ProjectInfoResult is
+    # nested in it).
+    ProjectInfoRunRequest,
+    ProjectInfoResult,
+    ProjectInfoJobRead,
     # Project context (global variables): the flat current view, the editable subset,
     # and the governance history (ProjectContextValue is nested in the history, so it
     # must be emitted too).

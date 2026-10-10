@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 import shared.services.project_service as project_service
 from api.deps import get_connection, get_storage, get_uow
 from api.main import app
+from shared.config import settings
 from shared.db.unit_of_work import UnitOfWork
 from shared.models.enums import DocumentType, IngestStatus
 from shared.models.project import NewProject
 from shared.repositories.ingest_jobs import IngestJobRepository
+from shared.repositories.project_info_jobs import ProjectInfoJobRepository
 from shared.repositories.projects import ProjectRepository
 
 
@@ -145,6 +147,13 @@ async def test_create_from_zip_ingests_nested_files(
         job = await jobs.latest_for_document(UUID(doc["document_uuid"]))
         assert job is not None
         assert job.status == IngestStatus.QUEUED
+    info_job = await ProjectInfoJobRepository(conn).latest_for_project(
+        UUID(body["project"]["project_uuid"])
+    )
+    assert info_job is not None
+    assert info_job.status == IngestStatus.QUEUED
+    assert info_job.language == settings.project_info_language
+    assert info_job.overwrite is True
 
 
 async def test_create_from_zip_rejects_non_zip_name(client: AsyncClient) -> None:

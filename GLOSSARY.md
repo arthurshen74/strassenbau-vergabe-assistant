@@ -256,6 +256,8 @@ project-info extraction.
 
 **Usage sink** — A small async interface (`UsageSink`) an OpenRouter client emits a `UsageEvent` to after each call. `LoggingUsageSink` logs one line (default); `DatabaseUsageSink` persists to `openrouter_usage`.
 
+**Projektinfo** — The project header fields (Projektname/Maßnahme, Maßnahmenummer, Vergabenummer, Bauleistung, Baustelle, Projektbeschreibung) read from the tender documents after ingestion. Filled by one `project_info_jobs` row per run, which the worker claims once the project's ingest jobs are no longer queued or running; it runs every RAG Query (Projektinfo) and writes only values the documents support. Status and per-field evidence show on the project page, which can also start a re-run.
+
 **RAG Query (Projektinfo)** — A versioned question that fills one project header field (Maßnahme, Maßnahmenummer, Vergabenummer, Bauleistung, Baustelle, Projektbeschreibung) from the ingested tender documents. Stored append-only in `rag_query_versions` per key and language; each version has a `query_text` (the retrieval question, embedded and BM25-matched, so it must be in the document language) and an `answer_instruction` (the output rule for the synthesis LLM). Edited in the RAG Queries view.
 
 ---

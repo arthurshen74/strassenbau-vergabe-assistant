@@ -36,6 +36,7 @@ const TYPE_COLOR: Record<PromptVersionRead['prompt_type'], BadgeColor> = {
   project_context_resolve: 'sky',
   katalog_handbuch: 'green',
   ner_fehleranalyse: 'rose',
+  project_info_resolve: 'sky',
 };
 
 // The route returns a bare array; the dispatcher tool returns `{prompts: [...]}`.

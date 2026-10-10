@@ -87,7 +87,13 @@ def get_writable_project_service(
     uow: UnitOfWork = Depends(get_uow),
     storage: StorageClient = Depends(get_storage),
 ) -> ProjectService:
-    return ProjectService(uow.projects, uow.documents, uow.ingest_jobs, storage=storage)
+    return ProjectService(
+        uow.projects,
+        uow.documents,
+        uow.ingest_jobs,
+        storage=storage,
+        project_info_jobs=uow.project_info_jobs,
+    )
 
 
 def get_deletable_project_service(

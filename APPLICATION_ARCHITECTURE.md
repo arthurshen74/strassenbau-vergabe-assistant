@@ -13,7 +13,7 @@ flowchart LR
     end
     subgraph Backend
         API["FastAPI api<br/>:8000"]
-        WORKER["worker ×N<br/>ingest + eval loops"]
+        WORKER["worker ×N<br/>ingest + eval + project-info loops"]
     end
     subgraph Stores
         PG[("Postgres<br/>domain DB")]
@@ -37,7 +37,7 @@ flowchart LR
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **UI**            | Vite + React 19 SPA. Talks only to the API via `/api/*` (REST + Server-Sent Events).                                                                                            |
 | **API**           | FastAPI. Thin HTTP surface over the service layer; streams chat turns and ingest status over SSE.                                                                               |
-| **Worker**        | One asyncio process running two competing-consumer loops (document ingestion, eval runs). Scaled horizontally; Postgres allocates jobs via `SKIP LOCKED`.                       |
+| **Worker**        | One asyncio process running three competing-consumer loops (document ingestion, eval runs, project info). Scaled horizontally; Postgres allocates jobs via `SKIP LOCKED`.        |
 | **Postgres**      | Canonical relational data. Three databases on one host: the domain DB, `{db}_auth` (provisioned for the planned auth stack, currently unused), `{db}_test` (integration tests). |
 | **Elasticsearch** | Two indexes: the SimpleChunk index (`roadbuilders_text`, BM25 + kNN vectors) and a LangChain-managed index. Fully rebuildable from Postgres.                                    |
 | **MinIO / S3**    | Raw uploaded PDFs, per-page thumbnails, rendered map PNGs. Key prefixes `raw/`, `thumbnail/`, `map/`.                                                                           |
@@ -56,7 +56,7 @@ server/            Python 3.12 backend (uv-managed, deps in root pyproject.toml)
     models/        Pydantic: domain models, API schemas, LLM output schemas, enums
     repositories/  Core-backed repositories, constructed with an AsyncConnection
     services/      Business logic (see inventory below)
-  worker/          The worker process harness (main.py, eval_loop.py)
+  worker/          The worker process harness (main.py, eval_loop.py, project_info_loop.py)
   scripts/         Bootstrap, seeding, schema export, dev/eval CLIs
 ui/                Vite + React 19 + TypeScript SPA
 tests/             unit/ and integration/ (pytest, uv run pytest)
@@ -162,7 +162,9 @@ The domain DB groups into six clusters:
 - **Project / document / ingest** — `projects` → `documents` → `source_lines` (canonical extracted
   text), `thumbnails`, `lv_items`, `lv_texts` (the LV's Vorbemerkungen, Hinweise and Nachtext),
   `ingest_jobs` → `ingest_job_events`, plus the high-frequency
-  `ingestion_activity_log` and its archive. A project may hold any number of `LV_DOCUMENT`s (one
+  `ingestion_activity_log` and its archive. `project_info_jobs` holds one Projektinfo extraction
+  per row (the header fields filled from the documents after ingestion, with the per-field
+  result). A project may hold any number of `LV_DOCUMENT`s (one
   per GAEB file); each owns its `lv_items` and `lv_texts`, and project-wide LV listings return
   them grouped by document, oldest first.
 - **Conversation** — `conversations` (discriminated by `prompt_type`; position chats also carry
@@ -197,6 +199,7 @@ erDiagram
     projects ||--o{ conversations : "has"
     projects ||--o{ project_context_values : "scopes"
     projects ||--o{ eval_runs : "scopes"
+    projects ||--o{ project_info_jobs : "header filled by"
     projects ||--o{ rag_ground_truth : "scopes"
     projects ||--o{ calculation_ground_truth : "scopes"
     projects ||--o{ variable_corrections : "scopes"
@@ -275,6 +278,17 @@ erDiagram
         tstz locked_at "lease"
         text locked_by "worker id"
         int attempts
+    }
+    project_info_jobs {
+        uuid job_uuid PK
+        uuid project_uuid FK
+        text language "of the RAG query versions"
+        bool overwrite
+        text status "queued|running|done|failed"
+        tstz locked_at "lease"
+        text locked_by "worker id"
+        int attempts
+        jsonb result "per query_key"
     }
     conversations {
         uuid conversation_uuid PK
@@ -465,16 +479,20 @@ object-key order survives reload.
 
 ## Worker
 
-One process, one asyncio event loop, two independent competing-consumer loops started by
-`asyncio.gather`: document ingestion and eval runs. A long eval run does not block ingest claims.
+One process, one asyncio event loop, three independent competing-consumer loops started by
+`asyncio.gather`: document ingestion, eval runs and project info. A long run in one loop does not
+block claims in another.
 
 - **Claiming** — `claim_next` selects the oldest `queued` row (or a `running` row whose lease
   expired) with `SELECT … FOR UPDATE SKIP LOCKED`, then marks it `running` with
   `locked_by = hostname:pid`, `locked_at = now()`, `attempts + 1`. The claim commits in its own
   transaction before the long job starts, so the row lock is held for milliseconds, not minutes.
-  `ingest_jobs` and `eval_runs` use identical mechanics.
+  `ingest_jobs`, `eval_runs` and `project_info_jobs` use identical mechanics; a
+  `project_info_jobs` row is additionally claimable only while its project has no queued or
+  running ingest job (failed ones do not block), so it runs after the project's documents.
 - **Heartbeat** — the ingestion activity writer flushes on a short interval and touches the lease
-  on every flush (even with nothing to write); eval runs touch the lease on every progress event.
+  on every flush (even with nothing to write); eval runs touch the lease on every progress event,
+  project-info jobs after every query.
   The activity stream is the liveness signal.
 - **Crash recovery** — a dead worker stops refreshing `locked_at`; once the lease expires another
   worker reclaims the job, up to `WORKER_MAX_ATTEMPTS`. Terminal status writes are lease-fenced

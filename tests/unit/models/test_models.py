@@ -41,6 +41,7 @@ def test_enum_values() -> None:
         "project_context_resolve",
         "katalog_handbuch",
         "ner_fehleranalyse",
+        "project_info_resolve",
     }
 
 

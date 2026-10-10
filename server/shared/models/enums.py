@@ -87,6 +87,9 @@ class PromptType(StrEnum):
     # failure taxonomy and optionally suggests an entity rule. Loaded via get_latest per
     # flag.
     NER_FEHLERANALYSE = "ner_fehleranalyse"
+    # Synthesis over hybrid-RAG chunks for one project header field (Projektinfo) at a
+    # time.
+    PROJECT_INFO_RESOLVE = "project_info_resolve"
 
 
 # PromptType members that only DISCRIMINATE which conversation / StateGraph agent owns a

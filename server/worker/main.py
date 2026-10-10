@@ -1,9 +1,11 @@
-"""Worker process: two competing-consumer loops sharing one set of clients.
+"""Worker process: three competing-consumer loops sharing one set of clients.
 
 The ingestion loop polls `IngestJobRepository.claim_next()` (SELECT ... FOR UPDATE SKIP
 LOCKED) for the oldest queued job, runs the full ingestion pipeline, and marks it DONE
 or FAILED; the eval loop (worker.eval_loop) does the same over the eval_runs queue with
-the shared graders. Several worker containers can run concurrently: the SKIP LOCKED
+the shared graders; the project-info loop (worker.project_info_loop) claims a project's
+Projektinfo job once none of its ingest jobs is queued or running and fills the project
+header columns. Several worker containers can run concurrently: the SKIP LOCKED
 claims hand each a distinct job/run, so Postgres is the allocator -- there is no central
 dispatcher. When a queue is empty its loop sleeps
 `settings.worker_poll_interval_seconds` before re-checking, waking immediately on
@@ -48,6 +50,7 @@ from shared.services.ingestion.activity import ActivityWriter
 from shared.services.ingestion.ingestion_service import UnitOfWorkFactory
 from shared.services.ingestion.langchain_pipeline import LangchainIngestor
 from worker.eval_loop import eval_loop
+from worker.project_info_loop import project_info_loop
 from shared.services.ingestion.progress import IngestPhase
 
 logger = logging.getLogger("worker.main")
@@ -207,8 +210,8 @@ async def run_worker() -> None:
     sinks = build_telemetry_sinks(engine)
     embeddings = build_embeddings_client(sinks, engine)
     langchain_ingestor = LangchainIngestor(embeddings)
-    # Eval runs replay LLM extraction + reranked retrieval; ingestion never needs these
-    # two.
+    # Eval runs and project-info jobs use LLM calls + reranked retrieval; ingestion
+    # never needs these two.
     llm = build_llm_client(sinks)
     reranker = build_rerank_client(sinks)
 
@@ -225,9 +228,9 @@ async def run_worker() -> None:
             worker_id,
             settings.worker_poll_interval_seconds,
         )
-        # Two competing-consumer loops share the process and clients: ingestion and eval
-        # runs. Both are I/O-bound, so one event loop carries them; a long eval run
-        # never blocks an ingest claim (and vice versa) because each polls its own
+        # Three competing-consumer loops share the process and clients: ingestion, eval
+        # runs and project-info jobs. All are I/O-bound, so one event loop carries them;
+        # a long run in one never blocks a claim in another because each polls its own
         # queue.
         await asyncio.gather(
             ingest_loop(
@@ -240,6 +243,16 @@ async def run_worker() -> None:
                 shutdown=shutdown,
             ),
             eval_loop(
+                uow_factory,
+                worker_id=worker_id,
+                engine=engine,
+                llm=llm,
+                embeddings=embeddings,
+                search=search,
+                reranker=reranker,
+                shutdown=shutdown,
+            ),
+            project_info_loop(
                 uow_factory,
                 worker_id=worker_id,
                 engine=engine,

@@ -51,6 +51,7 @@ import { LVItemsTable } from "./LVItemsTable";
 import { LVTextsPanel } from "./LVTextsPanel";
 import { LvDocumentSelector } from "./LvDocumentSelector";
 import { ProjectContextPanel } from "./ProjectContextPanel";
+import { ProjectInfoStatus } from "./ProjectInfoStatus";
 import { SkippedZipEntriesNote } from "./SkippedZipEntriesNote";
 
 type ProjectTab = "lv" | "texts" | "documents" | "context";
@@ -176,6 +177,7 @@ export function ProjectDetails({
           <FieldRow label="Documents" value={String(docs.length)} />
         </div>
         {p.project_description && <Text>{p.project_description}</Text>}
+        <ProjectInfoStatus projectUuid={projectUuid} />
         {skipped && skipped.length > 0 && onDismissSkipped && (
           <SkippedZipEntriesNote skipped={skipped} onDismiss={onDismissSkipped} />
         )}

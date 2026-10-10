@@ -22,6 +22,7 @@ from api.routes import (
     ner_flags,
     nlp,
     project_contexts,
+    project_info,
     projects,
     prompt_execution_logs,
     prompts,
@@ -119,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(dispatch.router)
     app.include_router(projects.router)
     app.include_router(project_contexts.router)
+    app.include_router(project_info.router)
     app.include_router(prompt_execution_logs.router)
     app.include_router(usage.router)
     app.include_router(ingest_jobs.router)

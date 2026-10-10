@@ -8,9 +8,11 @@ from uuid import UUID, uuid4
 import pytest
 
 import shared.services.project_service as project_service
+from shared.config import settings
 from shared.models.document import Document, NewDocument
 from shared.models.enums import DocumentType
 from shared.models.project import NewProject, Project
+from shared.models.project_info_job import NewProjectInfoJob
 from shared.services.project_service import (
     INGESTIBLE_SUFFIXES,
     ProjectService,
@@ -306,12 +308,21 @@ class _FakeProjects:
         )
 
 
+class _FakeProjectInfoJobs:
+    def __init__(self) -> None:
+        self.added: list[NewProjectInfoJob] = []
+
+    async def add(self, new: NewProjectInfoJob) -> None:
+        self.added.append(new)
+
+
 def _zip_service(documents: _FakeDocuments, projects: _FakeProjects) -> ProjectService:
     return ProjectService(
         projects,  # type: ignore[arg-type]
         documents,  # type: ignore[arg-type]
         _FakeIngestJobs(),  # type: ignore[arg-type]
         storage=_FakeStorage(),  # type: ignore[arg-type]
+        project_info_jobs=_FakeProjectInfoJobs(),  # type: ignore[arg-type]
     )
 
 
@@ -334,6 +345,11 @@ async def test_create_from_zip_names_project_after_zip_stem() -> None:
     ingest_jobs = service.ingest_jobs
     assert isinstance(ingest_jobs, _FakeIngestJobs)
     assert len(ingest_jobs.added) == 3
+    info_jobs = service.project_info_jobs
+    assert isinstance(info_jobs, _FakeProjectInfoJobs)
+    assert [(j.language, j.overwrite) for j in info_jobs.added] == [
+        (settings.project_info_language, True)
+    ]
 
 
 async def test_create_from_zip_falls_back_to_default_name() -> None:

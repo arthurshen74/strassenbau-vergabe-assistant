@@ -4,8 +4,8 @@ Reads translate domain models to API DTOs. `ingest_documents` is the upload path
 uploaded file (or, for a `.zip`, each entry of the recursively expanded archive) is
 stored to object storage under `raw/{document_uuid}`, recorded as a `Document`, and
 enqueued as a queued `IngestJob` for the worker to process later. `create_from_zip` is
-the ZIP-first path: it creates a project named after the ZIP and ingests every PDF and
-GAEB file inside it the same way. Storage writes are offloaded to a thread because the
+the ZIP-first path: it creates a project named after the ZIP, ingests every PDF and
+GAEB file inside it the same way, and enqueues the project's Projektinfo job. Storage writes are offloaded to a thread because the
 StorageClient is synchronous boto3. The document type comes from the filename alone: a
 GAEB file (D83/X83) is an LV document by definition and is added next to any LV
 documents the project already has; everything else -- including the LV print-layout PDF
@@ -32,6 +32,7 @@ import pdfplumber
 
 from shared.clients.search.client import SearchClient
 from shared.clients.storage.client import StorageClient, raw_object_key
+from shared.config import settings
 from shared.models.document import NewDocument
 from shared.models.document_schema import DocumentRead
 from shared.models.enums import DocumentType
@@ -39,6 +40,7 @@ from shared.models.ingest_job import IngestJob, NewIngestJob
 from shared.models.lv_item import LVItem
 from shared.models.lv_text import LVText
 from shared.models.project import NewProject
+from shared.models.project_info_job import NewProjectInfoJob
 from shared.models.project_schema import (
     ProjectCreate,
     ProjectFromZipResult,
@@ -49,6 +51,7 @@ from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
 from shared.repositories.lv_texts import LVTextRepository
+from shared.repositories.project_info_jobs import ProjectInfoJobRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.ingestion.gaeb import (
@@ -107,6 +110,7 @@ class ProjectService:
         lv_items: LVItemRepository | None = None,
         search: SearchClient | None = None,
         lv_texts: LVTextRepository | None = None,
+        project_info_jobs: ProjectInfoJobRepository | None = None,
     ) -> None:
         self.projects = projects
         self.documents = documents
@@ -116,6 +120,7 @@ class ProjectService:
         self.lv_items = lv_items
         self.search = search
         self.lv_texts = lv_texts
+        self.project_info_jobs = project_info_jobs
 
     async def list(self) -> list[ProjectRead]:
         return [ProjectRead.model_validate(p) for p in await self.projects.list()]
@@ -301,8 +306,17 @@ class ProjectService:
         )
 
     async def _after_zip_ingest(self, project_uuid: UUID) -> None:
-        """Runs after a ZIP-created project's documents are enqueued. Task 05 enqueues
-        the project-info job here; until then it does nothing."""
+        """Enqueue the project's Projektinfo job; the worker claims it once the
+        documents just enqueued have been ingested. `overwrite` because the only value
+        already set is the placeholder name taken from the ZIP."""
+        assert self.project_info_jobs is not None
+        await self.project_info_jobs.add(
+            NewProjectInfoJob(
+                project_uuid=project_uuid,
+                language=settings.project_info_language,
+                overwrite=True,
+            )
+        )
 
     async def _ingest_one(
         self, project_uuid: UUID, upload: UploadInput

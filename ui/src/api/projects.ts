@@ -5,7 +5,7 @@
 // multipart boundary.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, apiBase } from './client';
+import { ApiError, api, apiBase } from './client';
 import type {
   DocumentRead,
   IngestJobRead,
@@ -13,6 +13,8 @@ import type {
   LVText,
   ProjectCreate,
   ProjectFromZipResult,
+  ProjectInfoJobRead,
+  ProjectInfoRunRequest,
   ProjectRead,
   ProjectUpdate,
 } from '../types/generated';
@@ -24,6 +26,7 @@ export const projectKeys = {
   documents: (uuid: string) => ['project', uuid, 'documents'] as const,
   lvItems: (uuid: string) => ['project', uuid, 'lv-items'] as const,
   lvTexts: (uuid: string) => ['project', uuid, 'lv-texts'] as const,
+  projectInfo: (uuid: string) => ['project', uuid, 'project-info'] as const,
   lvItemSearch: (uuid: string, q: string) =>
     ['project', uuid, 'lv-items', 'search', q] as const,
   // Under the documents prefix, so invalidating a project's documents refetches these too.
@@ -105,6 +108,54 @@ export function useLvItemSearch(uuid: string, query: string) {
     queryFn: () =>
       api.get<LVItem[]>(`/projects/${uuid}/lv-items/search?q=${encodeURIComponent(query)}`),
     enabled: query.length > 0,
+  });
+}
+
+const PROJECT_INFO_POLL_MS = 3000;
+const OPEN_PROJECT_INFO_STATUSES: ReadonlyArray<ProjectInfoJobRead['status']> = [
+  'queued',
+  'running',
+];
+
+export function isProjectInfoOpen(job: ProjectInfoJobRead | null | undefined): boolean {
+  return !!job && OPEN_PROJECT_INFO_STATUSES.includes(job.status);
+}
+
+// The project's latest Projektinfo job, or null when it never had one. Polls while the job is
+// queued or running; when a poll sees it finish, the project is refetched so the header shows
+// the written fields.
+export function useProjectInfo(projectUuid: string) {
+  const qc = useQueryClient();
+  const key = projectKeys.projectInfo(projectUuid);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      let job: ProjectInfoJobRead;
+      try {
+        job = await api.get<ProjectInfoJobRead>(`/projects/${projectUuid}/project-info`);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+      const previous = qc.getQueryData<ProjectInfoJobRead | null>(key);
+      if (isProjectInfoOpen(previous) && job.status === 'done') {
+        void qc.invalidateQueries({ queryKey: projectKeys.detail(projectUuid), exact: true });
+        void qc.invalidateQueries({ queryKey: projectKeys.list() });
+      }
+      return job;
+    },
+    refetchInterval: (query) =>
+      isProjectInfoOpen(query.state.data) ? PROJECT_INFO_POLL_MS : false,
+  });
+}
+
+// Queues a Projektinfo run; the server returns the open job instead when one is pending.
+export function useRunProjectInfo(projectUuid: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ProjectInfoRunRequest) =>
+      api.post<ProjectInfoJobRead>(`/projects/${projectUuid}/project-info/run`, body),
+    onSuccess: (job) => qc.setQueryData(projectKeys.projectInfo(projectUuid), job),
   });
 }
 

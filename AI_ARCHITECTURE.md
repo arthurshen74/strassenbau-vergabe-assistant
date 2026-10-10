@@ -92,6 +92,40 @@ flowchart TD
   the only post-retrieval stage. HyDE was evaluated and rejected: for legally binding tender text,
   hypothetical documents pull semantically-similar-but-irrelevant material into the context.
 
+## Project info extraction
+
+A project created from a tender ZIP starts with only a placeholder name. Once its documents are
+ingested, the worker fills the header fields (Projektname, Maßnahmenummer, Vergabenummer,
+Bauleistung, Baustelle, Projektbeschreibung) from them in one project-level job.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Queued: POST /projects/from-zip<br/>(or "Projektinfo neu ermitteln")
+    Queued --> Queued: project has queued/running ingest jobs
+    Queued --> Running: all ingest jobs done or failed<br/>→ worker claims the job
+    Running --> Running: per query: retrieve (PLUS) → synthesize
+    Running --> Done: found values written to projects columns
+    Running --> Failed: error (retried while attempts remain)
+    Done --> [*]
+    Failed --> [*]
+```
+
+- **Completion is a claim rule.** The `project_info_jobs` row is enqueued with the documents, but
+  `claim_next` only picks it once no ingest job of the project is queued or running. A failed
+  ingest job does not block, so a project with one broken document still gets its info.
+- **Two texts per query.** Each `ProjectInfoQuery` key has an append-only, editable
+  `rag_query_versions` row in the job's language (`PROJECT_INFO_LANGUAGE`). Its `query_text` is the
+  retrieval question (embedded and BM25-matched, PLUS modality, multi-query, cross-encoder); its
+  `answer_instruction` goes only to the synthesis LLM and sets the value format.
+- **No free text in a column.** One structured `PROJECT_INFO_RESOLVE` call per query returns
+  `{reasoning, gefunden, wert, konfidenz, beleg}` from the retrieved snippets alone, the same
+  shape as the project-context resolver. Only `wert` with `gefunden=true` is written, to the
+  query's fixed column; a miss leaves the column untouched. A ZIP-created job overwrites (the only
+  value present is the placeholder name); a manual re-run asks for confirmation before it does.
+- Every query's outcome, including the evidence quote and query version, is stored on the job row
+  and shown per field on the project page. `location` is stored as text; geocoding stays with the
+  project-context resolver.
+
 ## Project Chat Agent
 
 Persistent, project-scoped conversations. One turn = `POST /conversations/{id}/turn`, streamed

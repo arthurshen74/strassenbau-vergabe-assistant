@@ -44,6 +44,34 @@ export interface ProjectFromZipResult {
   skipped: string[];
 }
 
+export interface ProjectInfoRunRequest {
+  overwrite?: boolean;
+}
+
+export interface ProjectInfoResult {
+  gefunden: boolean;
+  wert?: string | null;
+  konfidenz?: number | null;
+  beleg?: string | null;
+  query_version?: number | null;
+  error?: string | null;
+}
+
+export interface ProjectInfoJobRead {
+  job_uuid: string;
+  project_uuid: string;
+  language: string;
+  overwrite: boolean;
+  status: "queued" | "running" | "done" | "failed";
+  attempts: number;
+  error?: string | null;
+  result?: {
+    [k: string]: ProjectInfoResult;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProjectContextValue {
   project_context_value_uuid: string;
   project_uuid: string;
@@ -234,7 +262,8 @@ export interface PromptVersionRead {
     | "ekt_output_narrate"
     | "project_context_resolve"
     | "katalog_handbuch"
-    | "ner_fehleranalyse";
+    | "ner_fehleranalyse"
+    | "project_info_resolve";
   version: number;
   model_name: string;
   system_prompt: string;
@@ -261,7 +290,8 @@ export interface PromptVersionCreate {
     | "ekt_output_narrate"
     | "project_context_resolve"
     | "katalog_handbuch"
-    | "ner_fehleranalyse";
+    | "ner_fehleranalyse"
+    | "project_info_resolve";
   model_name: string;
   system_prompt: string;
   temperature?: number | null;
@@ -319,7 +349,8 @@ export interface ConversationRead {
     | "ekt_output_narrate"
     | "project_context_resolve"
     | "katalog_handbuch"
-    | "ner_fehleranalyse";
+    | "ner_fehleranalyse"
+    | "project_info_resolve";
   calculation_status?: ("awaiting_start" | "running" | "awaiting_input" | "complete" | "failed") | null;
   lv_item_uuid?: string | null;
   title?: string | null;
@@ -344,7 +375,8 @@ export interface ConversationCreate {
     | "ekt_output_narrate"
     | "project_context_resolve"
     | "katalog_handbuch"
-    | "ner_fehleranalyse";
+    | "ner_fehleranalyse"
+    | "project_info_resolve";
   project_uuid?: string | null;
   title?: string | null;
 }

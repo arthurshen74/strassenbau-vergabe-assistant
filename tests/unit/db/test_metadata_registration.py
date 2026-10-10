@@ -32,6 +32,7 @@ EXPECTED_TABLES = {
     "eval_run_events",
     "eval_results",
     "project_context_values",
+    "project_info_jobs",
     "katalog_leistungen",
     "katalog_bauverfahren",
     "katalog_vorgaenge",

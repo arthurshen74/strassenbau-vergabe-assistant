@@ -111,7 +111,10 @@ Three idempotent bootstrap scripts run on api start (or manually via
    the domain DB. **There is no migration tool**: `create_all` only adds missing tables, it never
    alters existing ones. Schema changes on a populated database currently mean hand-written DDL
    (the `sql/` directory, mounted into the Postgres container) — adopting Alembic is on the
-   enhancement list.
+   enhancement list. Files run in number order and are idempotent; e.g. `20_project_info_jobs.sql`
+   adds the Projektinfo queue and `21_project_info_resolve_prompt_type.sql` widens the
+   `prompt_type` CHECKs for the `project_info_resolve` prompt. A new prompt type always needs such
+   a widening file before its prompt can be seeded.
 3. `bootstrap_storage` — creates the MinIO bucket (retries up to 60 s while MinIO starts).
 
 Elasticsearch indexes are not bootstrapped — the search client ensures them at runtime.
@@ -119,7 +122,7 @@ Elasticsearch indexes are not bootstrapped — the search client ensures them at
 Seeding, run once after first boot:
 
 ```bash
-PYTHONPATH=server uv run python -m scripts.seed.prompts        # prompt library
+PYTHONPATH=server uv run python -m scripts.seed.prompts        # prompt library (incl. project_info_resolve)
 PYTHONPATH=server uv run python -m scripts.seed.rag_queries    # project-info RAG queries
 PYTHONPATH=server uv run python -m scripts.seed.seed_katalog   # calculation catalog
 ```
@@ -133,8 +136,8 @@ any catalog table has rows; `--reset` truncates and reseeds. Type generation for
 
 ## Scaling
 
-Ingestion and eval throughput scale horizontally: `docker compose up --scale worker=N`. Workers
-compete for jobs on both queues via `SELECT … FOR UPDATE SKIP LOCKED` — Postgres is the allocator,
+Ingestion, eval and project-info throughput scale horizontally: `docker compose up --scale
+worker=N`. Workers compete for jobs on all three queues via `SELECT … FOR UPDATE SKIP LOCKED` — Postgres is the allocator,
 there is no dispatcher, and a crashed worker's jobs are reclaimed by lease expiry (see
 `APPLICATION_ARCHITECTURE.md`).
 
