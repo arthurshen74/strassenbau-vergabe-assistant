@@ -1,0 +1,7 @@
+name: Vergabenummer
+description: Nummer des Vergabeverfahrens.
+query_text: >-
+  Welche Vergabenummer (Vergabe-Nr., Ausschreibungsnummer, Verfahrensnummer) hat dieses
+  Vergabeverfahren?
+answer_instruction: >-
+  Gib nur die Vergabenummer wörtlich zurück, ohne Zusatz.

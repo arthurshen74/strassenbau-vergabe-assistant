@@ -245,7 +245,8 @@ These are not directly ingested but appear constantly in the ZTV and Baubeschrei
 
 ## System and Infrastructure Terms
 
-These are not domain terms; they recur in the codebase around OpenRouter cost tracking.
+These are not domain terms; they recur in the codebase around OpenRouter cost tracking and
+project-info extraction.
 
 **OpenRouter credits** — The unit OpenRouter reports `cost` in. Credits are USD-denominated (1 credit = 1 USD), so the `cost` column is treated as USD. Recorded per API call in `openrouter_usage`.
 
@@ -254,6 +255,8 @@ These are not domain terms; they recur in the codebase around OpenRouter cost tr
 **Search units** — Cohere's rerank billing unit, returned as `search_units` on rerank responses. Rerank reports no prompt/completion tokens.
 
 **Usage sink** — A small async interface (`UsageSink`) an OpenRouter client emits a `UsageEvent` to after each call. `LoggingUsageSink` logs one line (default); `DatabaseUsageSink` persists to `openrouter_usage`.
+
+**RAG Query (Projektinfo)** — A versioned question that fills one project header field (Maßnahme, Maßnahmenummer, Vergabenummer, Bauleistung, Baustelle, Projektbeschreibung) from the ingested tender documents. Stored append-only in `rag_query_versions` per key and language; each version has a `query_text` (the retrieval question, embedded and BM25-matched, so it must be in the document language) and an `answer_instruction` (the output rule for the synthesis LLM). Edited in the RAG Queries view.
 
 ---
 

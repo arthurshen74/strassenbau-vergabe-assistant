@@ -1,0 +1,9 @@
+name: Baustelle (nächster Ort)
+description: Nächstgelegener geokodierbarer Ort zur Baustelle.
+query_text: >-
+  Wo liegt die Baustelle? Ortslage, Gemeinde, Straße und Abschnitt (von/bis, Netzknoten
+  oder Stationierung) laut Baubeschreibung.
+answer_instruction: >-
+  Nenne nur den nächstgelegenen Ort (Stadt oder Gemeinde) zur Baustelle, ggf. mit
+  Ortsteil, so dass er geokodierbar ist. Bei mehreren gleich nahen Orten wähle den, der
+  im Titel der Maßnahme genannt ist. Keine Erklärung.

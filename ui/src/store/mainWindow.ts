@@ -11,6 +11,7 @@ import { immer } from 'zustand/middleware/immer';
 
 export type MainWindowKind =
   | 'prompts'
+  | 'rag_queries'
   | 'projects'
   | 'prompt_execution_log'
   | 'prompt_usage_log'

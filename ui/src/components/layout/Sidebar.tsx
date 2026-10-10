@@ -12,6 +12,7 @@ import {
   DocumentTextIcon,
   ExclamationTriangleIcon,
   FolderIcon,
+  MagnifyingGlassIcon,
   TagIcon,
 } from "@heroicons/react/20/solid";
 import {
@@ -38,6 +39,7 @@ const COMMANDS: { label: string; kind: MainWindowKind; Icon: CommandIcon }[] = [
     Icon: CommandLineIcon,
   },
   { label: "View Prompts", kind: "prompts", Icon: DocumentTextIcon },
+  { label: "RAG Queries", kind: "rag_queries", Icon: MagnifyingGlassIcon },
   { label: "View Katalog", kind: "katalog", Icon: BookOpenIcon },
   { label: "View Entity Rules", kind: "entity_rules", Icon: TagIcon },
   {

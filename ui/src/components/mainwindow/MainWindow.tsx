@@ -14,9 +14,11 @@ import { IngestConsoleView } from '../../views/main/IngestConsoleView';
 import { KatalogView } from '../../views/main/KatalogView';
 import { EntityRulesView } from '../../views/main/EntityRulesView';
 import { NerAnalysisView } from '../../views/main/NerAnalysisView';
+import { RagQueriesView } from '../../views/main/RagQueriesView';
 
 const TITLES: Record<MainWindowView['kind'], string> = {
   prompts: 'Prompts',
+  rag_queries: 'RAG Queries',
   projects: 'Projects',
   prompt_execution_log: 'Prompt Execution Log',
   prompt_usage_log: 'Prompt Usage Log',
@@ -55,6 +57,8 @@ function MainWindowBody({ view }: { view: MainWindowView }) {
   switch (view.kind) {
     case 'prompts':
       return <PromptList data={view.data} />;
+    case 'rag_queries':
+      return <RagQueriesView />;
     case 'projects':
       return <ProjectsView data={view.data} />;
     case 'prompt_execution_log':

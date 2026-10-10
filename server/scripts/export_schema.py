@@ -102,6 +102,7 @@ from shared.models.rag_ground_truth import (
     RagGroundTruthUpsert,
     RagRef,
 )
+from shared.models.rag_query_schema import RagQueryVersionCreate, RagQueryVersionRead
 from shared.models.retrieval_request_schema import TurnRetrievalConfig
 from shared.models.prompt_execution_log_schema import (
     PromptExecutionLogRead,
@@ -174,6 +175,8 @@ BODY_MODELS: list[type[BaseModel]] = [
     ChatMessage,
     PromptVersionRead,
     PromptVersionCreate,
+    RagQueryVersionRead,
+    RagQueryVersionCreate,
     ConversationRead,
     ConversationCreate,
     ConversationCostRead,
