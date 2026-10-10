@@ -5,6 +5,13 @@ Parallel with 02, 04. Task 05 adds one call into the service method you create h
 
 ## Use a worktree
 
+Preflight, on `main` before creating the worktree. If this fails, the dependency is
+not merged yet: stop and report instead of re-doing the other task's work.
+
+```bash
+test -f sql/18_multi_lv_documents.sql   # task 01 merged
+```
+
 Work in a dedicated git worktree and branch, never in the main checkout:
 
 ```bash

@@ -6,6 +6,14 @@ enqueue call and the end-to-end check need it.
 
 ## Use a worktree
 
+Preflight, on `main` before creating the worktree. If this fails, the dependency is
+not merged yet: stop and report instead of re-doing the other task's work.
+
+```bash
+test -f sql/18_multi_lv_documents.sql && test -f sql/19_rag_query_versions.sql \
+  && grep -q _after_zip_ingest server/shared/services/project_service.py   # 01, 04, 03 merged
+```
+
 Work in a dedicated git worktree and branch, never in the main checkout:
 
 ```bash

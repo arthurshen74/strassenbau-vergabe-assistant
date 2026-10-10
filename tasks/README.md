@@ -49,7 +49,9 @@ The existing flow (create a project in a form, then upload documents) stays as i
 ## Execution waves (parallelism)
 
 Run each wave as concurrent agents, one agent per task. Start the next wave only when every
-task it depends on has reported done (tests green, types regenerated).
+task it depends on has reported done (tests green, types regenerated) **and has been merged
+into main**. Each task file has a preflight check for this; a worktree created before the
+merge does not contain the dependency and the agent will end up re-doing it.
 
 ```
 wave 1:   [01 multi-LV backend]      [04 RAG query versions]

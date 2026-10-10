@@ -4,6 +4,13 @@ Depends on: 01 (per-document routes, no LV replace). Parallel with 03, 04, 05.
 
 ## Use a worktree
 
+Preflight, on `main` before creating the worktree. If this fails, the dependency is
+not merged yet: stop and report instead of re-doing the other task's work.
+
+```bash
+test -f sql/18_multi_lv_documents.sql   # task 01 merged
+```
+
 Work in a dedicated git worktree and branch, never in the main checkout:
 
 ```bash

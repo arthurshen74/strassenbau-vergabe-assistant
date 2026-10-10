@@ -4,6 +4,8 @@ Depends on: nothing. Blocks: 02, 03.
 
 ## Use a worktree
 
+Preflight: this task has no dependencies; branch from the current `main`.
+
 Work in a dedicated git worktree and branch, never in the main checkout:
 
 ```bash

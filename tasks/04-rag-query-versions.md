@@ -4,6 +4,8 @@ Depends on: nothing. Parallel with 01, 02, 03. Task 05 consumes the repository.
 
 ## Use a worktree
 
+Preflight: this task has no dependencies; branch from the current `main`.
+
 Work in a dedicated git worktree and branch, never in the main checkout:
 
 ```bash
