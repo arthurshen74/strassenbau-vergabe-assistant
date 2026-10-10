@@ -31,6 +31,7 @@ from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.ingestion_activity import IngestionActivityLogRepository
 from shared.repositories.katalog import KatalogRepository
 from shared.repositories.lv_items import LVItemRepository
+from shared.repositories.lv_texts import LVTextRepository
 from shared.repositories.messages import MessageRepository
 from shared.repositories.ner_flags import NerFlagRepository
 from shared.repositories.nlp_render_cache import NlpRenderCacheRepository
@@ -57,6 +58,7 @@ class UnitOfWork:
         self.ingest_job_events = IngestJobEventRepository(conn)
         self.ingestion_activity = IngestionActivityLogRepository(conn)
         self.lv_items = LVItemRepository(conn)
+        self.lv_texts = LVTextRepository(conn)
         self.prompt_versions = PromptVersionRepository(conn)
         self.conversations = ConversationRepository(conn)
         self.messages = MessageRepository(conn)

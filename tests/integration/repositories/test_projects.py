@@ -74,3 +74,38 @@ async def test_delete_removes(conn: AsyncConnection) -> None:
     created = await repo.add(_new())
     await repo.delete(created.project_uuid)
     assert await repo.get(created.project_uuid) is None
+
+
+async def test_add_with_header_fields(conn: AsyncConnection) -> None:
+    repo = ProjectRepository(conn)
+    created = await repo.add(
+        NewProject(
+            project_name="B247 OD Test",
+            massnahmenummer="M-4711",
+            vergabe_id="VG-2",
+            bauleistung="Deckenerneuerung B247",
+            vergabestelle="LRA Test",
+            location="Mühlhausen",
+        )
+    )
+    assert created.massnahmenummer == "M-4711"
+    assert created.bauleistung == "Deckenerneuerung B247"
+    assert created.project_description is None
+
+
+async def test_add_name_only(conn: AsyncConnection) -> None:
+    # The ZIP-first flow creates the project before the header fields are known.
+    repo = ProjectRepository(conn)
+    created = await repo.add(NewProject(project_name="from-zip"))
+    assert created.vergabe_id is None
+    assert created.vergabestelle is None
+    assert created.massnahmenummer is None
+
+
+async def test_update_clears_optional_field(conn: AsyncConnection) -> None:
+    repo = ProjectRepository(conn)
+    created = await repo.add(_new())
+    updated = await repo.update(created.project_uuid, vergabestelle=None)
+    assert updated is not None
+    assert updated.vergabestelle is None
+    assert updated.vergabe_id == "VG-1"

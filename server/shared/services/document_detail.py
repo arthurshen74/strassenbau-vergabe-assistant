@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from shared.clients.search.client import SearchClient
 from shared.models.document_schema import (
@@ -25,6 +25,7 @@ from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_job_events import IngestJobEventRepository
 from shared.repositories.ingestion_activity import IngestionActivityLogRepository
 from shared.repositories.lv_items import LVItemRepository
+from shared.repositories.lv_texts import LVTextRepository
 from shared.repositories.openrouter_usage import OpenRouterUsageRepository
 from shared.services.ingestion.progress import IngestEvent
 
@@ -45,9 +46,7 @@ class DocumentDetailService:
             doc = await DocumentRepository(conn).get(document_uuid)
             if doc is None or doc.project_uuid != project_uuid:
                 return None
-            lv_item_uuids = await LVItemRepository(conn).list_uuids_by_document(
-                document_uuid
-            )
+            lv_source_uuids = await _lv_source_uuids(conn, document_uuid)
             last_ingest = await IngestJobEventRepository(conn).latest_event_ts(
                 document_uuid, IngestEvent.COMPLETED.value
             )
@@ -55,7 +54,7 @@ class DocumentDetailService:
                 document_uuid
             )
         simple_count = await self._search.count_document_chunks(
-            project_uuid, document_uuid, lv_item_uuids
+            project_uuid, document_uuid, lv_source_uuids
         )
         langchain_count = await self._search.count_langchain_chunks(document_uuid)
         return DocumentDetailRead(
@@ -99,13 +98,11 @@ class DocumentDetailService:
                 total=total,
             )
         async with self._engine.connect() as conn:
-            lv_item_uuids = await LVItemRepository(conn).list_uuids_by_document(
-                document_uuid
-            )
+            lv_source_uuids = await _lv_source_uuids(conn, document_uuid)
         views, total = await self._search.list_document_chunks(
             project_uuid,
             document_uuid,
-            lv_item_uuids,
+            lv_source_uuids,
             source_doc_type=source_doc_type,
             text=text,
             offset=offset,
@@ -140,3 +137,10 @@ class DocumentDetailService:
             )
             total = await repo.count_for_document(document_uuid)
         return ActivityListRead(items=items, total=total)
+
+
+async def _lv_source_uuids(conn: AsyncConnection, document_uuid: UUID) -> list[UUID]:
+    """The uuids keying a document's LV_ITEM and LV_TEXT chunks."""
+    items = await LVItemRepository(conn).list_uuids_by_document(document_uuid)
+    texts = await LVTextRepository(conn).list_uuids_by_document(document_uuid)
+    return items + texts

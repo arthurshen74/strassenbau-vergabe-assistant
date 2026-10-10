@@ -1,7 +1,8 @@
 """Simple chunking: text units to SimpleChunk drafts (no embeddings).
 
 Every document is chunked into `DOCUMENT` chunks from its SourceLine text; LV items are
-additionally chunked into `LV_ITEM` chunks from their resolved long text (INGESTION.md).
+additionally chunked into `LV_ITEM` chunks from their resolved long text, and the LV's
+Vorbemerkungen/Hinweise into `LV_TEXT` chunks (INGESTION.md).
 This module is pure: it produces `ChunkDraft`s carrying everything a `NewSimpleChunk`
 needs except the embedding, which the service fills after calling the embeddings client.
 """
@@ -15,11 +16,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from shared.models.enums import SourceDocType
 from shared.models.lv_item import LVItem
+from shared.models.lv_text import LVText
 from shared.models.source_line import SourceLine
+from shared.services.ingestion.lv.types import hinweis_text
 
 # Which underlying field a chunk's text was drawn from (denormalised onto every chunk).
 SOURCE_DOC_FIELD_DOCUMENT = "sourcelines.line_text"
 SOURCE_DOC_FIELD_LV_ITEM = "lv_items.langtext_resolved"
+SOURCE_DOC_FIELD_LV_TEXT = "lv_texts.body"
 
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 150
@@ -98,6 +102,25 @@ def chunk_lv_item(
             chunk_text=chunk_text,
         )
         for index, chunk_text in enumerate(_SPLITTER.split_text(text))
+    ]
+
+
+def chunk_lv_text(text: LVText, *, project_uuid: UUID) -> list[ChunkDraft]:
+    """Chunk one LV text (heading plus body) into LV_TEXT chunks. `oz` carries the
+    text's own identifier or, for a Hinweis, its enclosing LV-Gruppe; a Vortext has
+    none."""
+    content = hinweis_text(text.heading, text.body)
+    return [
+        ChunkDraft(
+            source_doc_uuid=text.lv_text_uuid,
+            source_doc_type=SourceDocType.LV_TEXT,
+            source_doc_field=SOURCE_DOC_FIELD_LV_TEXT,
+            chunk_index=index,
+            oz=text.oz or text.parent_oz,
+            project_uuid=project_uuid,
+            chunk_text=chunk_text,
+        )
+        for index, chunk_text in enumerate(_SPLITTER.split_text(content))
     ]
 
 

@@ -4,7 +4,8 @@
 -> RecursiveCharacterTextSplitter chunks in the parallel vector index), runs the common
 extraction stage (PDF -> SourceLine), and simple-chunks every PDF into DOCUMENT chunks.
 LV items come exclusively from GAEB files (D83/X83), which take a short path instead:
-the file parses deterministically into LVItem rows and LV_ITEM chunks (no thumbnails,
+the file parses deterministically into LVItem rows and LV_ITEM chunks plus the LV-level
+texts (Vorbemerkungen, Hinweise) as LVText rows and LV_TEXT chunks (no thumbnails,
 source lines, or DOCUMENT chunks). It is called directly with a `document_uuid`; passing
 a `job_uuid` enables IngestJobEvent progress logging, and omitting it runs jobless for
 isolated testing. The worker loop that claims jobs and drives this service is a separate
@@ -34,7 +35,12 @@ from shared.models.document import Document
 from shared.models.enums import SourceDocType
 from shared.models.simple_chunk import NewSimpleChunk
 from shared.models.thumbnail import NewThumbnail
-from shared.services.ingestion.chunking import ChunkDraft, chunk_document, chunk_lv_item
+from shared.services.ingestion.chunking import (
+    ChunkDraft,
+    chunk_document,
+    chunk_lv_item,
+    chunk_lv_text,
+)
 from shared.services.ingestion.extraction import extract_source_lines
 from shared.services.ingestion.gaeb import is_gaeb_lv_file, parse_gaeb_lv
 from shared.services.ingestion.langchain_pipeline import LangchainIngestor
@@ -69,7 +75,8 @@ class IngestionResult:
     langchain_chunks: int
     document_chunks: int
     lv_items: int
-    lv_chunks: int
+    lv_texts: int
+    lv_chunks: int  # LV_ITEM + LV_TEXT chunks
 
 
 class IngestionService:
@@ -192,29 +199,30 @@ class IngestionService:
             langchain_chunks=langchain_chunks,
             document_chunks=document_chunks,
             lv_items=0,
+            lv_texts=0,
             lv_chunks=0,
         )
 
     async def _ingest_gaeb_document(
         self, document: Document, job_uuid: UUID | None
     ) -> IngestionResult:
-        """GAEB short path: parse the D83/X83 file into LV items and persist/index them.
-        There are no pages, so thumbnails, source lines, and DOCUMENT chunks are skipped
-        entirely."""
+        """GAEB short path: parse the D83/X83 file into LV items and LV texts and
+        persist/index them. There are no pages, so thumbnails, source lines, and
+        DOCUMENT chunks are skipped entirely."""
         try:
             raw_bytes = await asyncio.to_thread(
                 self._storage.get_object, raw_object_key(document.document_uuid)
             )
             self._activity("parsing GAEB LV", IngestPhase.LV)
             result = parse_gaeb_lv(document.file_name, raw_bytes)
-            lv_items, lv_chunks = await self._persist_lv_result(
+            lv_items, lv_texts, lv_chunks = await self._persist_lv_result(
                 document, result, job_uuid
             )
             await self._emit(
                 job_uuid,
                 event=IngestEvent.LV_ITEMS_INDEXED,
                 phase=IngestPhase.LV,
-                message=f"{lv_items} LV items, {lv_chunks} chunks",
+                message=f"{lv_items} LV items, {lv_texts} LV texts, {lv_chunks} chunks",
             )
         except Exception as exc:
             await self._emit(
@@ -237,29 +245,36 @@ class IngestionService:
             langchain_chunks=0,
             document_chunks=0,
             lv_items=lv_items,
+            lv_texts=lv_texts,
             lv_chunks=lv_chunks,
         )
 
     async def _persist_lv_result(
         self, document: Document, result: LVParseResult, job_uuid: UUID | None
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, int]:
+        """Persist and index the parse: returns (lv_items, lv_texts, chunks)."""
         pages_by_oz = {item.oz: item.pages for item in result.items}
         new_ozs = [item.oz for item in result.items]
 
         # Upsert the parsed items (stable uuids) and drop any position that no longer
         # exists, so a re-ingest neither collides on (document_uuid, oz) nor leaves
-        # stale rows.
+        # stale rows. LV texts have no natural key and are replaced wholesale.
         async with self._uow_factory() as uow:
             items = await uow.lv_items.add_many(
                 result.to_new_lv_items(document.document_uuid)
             )
             removed = await uow.lv_items.delete_missing(document.document_uuid, new_ozs)
+            texts, removed_texts = await uow.lv_texts.replace(
+                document.document_uuid, result.to_new_lv_texts(document.document_uuid)
+            )
 
-        # Archive the Elasticsearch chunks of the removed positions; the survivors'
-        # prior chunks are archived per item below before re-indexing (their uuids are
-        # unchanged).
+        # Archive the Elasticsearch chunks of the removed positions and texts; the
+        # surviving items' prior chunks are archived per item below before re-indexing
+        # (their uuids are unchanged).
         for removed_uuid in removed:
             await self._search.archive_source(removed_uuid, SourceDocType.LV_ITEM)
+        for removed_uuid in removed_texts:
+            await self._search.archive_source(removed_uuid, SourceDocType.LV_TEXT)
 
         lv_chunks = 0
         for index, item in enumerate(items, start=1):
@@ -278,7 +293,18 @@ class IngestionService:
                 self._activity(
                     f"LV item {item.oz} ({index}/{len(items)})", IngestPhase.LV
                 )
-        return len(items), lv_chunks
+        for text in texts:
+            lv_chunks += await self._embed_and_index(
+                chunk_lv_text(text, project_uuid=document.project_uuid),
+                text.lv_text_uuid,
+                SourceDocType.LV_TEXT,
+                document.project_uuid,
+                job_uuid,
+                document.document_uuid,
+            )
+        if texts:
+            self._activity(f"{len(texts)} LV texts indexed", IngestPhase.LV)
+        return len(items), len(texts), lv_chunks
 
     async def _generate_thumbnails(self, document_uuid: UUID, pdf_bytes: bytes) -> int:
         """Render one thumbnail per page, store each in object storage, and upsert a
@@ -325,7 +351,7 @@ class IngestionService:
     ) -> int:
         """Embed the drafts, archive the source's prior chunks, then index the new ones.
         The owning document_uuid (distinct from source_doc_uuid, which is the lv_item
-        for LV chunks) tags the embeddings' OpenRouter usage."""
+        or lv_text for LV chunks) tags the embeddings' OpenRouter usage."""
         if not drafts:
             return 0
         vectors = await self._embeddings.embed(
@@ -335,9 +361,9 @@ class IngestionService:
             document_uuid=document_uuid,
         )
         activity_phase = (
-            IngestPhase.LV
-            if source_doc_type is SourceDocType.LV_ITEM
-            else IngestPhase.CHUNK
+            IngestPhase.CHUNK
+            if source_doc_type is SourceDocType.DOCUMENT
+            else IngestPhase.LV
         )
         chunks: list[NewSimpleChunk] = []
         for index, (draft, vector) in enumerate(zip(drafts, vectors), start=1):

@@ -8,8 +8,8 @@ from shared.models.enums import SourceDocType
 
 
 class SimpleChunk(BaseModel):
-    """The Elasticsearch document shape. `source_doc_uuid` resolves to a Document or
-    LVItem depending on `source_doc_type`."""
+    """The Elasticsearch document shape. `source_doc_uuid` resolves to a Document,
+    LVItem or LVText depending on `source_doc_type`."""
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

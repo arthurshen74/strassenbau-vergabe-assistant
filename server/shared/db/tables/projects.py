@@ -5,6 +5,8 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from shared.db.metadata import metadata
 
+# Only project_name is required: a project is created from its tender ZIP before the
+# other header fields are known, and those are filled in after ingestion (or by hand).
 projects = Table(
     "projects",
     metadata,
@@ -14,11 +16,13 @@ projects = Table(
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     ),
-    Column("vergabe_id", Text, nullable=False),
-    Column("project_name", Text, nullable=False),
-    Column("project_description", Text, nullable=False),
-    Column("vergabestelle", Text, nullable=False),
-    Column("location", Text, nullable=True),
+    Column("project_name", Text, nullable=False),  # Maßnahme
+    Column("massnahmenummer", Text, nullable=True),
+    Column("vergabe_id", Text, nullable=True),  # Vergabenummer
+    Column("bauleistung", Text, nullable=True),
+    Column("vergabestelle", Text, nullable=True),
+    Column("location", Text, nullable=True),  # Baustelle
+    Column("project_description", Text, nullable=True),
     Column(
         "created_at",
         DateTime(timezone=True),

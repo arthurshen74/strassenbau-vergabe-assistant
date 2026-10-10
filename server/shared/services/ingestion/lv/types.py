@@ -3,16 +3,26 @@
 `ParsedPosition` is the LLM segmentation normalised off the wire schema;
 `SlicedPosition` adds the verbatim text and pages sliced from SourceLine; `ResolvedItem`
 is one fully-built item ready for persistence (`build_resolved_item` constructs it from
-a sliced position and its links). `LVParseResult` is the stage output."""
+a sliced position and its links). `LVParseResult` is the stage output.
+
+The GAEB readers also emit the LV's free text outside the positions: `AddTextBlock` is a
+Zusaetzlicher Text (GAEB 90 `T0`..`T9` block, GAEB DA XML `AddText`) placed before or
+after the BoQ, the spec's home for Vorbemerkungen and Nachtext; `Remark` is a
+Hinweistext (GAEB 90 record `20`, XML `Remark`) that lives inside the LV hierarchy. A
+Remark records only what the file states with certainty, its structural parent and its
+sequence within that parent; a semantic target ("applies to position X") is undecidable
+for a mid-group Hinweis and is deliberately not modelled."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID
 
+from shared.models.enums import LVTextKind, LVTextPlacement
 from shared.models.llm_output_schemas.lv_extraction import POSITIONSTYP_TITEL
 from shared.models.lv_item import NewLVItem
+from shared.models.lv_text import NewLVText
 
 TITEL_MENGE = Decimal(0)
 
@@ -123,12 +133,73 @@ def build_resolved_item(
 
 
 @dataclass(frozen=True)
+class AddTextBlock:
+    """One Zusaetzlicher Text block outside the LV hierarchy; applies to the whole LV
+    by construction. `heading` is the XML OutlineAddText (GAEB 90 T-lines have none);
+    `order` is the document order within its placement."""
+
+    placement: LVTextPlacement
+    heading: str | None
+    body: str
+    order: int
+
+
+@dataclass(frozen=True)
+class Remark:
+    """One Hinweistext node in the LV tree. `parent_oz` is the enclosing LV-Gruppe
+    (None at the LV root); `index` is the node's ordinal among that parent's direct
+    children (groups, positions and Hinweise) in document order. `oz` is the optional
+    identifier from the record (blank `20` / missing `RNoPart` -> None); it is not a
+    scope pointer."""
+
+    oz: str | None
+    heading: str | None
+    body: str
+    parent_oz: str | None
+    index: int
+
+    @property
+    def text(self) -> str:
+        return hinweis_text(self.heading, self.body)
+
+
+def hinweis_text(heading: str | None, body: str) -> str:
+    """A Hinweis as one text block: heading line plus body, unless the body already
+    opens with the heading (X83 writers repeat the Kurztext there)."""
+    if not heading:
+        return body
+    if not body:
+        return heading
+    if body.lower().startswith(heading.lower()):
+        return body
+    return f"{heading}\n{body}"
+
+
+@dataclass(frozen=True)
 class LVParseResult:
-    """The LV parse output: one ResolvedItem per position, plus soft validation
-    warnings."""
+    """The LV parse output: one ResolvedItem per position, the LV-level free text, every
+    Hinweistext node, plus soft validation warnings."""
 
     items: list[ResolvedItem]
     warnings: list[str]
+    add_texts: list[AddTextBlock] = field(default_factory=list)
+    remarks: list[Remark] = field(default_factory=list)
+
+    def vortext(self) -> list[AddTextBlock]:
+        return [b for b in self.add_texts if b.placement is LVTextPlacement.BEFORE_BOQ]
+
+    def nachtext(self) -> list[AddTextBlock]:
+        return [b for b in self.add_texts if b.placement is LVTextPlacement.AFTER_BOQ]
+
+    def leading_root_remarks(self) -> list[Remark]:
+        """Root-level Hinweise that precede the first LV-Gruppe or position: the place
+        AVA tools print as "Vorbemerkungen" when the author never used a Zusaetzlicher
+        Text. A view next to `vortext()`, not merged into it."""
+        leading: list[Remark] = []
+        for remark in self.remarks:
+            if remark.parent_oz is None and remark.index == len(leading):
+                leading.append(remark)
+        return leading
 
     def to_new_lv_items(self, document_uuid: UUID) -> list[NewLVItem]:
         return [
@@ -151,4 +222,41 @@ class LVParseResult:
                 source_lines=item.source_line_uuids,
             )
             for item in self.items
+        ]
+
+    def to_new_lv_texts(self, document_uuid: UUID) -> list[NewLVText]:
+        """Vortext blocks, every Hinweistext node, then Nachtext blocks: the LV's
+        document order, stamped as `sequence`."""
+        rows: list[NewLVText] = []
+        for block in self.vortext() + self.nachtext():
+            rows.append(
+                NewLVText(
+                    document_uuid=document_uuid,
+                    kind=LVTextKind.ADD_TEXT,
+                    placement=block.placement,
+                    index=block.order,
+                    sequence=len(rows),
+                    heading=block.heading,
+                    body=block.body,
+                )
+            )
+        remarks = [
+            NewLVText(
+                document_uuid=document_uuid,
+                kind=LVTextKind.REMARK,
+                parent_oz=remark.parent_oz,
+                index=remark.index,
+                sequence=0,
+                oz=remark.oz,
+                heading=remark.heading,
+                body=remark.body,
+            )
+            for remark in self.remarks
+        ]
+        before = [r for r in rows if r.placement is LVTextPlacement.BEFORE_BOQ]
+        after = [r for r in rows if r.placement is LVTextPlacement.AFTER_BOQ]
+        ordered = before + remarks + after
+        return [
+            row.model_copy(update={"sequence": sequence})
+            for sequence, row in enumerate(ordered)
         ]

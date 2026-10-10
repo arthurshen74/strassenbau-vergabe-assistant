@@ -23,10 +23,11 @@ from shared.services.ingestion.gaeb.compose import OZ_SEGMENT_SEP, GaebParseErro
 
 RECORD_LENGTH = 80
 
-# Zeilenarten (record types), columns 1-2.
-ZA_VORBEMERKUNG_BEGIN = "T0"
-ZA_VORBEMERKUNG_TEXT = "T1"
-ZA_VORBEMERKUNG_END = "T9"
+# Zeilenarten (record types), columns 1-2. T0/T1/T9 frame the vertraglichen Regelungen,
+# GAEB 90's slot for LV-level Vorbemerkungen; the block precedes the Eroeffnungssatz.
+ZA_VERTRAGLICHE_REGELUNG_BEGIN = "T0"
+ZA_VERTRAGLICHE_REGELUNG_TEXT = "T1"
+ZA_VERTRAGLICHE_REGELUNG_END = "T9"
 ZA_EROEFFNUNG = "00"
 ZA_LOS_BEGIN = "10"
 ZA_GRUPPE_BEGIN = "11"
@@ -59,7 +60,7 @@ SLICE_AUSTAUSCHPHASE = slice(10, 12)
 SLICE_OZMASKE = slice(62, 71)
 AUSTAUSCHPHASE_D83 = "83"
 
-# Positions- (21) and Gruppen- (11) records: the 9-character OZ field.
+# Positions- (21), Gruppen- (11) and Hinweis- (20) records: the 9-character OZ field.
 SLICE_OZ = slice(2, 11)
 
 # Position (21) fields.
@@ -130,23 +131,22 @@ class OzMask:
 
     def split(self, raw_oz: str) -> list[str]:
         """Split a raw OZ field into its filled segments (the index, when present, is
-        last)."""
+        last). Segments are zero-filled to their mask width; a blank segment followed
+        by a filled one (a position placed directly under a higher-level LV-Gruppe, or
+        a space-padded number) is skipped rather than rejected, since real exports do
+        both."""
         segments: list[str] = []
         position = 0
         for length in self.segment_lengths:
             segment = raw_oz[position : position + length].strip()
+            position += length
             if not segment:
-                if raw_oz[position:].strip():
-                    raise D83ParseError(
-                        f"OZ field {raw_oz!r} has a gap in its segments"
-                    )
-                return segments
+                continue
             if not segment.isdigit():
                 raise D83ParseError(
                     f"OZ segment {segment!r} in {raw_oz!r} is not numeric"
                 )
-            segments.append(segment)
-            position += length
+            segments.append(segment.zfill(length))
         index = raw_oz[position : position + self.index_length].strip()
         if index:
             segments.append(index)

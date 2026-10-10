@@ -40,6 +40,7 @@ from shared.db.tables.katalog_stand import katalog_stand
 from shared.db.tables.katalog_variablen import katalog_variablen
 from shared.db.tables.katalog_vorgaenge import katalog_vorgaenge
 from shared.db.tables.lv_items import lv_items
+from shared.db.tables.lv_texts import lv_texts
 from shared.db.tables.messages import messages
 from shared.db.tables.ner_flags import ner_flags
 from shared.db.tables.nlp_render_cache import nlp_render_cache
@@ -84,6 +85,7 @@ __all__ = [
     "katalog_variablen",
     "katalog_vorgaenge",
     "lv_items",
+    "lv_texts",
     "messages",
     "ner_flags",
     "nlp_render_cache",

@@ -12,7 +12,7 @@ import type {
 
 export interface ChunkFilters {
   source: 'simple' | 'langchain';
-  doc_type?: 'DOCUMENT' | 'LV_ITEM';
+  doc_type?: 'DOCUMENT' | 'LV_ITEM' | 'LV_TEXT';
   q?: string;
   offset?: number;
   limit?: number;

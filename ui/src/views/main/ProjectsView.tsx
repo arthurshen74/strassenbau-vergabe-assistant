@@ -116,7 +116,7 @@ function ProjectListBody({
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge color="blue">{p.vergabe_id}</Badge>
+                {p.vergabe_id && <Badge color="blue">{p.vergabe_id}</Badge>}
                 {p.location && <Badge color="zinc">{p.location}</Badge>}
               </div>
               <Text className="text-xs text-zinc-500 dark:text-zinc-400">{p.vergabestelle}</Text>

@@ -7,28 +7,35 @@
 
 export interface ProjectRead {
   project_uuid: string;
-  vergabe_id: string;
   project_name: string;
-  project_description: string;
-  vergabestelle: string;
+  massnahmenummer?: string | null;
+  vergabe_id?: string | null;
+  bauleistung?: string | null;
+  vergabestelle?: string | null;
   location?: string | null;
+  project_description?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface ProjectCreate {
-  vergabe_id: string;
   project_name: string;
-  project_description: string;
-  vergabestelle: string;
+  massnahmenummer?: string | null;
+  vergabe_id?: string | null;
+  bauleistung?: string | null;
+  vergabestelle?: string | null;
   location?: string | null;
+  project_description?: string | null;
 }
 
 export interface ProjectUpdate {
   project_name?: string | null;
-  project_description?: string | null;
+  massnahmenummer?: string | null;
+  vergabe_id?: string | null;
+  bauleistung?: string | null;
   vergabestelle?: string | null;
   location?: string | null;
+  project_description?: string | null;
 }
 
 export interface ProjectContextValue {
@@ -433,6 +440,23 @@ export interface LVItem {
   last_ingestion: string;
 }
 
+export interface LVText {
+  lv_text_uuid: string;
+  document_uuid: string;
+  /**
+   * Which GAEB carrier an LV text row came from.
+   */
+  kind: "ADD_TEXT" | "REMARK";
+  placement?: ("before" | "after") | null;
+  parent_oz?: string | null;
+  index: number;
+  sequence: number;
+  oz?: string | null;
+  heading?: string | null;
+  body: string;
+  last_ingestion: string;
+}
+
 export interface ThumbnailRef {
   document_uuid: string;
   page_number: number;
@@ -441,7 +465,7 @@ export interface ThumbnailRef {
 export interface ContextChunk {
   source_number: number;
   chunk_uuid: string;
-  source_doc_type: "LV_ITEM" | "DOCUMENT";
+  source_doc_type: "LV_ITEM" | "LV_TEXT" | "DOCUMENT";
   source_doc_uuid: string;
   oz?: string | null;
   stl_nr?: string | null;
@@ -462,7 +486,7 @@ export interface ScopeTrace {
 export interface HitTrace {
   chunk_uuid: string;
   score: number;
-  source_doc_type: "LV_ITEM" | "DOCUMENT";
+  source_doc_type: "LV_ITEM" | "LV_TEXT" | "DOCUMENT";
   source_doc_uuid: string;
   oz?: string | null;
   source_doc_pages: number[];
@@ -560,16 +584,16 @@ export interface BundleZeileAnsicht {
   /**
    * Lifecycle state of a catalog row. The single source for these values.
    *
-   * `verworfen` and `archiviert` are distinct ends: a discarded draft was never in force, a
-   * superseded version was. Only activation writes `archiviert`.
+   * `verworfen` and `archiviert` are distinct ends: a discarded draft was never in
+   * force, a superseded version was. Only activation writes `archiviert`.
    */
   status: "entwurf" | "aktiv" | "verworfen" | "archiviert";
 }
 
 export interface BundleZustandAnsicht {
   /**
-   * The confirm card's view of a bundle: still open for a decision, already activated,
-   * discarded without ever being active, or activated and later superseded.
+   * The confirm card's view of a bundle: still open for a decision, already
+   * activated, discarded without ever being active, or activated and later superseded.
    */
   zustand: "offen" | "aktiviert" | "verworfen" | "geschlossen";
   zeilen: BundleZeileAnsicht[];
@@ -587,8 +611,8 @@ export interface KatalogZeile {
   /**
    * Lifecycle state of a catalog row. The single source for these values.
    *
-   * `verworfen` and `archiviert` are distinct ends: a discarded draft was never in force, a
-   * superseded version was. Only activation writes `archiviert`.
+   * `verworfen` and `archiviert` are distinct ends: a discarded draft was never in
+   * force, a superseded version was. Only activation writes `archiviert`.
    */
   status: "entwurf" | "aktiv" | "verworfen" | "archiviert";
   bundle_uuid?: string | null;
@@ -676,7 +700,8 @@ export interface RagGroundTruthRead {
   gold_answer: string;
   refs?: RagRef[];
   /**
-   * Reasoning shape of a RAG reference question (mirrors eval/questions.csv QuestionType).
+   * Reasoning shape of a RAG reference question (mirrors eval/questions.csv
+   * QuestionType).
    */
   question_type: "lookup" | "aggregation" | "multi_hop" | "constraint_surfacing" | "cross_doc_conditional";
   /**
@@ -696,7 +721,8 @@ export interface RagGroundTruthUpsert {
   gold_answer: string;
   refs?: RagRef[];
   /**
-   * Reasoning shape of a RAG reference question (mirrors eval/questions.csv QuestionType).
+   * Reasoning shape of a RAG reference question (mirrors eval/questions.csv
+   * QuestionType).
    */
   question_type: "lookup" | "aggregation" | "multi_hop" | "constraint_surfacing" | "cross_doc_conditional";
   /**
@@ -707,7 +733,8 @@ export interface RagGroundTruthUpsert {
 
 export interface EvalRunCreate {
   /**
-   * Which grader an eval run executes. rag_* are reserved for the RAG evals (Phase 6).
+   * Which grader an eval run executes. rag_* are reserved for the RAG evals (Phase
+   * 6).
    */
   kind: "calculator_gold" | "chat_values" | "rag_retrieval" | "rag_answers";
   project_uuid?: string | null;
@@ -718,7 +745,8 @@ export interface EvalRunCreate {
 
 export interface EvalRun {
   /**
-   * Which grader an eval run executes. rag_* are reserved for the RAG evals (Phase 6).
+   * Which grader an eval run executes. rag_* are reserved for the RAG evals (Phase
+   * 6).
    */
   kind: "calculator_gold" | "chat_values" | "rag_retrieval" | "rag_answers";
   project_uuid?: string | null;
@@ -1094,7 +1122,8 @@ export interface SSEUiNotice {
   event: "ui_notice";
   content: string;
   /**
-   * Severity of a ui_notice; drives whether the UI renders it muted or error-styled.
+   * Severity of a ui_notice; drives whether the UI renders it muted or
+   * error-styled.
    */
   level?: "info" | "error";
 }

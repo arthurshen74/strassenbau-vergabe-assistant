@@ -48,7 +48,7 @@ export function DocumentChunkViewer({
   documentUuid: string;
 }) {
   const [source, setSource] = useState<'simple' | 'langchain'>('simple');
-  const [docType, setDocType] = useState<'' | 'DOCUMENT' | 'LV_ITEM'>('');
+  const [docType, setDocType] = useState<'' | 'DOCUMENT' | 'LV_ITEM' | 'LV_TEXT'>('');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -90,7 +90,7 @@ export function DocumentChunkViewer({
             <Select
               value={docType}
               onChange={(e) => {
-                setDocType(e.target.value as '' | 'DOCUMENT' | 'LV_ITEM');
+                setDocType(e.target.value as '' | 'DOCUMENT' | 'LV_ITEM' | 'LV_TEXT');
                 setPage(1);
               }}
               className="w-40"
@@ -98,6 +98,7 @@ export function DocumentChunkViewer({
               <option value="">All</option>
               <option value="DOCUMENT">DOCUMENT</option>
               <option value="LV_ITEM">LV_ITEM</option>
+              <option value="LV_TEXT">LV_TEXT</option>
             </Select>
           </label>
         )}

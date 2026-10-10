@@ -9,10 +9,12 @@ import {
   ChatBubbleLeftRightIcon,
   DocumentArrowDownIcon,
   MagnifyingGlassIcon,
+  PencilSquareIcon,
   TrashIcon,
 } from "@heroicons/react/16/solid";
 import {
   DocumentDuplicateIcon,
+  DocumentTextIcon,
   GlobeAltIcon,
   ListBulletIcon,
 } from "@heroicons/react/20/solid";
@@ -42,11 +44,13 @@ import { formatRelativeTime } from "../../lib/format";
 import { UploadDocumentDialog } from "./UploadDocumentDialog";
 import { DeleteDocumentDialog } from "./DeleteDocumentDialog";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
+import { EditProjectDialog } from "./EditProjectDialog";
 import { DocumentDetailDialog } from "./DocumentDetailDialog";
 import { LVItemsTable } from "./LVItemsTable";
+import { LVTextsPanel } from "./LVTextsPanel";
 import { ProjectContextPanel } from "./ProjectContextPanel";
 
-type ProjectTab = "lv" | "documents" | "context";
+type ProjectTab = "lv" | "texts" | "documents" | "context";
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
@@ -77,6 +81,7 @@ export function ProjectDetails({
   const [docToDelete, setDocToDelete] = useState<DocumentRead | null>(null);
   const [docDetail, setDocDetail] = useState<DocumentRead | null>(null);
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [tab, setTab] = useState<ProjectTab>("lv");
 
   if (project.isPending) return <LoadingState label="Loading project…" />;
@@ -100,6 +105,13 @@ export function ProjectDetails({
               <ArrowLeftIcon />
             </Button>
             <Heading level={4}>{p.project_name}</Heading>
+            <Button
+              plain
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit project"
+            >
+              <PencilSquareIcon />
+            </Button>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => setUploadOpen(true)}>
@@ -131,10 +143,12 @@ export function ProjectDetails({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <FieldRow label="Vergabe ProjectID" value={p.vergabe_id} />
-          <FieldRow label="Vergabe Stelle" value={p.vergabestelle} />
-          <FieldRow label="Location" value={p.location ?? ""} />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <FieldRow label="Maßnahmenummer" value={p.massnahmenummer ?? ""} />
+          <FieldRow label="Vergabenummer" value={p.vergabe_id ?? ""} />
+          <FieldRow label="Bauleistung" value={p.bauleistung ?? ""} />
+          <FieldRow label="Vergabestelle" value={p.vergabestelle ?? ""} />
+          <FieldRow label="Baustelle" value={p.location ?? ""} />
           <FieldRow label="Documents" value={String(docs.length)} />
         </div>
         {p.project_description && <Text>{p.project_description}</Text>}
@@ -144,6 +158,7 @@ export function ProjectDetails({
             {(
               [
                 { id: "lv", name: "LV Positions", icon: ListBulletIcon },
+                { id: "texts", name: "LV-Texte", icon: DocumentTextIcon },
                 {
                   id: "documents",
                   name: "Documents",
@@ -185,6 +200,7 @@ export function ProjectDetails({
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         {tab === "lv" && <LVItemsTable projectUuid={projectUuid} />}
+        {tab === "texts" && <LVTextsPanel projectUuid={projectUuid} />}
 
         {tab === "context" && <ProjectContextPanel projectUuid={projectUuid} />}
 
@@ -308,6 +324,10 @@ export function ProjectDetails({
         open={docDetail !== null}
         onClose={() => setDocDetail(null)}
       />
+
+      {editOpen && (
+        <EditProjectDialog project={p} onClose={() => setEditOpen(false)} />
+      )}
 
       <DeleteProjectDialog
         projectUuid={projectUuid}

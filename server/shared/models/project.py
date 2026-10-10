@@ -7,14 +7,20 @@ from pydantic import BaseModel, ConfigDict
 
 
 class Project(BaseModel):
+    """A tender project. `project_name` is the Maßnahme, `vergabe_id` the Vergabenummer,
+    `location` the Baustelle; the header fields other than the name are optional because
+    they are extracted from the tender documents after ingestion."""
+
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
     project_uuid: UUID
-    vergabe_id: str
     project_name: str
-    project_description: str
-    vergabestelle: str
+    massnahmenummer: str | None = None
+    vergabe_id: str | None = None
+    bauleistung: str | None = None
+    vergabestelle: str | None = None
     location: str | None = None
+    project_description: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -24,8 +30,10 @@ class NewProject(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    vergabe_id: str
     project_name: str
-    project_description: str
-    vergabestelle: str
+    massnahmenummer: str | None = None
+    vergabe_id: str | None = None
+    bauleistung: str | None = None
+    vergabestelle: str | None = None
     location: str | None = None
+    project_description: str | None = None

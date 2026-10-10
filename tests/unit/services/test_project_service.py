@@ -45,7 +45,9 @@ def test_classify_document_type_gaeb_is_lv() -> None:
     assert _classify_document_type("anything.d83") == DocumentType.LV_DOCUMENT
     assert _classify_document_type("P22039_LV1.D83") == DocumentType.LV_DOCUMENT
     assert _classify_document_type("projekt_lv.x83") == DocumentType.LV_DOCUMENT
-    assert _classify_document_type("P630394379990126_LV.X83") == DocumentType.LV_DOCUMENT
+    assert (
+        _classify_document_type("P630394379990126_LV.X83") == DocumentType.LV_DOCUMENT
+    )
 
 
 def test_classify_document_type_prose_for_everything_else() -> None:
@@ -82,7 +84,10 @@ class _FakeDocuments:
         return self.lv_document
 
     async def get(self, document_uuid: UUID) -> Document | None:
-        if self.lv_document is not None and self.lv_document.document_uuid == document_uuid:
+        if (
+            self.lv_document is not None
+            and self.lv_document.document_uuid == document_uuid
+        ):
             return self.lv_document
         return None
 
@@ -101,7 +106,10 @@ class _FakeDocuments:
 
     async def delete(self, document_uuid: UUID) -> None:
         self.deleted.append(document_uuid)
-        if self.lv_document is not None and self.lv_document.document_uuid == document_uuid:
+        if (
+            self.lv_document is not None
+            and self.lv_document.document_uuid == document_uuid
+        ):
             self.lv_document = None
 
 
@@ -118,14 +126,22 @@ class _FakeLVItems:
         return self.uuids
 
 
+class _FakeLVTexts:
+    def __init__(self, uuids: list[UUID] | None = None) -> None:
+        self.uuids = uuids or []
+
+    async def list_uuids_by_document(self, document_uuid: UUID) -> list[UUID]:
+        return self.uuids
+
+
 class _FakeSearch:
     def __init__(self) -> None:
         self.archived: list[tuple[UUID, UUID, list[UUID]]] = []
 
     async def archive_and_delete_document(
-        self, project_uuid: UUID, document_uuid: UUID, lv_item_uuids: list[UUID]
+        self, project_uuid: UUID, document_uuid: UUID, lv_source_uuids: list[UUID]
     ) -> int:
-        self.archived.append((project_uuid, document_uuid, lv_item_uuids))
+        self.archived.append((project_uuid, document_uuid, lv_source_uuids))
         return 0
 
 
@@ -149,7 +165,11 @@ class _FakeIngestJobs:
         self.added.append(new.document_uuid)
 
 
-def _service(documents: _FakeDocuments, lv_items: _FakeLVItems | None = None) -> ProjectService:
+def _service(
+    documents: _FakeDocuments,
+    lv_items: _FakeLVItems | None = None,
+    lv_texts: _FakeLVTexts | None = None,
+) -> ProjectService:
     return ProjectService(
         None,  # type: ignore[arg-type]
         documents,  # type: ignore[arg-type]
@@ -158,6 +178,7 @@ def _service(documents: _FakeDocuments, lv_items: _FakeLVItems | None = None) ->
         thumbnails=_FakeThumbnails(),  # type: ignore[arg-type]
         lv_items=lv_items or _FakeLVItems(),  # type: ignore[arg-type]
         search=_FakeSearch(),  # type: ignore[arg-type]
+        lv_texts=lv_texts or _FakeLVTexts(),  # type: ignore[arg-type]
     )
 
 
@@ -166,7 +187,8 @@ async def test_gaeb_upload_replaces_existing_lv_document() -> None:
     existing = _document(project_uuid, "old_lv.d83", DocumentType.LV_DOCUMENT)
     documents = _FakeDocuments(lv_document=existing)
     lv_items = _FakeLVItems([uuid4()])
-    service = _service(documents, lv_items)
+    lv_texts = _FakeLVTexts([uuid4()])
+    service = _service(documents, lv_items, lv_texts)
 
     created = await service.ingest_documents(
         project_uuid,
@@ -176,7 +198,10 @@ async def test_gaeb_upload_replaces_existing_lv_document() -> None:
     assert documents.deleted == [existing.document_uuid]
     search = service.search
     assert isinstance(search, _FakeSearch)
-    assert search.archived == [(project_uuid, existing.document_uuid, lv_items.uuids)]
+    # Both the items' and the texts' chunk keys are handed to the archive call.
+    assert search.archived == [
+        (project_uuid, existing.document_uuid, lv_items.uuids + lv_texts.uuids)
+    ]
     assert [d.document_type for d in created] == [DocumentType.LV_DOCUMENT]
 
 

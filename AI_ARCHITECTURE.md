@@ -23,7 +23,9 @@ flowchart TD
     SPL -->|"source_doc_type = DOCUMENT"| SC[("SimpleChunk index — Elasticsearch<br/>embedding + BM25")]
     GAEB["GAEB upload (.d83 / .x83)"] --> GP["deterministic GAEB parse<br/>(no LLM)"]
     GP --> LVI[("lv_items — Postgres")]
+    GP --> LVT[("lv_texts — Postgres")]
     LVI -->|"chunk langtext_resolved, source_doc_type = LV_ITEM"| SC
+    LVT -->|"chunk heading + body, source_doc_type = LV_TEXT"| SC
 ```
 
 - **Every PDF** gets the common stage: per-line text extraction into `source_lines` (the canonical
@@ -32,10 +34,18 @@ flowchart TD
   treated as prose.
 - **LV items come exclusively from GAEB files.** A `.d83` (fixed-format CP850 records) or `.x83`
   (GAEB DA XML) upload is the project's LV document by definition and parses deterministically —
-  no LLM. The parse copies Hinweistexte onto the priced positions in their scope, resolves "wie in
-  voriger Position" back-references into `langtext_resolved`, and links the OZ hierarchy (`level`,
-  `parent_oz`, `prev_oz`/`next_oz`). Items are chunked into `LV_ITEM` chunks from
-  `langtext_resolved || langtext`, carrying denormalized `oz` and `stl_nr`.
+  no LLM. Every Hinweistext (D83 record `20`, X83 `Remark`) becomes a `Remark` node that records
+  only what the file states with certainty: its structural parent (LV root or LV-Gruppe) and its
+  sequence within that parent. A position's `hinweis` is the positional projection of those nodes
+  — every Hinweis in the enclosing containers that precedes it, outermost first — plus any
+  Ausführungsbeschreibung (X83 `PerfDescr`) the item references. LV-level free text outside the
+  hierarchy (D83 `T0`..`T9` vertragliche Regelungen, X83 `AddText` before/after the `BoQ`) is kept
+  apart as `AddTextBlock`s (Vortext/Nachtext). Both the blocks and every Remark node persist as
+  `lv_texts` rows (replaced wholesale on re-ingest) and are served on the project's LV-Texte tab.
+  The parse also resolves "wie in voriger Position" back-references into `langtext_resolved` and
+  links the OZ hierarchy (`level`, `parent_oz`, `prev_oz`/`next_oz`). Items are chunked into
+  `LV_ITEM` chunks from `langtext_resolved || langtext`, carrying denormalized `oz` and `stl_nr`;
+  LV texts are chunked into `LV_TEXT` chunks (heading + body, `oz` = the Hinweis's LV-Gruppe).
 - **Uploading a GAEB file supersedes the project's LV**: the previous LV document is deleted first
   (Postgres cascade for items, Elasticsearch archive for chunks), preserving the one-LV-document
   invariant. Re-ingestion in general archives a source's prior chunks to the `_archive` index with
@@ -71,8 +81,9 @@ flowchart TD
 
 - **Simple modality** searches `DOCUMENT` chunks only — every document's prose chunks, including
   the LV PDF's own.
-- **Plus modality** represents the LV structurally: `LV_ITEM` chunks plus the `DOCUMENT` chunks of
-  everything *except* the LV document (excluded so LV content isn't counted twice). Building the
+- **Plus modality** represents the LV structurally: `LV_ITEM` and `LV_TEXT` chunks (positions plus
+  the LV's Vorbemerkungen/Hinweise) plus the `DOCUMENT` chunks of everything *except* the LV
+  document (excluded so LV content isn't counted twice). Building the
   filter resolves the project's LV document UUID first. If a project has no LV document, Plus
   falls back to Simple instead of failing.
 - RRF fires whenever more than one ranked list exists (multi-query or BM25); the cross-encoder is

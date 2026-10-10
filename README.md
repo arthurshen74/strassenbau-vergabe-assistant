@@ -27,7 +27,8 @@ worker. Every PDF is extracted into canonical per-line text (so the search index
 rebuildable), rendered into page thumbnails, and chunked and embedded for semantic search. The
 structured LV comes from the tender's **GAEB file** (`.d83` or `.x83`), which parses
 deterministically — no LLM — into LV positions with resolved back-references ("wie in voriger
-Position"), attached Hinweise, and the full OZ hierarchy. Uploading a GAEB file makes it the
+Position"), the Hinweise in each position's scope, the full OZ hierarchy, and the LV-level
+Vorbemerkungen/Nachtext (GAEB 90 T-lines, GAEB XML `AddText`). Uploading a GAEB file makes it the
 project's LV document; re-ingestion archives prior search data instead of overwriting it.
 
 ### Retrieval

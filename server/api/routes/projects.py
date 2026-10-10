@@ -36,10 +36,12 @@ from shared.models.document_schema import (
 from shared.models.enums import SourceDocType
 from shared.models.ingest_schema import IngestJobRead
 from shared.models.lv_item import LVItem
-from shared.models.project_schema import ProjectCreate, ProjectRead
+from shared.models.lv_text import LVText
+from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
+from shared.repositories.lv_texts import LVTextRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.document_detail import DocumentDetailService
@@ -66,6 +68,7 @@ def get_project_service(
         DocumentRepository(conn),
         IngestJobRepository(conn),
         lv_items=LVItemRepository(conn),
+        lv_texts=LVTextRepository(conn),
     )
 
 
@@ -89,6 +92,7 @@ def get_deletable_project_service(
         thumbnails=uow.thumbnails,
         lv_items=uow.lv_items,
         search=search,
+        lv_texts=uow.lv_texts,
     )
 
 
@@ -135,6 +139,21 @@ async def get_project(
     return found
 
 
+@router.patch("/{project_uuid}", response_model=ProjectRead)
+async def update_project(
+    project_uuid: UUID,
+    payload: ProjectUpdate,
+    service: ProjectService = Depends(get_writable_project_service),
+) -> ProjectRead:
+    """Partial update of the project header fields."""
+    updated = await service.update(project_uuid, payload)
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+    return updated
+
+
 @router.delete("/{project_uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     project_uuid: UUID,
@@ -165,6 +184,15 @@ async def list_lv_items(
 ) -> list[LVItem]:
     """All LV positions for the project's LV document, ordered by oz."""
     return await service.list_lv_items(project_uuid)
+
+
+@router.get("/{project_uuid}/lv-texts", response_model=list[LVText])
+async def list_lv_texts(
+    project_uuid: UUID,
+    service: ProjectService = Depends(get_project_service),
+) -> list[LVText]:
+    """The LV document's Vorbemerkungen, Hinweise and Nachtext, in document order."""
+    return await service.list_lv_texts(project_uuid)
 
 
 @router.get("/{project_uuid}/lv-items/search", response_model=list[LVItem])

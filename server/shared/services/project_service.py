@@ -36,10 +36,12 @@ from shared.models.document_schema import DocumentRead
 from shared.models.enums import DocumentType
 from shared.models.ingest_job import IngestJob, NewIngestJob
 from shared.models.lv_item import LVItem
-from shared.models.project_schema import ProjectCreate, ProjectRead
+from shared.models.lv_text import LVText
+from shared.models.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from shared.repositories.documents import DocumentRepository
 from shared.repositories.ingest_jobs import IngestJobRepository
 from shared.repositories.lv_items import LVItemRepository
+from shared.repositories.lv_texts import LVTextRepository
 from shared.repositories.projects import ProjectRepository
 from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.ingestion.gaeb import is_gaeb_lv_file
@@ -70,6 +72,7 @@ class ProjectService:
         thumbnails: ThumbnailRepository | None = None,
         lv_items: LVItemRepository | None = None,
         search: SearchClient | None = None,
+        lv_texts: LVTextRepository | None = None,
     ) -> None:
         self.projects = projects
         self.documents = documents
@@ -78,6 +81,7 @@ class ProjectService:
         self.thumbnails = thumbnails
         self.lv_items = lv_items
         self.search = search
+        self.lv_texts = lv_texts
 
     async def list(self) -> list[ProjectRead]:
         return [ProjectRead.model_validate(p) for p in await self.projects.list()]
@@ -92,6 +96,16 @@ class ProjectService:
         created = await self.projects.add(NewProject(**payload.model_dump()))
         return ProjectRead.model_validate(created)
 
+    async def update(
+        self, project_uuid: UUID, payload: ProjectUpdate
+    ) -> ProjectRead | None:
+        """Apply the fields present in the payload; absent fields are left untouched.
+        Returns None if the project does not exist."""
+        updated = await self.projects.update(
+            project_uuid, **payload.model_dump(exclude_unset=True)
+        )
+        return ProjectRead.model_validate(updated) if updated else None
+
     async def list_documents(self, project_uuid: UUID) -> list[DocumentRead]:
         docs = await self.documents.list_by_project(project_uuid)
         return [DocumentRead.model_validate(d) for d in docs]
@@ -100,9 +114,14 @@ class ProjectService:
         assert self.lv_items is not None
         return await self.lv_items.list_by_project(project_uuid)
 
+    async def list_lv_texts(self, project_uuid: UUID) -> list[LVText]:
+        assert self.lv_texts is not None
+        return await self.lv_texts.list_by_project(project_uuid)
+
     async def delete_document(self, project_uuid: UUID, document_uuid: UUID) -> bool:
         """Remove a document and everything derived from it. The DB delete cascades to
-        thumbnails, source_lines, lv_items, and ingest_jobs; Elasticsearch chunks and
+        thumbnails, source_lines, lv_items, lv_texts, and ingest_jobs; Elasticsearch
+        chunks and
         object-storage blobs are cleaned up explicitly. Returns False if the document
         does not exist in the project.
 
@@ -112,6 +131,7 @@ class ProjectService:
         assert self.storage is not None
         assert self.thumbnails is not None
         assert self.lv_items is not None
+        assert self.lv_texts is not None
         assert self.search is not None
 
         doc = await self.documents.get(document_uuid)
@@ -120,11 +140,13 @@ class ProjectService:
 
         # Read derived keys before the cascade removes the rows that name them.
         thumbnails = await self.thumbnails.list_by_document(document_uuid)
-        lv_item_uuids = await self.lv_items.list_uuids_by_document(document_uuid)
+        lv_source_uuids = await self.lv_items.list_uuids_by_document(
+            document_uuid
+        ) + await self.lv_texts.list_uuids_by_document(document_uuid)
 
         try:
             await self.search.archive_and_delete_document(
-                project_uuid, document_uuid, lv_item_uuids
+                project_uuid, document_uuid, lv_source_uuids
             )
         except Exception:
             logger.exception(

@@ -1,4 +1,5 @@
-// Create-project form (step 1 of "Ingest New Project"). On success the parent
+// Create-project form (step 1 of "Ingest New Project"). Only the Maßnahme (project name)
+// is required; the other header fields can be filled in later. On success the parent
 // navigates to the new project's Details, where documents are uploaded.
 
 import { useState } from 'react';
@@ -11,6 +12,11 @@ import { Fieldset, Field, Label } from '../../components/ui/fieldset';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 
+function nullIfBlank(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 export function CreateProjectForm({
   onBack,
   onCreated,
@@ -19,25 +25,29 @@ export function CreateProjectForm({
   onCreated: (p: ProjectRead) => void;
 }) {
   const create = useCreateProject();
-  const [vergabeId, setVergabeId] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [massnahmenummer, setMassnahmenummer] = useState('');
+  const [vergabeId, setVergabeId] = useState('');
+  const [bauleistung, setBauleistung] = useState('');
   const [vergabestelle, setVergabestelle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = vergabeId.trim() && projectName.trim() && !create.isPending;
+  const canSubmit = projectName.trim() && !create.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
       const created = await create.mutateAsync({
-        vergabe_id: vergabeId.trim(),
         project_name: projectName.trim(),
-        vergabestelle: vergabestelle.trim(),
-        project_description: description,
-        location: location.trim() || null,
+        massnahmenummer: nullIfBlank(massnahmenummer),
+        vergabe_id: nullIfBlank(vergabeId),
+        bauleistung: nullIfBlank(bauleistung),
+        vergabestelle: nullIfBlank(vergabestelle),
+        location: nullIfBlank(location),
+        project_description: nullIfBlank(description),
       });
       onCreated(created);
     } catch (err) {
@@ -56,19 +66,27 @@ export function CreateProjectForm({
       <Fieldset>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field>
-            <Label>Vergabe ProjectID</Label>
-            <Input value={vergabeId} onChange={(e) => setVergabeId(e.target.value)} required />
-          </Field>
-          <Field>
-            <Label>Project Name</Label>
+            <Label>Maßnahme (Project Name)</Label>
             <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} required />
           </Field>
           <Field>
-            <Label>Vergabe Stelle</Label>
+            <Label>Maßnahmenummer</Label>
+            <Input value={massnahmenummer} onChange={(e) => setMassnahmenummer(e.target.value)} />
+          </Field>
+          <Field>
+            <Label>Vergabenummer</Label>
+            <Input value={vergabeId} onChange={(e) => setVergabeId(e.target.value)} />
+          </Field>
+          <Field>
+            <Label>Bauleistung</Label>
+            <Input value={bauleistung} onChange={(e) => setBauleistung(e.target.value)} />
+          </Field>
+          <Field>
+            <Label>Vergabestelle</Label>
             <Input value={vergabestelle} onChange={(e) => setVergabestelle(e.target.value)} />
           </Field>
           <Field>
-            <Label>Location</Label>
+            <Label>Baustelle</Label>
             <Input value={location} onChange={(e) => setLocation(e.target.value)} />
           </Field>
         </div>

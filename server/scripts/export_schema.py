@@ -60,6 +60,7 @@ from shared.models.katalog import (
     KatalogZeile,
 )
 from shared.models.lv_item import LVItem
+from shared.models.lv_text import LVText
 from shared.models.message_schema import MessageRead
 from shared.models.ner_flag import (
     NerCategoryCount,
@@ -186,6 +187,7 @@ BODY_MODELS: list[type[BaseModel]] = [
     # than leaving a dangling reference.
     TurnRetrievalConfig,
     LVItem,
+    LVText,
     ThumbnailRef,
     ContextChunk,
     ScopeTrace,

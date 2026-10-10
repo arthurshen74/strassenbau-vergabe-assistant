@@ -18,7 +18,22 @@ class DocumentType(StrEnum):
 
 class SourceDocType(StrEnum):
     LV_ITEM = "LV_ITEM"
+    LV_TEXT = "LV_TEXT"
     DOCUMENT = "DOCUMENT"
+
+
+class LVTextKind(StrEnum):
+    """Which GAEB carrier an LV text row came from."""
+
+    ADD_TEXT = "ADD_TEXT"  # Zusaetzlicher Text: GAEB 90 T-lines, GAEB XML AddText
+    REMARK = "REMARK"  # Hinweistext: GAEB 90 record 20, GAEB XML Remark
+
+
+class LVTextPlacement(StrEnum):
+    """Where a Zusaetzlicher Text sits relative to the BoQ: Vortext or Nachtext."""
+
+    BEFORE_BOQ = "before"
+    AFTER_BOQ = "after"
 
 
 class RetrievalModality(StrEnum):

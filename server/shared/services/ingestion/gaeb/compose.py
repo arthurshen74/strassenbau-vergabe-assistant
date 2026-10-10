@@ -5,8 +5,9 @@ Takes the format readers' (D83, X83) `RawLVItem`s in document order, detects tex
 back-references ("wie in voriger Position", "desgl.", "wie Pos. 01.02.0030", ...) into
 `linked_oz`, and reuses the LV pipeline's back-reference resolution and OZ linking so
 GAEB-parsed positions carry the same `langtext_resolved`, `level`, `parent_oz`, and
-`prev_oz`/`next_oz` semantics. GAEB files have no pages or source lines, so provenance
-fields stay empty.
+`prev_oz`/`next_oz` semantics. The readers' LV-level free text (`AddTextBlock`) and
+Hinweistext nodes (`Remark`) pass through untouched. GAEB files have no pages or source
+lines, so provenance fields stay empty.
 """
 
 from __future__ import annotations
@@ -18,9 +19,11 @@ from decimal import Decimal
 from shared.services.ingestion.lv.backrefs import resolve_backrefs
 from shared.services.ingestion.lv.linking import link_positions
 from shared.services.ingestion.lv.types import (
-    LVParseResult,
-    SlicedPosition,
     TITEL_MENGE,
+    AddTextBlock,
+    LVParseResult,
+    Remark,
+    SlicedPosition,
     build_resolved_item,
 )
 from shared.services.ingestion.numbers import DECIMAL_POINT, DECIMAL_SEP
@@ -63,7 +66,12 @@ class RawLVItem:
     positionstyp: str | None
 
 
-def compose(raw_items: list[RawLVItem], warnings: list[str]) -> LVParseResult:
+def compose(
+    raw_items: list[RawLVItem],
+    warnings: list[str],
+    add_texts: list[AddTextBlock],
+    remarks: list[Remark],
+) -> LVParseResult:
     _ensure_unique_oz(raw_items)
     canonical = {_canonical_oz(item.oz): item.oz for item in raw_items}
 
@@ -90,7 +98,9 @@ def compose(raw_items: list[RawLVItem], warnings: list[str]) -> LVParseResult:
         )
         for position, item in zip(sliced, raw_items)
     ]
-    return LVParseResult(items=items, warnings=warnings)
+    return LVParseResult(
+        items=items, warnings=warnings, add_texts=add_texts, remarks=remarks
+    )
 
 
 def _ensure_unique_oz(raw_items: list[RawLVItem]) -> None:

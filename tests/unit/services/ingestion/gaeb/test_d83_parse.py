@@ -18,7 +18,12 @@ from shared.services.ingestion.gaeb import (
     is_d83_file,
     parse_d83,
 )
-from shared.services.ingestion.lv.types import LVParseResult, ResolvedItem
+from shared.services.ingestion.lv.types import (
+    AddTextBlock,
+    LVParseResult,
+    LVTextPlacement,
+    ResolvedItem,
+)
 
 MASK_STANDARD = "1122PPPPI"
 MASK_FLAT = "11PPPP"
@@ -61,8 +66,8 @@ def _langtext(text: str) -> str:
     return _record(f"26   {text}")
 
 
-def _hinweis_begin() -> str:
-    return _record("20")
+def _hinweis_begin(oz: str = "") -> str:
+    return _record(f"20{oz:<9}")
 
 
 def _gruppe_end() -> str:
@@ -90,7 +95,9 @@ def test_emits_titles_and_positions_with_links() -> None:
                 _gruppe_name("Straßenbau"),
                 _gruppe("0101"),
                 _gruppe_name("Erdarbeiten"),
-                _position("01010001", menge="00000002500", einheit="m3", stl="21910110711"),
+                _position(
+                    "01010001", menge="00000002500", einheit="m3", stl="21910110711"
+                ),
                 _kurztext("Oberboden abtragen"),
                 _kurztext("und seitlich lagern"),
                 _langtext("Oberboden abtragen und"),
@@ -161,36 +168,171 @@ def test_hinweis_governs_following_positions_until_gruppe_ends() -> None:
     assert items["02.0001"].hinweis is None  # scope ended with the LV-Gruppe
 
 
-def test_vorbemerkung_is_file_wide_but_leading_hinweis_scopes_to_its_gruppe() -> None:
+def test_vertragliche_regelungen_are_vortext_not_position_hinweis() -> None:
+    result = _parse(
+        [
+            _record("T0"),
+            _record("T1Vorbemerkungen"),
+            _record("T1"),
+            _record("T1Für diese Ausschreibung gilt die VOB/B."),
+            _record("T1Zweite Zeile."),
+            _record("T9"),
+            _eroeffnung(MASK_FLAT),
+            _gruppe("01"),
+            _gruppe_name("Bau"),
+            _position("010001"),
+            _kurztext("Eins"),
+            _gruppe_end(),
+            _abschluss(),
+        ]
+    )
+    # One block, lines kept, the blank T1 a paragraph break; no heading in GAEB 90.
+    assert result.vortext() == [
+        AddTextBlock(
+            placement=LVTextPlacement.BEFORE_BOQ,
+            heading=None,
+            body=(
+                "Vorbemerkungen\n\nFür diese Ausschreibung gilt die VOB/B.\n"
+                "Zweite Zeile."
+            ),
+            order=0,
+        )
+    ]
+    assert result.nachtext() == []
+    assert result.remarks == []
+    assert _by_oz(result)["01.0001"].hinweis is None
+    assert result.warnings == []
+
+
+def test_t_lines_after_abschluss_are_nachtext_with_warning() -> None:
+    result = _parse(
+        [
+            _eroeffnung(MASK_FLAT),
+            _gruppe("01"),
+            _gruppe_name("Bau"),
+            _position("010001"),
+            _kurztext("Eins"),
+            _gruppe_end(),
+            _abschluss(),
+            _record("T0"),
+            _record("T1Bietererklärung: Bindefrist 60 Tage."),
+            _record("T9"),
+        ]
+    )
+    assert result.vortext() == []
+    assert result.nachtext() == [
+        AddTextBlock(
+            placement=LVTextPlacement.AFTER_BOQ,
+            heading=None,
+            body="Bietererklärung: Bindefrist 60 Tage.",
+            order=0,
+        )
+    ]
+    assert any("Nachtext" in warning for warning in result.warnings)
+
+
+def test_leading_root_hinweis_governs_every_following_position() -> None:
+    result = _parse(
+        [
+            _eroeffnung(MASK_FLAT),
+            _hinweis_begin(),
+            _langtext("Gilt für das gesamte LV."),
+            _gruppe("00"),
+            _gruppe_name("Verkehrssicherung"),
+            _position("000001"),
+            _kurztext("In Abschnitt 00"),
+            _gruppe_end(),
+            _gruppe("01"),
+            _gruppe_name("Anderes Gewerk"),
+            _position("010001"),
+            _kurztext("In Abschnitt 01"),
+            _gruppe_end(),
+            _abschluss(),
+        ]
+    )
+    items = _by_oz(result)
+    # Scope is positional: the innermost open container is the LV itself.
+    assert items["00.0001"].hinweis == "Gilt für das gesamte LV."
+    assert items["01.0001"].hinweis == "Gilt für das gesamte LV."
+    assert items["00"].hinweis is None
+    assert result.leading_root_remarks() == result.remarks
+    assert result.remarks[0].parent_oz is None
+    assert result.remarks[0].index == 0
+    assert result.vortext() == []  # a Remark is never promoted to a Zusatztext
+
+
+def test_hinweis_nodes_record_parent_index_heading_and_oz() -> None:
+    result = _parse(
+        [
+            _eroeffnung(MASK_STANDARD),
+            _gruppe("01"),
+            _gruppe_name("Straßenbau"),
+            _gruppe("0101"),
+            _gruppe_name("Erdarbeiten"),
+            _hinweis_begin("01010000"),
+            _kurztext("Hinweis zu Titel 01.01"),
+            _langtext("Aushub ist zu lagern."),
+            _position("01010001"),
+            _kurztext("Eins"),
+            _hinweis_begin(),
+            _langtext("Zwischen zwei Positionen."),
+            _position("01010002"),
+            _kurztext("Zwei"),
+            _gruppe_end(),
+            _hinweis_begin(),
+            _langtext("Nach Titel 01.01, vor Titel 01.02."),
+            _gruppe("0102"),
+            _gruppe_name("Entwässerung"),
+            _position("01020001"),
+            _kurztext("Drei"),
+            _gruppe_end(),
+            _gruppe_end(),
+            _hinweis_begin(),
+            _langtext("Zusammenstellung"),
+            _abschluss(),
+        ]
+    )
+    assert result.warnings == []
+    titel, mid, between, trailing = result.remarks
+
+    assert titel.oz == "01.01.0000"
+    assert titel.heading == "Hinweis zu Titel 01.01"
+    assert titel.body == "Aushub ist zu lagern."
+    assert (titel.parent_oz, titel.index) == ("01.01", 0)
+    assert (mid.oz, mid.heading, mid.parent_oz, mid.index) == (None, None, "01.01", 2)
+    assert (between.parent_oz, between.index) == ("01", 1)
+    assert (trailing.parent_oz, trailing.index) == (None, 1)
+    assert result.leading_root_remarks() == []
+
+    items = _by_oz(result)
+    assert items["01.01.0001"].hinweis == (
+        "Hinweis zu Titel 01.01\nAushub ist zu lagern."
+    )
+    assert items["01.01.0002"].hinweis == (
+        "Hinweis zu Titel 01.01\nAushub ist zu lagern.\n\nZwischen zwei Positionen."
+    )
+    # The parent-level Hinweis reaches the next Titel's positions; the sibling Titel's
+    # Hinweise do not.
+    assert items["01.02.0001"].hinweis == "Nach Titel 01.01, vor Titel 01.02."
+
+
+def test_position_directly_under_titel_with_blank_segment_parses() -> None:
     items = _by_oz(
         _parse(
             [
-                _record("T0"),
-                _record("T1Vertragliche Regelung gilt überall."),
-                _record("T9"),
-                _eroeffnung(MASK_FLAT),
-                _hinweis_begin(),
-                _langtext("Hinweis zur Verkehrssicherung."),
-                _gruppe("00"),
-                _gruppe_name("Verkehrssicherung"),
-                _position("000001"),
-                _kurztext("In Abschnitt 00"),
-                _gruppe_end(),
+                _eroeffnung(MASK_STANDARD),
                 _gruppe("01"),
-                _gruppe_name("Anderes Gewerk"),
-                _position("010001"),
-                _kurztext("In Abschnitt 01"),
+                _gruppe_name("Titel"),
+                _position("01     1"),
+                _kurztext("Direkt unter dem Titel"),
                 _gruppe_end(),
                 _abschluss(),
             ]
         )
     )
-    # The contractual Vorbemerkung (T1) governs every position, across both Abschnitte.
-    assert items["00.0001"].hinweis == (
-        "Vertragliche Regelung gilt überall.\n\nHinweis zur Verkehrssicherung."
-    )
-    # The leading 20-Hinweis introduces Abschnitt 00 only; it must not leak into 01.
-    assert items["01.0001"].hinweis == "Vertragliche Regelung gilt überall."
+    assert list(items) == ["01", "01.0001"]
+    assert items["01.0001"].parent_oz == "01"
+    assert items["01.0001"].level == 2
 
 
 def test_backref_wie_in_voriger_position_composes_delta() -> None:

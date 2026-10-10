@@ -148,7 +148,8 @@ engine (`lade_katalog`; re-loadable at runtime via `POST /katalog/neu-laden`).
 The domain DB groups into six clusters:
 
 - **Project / document / ingest** — `projects` → `documents` → `source_lines` (canonical extracted
-  text), `thumbnails`, `lv_items`, `ingest_jobs` → `ingest_job_events`, plus the high-frequency
+  text), `thumbnails`, `lv_items`, `lv_texts` (the LV's Vorbemerkungen, Hinweise and Nachtext),
+  `ingest_jobs` → `ingest_job_events`, plus the high-frequency
   `ingestion_activity_log` and its archive.
 - **Conversation** — `conversations` (discriminated by `prompt_type`; position chats also carry
   `lv_item_uuid` and a `calculation_status`) → `messages` (user / assistant / function_call /
@@ -184,6 +185,7 @@ erDiagram
     documents ||--o{ source_lines : "extracted into"
     documents ||--o{ thumbnails : "rendered as"
     documents ||--o{ lv_items : "parsed into"
+    documents ||--o{ lv_texts : "LV-level texts"
     documents ||--o{ ingest_jobs : "processed by"
     ingest_jobs ||--o{ ingest_job_events : "logs"
     ingest_jobs ||--o{ ingestion_activity_log : "streams"
@@ -195,10 +197,12 @@ erDiagram
 
     projects {
         uuid project_uuid PK
-        text vergabe_id
-        text project_name
-        text vergabestelle
-        text location "nullable"
+        text project_name "Massnahme"
+        text massnahmenummer "nullable"
+        text vergabe_id "Vergabenummer, nullable"
+        text bauleistung "nullable"
+        text vergabestelle "nullable"
+        text location "Baustelle, nullable"
     }
     documents {
         uuid document_uuid PK
@@ -234,6 +238,17 @@ erDiagram
         text positionstyp "nullable"
         text parent_oz "OZ linkage, also prev/next/linked"
         uuid_arr source_lines "no FK"
+    }
+    lv_texts {
+        uuid lv_text_uuid PK
+        uuid document_uuid FK
+        text kind "ADD_TEXT | REMARK"
+        text placement "before | after, ADD_TEXT only"
+        text parent_oz "REMARK: enclosing LV-Gruppe, null at root"
+        int index "ordinal within placement / parent"
+        int sequence "document order"
+        text heading "nullable"
+        text body
     }
     ingest_jobs {
         uuid job_uuid PK
@@ -392,10 +407,12 @@ object-key order survives reload.
 
 - **Elasticsearch** holds the chunk documents and vectors; Postgres holds no chunk table. Each
   chunk carries `project_uuid` (scoping), `source_doc_uuid` + `source_doc_type`
-  (`DOCUMENT` | `LV_ITEM`), and provenance fields. Field names are shared constants in
+  (`DOCUMENT` | `LV_ITEM` | `LV_TEXT`; the uuid resolves to a document, an `lv_items` row or an
+  `lv_texts` row accordingly), and provenance fields. Field names are shared constants in
   `clients/search/client.py` — the same constant is used for indexing and search. Re-ingestion
   moves a document's prior chunks to the `_archive` index rather than deleting them. Because
-  `source_lines` and `lv_items` are canonical in Postgres, both indexes are fully rebuildable.
+  `source_lines`, `lv_items` and `lv_texts` are canonical in Postgres, both indexes are fully
+  rebuildable.
 - **MinIO** identity lives in key-prefix conventions (`raw/`, `thumbnail/`, `map/` — helpers in
   `clients/storage/client.py`) and, for thumbnails, in `thumbnails.object_key` + `bucket`.
 - **Auth boundary**: owner columns (`conversations.user_uuid`, `*_created_by_user_id`) are plain

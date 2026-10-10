@@ -145,8 +145,8 @@ def simple_filter(project_uuid: UUID) -> dict[str, Any]:
 
 def plus_filter(project_uuid: UUID, lv_document_uuid: UUID) -> dict[str, Any]:
     """Plus scope: DOCUMENT chunks except the LV document's own chunks, plus the parsed
-    LV_ITEM chunks (RETRIEVAL.md). The LV document's simple chunks are excluded so the
-    LV content is not counted twice."""
+    LV_ITEM and LV_TEXT chunks (RETRIEVAL.md). The LV document's simple chunks are
+    excluded so the LV content is not counted twice."""
     return {
         "bool": {
             "filter": [
@@ -178,8 +178,11 @@ def plus_filter(project_uuid: UUID, lv_document_uuid: UUID) -> dict[str, Any]:
                                 }
                             },
                             {
-                                "term": {
-                                    FIELD_SOURCE_DOC_TYPE: SourceDocType.LV_ITEM.value
+                                "terms": {
+                                    FIELD_SOURCE_DOC_TYPE: [
+                                        SourceDocType.LV_ITEM.value,
+                                        SourceDocType.LV_TEXT.value,
+                                    ]
                                 }
                             },
                         ],
@@ -217,11 +220,12 @@ def _source_query(
 
 
 def _document_footprint_query(
-    project_uuid: UUID, document_uuid: UUID, lv_item_uuids: Sequence[UUID]
+    project_uuid: UUID, document_uuid: UUID, lv_source_uuids: Sequence[UUID]
 ) -> dict[str, Any]:
     """Every chunk a document put in the index: its own DOCUMENT chunks (keyed by
-    document_uuid) and, for an LV document, the LV_ITEM chunks of its parsed items
-    (keyed by lv_item_uuid, not document_uuid). Scoped to project_uuid as a guard."""
+    document_uuid) and, for an LV document, the LV_ITEM / LV_TEXT chunks of its parsed
+    items and texts (keyed by lv_item_uuid / lv_text_uuid, not document_uuid). Scoped
+    to project_uuid as a guard."""
     should: list[dict[str, Any]] = [
         {
             "bool": {
@@ -232,17 +236,24 @@ def _document_footprint_query(
             }
         }
     ]
-    if lv_item_uuids:
+    if lv_source_uuids:
         should.append(
             {
                 "bool": {
                     "filter": [
                         {
                             "terms": {
-                                FIELD_SOURCE_DOC_UUID: [str(u) for u in lv_item_uuids]
+                                FIELD_SOURCE_DOC_UUID: [str(u) for u in lv_source_uuids]
                             }
                         },
-                        {"term": {FIELD_SOURCE_DOC_TYPE: SourceDocType.LV_ITEM.value}},
+                        {
+                            "terms": {
+                                FIELD_SOURCE_DOC_TYPE: [
+                                    SourceDocType.LV_ITEM.value,
+                                    SourceDocType.LV_TEXT.value,
+                                ]
+                            }
+                        },
                     ]
                 }
             }
@@ -419,13 +430,15 @@ class SearchClient:
     ]
 
     async def count_document_chunks(
-        self, project_uuid: UUID, document_uuid: UUID, lv_item_uuids: Sequence[UUID]
+        self, project_uuid: UUID, document_uuid: UUID, lv_source_uuids: Sequence[UUID]
     ) -> int:
-        """Count a document's SimpleChunks (its DOCUMENT chunks + its items' LV_ITEM
-        chunks)."""
+        """Count a document's SimpleChunks (its DOCUMENT chunks + its items' and texts'
+        LV chunks)."""
         resp = await self._es.count(
             index=self._index,
-            query=_document_footprint_query(project_uuid, document_uuid, lv_item_uuids),
+            query=_document_footprint_query(
+                project_uuid, document_uuid, lv_source_uuids
+            ),
         )
         return int(resp["count"])
 
@@ -433,7 +446,7 @@ class SearchClient:
         self,
         project_uuid: UUID,
         document_uuid: UUID,
-        lv_item_uuids: Sequence[UUID],
+        lv_source_uuids: Sequence[UUID],
         *,
         source_doc_type: SourceDocType | None = None,
         text: str | None = None,
@@ -443,7 +456,7 @@ class SearchClient:
         """A document's SimpleChunks ordered by chunk_index, optionally narrowed to one
         source_doc_type and/or matched against chunk_text. Returns (page, total)."""
         must: list[dict[str, Any]] = [
-            _document_footprint_query(project_uuid, document_uuid, lv_item_uuids)
+            _document_footprint_query(project_uuid, document_uuid, lv_source_uuids)
         ]
         if source_doc_type is not None:
             must.append({"term": {FIELD_SOURCE_DOC_TYPE: source_doc_type.value}})
@@ -533,14 +546,14 @@ class SearchClient:
         self,
         project_uuid: UUID,
         document_uuid: UUID,
-        lv_item_uuids: Sequence[UUID],
+        lv_source_uuids: Sequence[UUID],
     ) -> int:
         """Remove a document's whole footprint from the live index: its DOCUMENT chunks
-        and, for an LV document, its items' LV_ITEM chunks. Chunks are archived with an
-        archived_at timestamp before deletion, matching the re-ingestion flow. Returns
-        the number of chunks removed from the live index."""
+        and, for an LV document, its items' LV_ITEM and texts' LV_TEXT chunks. Chunks
+        are archived with an archived_at timestamp before deletion, matching the
+        re-ingestion flow. Returns the number of chunks removed from the live index."""
         await self._ensure_archive_index()
-        query = _document_footprint_query(project_uuid, document_uuid, lv_item_uuids)
+        query = _document_footprint_query(project_uuid, document_uuid, lv_source_uuids)
         archived_at = datetime.now(tz=timezone.utc).isoformat()
         await self._es.reindex(
             source={"index": self._index, "query": query},

@@ -16,30 +16,40 @@ from pydantic import BaseModel, ConfigDict, Field
 class ProjectCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    vergabe_id: str = Field(min_length=1)
     project_name: str = Field(min_length=1)
-    project_description: str
-    vergabestelle: str
+    massnahmenummer: str | None = None
+    vergabe_id: str | None = None
+    bauleistung: str | None = None
+    vergabestelle: str | None = None
     location: str | None = None
+    project_description: str | None = None
 
 
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
     project_uuid: UUID
-    vergabe_id: str
     project_name: str
-    project_description: str
-    vergabestelle: str
+    massnahmenummer: str | None = None
+    vergabe_id: str | None = None
+    bauleistung: str | None = None
+    vergabestelle: str | None = None
     location: str | None = None
+    project_description: str | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class ProjectUpdate(BaseModel):
+    """Partial update: only fields present in the request body change; an explicit null
+    clears an optional field."""
+
     model_config = ConfigDict(extra="forbid")
 
     project_name: str | None = Field(default=None, min_length=1)
-    project_description: str | None = None
+    massnahmenummer: str | None = None
+    vergabe_id: str | None = None
+    bauleistung: str | None = None
     vergabestelle: str | None = None
     location: str | None = None
+    project_description: str | None = None

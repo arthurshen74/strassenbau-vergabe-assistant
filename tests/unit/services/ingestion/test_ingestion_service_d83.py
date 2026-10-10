@@ -1,8 +1,9 @@
 """The GAEB D83 branch of IngestionService.
 
-A `.d83` document must parse straight into LV items and LV_ITEM chunks -- no thumbnails,
-no source lines, no DOCUMENT chunks, and no LLM call (prompts/langchain collaborators are
-None here, so touching them would fail loudly).
+A `.d83` document must parse straight into LV items and LV_ITEM chunks plus LV texts
+(Vorbemerkungen, Hinweise) and LV_TEXT chunks -- no thumbnails, no source lines, no
+DOCUMENT chunks, and no LLM call (prompts/langchain collaborators are None here, so
+touching them would fail loudly).
 """
 
 from __future__ import annotations
@@ -14,8 +15,9 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from shared.models.document import Document
-from shared.models.enums import DocumentType, SourceDocType
+from shared.models.enums import DocumentType, LVTextKind, SourceDocType
 from shared.models.lv_item import LVItem, NewLVItem
+from shared.models.lv_text import LVText, NewLVText
 from shared.models.simple_chunk import NewSimpleChunk
 from shared.services.ingestion.ingestion_service import IngestionService
 
@@ -26,9 +28,14 @@ def _record(body: str) -> str:
 
 D83_BYTES = "\n".join(
     [
+        _record("T0"),
+        _record("T1Vorbemerkung: es gilt die VOB/B."),
+        _record("T9"),
         _record(f"00{'':8}83L".ljust(62) + "11PPPP90"),
         _record("1101       N"),
         _record("12Erdarbeiten"),
+        _record("20"),
+        _record("26   Hinweis zu Titel 01."),
         _record("21010001   NN N".ljust(23) + "00000002500" + "m3"),
         _record("25Oberboden abtragen"),
         _record("26   Oberboden abtragen und seitlich lagern."),
@@ -58,7 +65,9 @@ class _RecordingSearch:
         self.archived: list[tuple[UUID, SourceDocType]] = []
         self.indexed: list[NewSimpleChunk] = []
 
-    async def archive_source(self, source_doc_uuid: UUID, source_doc_type: SourceDocType) -> int:
+    async def archive_source(
+        self, source_doc_uuid: UUID, source_doc_type: SourceDocType
+    ) -> int:
         self.archived.append((source_doc_uuid, source_doc_type))
         return 0
 
@@ -88,15 +97,38 @@ class _FakeLVItemRepo:
             for item in items
         ]
 
-    async def delete_missing(self, document_uuid: UUID, keep_ozs: list[str]) -> list[UUID]:
+    async def delete_missing(
+        self, document_uuid: UUID, keep_ozs: list[str]
+    ) -> list[UUID]:
         self.kept_ozs = list(keep_ozs)
         return []
 
 
+class _FakeLVTextRepo:
+    def __init__(self) -> None:
+        self.replaced: list[NewLVText] = []
+
+    async def replace(
+        self, document_uuid: UUID, texts: list[NewLVText]
+    ) -> tuple[list[LVText], list[UUID]]:
+        self.replaced = list(texts)
+        now = datetime.now(tz=UTC)
+        return [
+            LVText(lv_text_uuid=uuid4(), last_ingestion=now, **t.model_dump())
+            for t in texts
+        ], []
+
+
 class _FakeUow:
-    def __init__(self, documents: _FakeDocumentRepo, lv_items: _FakeLVItemRepo) -> None:
+    def __init__(
+        self,
+        documents: _FakeDocumentRepo,
+        lv_items: _FakeLVItemRepo,
+        lv_texts: _FakeLVTextRepo,
+    ) -> None:
         self.documents = documents
         self.lv_items = lv_items
+        self.lv_texts = lv_texts
         self.ingest_job_events = None  # record_event no-ops for jobless runs
 
 
@@ -111,7 +143,8 @@ async def test_d83_document_ingests_lv_items_without_pdf_stages() -> None:
         updated_at=datetime.now(tz=UTC),
     )
     lv_repo = _FakeLVItemRepo()
-    uow = _FakeUow(_FakeDocumentRepo(document), lv_repo)
+    text_repo = _FakeLVTextRepo()
+    uow = _FakeUow(_FakeDocumentRepo(document), lv_repo, text_repo)
 
     @asynccontextmanager
     async def uow_factory():  # noqa: ANN202
@@ -133,7 +166,8 @@ async def test_d83_document_ingests_lv_items_without_pdf_stages() -> None:
     assert result.langchain_chunks == 0
     assert result.document_chunks == 0
     assert result.lv_items == 2  # Titel + position
-    assert result.lv_chunks == 2
+    assert result.lv_texts == 2  # T-block Vortext + the Titel's Hinweis
+    assert result.lv_chunks == 4  # one chunk per item and per text
 
     assert [item.oz for item in lv_repo.added] == ["01", "01.0001"]
     position = lv_repo.added[1]
@@ -141,8 +175,22 @@ async def test_d83_document_ingests_lv_items_without_pdf_stages() -> None:
     assert position.menge == Decimal("2.500")
     assert position.einheit == "m3"
     assert position.source_lines == []
+    assert position.hinweis == "Hinweis zu Titel 01."
     assert lv_repo.kept_ozs == ["01", "01.0001"]
 
-    assert all(chunk.source_doc_type == SourceDocType.LV_ITEM for chunk in search.indexed)
-    assert {chunk.oz for chunk in search.indexed} == {"01", "01.0001"}
+    assert [(t.kind, t.placement, t.parent_oz, t.body) for t in text_repo.replaced] == [
+        (LVTextKind.ADD_TEXT, "before", None, "Vorbemerkung: es gilt die VOB/B."),
+        (LVTextKind.REMARK, None, "01", "Hinweis zu Titel 01."),
+    ]
+
+    by_type = {
+        chunk.source_doc_type: [
+            c for c in search.indexed if c.source_doc_type == chunk.source_doc_type
+        ]
+        for chunk in search.indexed
+    }
+    assert set(by_type) == {SourceDocType.LV_ITEM, SourceDocType.LV_TEXT}
+    assert {c.oz for c in by_type[SourceDocType.LV_ITEM]} == {"01", "01.0001"}
+    # A Hinweis chunk carries its LV-Gruppe as oz; a Vortext chunk has none.
+    assert {c.oz for c in by_type[SourceDocType.LV_TEXT]} == {None, "01"}
     assert all(chunk.source_doc_pages == [] for chunk in search.indexed)

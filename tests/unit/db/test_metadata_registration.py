@@ -13,6 +13,7 @@ EXPECTED_TABLES = {
     "ingestion_activity_log",
     "ingestion_activity_log_archive",
     "lv_items",
+    "lv_texts",
     "prompt_versions",
     "openrouter_usage",
     "prompt_execution_log",

@@ -26,6 +26,12 @@ Where a plural form is non-obvious, it is given in parentheses.
 
 **Vergabestelle** — Procurement office. The administrative arm of the Auftraggeber that runs the tender process. Mostly out of scope for this system; mentioned because it appears on tender cover pages.
 
+**Maßnahme** — The construction measure a tender is about, i.e. the project itself (e.g. "B 247 OD Mühlhausen, Deckenerneuerung"). Stored as the project name; identified by its **Maßnahmenummer**, the Auftraggeber's internal project number.
+
+**Vergabenummer** — The procurement reference under which a Vergabe is published and bids are submitted. Stored as `vergabe_id` on the project. One Maßnahme can be tendered under several Vergabenummern (Lose, re-tenders).
+
+**Bauleistung** — The contract name: the description of the construction work being awarded, as printed on the tender cover page (Aufforderung zur Abgabe eines Angebots). Narrower than the Maßnahme when only part of it is tendered.
+
 ## The Tender Document Set
 
 **Baubeschreibung** — Project description. A prose document describing the work to be performed, site conditions, sequencing constraints, and project context. Sets expectations that constrain how the LV items must be priced.
@@ -74,6 +80,14 @@ Where a plural form is non-obvious, it is given in parentheses.
 - **Eventualposition** — A contingent position; priced for possible execution.
 - **Pauschalposition** — A lump-sum Position; priced as a single value rather than unit × quantity.
 - **Stundenlohnarbeiten** — Time-and-materials work; billed at hourly rates against a notional budget.
+
+**Hinweistext** (Hinweis) — Free text inside the LV hierarchy that is not a Position: no quantity, unit or price. GAEB 90 record `20`, GAEB XML `Remark`. It stands before the part of the LV it refers to; its scope is positional (the innermost enclosing LV-Gruppe, or the whole LV at root level). The parser keeps each one as a `Remark` node and copies the Hinweise in scope onto every following Position's `hinweis`.
+
+**Zusätzlicher Text** — Free text outside the LV hierarchy, at the start (Vortext) or end (Nachtext) of the LV. GAEB 90 `T0`/`T1`/`T9` lines ("Vertragliche Regelungen"), GAEB XML `AddText` before or after the `BoQ`. The spec's home for Vorbemerkungen, Baubeschreibung and Bietererklärungen; applies to the whole LV by construction. The parser keeps each block as an `AddTextBlock`.
+
+**Vorbemerkungen** — Preliminary remarks printed ahead of the LV body (contractual rules, site description, bidder instructions). A document concept, not a GAEB element: realised as a Zusätzlicher Text, or in practice as a leading Hinweistext at the LV root. No GAEB element carries the label "Vorbemerkungen"; viewers supply it.
+
+**Ausführungsbeschreibung** — A description shared by several Positionen (GAEB XML `PerfDescr`), referenced from each Position by `RefPerfNo`. The parser appends it to the `hinweis` of the referencing Positionen.
 
 **STLB-Bau** — Standardleistungsbuch Bau. A national catalogue of standardised Position texts. Tender LVs often reference STLB-Bau text numbers; the actual Langtext may be the standard text, a modified version, or a free-form description.
 

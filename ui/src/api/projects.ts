@@ -10,8 +10,10 @@ import type {
   DocumentRead,
   IngestJobRead,
   LVItem,
+  LVText,
   ProjectCreate,
   ProjectRead,
+  ProjectUpdate,
 } from '../types/generated';
 
 export const projectKeys = {
@@ -20,6 +22,7 @@ export const projectKeys = {
   detail: (uuid: string) => ['project', uuid] as const,
   documents: (uuid: string) => ['project', uuid, 'documents'] as const,
   lvItems: (uuid: string) => ['project', uuid, 'lv-items'] as const,
+  lvTexts: (uuid: string) => ['project', uuid, 'lv-texts'] as const,
   lvItemSearch: (uuid: string, q: string) =>
     ['project', uuid, 'lv-items', 'search', q] as const,
 };
@@ -55,6 +58,15 @@ export function useProjectLvItems(uuid: string | undefined) {
   });
 }
 
+// The LV document's Vorbemerkungen, Hinweise and Nachtext in document order.
+export function useProjectLvTexts(uuid: string | undefined) {
+  return useQuery({
+    queryKey: uuid ? projectKeys.lvTexts(uuid) : ['project', 'none', 'lv-texts'],
+    queryFn: () => api.get<LVText[]>(`/projects/${uuid}/lv-texts`),
+    enabled: !!uuid,
+  });
+}
+
 // Hybrid BM25/semantic search over the project's LV_ITEM chunks; enabled only once a query is
 // submitted, so an empty box keeps the full list (useProjectLvItems) on screen.
 export function useLvItemSearch(uuid: string, query: string) {
@@ -71,6 +83,19 @@ export function useCreateProject() {
   return useMutation({
     mutationFn: (body: ProjectCreate) => api.post<ProjectRead>('/projects', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: projectKeys.all }),
+  });
+}
+
+// Partial update of the project header fields; an explicit null clears a field.
+export function useUpdateProject(projectUuid: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ProjectUpdate) =>
+      api.patch<ProjectRead>(`/projects/${projectUuid}`, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: projectKeys.detail(projectUuid) });
+      void qc.invalidateQueries({ queryKey: projectKeys.list() });
+    },
   });
 }
 
