@@ -13,13 +13,12 @@ from shared.models.document import Document, NewDocument
 from shared.models.enums import DocumentType, FormRole, IngestStatus
 from shared.models.project import NewProject, Project
 from shared.models.project_info_job import NewProjectInfoJob
+from shared.services.ingestion.classify import INGESTIBLE_SUFFIXES
 from shared.services.project_service import (
-    INGESTIBLE_SUFFIXES,
     ProjectService,
     UploadInput,
     ZipTooLargeError,
     _count_pdf_pages,
-    classify_document,
     expand_zip,
 )
 from tests.form_pdfs import acroform_pdf, three_field_form
@@ -139,43 +138,6 @@ def test_expand_zip_rejects_non_zip() -> None:
 
 def test_count_pdf_pages_non_pdf_is_zero() -> None:
     assert _count_pdf_pages(UploadInput("notes.txt", "text/plain", b"hello")) == 0
-
-
-LV = (DocumentType.LV_DOCUMENT, None, None)
-PROSE = (DocumentType.PROSE_DOCUMENT, None, None)
-
-
-@pytest.mark.parametrize(
-    "file_name",
-    ["anything.d83", "P22039_LV1.D83", "projekt_lv.x83", "P630394379990126_LV.X83"],
-)
-def test_classify_document_gaeb_is_lv(file_name: str) -> None:
-    assert classify_document(file_name, b"<GAEB/>") == LV
-
-
-def test_classify_document_prose_for_everything_else() -> None:
-    # The LV print-layout PDF is prose too: LV items come from GAEB files only.
-    assert classify_document("Projekt_LV1.pdf", b"%PDF") == PROSE
-    assert classify_document("Projekt_LV1.txt", b"x") == PROSE
-    assert classify_document("anhang.pdf", b"%PDF") == PROSE
-
-
-def test_classify_document_zero_field_acroform_is_prose() -> None:
-    assert classify_document("LV Los 1-3.pdf", acroform_pdf([])) == PROSE
-
-
-def test_classify_document_fillable_pdf_is_a_form_with_role() -> None:
-    data = three_field_form()
-    assert classify_document("T1.1 FB 312-B Aufforderung.pdf", data) == (
-        DocumentType.FORM_DOCUMENT,
-        FormRole.VERGABESTELLE,
-        "FB 312-B",
-    )
-    assert classify_document("Baustelleninformationsschild.pdf", data) == (
-        DocumentType.FORM_DOCUMENT,
-        FormRole.UNBEKANNT,
-        None,
-    )
 
 
 def _document(

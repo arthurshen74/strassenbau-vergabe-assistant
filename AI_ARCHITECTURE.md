@@ -13,8 +13,10 @@ provenance (source, confidence, evidence). System processes, stores, and the dat
 ## Ingestion Pipeline
 
 Ingestion runs in the worker (job mechanics in `APPLICATION_ARCHITECTURE.md`). The document type
-is decided at upload, server-side, and the worker dispatches on it: LV (GAEB), FORM (fillable PDF
-form) or PROSE (every other PDF).
+is decided at upload, server-side, in `shared/services/ingestion/classify.py`, and the worker
+dispatches on it: LV (GAEB), FORM (fillable PDF form) or PROSE (every other PDF). Whether a
+document is ingested at all is a separate rule in `ingestion/enqueue_policy.py` (a Bieter form
+starts `skipped`).
 
 ```mermaid
 flowchart TD

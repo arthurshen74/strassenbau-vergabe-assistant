@@ -148,13 +148,15 @@ option, and the answer model guesses. After this task:
 - `server/shared/services/ingestion/ingestion_service.py:132` dispatch on
   `document_type`; `:285-330` `_ingest_form_document` (detect -> extract -> persist lines
   and fields -> `chunk_form` -> `_embed_and_index(..., SourceDocType.FORM)`).
-- `server/shared/services/project_service.py:358` `classify_document(file_name, data)`:
-  `detect_form_kind(data) is not None` -> `FORM_DOCUMENT` with
-  `classify_form_role(file_name)`; `:348` enqueues `SKIPPED` when role is `BIETER`.
+- `server/shared/services/ingestion/classify.py` `classify_document(file_name, data) ->
+  DocumentClassification`: `detect_form_kind(data) is not None` -> `FORM_DOCUMENT` with
+  `classify_form_role(file_name)`. `ingestion/enqueue_policy.py`
+  `initial_ingest_status(classification)` returns `SKIPPED` when role is `BIETER`;
+  `project_service._ingest_one` only consumes both.
 - `server/shared/models/form_field.py`: `section, name, label, value, page`; repository
   `form_fields`; API `GET .../documents/{uuid}/form-fields`; UI `FormFieldsTable.tsx`,
   `DocumentDetailDialog.tsx` (Felder tab), `ProjectDetails.tsx` (type badge, role line).
-- `pdfplumber` is a declared dependency, used in `project_service.py:504` for page counts.
+- `pdfplumber` is a declared dependency, used in `project_service._count_pdf_pages`.
   `pdf2image` renders thumbnails. `pypdf==6.12.2` reads AcroForms.
 - Tests: `tests/unit/services/ingestion/forms/test_acroform.py` (2), `test_xfa.py`,
   `tests/integration/services/test_form_corpus.py` (asserts 80 AcroForm, 12 XFA, 3
@@ -188,15 +190,15 @@ option, and the answer model guesses. After this task:
 - Add to `FORMBLAETTER` the rows observed only through footers: HVA `113 Gewichtung
   Zuschlagskriterien` (V). Every added row must be observed in the corpus.
 
-### 3. Detection (`forms/detect.py`, `project_service.py`)
+### 3. Detection (`forms/detect.py`, `ingestion/classify.py`, `ingestion/enqueue_policy.py`)
 
 - `detect_form_kind(pdf_bytes, file_name) -> FormKind | None`: XFA and AcroForm as today;
   else `FLATTENED` when `identify_from_text` or `_find_token(file_name)` hits a table row;
   else `None`.
 - `classify_document(file_name, data)`: unchanged signature, passes `file_name` through,
-  computes the content id once and hands it to `classify_form_role`. Skip rule per
-  decision 6: `status = SKIPPED if role is BIETER and form_id is not None else QUEUED`.
-  Update the docstring.
+  computes the content id once and hands it to `classify_form_role`.
+- `enqueue_policy.is_bieter_form`: skip rule per decision 6 becomes `role is BIETER and
+  form_id is not None`. Update the module docstring.
 
 ### 4. Toggle attachment (`forms/toggles.py`)
 
@@ -311,8 +313,8 @@ Unit (`tests/unit/services/ingestion/forms/`):
 - `test_xfa.py` (extend): checkbox becomes an option line; radio stays a field line.
 - `test_chunking.py` (extend): drop rule with nesting, heading clears the drop, empty
   section -> `NO_OPTION_CHECKED`, prefix stripped, XFA zero-bbox drops only itself.
-- `test_project_service.py` (extend): skip only with `form_id`; keyword-only Bieter
-  enqueued `queued`.
+- `ingestion/test_enqueue_policy.py` (extend): skip only with `form_id`; keyword-only
+  Bieter starts `queued`.
 
 Integration:
 - `ingest_document` on a flattened fixture `FORM_DOCUMENT` with mocked embeddings:

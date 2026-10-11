@@ -39,7 +39,7 @@ def detect_form_kind(pdf_bytes: bytes) -> FormKind | None:
     in which case it takes the prose path)."""
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
-        acroform = reader.trailer[KEY_ROOT].get(KEY_ACROFORM)
+        acroform = reader.trailer[KEY_ROOT].get(KEY_ACROFORM) # type: ignore
         if acroform is None:
             return None
         if KEY_XFA in acroform.get_object():
