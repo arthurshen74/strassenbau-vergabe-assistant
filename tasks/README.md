@@ -47,6 +47,8 @@ The existing flow (create a project in a form, then upload documents) stays as i
 | 05 Project-info job, worker loop, resolver | `05-project-info-job.md` | 03, 04 | 02 |
 | 06 Live ingest console | `06-ingest-console-live.md` | 05 | - |
 | 07 Form documents (Formblätter): detection, role, XFA/AcroForm extraction, skipped Bieter forms | `07-form-documents.md` | 06 | - |
+| 08 Flattened Formblätter, one form model, chunks with checked options only, footer form id, skip only certain Bieter forms | `08-form-flattening-refactor.md` | 07 | 09 |
+| 09 Form ground-truth labeler (Streamlit) + one-off measurement script | `09-form-ground-truth-labeler.md` | 07 | 08 |
 
 ## Execution waves (parallelism)
 
@@ -78,6 +80,13 @@ wave 3:                        [05 project-info job]
   `ProjectService._after_zip_ingest` and the end-to-end check wait for 03. 02 may still be
   running; 05 adds a status line to `ProjectDetails.tsx`, which 02 also edits, so whichever
   finishes second rebases its edit onto the other's version of that file.
+
+- **Wave 4: 08 and 09 in parallel**, both after 07. 09 adds a `tools` dependency group,
+  `server/scripts/form_labeler/`, `server/scripts/eval_form_labels.py` and `eval/forms/`;
+  08 edits `server/shared/services/ingestion/forms/`, `chunking.py`, `project_service.py`
+  and the form tests. They share only `pyproject.toml` (09 adds a group, 08 adds nothing)
+  and `tests/form_pdfs.py` (08 extends it, 09 reads it). 08's measurement step needs 09's
+  label files and script, so 09 should report done before 08 reaches section 12.
 
 Shared files that more than one task edits (coordinate or rebase, never overwrite):
 `ui/src/api/projects.ts` (02, 03, 05), `ui/src/views/main/ProjectDetails.tsx` (02, 05),
@@ -143,6 +152,7 @@ adds missing tables). Numbers are reserved here so parallel tasks do not collide
 | `sql/22_rag_query_vergabestelle.sql` | 05 follow-up |
 | `sql/23_project_info_activity_log.sql` | 06 |
 | `sql/24_form_documents.sql` | 07 |
+| (none, `sql/25` stays free) | 08, 09 |
 
 Follow the header style of `sql/16_lv_texts.sql` and `sql/17_projects_massnahme.sql`:
 a comment block (what, why, mirrors which table file, idempotent, run-after), then
