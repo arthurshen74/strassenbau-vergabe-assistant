@@ -169,11 +169,14 @@ The domain DB groups into six clusters:
   project may hold any number of `LV_DOCUMENT`s (one
   per GAEB file); each owns its `lv_items` and `lv_texts`, and project-wide LV listings return
   them grouped by document, oldest first. The server assigns `document_type` at upload: a GAEB
-  file is an `LV_DOCUMENT`, a fillable PDF form (an XFA packet, or an AcroForm with at least 3
-  fillable fields) is a `FORM_DOCUMENT`, everything else a `PROSE_DOCUMENT`. A form carries its
-  `form_role` (`vergabestelle` | `bieter` | `unbekannt`, from the Formblatt in the filename) and
-  `form_id` (e.g. `FB 312-B`, `HVA B-StB 121`); a Bieter form's ingest job is created `skipped`
-  and is only ingested when requeued.
+  file is an `LV_DOCUMENT`, a PDF form is a `FORM_DOCUMENT` (`FormKind`: `xfa` for an XFA
+  packet, `acroform` for an AcroForm with at least 3 fillable fields, `flattened` for a
+  zero-field PDF whose printed footer or filename token names a known Formblatt), everything else
+  a `PROSE_DOCUMENT`. A form carries its `form_id` (e.g. `FB 312-B`, `HVA B-StB 121`; from the
+  HVA page footer first, else the filename token) and its `form_role` (`vergabestelle` |
+  `bieter` | `unbekannt`, from the Formblatt table, else a Bieter title keyword); a Bieter form's
+  ingest job is created `skipped` only when its `form_id` is set, and is ingested when requeued.
+  A keyword-only Bieter form is ingested like any other.
 - **Conversation** — `conversations` (discriminated by `prompt_type`; position chats also carry
   `lv_item_uuid` and a `calculation_status`) → `messages` (user / assistant / function_call /
   function_call_output).

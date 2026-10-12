@@ -4,9 +4,11 @@ A dynamic XFA form has no page content worth reading (the rendered page is Adobe
 "Please wait..." placeholder); the form lives in two packets: `template` (layout,
 static text, field definitions) and `datasets` (the filled-in values). The template is
 walked in document order; `<draw>` text becomes a line, a `<field>` becomes
-`label: value` with the value looked up in datasets at the same subform path. Unnamed
-subforms and areas are transparent to that path, as they are in XFA data binding.
-Scripts are not evaluated, so a field hidden only by script is emitted anyway.
+`label: value` with the value looked up in datasets at the same subform path, and a
+`checkButton` becomes an option line (`[x] caption` / `[ ] caption`). Unnamed subforms
+and areas are transparent to that path, as they are in XFA data binding. Scripts are
+not evaluated, so a field hidden only by script is emitted anyway. XFA lines carry no
+geometry.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from shared.services.ingestion.forms.model import (
     UNCHECKED,
     FormExtraction,
     field_line,
+    option_line,
     section_heading,
 )
 
@@ -169,11 +172,12 @@ class _XfaWalk:
             return
         raw = self._value(field, path)
         if ui == UI_CHECK_BUTTON:
-            value = CHECKED if raw == _on_value(field) else UNCHECKED
-        elif ui == UI_CHOICE_LIST:
-            value = _choice_display(field, raw)
-        else:
-            value = raw
+            checked = raw == _on_value(field)
+            label = _label(field)
+            self._line(option_line(label or name, checked))
+            self._append_field(name, label, CHECKED if checked else UNCHECKED)
+            return
+        value = _choice_display(field, raw) if ui == UI_CHOICE_LIST else raw
         if not value:
             return
         self._emit_field(name, _label(field), value)
@@ -192,6 +196,9 @@ class _XfaWalk:
 
     def _emit_field(self, name: str, label: str | None, value: str) -> None:
         self._line(field_line(label or name, _collapse(value)))
+        self._append_field(name, label, value)
+
+    def _append_field(self, name: str, label: str | None, value: str) -> None:
         self.fields.append(
             NewFormField(
                 document_uuid=self.document_uuid,

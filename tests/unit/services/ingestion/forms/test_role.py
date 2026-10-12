@@ -113,6 +113,32 @@ def test_duplicate_rows_raise() -> None:
         _index_by_family((row, row))
 
 
+@pytest.mark.parametrize(
+    ("file_name", "content_id", "expected"),
+    [
+        ("00 - Aufforderung zur Angebotsabgabe.pdf", (FormFamily.HVA_B_STB, "111"), (FormRole.VERGABESTELLE, "HVA B-StB 111")),
+        ("C01 - Angebotsschreiben.pdf", (FormFamily.HVA_B_STB, "121"), (FormRole.BIETER, "HVA B-StB 121")),
+        ("HVA_B_StB_Eignungsleihe_technische.pdf", (FormFamily.HVA_B_STB, "104"), (FormRole.BIETER, "HVA B-StB 104")),
+        # The footer wins over a conflicting filename token.
+        ("HVA_B_StB_121_Vorlage.pdf", (FormFamily.HVA_B_STB, "111"), (FormRole.VERGABESTELLE, "HVA B-StB 111")),
+        # An unknown footer number keeps the id; the role comes from the token.
+        ("HVA_B_StB_121_Vorlage.pdf", (FormFamily.HVA_B_STB, "371"), (FormRole.BIETER, "HVA B-StB 371")),
+        ("D02 - Vertragserfüllungsbürgschaft.pdf", (FormFamily.HVA_B_STB, "371"), (FormRole.UNBEKANNT, "HVA B-StB 371")),
+    ],
+)
+def test_content_id_comes_first(
+    file_name: str, content_id: tuple[FormFamily, str], expected: tuple[FormRole, str]
+) -> None:
+    assert classify_form_role(file_name, content_id) == expected
+
+
+def test_keyword_only_has_no_form_id() -> None:
+    assert classify_form_role("Nachweis für Sicherungsarbeiten.pdf", None) == (
+        FormRole.BIETER,
+        None,
+    )
+
+
 def test_dash_word_after_vhb_number_is_not_a_wsv_suffix() -> None:
     assert classify_form_role("VHB_213-Bieterangebot.pdf") == (
         FormRole.BIETER,

@@ -5,9 +5,10 @@ its `DocumentType` and, for a form, its Formblatt role and id. The rules apply i
 precedence order:
 
 1. A GAEB exchange file (D83/X83) is an LV document by definition, whatever its bytes.
-2. A PDF that is a fillable form (decided from its bytes by `detect_form_kind`) is a
-   form document; who fills it and which Formblatt it is come from the filename via
-   `classify_form_role`.
+2. A PDF that is a form (decided from its bytes by `detect_form_kind`: XFA, AcroForm,
+   or a flattened Formblatt with a known id) is a form document; which Formblatt it is
+   comes from the printed footer (`identify_formblatt`) or the filename token, and who
+   fills it from the role table via `classify_form_role`.
 3. Everything else is prose. This includes the LV print-layout PDF: LV items come from
    GAEB files only, so the printed LV must never become an LV document.
 
@@ -23,6 +24,7 @@ from pydantic import BaseModel, ConfigDict
 
 from shared.models.enums import DocumentType, FormRole
 from shared.services.ingestion.forms.detect import detect_form_kind
+from shared.services.ingestion.forms.identify import identify_formblatt
 from shared.services.ingestion.forms.role import classify_form_role
 from shared.services.ingestion.gaeb import (
     GAEB_D83_SUFFIX,
@@ -52,12 +54,15 @@ def classify_document(file_name: str, data: bytes) -> DocumentClassification:
     """Classify one upload by the precedence rules in the module docstring."""
     if is_gaeb_lv_file(file_name):
         return LV_DOCUMENT
-    if is_pdf_file_name(file_name) and detect_form_kind(data) is not None:
-        role, form_id = classify_form_role(file_name)
-        return DocumentClassification(
-            document_type=DocumentType.FORM_DOCUMENT, form_role=role, form_id=form_id
-        )
-    return PROSE_DOCUMENT
+    if not is_pdf_file_name(file_name):
+        return PROSE_DOCUMENT
+    content_id = identify_formblatt(data)
+    if detect_form_kind(data, file_name, content_id) is None:
+        return PROSE_DOCUMENT
+    role, form_id = classify_form_role(file_name, content_id)
+    return DocumentClassification(
+        document_type=DocumentType.FORM_DOCUMENT, form_role=role, form_id=form_id
+    )
 
 
 def is_pdf_file_name(file_name: str) -> bool:

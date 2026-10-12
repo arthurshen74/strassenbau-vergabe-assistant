@@ -1,9 +1,10 @@
 """Simple chunking: text units to SimpleChunk drafts (no embeddings).
 
 Every prose document is chunked into `DOCUMENT` chunks from its SourceLine text, and a
-form into `FORM` chunks, one or more per form section; LV items are chunked into
-`LV_ITEM` chunks from their resolved long text, and the LV's Vorbemerkungen/Hinweise
-into `LV_TEXT` chunks (INGESTION.md).
+form into `FORM` chunks, one or more per form section, carrying only what is checked
+(unchecked options and their nested lines stay in `source_lines`); LV items are chunked
+into `LV_ITEM` chunks from their resolved long text, and the LV's
+Vorbemerkungen/Hinweise into `LV_TEXT` chunks (INGESTION.md).
 This module is pure: it produces `ChunkDraft`s carrying everything a `NewSimpleChunk`
 needs except the embedding, which the service fills after calling the embeddings client.
 """
@@ -19,7 +20,13 @@ from shared.models.enums import SourceDocType
 from shared.models.lv_item import LVItem
 from shared.models.lv_text import LVText
 from shared.models.source_line import SourceLine
-from shared.services.ingestion.forms.model import FORM_SECTION_PREFIX
+from shared.services.ingestion.forms.model import (
+    FORM_SECTION_PREFIX,
+    NO_OPTION_CHECKED,
+    OPTION_UNCHECKED_PREFIX,
+    is_option_line,
+    option_label,
+)
 from shared.services.ingestion.lv.types import hinweis_text
 
 # Which underlying field a chunk's text was drawn from (denormalised onto every chunk).
@@ -90,13 +97,16 @@ def chunk_form(
 ) -> list[ChunkDraft]:
     """Chunk a form's SourceLines into FORM chunks: a section heading line starts a new
     chunk, a line is never split, and a chunk that would exceed CHUNK_SIZE is closed
-    and continued in a chunk that repeats the heading. No overlap. Pages come from the
-    content lines, not the heading."""
+    and continued in a chunk that repeats the heading. No overlap. Only what is checked
+    reaches a chunk: an unchecked option is dropped together with everything printed
+    under it (see `_collapse_options`), a checked option loses its marker, and a section
+    left empty by that gets the single line NO_OPTION_CHECKED. Pages come from the
+    emitted content lines, not the heading."""
     groups: list[tuple[SourceLine | None, list[SourceLine]]] = []
     heading: SourceLine | None = None
     content: list[SourceLine] = []
     size = 0
-    for line in sorted(source_lines, key=lambda line: line.line_id):
+    for line in _collapse_options(sorted(source_lines, key=lambda line: line.line_id)):
         if line.line_text.startswith(FORM_SECTION_PREFIX):
             if content:
                 groups.append((heading, content))
@@ -123,6 +133,60 @@ def chunk_form(
         )
         for index, (head, lines) in enumerate(groups)
     ]
+
+
+def _collapse_options(ordered: list[SourceLine]) -> list[SourceLine]:
+    """Drop every unchecked option and what is nested under it. After an unchecked
+    option at x0, lines are dropped until a heading, an option line at x0 or further
+    left, or an unmarked line further left than x0 (an unmarked line at x0 is the
+    option's own continuation). A line without geometry drops only itself. Checked
+    options are emitted as their printed text. A section whose lines were all dropped
+    emits NO_OPTION_CHECKED under its heading."""
+    result: list[SourceLine] = []
+    dropping_below_x0: float | None = None
+    heading_index: int | None = None
+    section_had_lines = False
+    for line in ordered:
+        text = line.line_text
+        x0 = line.bbox[0]
+        if text.startswith(FORM_SECTION_PREFIX):
+            if heading_index is not None and section_had_lines:
+                _fill_empty_section(result, heading_index, ordered[0].document_uuid)
+            result.append(line)
+            heading_index = len(result) - 1
+            section_had_lines, dropping_below_x0 = False, None
+            continue
+        section_had_lines = True
+        is_option = is_option_line(text)
+        if dropping_below_x0 is not None:
+            clears = x0 <= dropping_below_x0 if is_option else x0 < dropping_below_x0
+            if not clears:
+                continue
+            dropping_below_x0 = None
+        if text.startswith(OPTION_UNCHECKED_PREFIX):
+            dropping_below_x0 = x0 if any(line.bbox) else None
+            continue
+        if is_option:
+            line = line.model_copy(update={"line_text": option_label(text)})
+        result.append(line)
+    if heading_index is not None and section_had_lines:
+        _fill_empty_section(result, heading_index, ordered[0].document_uuid)
+    return result
+
+
+def _fill_empty_section(
+    result: list[SourceLine], heading_index: int, document_uuid: UUID
+) -> None:
+    """Append NO_OPTION_CHECKED after the heading at `heading_index` when nothing
+    followed it."""
+    if heading_index != len(result) - 1:
+        return
+    heading = result[heading_index]
+    result.append(
+        heading.model_copy(
+            update={"line_text": NO_OPTION_CHECKED, "document_uuid": document_uuid}
+        )
+    )
 
 
 def chunk_lv_item(

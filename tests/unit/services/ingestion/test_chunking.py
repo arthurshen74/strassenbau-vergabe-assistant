@@ -17,15 +17,22 @@ from shared.services.ingestion.chunking import (
 )
 
 
-def _line(line_id: int, page: int, text: str) -> SourceLine:
+def _line(
+    line_id: int, page: int, text: str, x0: float | None = None
+) -> SourceLine:
     return SourceLine(
         source_line_uuid=uuid4(),
         document_uuid=uuid4(),
         line_id=line_id,
         page=page,
-        bbox=(0, 0, 1, 1),
+        bbox=(0, 0, 1, 1) if x0 is None else (x0, 10.0 * line_id, x0 + 100, 10.0 * line_id + 9),
         line_text=text,
     )
+
+
+def _form_texts(lines: list[SourceLine]) -> list[str]:
+    drafts = chunk_form(lines, project_uuid=uuid4(), document_uuid=uuid4())
+    return [d.chunk_text for d in drafts]
 
 
 def _lv_item(*, langtext: str, langtext_resolved: str | None) -> LVItem:
@@ -137,3 +144,65 @@ def test_chunk_form_keeps_an_overlong_line_whole() -> None:
         f"## Kopf\n{long_line}",
         "## Kopf\nOrt: Berlin",
     ]
+
+
+def test_chunk_form_drops_unchecked_options_and_what_is_nested_under_them() -> None:
+    lines = [
+        _line(0, 1, "## 4 Losweise Vergabe:", 62.4),
+        _line(1, 1, "[x] Nein", 104.9),
+        _line(2, 1, "[ ] Ja, Angebotsabgabe ist zugelassen", 104.9),
+        _line(3, 1, "[ ] nur für ein Los", 119.1),
+        _line(4, 1, "[x] für ein oder mehrere Lose", 119.1),
+        _line(5, 1, "Fortsetzung der Option", 104.9),
+        _line(6, 1, "Allgemeiner Hinweis zur Losvergabe", 90.7),
+        _line(7, 1, "## 5 Mehrere Hauptangebote", 62.4),
+        _line(8, 1, "Die Abgabe von mehr als einem Hauptangebot ist", 90.7),
+        _line(9, 1, "[ ] zugelassen. Werden mehrere Hauptangebote abgegeben,", 104.9),
+        _line(10, 1, "zuschlagsfähig sein.", 104.9),
+        _line(11, 1, "[x] nicht zugelassen.", 92.1),
+        _line(12, 2, "[ ] 6.2 Nebenangebote sind zugelassen", 62.4),
+        _line(13, 2, "111 HVA B-StB Vorlage 03-23", 62.4),
+        _line(14, 2, "Nebenangebote, die ausschließlich Preisnachlässe", 104.9),
+        _line(15, 2, "## 7 Angebotswertung:", 62.4),
+        _line(16, 2, "[ ] Preis", 104.9),
+        _line(17, 2, "[ ] Mehrere Zuschlagskriterien", 104.9),
+    ]
+
+    assert _form_texts(lines) == [
+        "## 4 Losweise Vergabe:\nNein\nAllgemeiner Hinweis zur Losvergabe",
+        "## 5 Mehrere Hauptangebote\nDie Abgabe von mehr als einem Hauptangebot ist\n"
+        "nicht zugelassen.",
+        "## 7 Angebotswertung:\nkeine Option angekreuzt",
+    ]
+
+
+def test_chunk_form_without_geometry_drops_only_the_unchecked_line() -> None:
+    lines = [
+        _line(0, 1, "## Anlagen"),
+        _line(1, 1, "Hinweis:"),
+        _line(2, 1, "[ ] Teilnahmebedingungen"),
+        _line(3, 1, "[x] Gewichtung"),
+        _line(4, 1, "Einreichungsdatum: 2026-10-15"),
+    ]
+
+    assert _form_texts(lines) == [
+        "## Anlagen\nHinweis:\nGewichtung\nEinreichungsdatum: 2026-10-15"
+    ]
+
+
+def test_chunk_form_empty_section_marker_has_the_heading_page() -> None:
+    lines = [_line(0, 2, "## 7 Angebotswertung:", 62.4), _line(1, 2, "[ ] Preis", 104.9)]
+    drafts = chunk_form(lines, project_uuid=uuid4(), document_uuid=uuid4())
+
+    assert [(d.chunk_text, d.source_doc_pages) for d in drafts] == [
+        ("## 7 Angebotswertung:\nkeine Option angekreuzt", [2])
+    ]
+
+
+def test_chunk_form_headingless_lines_before_the_first_section_collapse_too() -> None:
+    lines = [
+        _line(0, 1, "[ ] Vorab", 90.0),
+        _line(1, 1, "nested", 100.0),
+        _line(2, 1, "[x] Kopf", 90.0),
+    ]
+    assert _form_texts(lines) == ["Kopf"]

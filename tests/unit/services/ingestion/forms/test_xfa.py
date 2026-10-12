@@ -85,8 +85,8 @@ def test_lines_follow_template_order_with_section_headings() -> None:
         "## Anlagen",
         "Hinweis:",
         "Die PDF-Formblaetter sind optimiert.",
-        "Teilnahmebedingungen: ja",
-        "Gewichtung: nein",
+        "[x] Teilnahmebedingungen",
+        "[ ] Gewichtung",
     ]
     assert {line.page for line in extraction.lines} == {1}
     assert {line.bbox for line in extraction.lines} == {(0.0, 0.0, 0.0, 0.0)}
