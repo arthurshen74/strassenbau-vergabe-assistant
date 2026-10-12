@@ -475,8 +475,8 @@ XML. Do not copy training PDFs into the repo.
 - `UNBEKANNT` forms are indexed with no role filter; Projektinfo retrieval may pick a
   pre-filled Kopf from one of them, which is the same information as the Aufforderung
   carries, so it is harmless.
-- Flattened Formblätter (zero fields) remain `PROSE_DOCUMENT`, which is correct for
-  extraction, but they get no `form_id` and no role badge.
+- ~~Flattened Formblätter (zero fields) remain `PROSE_DOCUMENT`, which is correct for
+  extraction, but they get no `form_id` and no role badge.~~ (task 08)
 
 ## Done means
 

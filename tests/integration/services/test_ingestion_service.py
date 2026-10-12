@@ -29,7 +29,7 @@ from shared.repositories.thumbnails import ThumbnailRepository
 from shared.services.ingestion import IngestionService
 from shared.services.ingestion import ingestion_service as service_module
 from shared.services.ingestion.thumbnails import RenderedPage
-from tests.form_pdfs import FieldSpec, acroform_pdf, text_field
+from tests.form_pdfs import FieldSpec, acroform_pdf, hva_111_page, text_field
 
 # --- fakes ---------------------------------------------------------------
 
@@ -258,7 +258,7 @@ async def test_form_document_extracts_fields_and_indexes_form_chunks(
     assert {c.source_doc_type for c in search.indexed} == {SourceDocType.FORM}
     assert {c.project_uuid for c in search.indexed} == {project_uuid}
     assert ("archive", (document_uuid, SourceDocType.FORM)) in search.calls
-    assert "Teilnahme: ja" in search.indexed[0].chunk_text
+    assert search.indexed[0].chunk_text == "## Seite 1\nTeilnahme"
     fields = await FormFieldRepository(conn).list_for_document(document_uuid)
     assert [(f.name, f.value) for f in fields] == [
         ("Vergabenummer", "26/001"),
@@ -266,7 +266,40 @@ async def test_form_document_extracts_fields_and_indexes_form_chunks(
         ("Teilnahme", "ja"),
     ]
     lines = await SourceLineRepository(conn).list_by_document(document_uuid)
-    assert lines[0].line_text == "## Seite 1"
+    assert [line.line_text for line in lines] == ["## Seite 1", "[x] Teilnahme"]
+
+
+async def test_flattened_form_indexes_only_checked_options(
+    conn: AsyncConnection,
+) -> None:
+    project_uuid, document_uuid = await _document(
+        conn,
+        DocumentType.FORM_DOCUMENT,
+        "00 - Aufforderung zur Angebotsabgabe.pdf",
+        FormRole.VERGABESTELLE,
+    )
+    search = _RecordingSearch()
+    service = IngestionService(
+        _factory(conn), _FakeStorage(hva_111_page()), search, _FakeEmbeddings(), _FakeLangchain()  # type: ignore[arg-type]
+    )
+
+    result = await service.ingest_document(document_uuid)
+
+    assert result.form_fields == 6
+    assert {c.source_doc_type for c in search.indexed} == {SourceDocType.FORM}
+    assert {c.project_uuid for c in search.indexed} == {project_uuid}
+    texts = [c.chunk_text for c in search.indexed]
+    assert "## 6 Nebenangebote\n6.1 Nebenangebote sind nicht zugelassen" in texts
+    assert "## 7 Angebotswertung:\nkeine Option angekreuzt" in texts
+    assert not any("zugelassen\n" in t and "nicht" not in t for t in texts)
+    assert not any("[ ]" in t or "[x]" in t or "nur für ein Los" in t for t in texts)
+    fields = await FormFieldRepository(conn).list_for_document(document_uuid)
+    assert [(f.section, f.label, f.value) for f in fields][:2] == [
+        ("4 Losweise Vergabe:", "Nein", "ja"),
+        ("4 Losweise Vergabe:", "Ja, Angebotsabgabe ist zugelassen", "nein"),
+    ]
+    lines = await SourceLineRepository(conn).list_by_document(document_uuid)
+    assert "[ ] nur für ein Los" in [line.line_text for line in lines]
 
 
 async def test_form_reingest_replaces_fields(conn: AsyncConnection) -> None:

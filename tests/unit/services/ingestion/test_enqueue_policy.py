@@ -23,17 +23,18 @@ def _form(role: FormRole, form_id: str | None) -> DocumentClassification:
         PROSE_DOCUMENT,
         _form(FormRole.VERGABESTELLE, "FB 312-B"),
         _form(FormRole.UNBEKANNT, None),
+        _form(FormRole.BIETER, None),
     ],
-    ids=["lv", "prose", "vergabestelle-form", "unknown-form"],
+    ids=["lv", "prose", "vergabestelle-form", "unknown-form", "keyword-only-bieter"],
 )
-def test_everything_but_bieter_forms_is_queued(
+def test_everything_but_identified_bieter_forms_is_queued(
     classification: DocumentClassification,
 ) -> None:
     assert initial_ingest_status(classification) is IngestStatus.QUEUED
 
 
-@pytest.mark.parametrize("form_id", ["FB 331-B", None], ids=["with-id", "no-id"])
-def test_bieter_form_is_skipped(form_id: str | None) -> None:
+@pytest.mark.parametrize("form_id", ["FB 331-B", "HVA B-StB 121"])
+def test_identified_bieter_form_is_skipped(form_id: str) -> None:
     assert (
         initial_ingest_status(_form(FormRole.BIETER, form_id)) is IngestStatus.SKIPPED
     )

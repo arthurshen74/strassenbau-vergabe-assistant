@@ -4,8 +4,10 @@ Text is extracted with poppler's `pdftotext -bbox-layout`, which renders the pag
 content *and* the appearance streams of filled AcroForm text fields, and emits word/line
 geometry as XHTML; it also reconstructs word spacing that a raw content-stream extractor
 drops. It does not give checkbox or radio state in a usable form and does not render
-dynamic XFA forms at all; fillable forms go through `forms/` instead, which reuses this
-function for an AcroForm's page text. Each `<line>` becomes one SourceLine, enumerated
+dynamic XFA forms at all; forms go through `forms/` instead, which reuses this function
+for the page text of AcroForm and flattened forms and then re-attaches the tick glyphs
+and section numbers that `-bbox-layout` emits as blocks of their own (`forms/toggles`).
+Each `<line>` becomes one SourceLine, enumerated
 into a single gap-free `line_id` that runs across pages, so the same integer is the
 stable reference the LV extraction segments on (INGESTION.md)."""
 

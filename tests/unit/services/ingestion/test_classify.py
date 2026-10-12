@@ -9,7 +9,7 @@ from shared.services.ingestion.classify import (
     classify_document,
 )
 
-from tests.form_pdfs import acroform_pdf, three_field_form
+from tests.form_pdfs import acroform_pdf, hva_111_page, three_field_form
 
 
 @pytest.mark.parametrize(
@@ -60,5 +60,23 @@ def test_unknown_form_has_no_id() -> None:
     assert result == DocumentClassification(
         document_type=DocumentType.FORM_DOCUMENT,
         form_role=FormRole.UNBEKANNT,
+        form_id=None,
+    )
+
+
+def test_flattened_form_is_identified_by_its_footer() -> None:
+    result = classify_document("00 - Aufforderung zur Angebotsabgabe.pdf", hva_111_page())
+    assert result == DocumentClassification(
+        document_type=DocumentType.FORM_DOCUMENT,
+        form_role=FormRole.VERGABESTELLE,
+        form_id="HVA B-StB 111",
+    )
+
+
+def test_keyword_only_bieter_form_has_role_but_no_id() -> None:
+    result = classify_document("Nachweis für Sicherungsarbeiten.pdf", three_field_form())
+    assert result == DocumentClassification(
+        document_type=DocumentType.FORM_DOCUMENT,
+        form_role=FormRole.BIETER,
         form_id=None,
     )

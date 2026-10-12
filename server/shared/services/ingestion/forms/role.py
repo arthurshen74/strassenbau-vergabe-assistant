@@ -1,12 +1,14 @@
 # ruff: noqa: E501 -- the role table keeps one Formblatt per line.
-"""Formblatt role from the filename.
+"""Formblatt role from its id.
 
 Who fills a form is a property of the Formblatt, not of the PDF: the same number means
 different things in different families, so the role is looked up per `(family, number)`.
-The number comes from a token in the filename; without a known token a Bieter title
-keyword decides, and otherwise the role is UNBEKANNT (which is ingested, not skipped).
-A bare numeric prefix (`101-Aufforderung ...`) is the tender's own document ordering and
-is deliberately not a token.
+The number comes from the printed footer (`forms/identify.py`) first and from a token
+in the filename second; the footer wins over a conflicting token because the issuing
+authority printed it. Without a known id a Bieter title keyword decides, and otherwise
+the role is UNBEKANNT (which is ingested, not skipped). A bare numeric prefix
+(`101-Aufforderung ...`) is the tender's own document ordering and is deliberately not a
+token.
 
 `FORMBLAETTER` is the role table. Every row was observed in the training corpus.
 """
@@ -160,13 +162,21 @@ def format_form_id(family: FormFamily, number: str) -> str:
             return f"EFB-{number}"
 
 
-def classify_form_role(file_name: str) -> tuple[FormRole, str | None]:
-    """(role, form_id) of a form from its filename; form_id is None without a token."""
+def lookup_formblatt(family: FormFamily, number: str) -> FormblattSpec | None:
+    return _ROLE_BY_FAMILY[family].get(number)
+
+
+def classify_form_role(
+    file_name: str, content_id: tuple[FormFamily, str] | None = None
+) -> tuple[FormRole, str | None]:
+    """(role, form_id) of a form from its printed id, then its filename token, then a
+    Bieter title keyword. form_id is rendered from the first id present and is None
+    when the form has neither."""
     name = unicodedata.normalize("NFC", PurePosixPath(file_name).name)
-    token = _find_token(name)
-    form_id = format_form_id(*token) if token else None
-    if token is not None:
-        spec = _ROLE_BY_FAMILY[token[0]].get(token[1])
+    ids = [i for i in (content_id, _find_token(name)) if i is not None]
+    form_id = format_form_id(*ids[0]) if ids else None
+    for family, number in ids:
+        spec = lookup_formblatt(family, number)
         if spec is not None:
             return spec.role, form_id
     folded = _fold(name)

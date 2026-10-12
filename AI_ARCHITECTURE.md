@@ -25,11 +25,11 @@ flowchart TD
     PDF --> TH["render page thumbnails → MinIO"]
     SL --> SPL["text splitter"]
     SPL -->|"source_doc_type = DOCUMENT"| SC[("SimpleChunk index — Elasticsearch<br/>embedding + BM25")]
-    FORM["PDF upload (fillable form)"] --> FX["form extractor<br/>(XFA packets / AcroForm fields)"]
+    FORM["PDF upload (XFA / AcroForm / flattened form)"] --> FX["form extractor<br/>(XFA packets / toggles by geometry)"]
     FORM --> TH
     FX --> SL
     FX --> FF[("form_fields — Postgres")]
-    SL --> FSPL["one chunk per form section"]
+    SL --> FSPL["one chunk per form section<br/>(checked options only)"]
     FSPL -->|"source_doc_type = FORM"| SC
     GAEB["GAEB upload (.d83 / .x83)"] --> GP["deterministic GAEB parse<br/>(no LLM)"]
     GP --> LVI[("lv_items — Postgres")]
@@ -44,26 +44,47 @@ flowchart TD
   treated as prose. Poppler renders static text and the appearance streams of filled AcroForm
   text fields with their geometry; it does not render checkbox or radio state in a usable form,
   and it does not render dynamic XFA forms at all (those yield Adobe's "Please wait..." page).
-- **Fillable forms (Formblätter)** are detected from the bytes, not the name: a PDF with an XFA
-  packet, or an AcroForm with at least 3 fillable (non-pushbutton) fields. An `/AcroForm`
-  dictionary alone is not enough — plans, Gutachten and flattened Formblätter often carry one
-  with zero fields and stay prose. The form's role comes from the Formblatt token in the filename
-  (`FB 312-B`, `HVA_B_StB_121`, `VHB_221`, `EFB-Preis`), looked up per family in a code table
-  (`forms/role.py`), then from Bieter title keywords, else `unbekannt`. **Bieter forms are stored
-  but not ingested** (job `skipped`; "Trotzdem indexieren" requeues it); Vergabestelle and unknown
-  forms are extracted in one pass into `source_lines` and structured `form_fields`. XFA is read
-  from the embedded `template` + `datasets` XML (static `<draw>` text as lines, each field as
-  `label: value`, checkboxes as `ja`/`nein`; scripts are not evaluated, so script-hidden fields
-  are emitted anyway, and XFA lines carry no geometry). AcroForm keeps the poppler page text and
-  appends a `label: ja|nein` line per labelled (`/TU`) checkbox or radio. Each form section (an
-  XFA subform, or `Seite n`) starts a `## ` heading line, and the form is chunked per section into
-  `FORM` chunks — never splitting a line, continuing an over-long section under its heading.
-  Forms skip the LangChain pass. Thumbnails are still rendered (for XFA they show the
-  placeholder page, so the document dialog opens on the Felder tab).
+- **Forms (Formblätter)** come in three kinds and are detected from the bytes, not the name: a
+  PDF with an XFA packet, an AcroForm with at least 3 fillable (non-pushbutton) fields, or a
+  **flattened** form (zero fields, the boxes drawn as vector squares and the ticks as text
+  glyphs) whose printed footer or filename token names a Formblatt of the role table. An
+  `/AcroForm` dictionary alone is not enough — plans, Gutachten and the LV print PDF carry one
+  with zero fields and stay prose, as does a zero-field PDF without an id. The Formblatt id comes
+  from the page footer first (`NNN HVA B-StB <Titel> MM-YY`, `forms/identify.py`; VHB and WSV
+  forms print no usable number), then from the filename token (`FB 312-B`, `HVA_B_StB_121`,
+  `VHB_221`, `EFB-Preis`); the role is looked up per family in a code table (`forms/role.py`),
+  then from Bieter title keywords, else `unbekannt`. **Identified Bieter forms are stored but not
+  ingested** (job `skipped`; "Trotzdem indexieren" requeues it); a keyword-only Bieter form,
+  Vergabestelle and unknown forms are extracted in one pass into `source_lines` and structured
+  `form_fields`, on one line contract for every kind: `## <section>` headings, `label: value`
+  for filled fields, `[x] <text>` / `[ ] <text>` for options, static prose untouched. XFA is read
+  from the embedded `template` + `datasets` XML (static `<draw>` text as lines, a `checkButton`
+  as an option line, a radio group as `caption: <selected>`; scripts are not evaluated, so
+  script-hidden fields are emitted anyway, and XFA lines carry no geometry). AcroForm and
+  flattened forms keep the poppler page text and attach each toggle by geometry
+  (`forms/toggles.py`): the kind-specific reader only locates `Toggle`s (widget `/Rect` plus
+  `/AS` state; or a 6–12pt vector square with a tick glyph centred inside it), and one shared
+  step re-attaches the tick glyphs and section numbers that `pdftotext -bbox-layout` emits as
+  blocks of their own, prefixes the state onto the printed line to the right of the box (the
+  `/TU` tooltip is the fallback when no printed line is there; a box with neither is counted as
+  unresolved and logged), and opens a section at every numbered heading at the left margin
+  (`## Seite n` for a page without one). Forms are never read by a VLM or OCR. `chunk_form` then
+  emits one `FORM` chunk per section holding **only what is checked**: an unchecked option is
+  dropped together with every line printed under it (anything indented past the option's number
+  column until the next heading or a line further left), a checked option loses its marker, and
+  a section left empty by that gets the single line `keine Option angekreuzt`, so "nicht
+  angegeben" stays distinguishable from "Abschnitt fehlt". Unchecked options remain in
+  `source_lines` and `form_fields` (value `nein`) and on the thumbnail. A line is never split; an
+  over-long section continues under its heading. Forms skip the LangChain pass. Thumbnails are
+  still rendered (for XFA they show the placeholder page, so the document dialog opens on the
+  Felder tab).
   Known limitations: XFA lines have no geometry, so nothing can be highlighted on an XFA
-  thumbnail; `unbekannt` forms are indexed without a role filter; a flattened Formblatt (zero
-  fields) stays a `PROSE_DOCUMENT` and gets no Formblatt id or role; a PDF bundling several
-  Formblätter takes the role of its first token.
+  thumbnail and nesting under an unchecked option is not applied there (only the line itself is
+  dropped); VHB and WSV forms get no footer id, so their `form_id` depends on the filename;
+  keyword-only forms (no footer, no token) and scanned forms without a text layer stay prose;
+  hand-drawn ticks and filled squares without a glyph read as unchecked (the unresolved/checked
+  counts in the activity log are the signal); `unbekannt` forms are indexed without a role
+  filter; a PDF bundling several Formblätter takes the role of its first token.
 - **LV items come exclusively from GAEB files.** A `.d83` (fixed-format CP850 records) or `.x83`
   (GAEB DA XML) upload is an LV document by definition and parses deterministically —
   no LLM. Every Hinweistext (D83 record `20`, X83 `Remark`) becomes a `Remark` node that records

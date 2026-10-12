@@ -4,8 +4,9 @@
 thumbnail per page, the LangChain pipeline (PDF -> RecursiveCharacterTextSplitter chunks
 in the parallel vector index), the common extraction stage (PDF -> SourceLine), and
 DOCUMENT chunks. A form gets thumbnails, the form extractor (SourceLines plus FormField
-rows, read from the XFA packets or the AcroForm fields) and FORM chunks per form
-section; it skips the LangChain pass. LV items come exclusively from GAEB files
+rows, read from the XFA packets, the AcroForm widgets, or the drawn boxes of a
+flattened form) and FORM chunks per form section holding only what is checked; it
+skips the LangChain pass. LV items come exclusively from GAEB files
 (D83/X83), which take a short path instead: the file parses deterministically into
 LVItem rows and LV_ITEM chunks plus the LV-level texts (Vorbemerkungen, Hinweise) as
 LVText rows and LV_TEXT chunks (no thumbnails, source lines, or DOCUMENT chunks). It is
@@ -48,6 +49,7 @@ from shared.services.ingestion.chunking import (
 from shared.services.ingestion.extraction import extract_source_lines
 from shared.services.ingestion.forms.detect import detect_form_kind
 from shared.services.ingestion.forms.extraction import extract_form
+from shared.services.ingestion.forms.identify import identify_formblatt
 from shared.services.ingestion.forms.model import FORM_SECTION_PREFIX
 from shared.services.ingestion.gaeb import parse_gaeb_lv
 from shared.services.ingestion.langchain_pipeline import LangchainIngestor
@@ -282,7 +284,9 @@ class IngestionService:
 
             phase = IngestPhase.EXTRACT
             started = time.monotonic()
-            kind = detect_form_kind(pdf_bytes)
+            kind = detect_form_kind(
+                pdf_bytes, document.file_name, identify_formblatt(pdf_bytes)
+            )
             if kind is None:
                 raise NotAFormError(document.file_name)
             extraction = extract_form(pdf_bytes, document_uuid, kind)
@@ -292,7 +296,9 @@ class IngestionService:
                 if line.line_text.startswith(FORM_SECTION_PREFIX)
             )
             self._activity(
-                f"form ({kind}): {len(extraction.fields)} fields, {sections} sections",
+                f"form ({kind}): {len(extraction.fields)} fields, {sections} sections, "
+                f"{extraction.toggles} toggles, {extraction.checked} checked, "
+                f"{extraction.unresolved} unresolved",
                 IngestPhase.EXTRACT,
             )
             self._activity(
