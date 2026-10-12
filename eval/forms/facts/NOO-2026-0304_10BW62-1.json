@@ -1,0 +1,203 @@
+{
+  "tender": "NOO-2026-0304_10BW62-1",
+  "facts": [
+    {
+      "key": "nebenangebote_zugelassen",
+      "question": "Sind Nebenangebote für dieses Projekt zugelassen?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 3,
+        "section": "6 Nebenangebote"
+      }
+    },
+    {
+      "key": "losweise_vergabe",
+      "question": "Erfolgt die Vergabe losweise?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 3,
+        "section": "4 Losweise Vergabe"
+      }
+    },
+    {
+      "key": "mehrere_hauptangebote",
+      "question": "Sind mehrere Hauptangebote zugelassen?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 3,
+        "section": "5 Mehrere Hauptangebote"
+      }
+    },
+    {
+      "key": "nachforderung",
+      "question": "Werden fehlende Unterlagen nachgefordert?",
+      "kind": "yes_no",
+      "gold": "ja",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 3,
+        "section": "3.3 Nachforderung"
+      }
+    },
+    {
+      "key": "kommunikation_elektronisch",
+      "question": "Erfolgt die Kommunikation elektronisch über die Vergabeplattform?",
+      "kind": "yes_no",
+      "gold": "ja",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 2,
+        "section": "2 Kommunikation"
+      }
+    },
+    {
+      "key": "angebotsform",
+      "question": "In welcher Form ist das Angebot einzureichen?",
+      "kind": "list",
+      "gold": [
+        "elektronisch",
+        "Textform",
+        "fortgeschritten",
+        "qualifiziert"
+      ],
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 4,
+        "section": "8 Zugelassene Angebotsabgabe"
+      }
+    },
+    {
+      "key": "zuschlagskriterien",
+      "question": "Welche Zuschlagskriterien gelten?",
+      "kind": "list",
+      "gold": [
+        "Preis"
+      ],
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 4,
+        "section": "7 Angebotswertung"
+      }
+    },
+    {
+      "key": "zuschlagsfrist",
+      "question": "Wann endet die Zuschlags-/Bindefrist?",
+      "kind": "value",
+      "gold": "23.11.2026",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 1,
+        "section": "Bindefrist endet am"
+      }
+    },
+    {
+      "key": "vergabeart",
+      "question": "Welche Vergabeart liegt vor?",
+      "kind": "value",
+      "gold": "Öffentliche Ausschreibung",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 1,
+        "section": "Vergabeart"
+      }
+    },
+    {
+      "key": "angebotsfrist",
+      "question": "Wann endet die Angebotsfrist?",
+      "kind": "value",
+      "gold": "22.10.2026",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+        "page": 1,
+        "section": "Ablauf der Angebotsfrist"
+      }
+    },
+    {
+      "key": "ausfuehrungsbeginn",
+      "question": "Wann ist mit der Ausführung zu beginnen?",
+      "kind": "value",
+      "gold": "20 Werktage nach Zuschlagserteilung",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_131_Vorlage_Besondere_Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "1.1 Beginn der Ausführung"
+      }
+    },
+    {
+      "key": "fertigstellung",
+      "question": "Bis wann ist die Leistung fertigzustellen?",
+      "kind": "value",
+      "gold": "31.12.2026",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_131_Vorlage_Besondere_Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "1.3 Vollendung der Ausführung nach Datum"
+      }
+    },
+    {
+      "key": "vertragsstrafe",
+      "question": "Ist eine Vertragsstrafe vereinbart?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_131_Vorlage_Besondere_Vertragsbedingungen.pdf",
+        "page": 2,
+        "section": "2 Vertragsstrafen"
+      }
+    },
+    {
+      "key": "sicherheit_vertragserfuellung",
+      "question": "Wie hoch ist die Sicherheit für die Vertragserfüllung?",
+      "kind": "value",
+      "gold": "5 %",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_131_Vorlage_Besondere_Vertragsbedingungen.pdf",
+        "page": 2,
+        "section": "4 Sicherheit für die Vertragserfüllung"
+      }
+    },
+    {
+      "key": "sicherheit_maengel",
+      "question": "Wie hoch ist die Sicherheit für Mängelansprüche?",
+      "kind": "value",
+      "gold": "3 %",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_131_Vorlage_Besondere_Vertragsbedingungen.pdf",
+        "page": 3,
+        "section": "5 Sicherheit für Mängelansprüche"
+      }
+    },
+    {
+      "key": "stoffpreisgleitklausel",
+      "question": "Gilt eine Stoffpreisgleitklausel?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_131_Vorlage_Besondere_Vertragsbedingungen.pdf",
+        "page": 3,
+        "section": "10 Preisgleitklausel"
+      }
+    },
+    {
+      "key": "unterlagen_mit_angebot",
+      "question": "Welche Unterlagen sind mit dem Angebot einzureichen?",
+      "kind": "list",
+      "gold": [
+        "Angebotsschreiben",
+        "Eigenerklärung zur Eignung",
+        "Leistungsverzeichnis"
+      ],
+      "source": {
+        "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_109_Vorlage_Vorzulegende_Unterlagen.pdf",
+        "page": 1,
+        "section": "Abschnitt 1: Unterlagen, die mit dem Angebot abzugeben sind"
+      }
+    }
+  ]
+}

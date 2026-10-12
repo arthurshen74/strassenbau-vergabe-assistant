@@ -1,0 +1,1111 @@
+{
+  "tender": "2026-08-EH",
+  "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+  "form_id": "VHB 211",
+  "kind": "acroform",
+  "labelled_pages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ],
+  "lines": [
+    {
+      "page": 1,
+      "bbox": [
+        363.6,
+        93.76872,
+        480.240564,
+        102.98172
+      ],
+      "text": "Öffentliche Ausschreibung",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        363.6,
+        106.60872,
+        554.59452,
+        115.82172
+      ],
+      "text": "Beschränkte Ausschreibung mit Teilnah-",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        363.6,
+        129.64872,
+        554.718,
+        138.86172
+      ],
+      "text": "Beschränkte Ausschreibung ohne Teil-",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        363.6,
+        154.00872,
+        456.837552,
+        163.22172
+      ],
+      "text": "Freihändige Vergabe",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        363.6,
+        168.16872,
+        524.0454,
+        177.38172
+      ],
+      "text": "Internationale NATO-Ausschreibung",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        127.08552,
+        482.20872,
+        305.471112,
+        491.42172
+      ],
+      "text": "Teilnahmebedingungen (Ausgabe 2019)",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        127.08,
+        496.36872,
+        412.089816,
+        505.58172
+      ],
+      "text": "Verzeichnis der im Vergabeverfahren vorzulegenden Unterlagen",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        127.08,
+        510.52872,
+        208.08468,
+        519.74172
+      ],
+      "text": "Zuschlagskriterien",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        127.08,
+        524.80872,
+        192.60684,
+        534.02172
+      ],
+      "text": "Instandhaltung",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        127.08,
+        538.96872,
+        276.587568,
+        548.18172
+      ],
+      "text": "Informationen zur Datenerhebung",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        141.48,
+        601.48872,
+        482.743704,
+        610.70172
+      ],
+      "text": "Teile der Leistungsbeschreibung: Baubeschreibung, Pläne, sonstige Anlagen",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        141.48,
+        615.64872,
+        288.125172,
+        624.86172
+      ],
+      "text": "Besondere Vertragsbedingungen",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        141.48,
+        629.80872,
+        233.075148,
+        639.02172
+      ],
+      "text": "Stoffpreisgleitklausel",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        141.48,
+        644.08872,
+        220.327344,
+        653.30172
+      ],
+      "text": "Nichteisenmetalle",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        141.48768,
+        658.24872,
+        166.373736,
+        667.46172
+      ],
+      "text": "Abfall",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        141.48,
+        672.40872,
+        223.683864,
+        681.62172
+      ],
+      "text": "Datenverarbeitung",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        141.48,
+        686.68872,
+        264.237996,
+        695.90172
+      ],
+      "text": "Aufträge für Gaststreitkräfte",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        141.48,
+        700.84872,
+        526.115004,
+        710.06172
+      ],
+      "text": "Aufträge mit besonderen Anforderungen aufgrund Geheimschutz oder Sabotageschutz",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        93.6,
+        715.00872,
+        370.891668,
+        724.22172
+      ],
+      "text": "247 MIL Bauaufträge in militärisch genutzten Liegenschaften",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        93.522801,
+        728.043,
+        184.082839,
+        737.293
+      ],
+      "text": "Informationspflicht",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        93.522801,
+        742.1217,
+        552.744996,
+        751.3717
+      ],
+      "text": "Erläuterungen zur Eigenerklärung zum Thüringer Vergabegesetz gem. § 8 Abs. 1 Satz 1 ThürVgG",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48,
+        84.76872,
+        227.039388,
+        93.98172
+      ],
+      "text": "Angebotsschreiben",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48,
+        98.92872,
+        475.428084,
+        108.14172
+      ],
+      "text": "Teile der Leistungsbeschreibung: Leistungsverzeichnis/Leistungsprogramm",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48,
+        113.08872,
+        264.837588,
+        122.30172
+      ],
+      "text": "Eigenerklärung zur Eignung",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48768,
+        127.36872,
+        408.869856,
+        136.58172
+      ],
+      "text": "Sicherheitsauskunft und Verpflichtungserklärung Teilnehmer",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        93.6,
+        141.52872,
+        437.618448,
+        150.74172
+      ],
+      "text": "221/222 Angaben zur Preisermittlung entsprechend Formblatt 221 oder 222",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48,
+        155.68872,
+        253.1067,
+        164.90172
+      ],
+      "text": "Angebot Lohngleitklausel",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48,
+        169.96872,
+        267.112452,
+        179.18172
+      ],
+      "text": "Nachunternehmerleistungen",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48,
+        184.12872,
+        310.0791,
+        193.34172
+      ],
+      "text": "Erklärung Bieter-/Arbeitsgemeinschaft",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48768,
+        198.28872,
+        345.949548,
+        207.50172
+      ],
+      "text": "Erklärung zur Verwendung von Holzprodukten",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        141.48,
+        212.56872,
+        301.416684,
+        221.78172
+      ],
+      "text": "Vertragsformular für Instandhaltung:",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        92.098199,
+        226.267,
+        415.274062,
+        235.517
+      ],
+      "text": "Eigenerklärung zum Thüringer Vergabegesetz gemäß § 8 Abs. 1 S. 1",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        91.0982,
+        242.5345,
+        264.4682,
+        251.9145
+      ],
+      "text": "Eigenerklärung - Bezug zu Russland",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        127.08,
+        289.72872,
+        525.038796,
+        298.94172
+      ],
+      "text": "Sicherheitsauskunft und Verpflichtungserklärung – Nachunternehmer/Unterauftragnehmer",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        127.08,
+        303.88872,
+        399.322656,
+        313.10172
+      ],
+      "text": "Aufgliederung der Einheitspreise entsprechend Formblatt 223",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        117.96,
+        582.04872,
+        289.667412,
+        591.26172
+      ],
+      "text": "elektronisch über die Vergabeplattform",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        117.96,
+        597.64872,
+        289.726176,
+        606.86172
+      ],
+      "text": "auf andere Weise (schriftlich/Textform)",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        117.96,
+        611.20872,
+        525.96888,
+        620.42172
+      ],
+      "text": "in Kombination: bis zur Angebots(er)öffnung elektronisch über die Vergabeplattform; danach",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        115.44,
+        732.04872,
+        472.267956,
+        741.26172
+      ],
+      "text": "siehe Formblatt Verzeichnis der im Vergabeverfahren vorzulegenden Unterlagen",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        114.0,
+        98.92872,
+        178.31172,
+        108.14172
+      ],
+      "text": "nachgefordert.",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        114.0,
+        111.76872,
+        358.521984,
+        120.98172
+      ],
+      "text": "teilweise nachgefordert, und zwar folgende Unterlagen:",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        114.0,
+        155.68872,
+        202.308348,
+        164.90172
+      ],
+      "text": "nicht nachgefordert.",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        115.44,
+        189.76872,
+        472.267956,
+        198.98172
+      ],
+      "text": "siehe Formblatt Verzeichnis der im Vergabeverfahren vorzulegenden Unterlagen",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        114.0,
+        252.16872,
+        132.85428,
+        261.38172
+      ],
+      "text": "nein",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        114.0,
+        266.32872,
+        228.367836,
+        275.54172
+      ],
+      "text": "ja, Angebote sind möglich",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        128.04,
+        280.60872,
+        191.81568,
+        289.82172
+      ],
+      "text": "nur für ein Los",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        128.04,
+        294.76872,
+        261.97776,
+        303.98172
+      ],
+      "text": "für ein Los oder mehrere Lose",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        128.04,
+        365.80872,
+        372.499236,
+        375.02172
+      ],
+      "text": "nur für alle Lose (alle Lose müssen angeboten werden)",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        114.0,
+        414.04872,
+        167.278032,
+        423.26172
+      ],
+      "text": "zugelassen.",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        114.0,
+        451.24872,
+        191.152152,
+        460.46172
+      ],
+      "text": "nicht zugelassen.",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        117.96,
+        486.88872,
+        506.58924,
+        496.10172
+      ],
+      "text": "Nebenangebote sind nicht zugelassen, Nummer 4 der Teilnahmebedingungen gilt nicht.",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        117.96,
+        501.40872,
+        554.59452,
+        510.62172
+      ],
+      "text": "Nebenangebote sind zugelassen (siehe auch Nummer 4 der Teilnahmebedingungen) - ausge-",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        141.48,
+        525.04872,
+        250.919796,
+        534.26172
+      ],
+      "text": "für die gesamte Leistung",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        141.48,
+        537.76872,
+        317.006076,
+        546.98172
+      ],
+      "text": "nur für nachfolgend genannte Bereiche:",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        141.48,
+        588.76872,
+        355.397892,
+        597.98172
+      ],
+      "text": "mit Ausnahme nachfolgend genannter Bereiche:",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        141.48,
+        678.04872,
+        332.00484,
+        687.26172
+      ],
+      "text": "nur in Verbindung mit einem Hauptangebot",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        117.96,
+        98.92872,
+        227.341152,
+        108.14172
+      ],
+      "text": "Zuschlagskriterium Preis",
+      "state": "checked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        117.96,
+        159.16872,
+        401.8449,
+        168.38172
+      ],
+      "text": "Mehrere Zuschlagskriterien gemäß Formblatt Zuschlagskriterien",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        117.96,
+        250.72872,
+        172.33164,
+        259.94172
+      ],
+      "text": "Elektronisch",
+      "state": "checked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        132.24,
+        264.88872,
+        182.16948,
+        274.10172
+      ],
+      "text": "in Textform",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        199.92,
+        264.88872,
+        370.00692,
+        274.10172
+      ],
+      "text": "mit fortgeschrittener/m Signatur/Siegel",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        391.32,
+        264.88872,
+        543.046404,
+        274.10172
+      ],
+      "text": "mit qualifizierter/m Signatur/Siegel",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        117.96,
+        337.12872,
+        161.183412,
+        346.34172
+      ],
+      "text": "Schriftlich",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        120.12,
+        391.72872,
+        186.23448,
+        400.94172
+      ],
+      "text": "siehe Briefkopf",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        120.12,
+        406.00872,
+        147.852216,
+        415.22172
+      ],
+      "text": "Stelle:",
+      "state": "unchecked"
+    },
+    {
+      "page": 8,
+      "bbox": [
+        132.96,
+        182.80872,
+        374.127456,
+        192.02172
+      ],
+      "text": "Auf Sicherheit für die Vertragserfüllung wird verzichtet.",
+      "state": "checked"
+    },
+    {
+      "page": 8,
+      "bbox": [
+        132.96,
+        195.64872,
+        554.40222,
+        204.86172
+      ],
+      "text": "Soweit die Auftragssumme mindestens 250.000 Euro ohne Umsatzsteuer beträgt, ist",
+      "state": "unchecked"
+    },
+    {
+      "page": 8,
+      "bbox": [
+        132.96,
+        255.88872,
+        377.484972,
+        265.10172
+      ],
+      "text": "Auf Sicherheit für die Mängelansprüche wird verzichtet.",
+      "state": "unchecked"
+    },
+    {
+      "page": 8,
+      "bbox": [
+        132.96,
+        268.72872,
+        554.346684,
+        277.94172
+      ],
+      "text": "Die Sicherheit für Mängelansprüche beträgt drei Prozent der Summe der Abschlagszahlungen",
+      "state": "checked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        162.74,
+        492.7762,
+        396.00666,
+        503.8816
+      ],
+      "text": "Lohngleitklausel - Berechnung des Änderungssatzes",
+      "state": "unchecked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        162.74,
+        506.9362,
+        288.38058,
+        518.0416
+      ],
+      "text": "Nachunternehmerleistungen",
+      "state": "unchecked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        162.74,
+        521.2162,
+        285.53492,
+        532.3216
+      ],
+      "text": "Bieter-/Arbeitsgemeinschaft",
+      "state": "unchecked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        162.74,
+        535.3762,
+        439.60682,
+        546.4816
+      ],
+      "text": "Verzeichnis der Leistungen/Kapazitäten anderer Unternehmen",
+      "state": "unchecked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        162.74,
+        549.5362,
+        367.11918,
+        560.6416
+      ],
+      "text": "Erklärung zur Verwendung von Holzprodukten",
+      "state": "unchecked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        162.74,
+        563.8162,
+        240.41802,
+        574.9216
+      ],
+      "text": "Nebenangebot(e)",
+      "state": "unchecked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        162.74,
+        677.3662,
+        286.03484,
+        688.4716
+      ],
+      "text": "Eigenerklärung zur Eignung",
+      "state": "unchecked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        162.74,
+        691.6462,
+        342.02002,
+        702.7516
+      ],
+      "text": "Einheitliche Europäische Eigenerklärung",
+      "state": "unchecked"
+    },
+    {
+      "page": 9,
+      "bbox": [
+        91.944,
+        705.8062,
+        288.86218,
+        716.9116
+      ],
+      "text": "221 oder 222 Angaben zur Preisermittlung",
+      "state": "unchecked"
+    },
+    {
+      "page": 10,
+      "bbox": [
+        120.26,
+        394.3562,
+        533.57666,
+        405.4616
+      ],
+      "text": "Ich bin/Wir sind für die zu vergebende Bauleistung präqualifiziert und im Präqualifikati-",
+      "state": "unchecked"
+    },
+    {
+      "page": 10,
+      "bbox": [
+        120.26,
+        487.4962,
+        528.954432,
+        498.6016
+      ],
+      "text": "Ich bin/Wir sind kleines oder mittleres Unternehmen – KMU - ( < 250 Beschäftigte und ≤ 50 Mio Euro",
+      "state": "unchecked"
+    },
+    {
+      "page": 10,
+      "bbox": [
+        120.26,
+        539.5762,
+        396.81978,
+        550.6816
+      ],
+      "text": "ich/wir alle Leistungen im eigenen Betrieb ausführen werde(n).",
+      "state": "unchecked"
+    },
+    {
+      "page": 10,
+      "bbox": [
+        120.26,
+        552.4162,
+        541.63542,
+        563.5216
+      ],
+      "text": "ich/wir die Leistungen, die nicht im Verzeichnis Nachunternehmerleistungen bzw. Verzeichnis",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        278.074,
+        204.928,
+        288.98172
+      ],
+      "text": "am 02.11.2026",
+      "state": "checked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        293.92872,
+        180.648552,
+        303.14172
+      ],
+      "text": "spätestens",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        308.20872,
+        157.391952,
+        317.42172
+      ],
+      "text": "in der",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        321.04872,
+        504.285396,
+        330.26172
+      ],
+      "text": "innerhalb von 12 Werktagen nach Zugang der Aufforderung durch den Auftraggeber",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        368.32872,
+        525.766536,
+        377.54172
+      ],
+      "text": "nach der im beigefügten Bauzeitenplan ausgewiesenen Frist für den Ausführungsbeginn.",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        395.163,
+        200.492,
+        405.98172
+      ],
+      "text": "am 11.12.2026",
+      "state": "checked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        409.60872,
+        192.37776,
+        418.82172
+      ],
+      "text": "innerhalb von",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        433.96872,
+        157.391952,
+        443.18172
+      ],
+      "text": "in der",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        448.12872,
+        450.956664,
+        457.34172
+      ],
+      "text": "in der im beigefügten Bauzeitenplan ausgewiesenen Fertigstellungsfrist.",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        476.80872,
+        332.499708,
+        486.02172
+      ],
+      "text": "vorstehende Frist für den Ausführungsbeginn",
+      "state": "checked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        491.08872,
+        484.14768,
+        500.30172
+      ],
+      "text": "vorstehende Frist für die Vollendung (abnahmereife Fertigstellung) der Leistung",
+      "state": "checked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        132.48,
+        505.24872,
+        353.05416,
+        514.46172
+      ],
+      "text": "folgende als Vertragsfrist vereinbarte Einzelfristen",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        150.36,
+        519.40872,
+        312.60888,
+        528.62172
+      ],
+      "text": "aus dem beigefügten Bauzeitenplan:",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        149.929,
+        573.1591,
+        365.027,
+        582.4091
+      ],
+      "text": "Festlegungen der wöchentlichen Bauberatungen",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        218.28,
+        653.44872,
+        319.8603,
+        662.66172
+      ],
+      "text": "€ (ohne Umsatzsteuer)",
+      "state": "unchecked"
+    },
+    {
+      "page": 7,
+      "bbox": [
+        130.271,
+        668.5615,
+        144.171,
+        677.8115
+      ],
+      "text": "0,3",
+      "state": "unchecked"
+    },
+    {
+      "page": 12,
+      "bbox": [
+        100.56408,
+        276.64872,
+        453.85524,
+        285.86172
+      ],
+      "text": "Die Namen der Nachunternehmer sind bereits bei Angebotsabgabe anzugeben.",
+      "state": "checked"
+    }
+  ]
+}

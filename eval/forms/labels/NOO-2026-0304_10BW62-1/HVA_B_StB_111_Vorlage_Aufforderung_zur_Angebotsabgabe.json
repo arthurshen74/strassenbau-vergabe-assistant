@@ -1,0 +1,653 @@
+{
+  "tender": "NOO-2026-0304_10BW62-1",
+  "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_111_Vorlage_Aufforderung_zur_Angebotsabgabe.pdf",
+  "form_id": "HVA B-StB 111",
+  "kind": "flattened",
+  "labelled_pages": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "lines": [
+    {
+      "page": 1,
+      "bbox": [
+        317.479,
+        172.721,
+        434.139,
+        185.541
+      ],
+      "text": "Öffentliche Ausschreibung",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        317.479,
+        186.043,
+        458.029,
+        198.863
+      ],
+      "text": "Beschränkte Ausschreibung mit",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        317.479,
+        212.687,
+        466.949,
+        225.507
+      ],
+      "text": "Beschränkte Ausschreibung ohne",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        317.479,
+        239.331,
+        410.829,
+        252.151
+      ],
+      "text": "Freihändige Vergabe",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        321.727,
+        278.898,
+        408.867,
+        292.988
+      ],
+      "text": "Eröffnungstermin:",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        321.727,
+        332.186,
+        399.987,
+        346.276
+      ],
+      "text": "Öffnungstermin:",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        90.708,
+        497.91,
+        247.358,
+        510.73
+      ],
+      "text": "HVA B-StB Teilnahmebedingungen",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        90.708,
+        511.232,
+        296.748,
+        524.052
+      ],
+      "text": "HVA B-StB Gewichtung der Zuschlagskriterien",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        90.708,
+        524.554,
+        316.818,
+        537.374
+      ],
+      "text": "HVA B-StB Mindestanforderungen Nebenangebote",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        90.708,
+        537.876,
+        256.228,
+        550.696
+      ],
+      "text": "HVA B-StB Vorzulegende Unterlagen",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        90.708,
+        551.198,
+        251.188,
+        564.018
+      ],
+      "text": "HVA B-StB Information Datenschutz",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        90.708,
+        564.52,
+        323.998,
+        577.34
+      ],
+      "text": "Hinweis zur Wirkungsweise der Stoffpreisgleitklausel",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        90.708,
+        577.842,
+        311.848,
+        590.662
+      ],
+      "text": "Bieterhinweise zu den Vordrucken 141a und 145a",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        89.317,
+        193.528,
+        102.137
+      ],
+      "text": "Leistungsbeschreibung",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        102.639,
+        289.578,
+        115.459
+      ],
+      "text": "HVA B-StB Besondere Vertragsbedingungen",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        115.961,
+        326.778,
+        128.781
+      ],
+      "text": "HVA B-StB Weitere Besondere Vertragsbedingungen",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        129.283,
+        444.528,
+        142.103
+      ],
+      "text": "Hinweisblatt zum Streitbeilegungsverfahren in Anlehnung an § 18 Abs. 2 VOB/B",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        142.605,
+        179.608,
+        155.425
+      ],
+      "text": "Compliance-Klausel",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        155.927,
+        282.948,
+        168.747
+      ],
+      "text": "Besondere Vertragsbedingungen Tariftreue",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        169.249,
+        341.838,
+        182.069
+      ],
+      "text": "Zusammenstellung der gültigen technischen Regelwerke",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        247.197,
+        228.448,
+        260.017
+      ],
+      "text": "HVA B-StB Angebotsschreiben",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        260.519,
+        424.638,
+        273.339
+      ],
+      "text": "Teile der Leistungsbeschreibung: Leistungsverzeichnis/Leistungsprogramm",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        273.841,
+        266.218,
+        286.661
+      ],
+      "text": "HVA B-StB Eigenerklärung zur Eignung",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        287.163,
+        330.108,
+        299.983
+      ],
+      "text": "HVA B-StB Unterauftrag-/Nachunternehmerleistungen",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        300.485,
+        311.168,
+        313.305
+      ],
+      "text": "HVA B-StB Erklärung Bieter-/Arbeitsgemeinschaft",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        313.807,
+        300.158,
+        326.627
+      ],
+      "text": "Vordrucke 141a und 145a Stoffpreisgleitklausel",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        327.129,
+        467.868,
+        339.949
+      ],
+      "text": "Eigenerklärung Bezug Russland zur Umsetzung von Artikel 5k VO (EU) Nr. 833-2014",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        340.451,
+        277.928,
+        353.271
+      ],
+      "text": "X84-Datei oder D84-Datei (Hauptangebot)",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        353.773,
+        256.818,
+        366.593
+      ],
+      "text": "Eigenerklärung Finanzsanktion Bieter",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        458.365,
+        438.968,
+        471.185
+      ],
+      "text": "Angaben zur Preisermittlung entsprechend EFB Formblatt 221 oder 222 (VHB)",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        90.708,
+        498.331,
+        310.738,
+        511.151
+      ],
+      "text": "Eigenerklärung Finanzsanktion Nachunternehmer",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        92.125,
+        661.88,
+        276.541,
+        674.7
+      ],
+      "text": "X elektronisch über die Vergabeplattform",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        104.881,
+        675.202,
+        400.891,
+        688.022
+      ],
+      "text": "auf andere Weise (schriftlich, in Textform) (Anschrift nachstehend):",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        92.125,
+        191.77,
+        166.561,
+        204.59
+      ],
+      "text": "X nachgefordert",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        104.881,
+        205.092,
+        190.441,
+        217.912
+      ],
+      "text": "nicht nachgefordert",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        104.881,
+        307.396,
+        125.441,
+        320.216
+      ],
+      "text": "Nein",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        104.881,
+        320.718,
+        262.681,
+        333.538
+      ],
+      "text": "Ja, Angebotsabgabe ist zugelassen",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        334.04,
+        182.934,
+        346.86
+      ],
+      "text": "nur für ein Los",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        347.362,
+        234.054,
+        360.182
+      ],
+      "text": "für ein oder mehrere Lose",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        360.684,
+        363.514003,
+        373.504
+      ],
+      "text": "nur für alle Lose (alle Lose müssen angeboten werden)",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        104.881,
+        417.657,
+        488.821,
+        430.477
+      ],
+      "text": "zugelassen. Werden mehrere Hauptangebote abgegeben, muss jedes aus sich heraus",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        92.125,
+        444.301,
+        182.111,
+        457.121
+      ],
+      "text": "X nicht zugelassen.",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        104.881,
+        482.283,
+        468.231,
+        495.103
+      ],
+      "text": "Nebenangebote sind nicht zugelassen; Nr. 4 der Teilnahmebedingungen gilt nicht.",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        104.881,
+        508.927,
+        516.051,
+        521.747
+      ],
+      "text": "Nebenangebote sind zugelassen (s. auch Nr. 4 der Teilnahmebedingungen) - ausgenommen",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        535.571,
+        228.494,
+        548.391
+      ],
+      "text": "für die gesamte Leistung",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        548.893,
+        291.854,
+        561.713
+      ],
+      "text": "nur für nachfolgend genannte Bereiche",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        574.215,
+        330.184,
+        587.035
+      ],
+      "text": "mit Ausnahme nachfolgend genannter Bereiche",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        612.859,
+        457.994,
+        625.679
+      ],
+      "text": "Nebenangebote sind nur in Verbindung mit einem Hauptangebot zugelassen",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        626.181,
+        501.864,
+        639.001
+      ],
+      "text": "Nebenangebote mit Pauschalierungen für Leistungen im Erdbau sind nicht zugelassen",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.054,
+        639.503,
+        487.414,
+        652.323
+      ],
+      "text": "Nebenangebote zur Verkürzung der Einzelfristen für Verkehrsbeschränkungen sind",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        104.881,
+        265.35,
+        224.261,
+        279.44
+      ],
+      "text": "Zuschlagskriterium Preis",
+      "state": "checked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        104.881,
+        438.242,
+        534.031,
+        452.332
+      ],
+      "text": "Mehrere Zuschlagskriterien gemäß Vorlage HVA B-StB Gewichtung der Zuschlagskriterien",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        104.881,
+        481.893,
+        164.841,
+        495.983
+      ],
+      "text": "Elektronisch",
+      "state": "checked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        92.125,
+        501.424,
+        154.786,
+        514.244
+      ],
+      "text": "X in Textform,",
+      "state": "checked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        177.164,
+        501.424,
+        359.795,
+        514.244
+      ],
+      "text": "X mit fortgeschrittener/m Signatur/Siegel,",
+      "state": "checked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        375.589,
+        501.424,
+        539.89,
+        514.244
+      ],
+      "text": "X mit qualifizierter/m Signatur/Siegel.",
+      "state": "checked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        104.881,
+        593.003,
+        153.721,
+        607.093
+      ],
+      "text": "Schriftlich",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        104.881,
+        629.54,
+        170.981,
+        642.36
+      ],
+      "text": "siehe Briefkopf",
+      "state": "unchecked"
+    }
+  ]
+}

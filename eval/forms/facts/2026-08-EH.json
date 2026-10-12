@@ -1,0 +1,178 @@
+{
+  "tender": "2026-08-EH",
+  "facts": [
+    {
+      "key": "nebenangebote_zugelassen",
+      "question": "Sind Nebenangebote für dieses Projekt zugelassen?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 3,
+        "section": "211 · 6 Nebenangebote"
+      }
+    },
+    {
+      "key": "losweise_vergabe",
+      "question": "Erfolgt die Vergabe losweise?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 3,
+        "section": "211 · 4 Losweise Vergabe"
+      }
+    },
+    {
+      "key": "mehrere_hauptangebote",
+      "question": "Sind mehrere Hauptangebote zugelassen?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 3,
+        "section": "211 · 5 Mehrere Hauptangebote"
+      }
+    },
+    {
+      "key": "nachforderung",
+      "question": "Werden fehlende Unterlagen nachgefordert?",
+      "kind": "yes_no",
+      "gold": "ja",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 3,
+        "section": "211 · 3.3 Nachforderung"
+      }
+    },
+    {
+      "key": "kommunikation_elektronisch",
+      "question": "Erfolgt die Kommunikation elektronisch über die Vergabeplattform?",
+      "kind": "yes_no",
+      "gold": "ja",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 2,
+        "section": "211 · 2 Kommunikation"
+      }
+    },
+    {
+      "key": "angebotsform",
+      "question": "In welcher Form ist das Angebot einzureichen?",
+      "kind": "list",
+      "gold": [
+        "elektronisch"
+      ],
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 4,
+        "section": "211 · 8 Zugelassene Angebotsabgabe"
+      }
+    },
+    {
+      "key": "zuschlagskriterien",
+      "question": "Welche Zuschlagskriterien gelten?",
+      "kind": "list",
+      "gold": [
+        "Preis"
+      ],
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 4,
+        "section": "211 · 7 Angebotswertung"
+      }
+    },
+    {
+      "key": "zuschlagsfrist",
+      "question": "Wann endet die Zuschlags-/Bindefrist?",
+      "kind": "value",
+      "gold": "13.11.2026",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 1,
+        "section": "211 · Bindefrist endet am"
+      }
+    },
+    {
+      "key": "vergabeart",
+      "question": "Welche Vergabeart liegt vor?",
+      "kind": "value",
+      "gold": "Öffentliche Ausschreibung",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 1,
+        "section": "211 · Vergabeart"
+      }
+    },
+    {
+      "key": "ausfuehrungsbeginn",
+      "question": "Wann ist mit der Ausführung zu beginnen?",
+      "kind": "value",
+      "gold": "02.11.2026",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 7,
+        "section": "214 · 1.1 Ausführungsfristen"
+      }
+    },
+    {
+      "key": "fertigstellung",
+      "question": "Bis wann ist die Leistung fertigzustellen?",
+      "kind": "value",
+      "gold": "11.12.2026",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 7,
+        "section": "214 · 1.1 Ausführungsfristen"
+      }
+    },
+    {
+      "key": "sicherheit_vertragserfuellung",
+      "question": "Wie hoch ist die Sicherheit für die Vertragserfüllung?",
+      "kind": "value",
+      "gold": "verzichtet",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 8,
+        "section": "214 · 4 Sicherheitsleistung für die Vertragserfüllung"
+      }
+    },
+    {
+      "key": "sicherheit_maengel",
+      "question": "Wie hoch ist die Sicherheit für Mängelansprüche?",
+      "kind": "value",
+      "gold": "drei Prozent",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 8,
+        "section": "214 · 5 Sicherheitsleistung für Mängelansprüche"
+      }
+    },
+    {
+      "key": "stoffpreisgleitklausel",
+      "question": "Gilt eine Stoffpreisgleitklausel?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 211, 212, 214, 213, 233.pdf",
+        "page": 1,
+        "section": "211 · Anlagen B) 225 Stoffpreisgleitklausel"
+      }
+    },
+    {
+      "key": "unterlagen_mit_angebot",
+      "question": "Welche Unterlagen sind mit dem Angebot einzureichen?",
+      "kind": "list",
+      "gold": [
+        "Angebotsschreiben",
+        "Nachunternehmerleistungen",
+        "Leistungsverzeichnis mit den Preisen"
+      ],
+      "source": {
+        "pdf": "Vergabeunterlagen/FB 216 Angebotsabgabe - Verzeichnis vorzulegende Unterlagen.pdf",
+        "page": 1,
+        "section": "1 Unterlagen, die mit dem Angebot abzugeben sind"
+      }
+    }
+  ]
+}

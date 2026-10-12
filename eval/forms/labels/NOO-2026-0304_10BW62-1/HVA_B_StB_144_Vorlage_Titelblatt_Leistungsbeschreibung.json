@@ -1,0 +1,77 @@
+{
+  "tender": "NOO-2026-0304_10BW62-1",
+  "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_144_Vorlage_Titelblatt_Leistungsbeschreibung.pdf",
+  "form_id": "HVA B-StB 144",
+  "kind": "flattened",
+  "labelled_pages": [
+    1
+  ],
+  "lines": [
+    {
+      "page": 1,
+      "bbox": [
+        99.242,
+        318.40872,
+        311.981624,
+        327.62172
+      ],
+      "text": "Verzeichnis der verwendeten Leistungsbereiche",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        99.242,
+        331.84872,
+        229.208088,
+        341.06172
+      ],
+      "text": "Langtext-Verzeichnis als D83",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        99.242,
+        345.40872,
+        221.319768,
+        354.62172
+      ],
+      "text": "Langtext-/Preis-Verzeichnis",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        99.242,
+        358.84872,
+        259.709552,
+        368.06172
+      ],
+      "text": "Verzeichnis für Stoffpreisgleitklausel",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        101.34,
+        430.97,
+        199.73,
+        444.62
+      ],
+      "text": "Bestandszeichnungen",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        101.34,
+        445.03,
+        184.7,
+        458.68
+      ],
+      "text": "Verkehrssicherung",
+      "state": "checked"
+    }
+  ]
+}

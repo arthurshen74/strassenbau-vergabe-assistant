@@ -1,0 +1,597 @@
+{
+  "tender": "NOO-2026-0304_10BW62-1",
+  "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_131_Vorlage_Besondere_Vertragsbedingungen.pdf",
+  "form_id": "HVA B-StB 131",
+  "kind": "flattened",
+  "labelled_pages": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "lines": [
+    {
+      "page": 1,
+      "bbox": [
+        147.399,
+        254.077,
+        511.029,
+        266.897
+      ],
+      "text": "Spätestens ............ Werktage nach Aufforderung; Spätestens am ............ (Datum)",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        147.399999,
+        267.077,
+        233.409999,
+        279.897
+      ],
+      "text": "Frühestens ............",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        276.091,
+        264.055,
+        523.854,
+        282.003
+      ],
+      "text": "× Spätestens 20 Werktage nach Zuschlagserteilung",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        147.399999,
+        281.477,
+        252.839999,
+        294.297
+      ],
+      "text": "Frühestens am ............,",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        303.304,
+        281.477,
+        444.844,
+        294.297
+      ],
+      "text": "Spätestens am ............ (Datum)",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        147.399,
+        295.877,
+        194.059,
+        308.697
+      ],
+      "text": "Sonstiges:",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        147.399,
+        412.877,
+        339.409,
+        425.697
+      ],
+      "text": "Spätestens ............ Werktage nach ............",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        147.399,
+        425.877,
+        216.259,
+        438.697
+      ],
+      "text": "Einzelfristen für",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        120.186,
+        604.855,
+        305.719,
+        622.803
+      ],
+      "text": "× Spätestens am 31.12.2026 (Datum)",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        147.399,
+        620.877,
+        216.259,
+        633.697
+      ],
+      "text": "Einzelfristen für",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        119.053999,
+        172.307,
+        272.923999,
+        185.127
+      ],
+      "text": "Vertragsstrafen werden vereinbart.",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399,
+        237.307,
+        504.009,
+        250.127
+      ],
+      "text": "0,2 % je Werktag der Abrechnungssumme in ihrer objektiv richtigen Höhe (netto)",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399,
+        250.307,
+        520.699,
+        263.127
+      ],
+      "text": "0,2 % je Kalendertag der Abrechnungssumme in ihrer objektiv richtigen Höhe (netto)",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399999,
+        302.307,
+        241.739999,
+        315.127
+      ],
+      "text": "............ % nach 1.2.1",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        303.304,
+        302.307,
+        397.644,
+        315.127
+      ],
+      "text": "............ % nach 1.2.2",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        473.382,
+        302.307,
+        567.722,
+        315.127
+      ],
+      "text": "............ % nach 1.2.3",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399999,
+        316.707,
+        241.739999,
+        329.527
+      ],
+      "text": "............ % nach 1.2.4",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        303.304,
+        316.707,
+        397.644,
+        329.527
+      ],
+      "text": "............ % nach 1.2.5",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399999,
+        370.107,
+        241.739999,
+        382.927
+      ],
+      "text": "............ % nach 1.3.1",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        303.304,
+        370.107,
+        397.644,
+        382.927
+      ],
+      "text": "............ % nach 1.3.2",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        473.382,
+        370.107,
+        567.722,
+        382.927
+      ],
+      "text": "............ % nach 1.3.3",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399999,
+        384.507,
+        241.739999,
+        397.327
+      ],
+      "text": "............ % nach 1.3.4",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        303.304,
+        384.507,
+        397.644,
+        397.327
+      ],
+      "text": "............ % nach 1.3.5",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399999,
+        437.907,
+        241.739999,
+        450.727
+      ],
+      "text": "............ % nach 1.4.1",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        303.304,
+        437.907,
+        397.644,
+        450.727
+      ],
+      "text": "............ % nach 1.4.2",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        473.382,
+        437.907,
+        567.722,
+        450.727
+      ],
+      "text": "............ % nach 1.4.3",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399999,
+        452.307,
+        241.739999,
+        465.127
+      ],
+      "text": "............ % nach 1.4.4",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        303.304,
+        452.307,
+        397.644,
+        465.127
+      ],
+      "text": "............ % nach 1.4.5",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        473.382,
+        452.307,
+        567.722,
+        465.127
+      ],
+      "text": "............ % nach 1.4.6",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399999,
+        466.707,
+        241.739999,
+        479.527
+      ],
+      "text": "............ % nach 1.4.7",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        303.304,
+        466.707,
+        397.644,
+        479.527
+      ],
+      "text": "............ % nach 1.4.8",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        473.382,
+        466.707,
+        567.722,
+        479.527
+      ],
+      "text": "............ % nach 1.4.9",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        147.399,
+        481.107,
+        247.299,
+        493.927
+      ],
+      "text": "............ % nach 1.4.10",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        119.053999,
+        702.107,
+        360.083999,
+        714.927
+      ],
+      "text": "Auf Sicherheit für die Vertragserfüllung wird verzichtet.",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        91.84,
+        712.085,
+        487.853999,
+        730.033
+      ],
+      "text": "× Es ist eine Sicherheit für die Vertragserfüllung in Höhe von 5 % der Auftragssumme",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.053999,
+        16.307,
+        347.343999,
+        29.127
+      ],
+      "text": "Auf Sicherheit für Mängelansprüche wird verzichtet.",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.053999,
+        29.307,
+        495.113999,
+        42.127
+      ],
+      "text": "Nach erfolgter Abnahme ist bis zum Ablauf der Verjährungsfrist für Mängelansprüche",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.053999,
+        315.307,
+        410.033999,
+        328.127
+      ],
+      "text": "Die Geltung einer Beschleunigungsvergütung gemäß ''HVA B-StB",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.053999,
+        497.307,
+        462.183999,
+        510.127
+      ],
+      "text": "Stoffpreisgleitklausel gemäß 'HVA B-StB Stoffpreisgleitklausel' (siehe Anlage)",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.053999,
+        510.307,
+        152.293999,
+        523.127
+      ],
+      "text": "............",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.053999,
+        549.307,
+        144.613999,
+        562.127
+      ],
+      "text": "Keine",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        91.84,
+        559.285,
+        240.173999,
+        577.233
+      ],
+      "text": "× Siehe beigefügte Unterlage",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.053999,
+        601.307,
+        461.253999,
+        614.127
+      ],
+      "text": "Die Geltung der Sanktionierung für die Nichterfüllung von Bieterangaben zum",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        119.053999,
+        679.307,
+        479.053999,
+        692.127
+      ],
+      "text": "Die Geltung einer bauvertraglichen Implementierung eines Verfügbarkeitsmodells",
+      "state": "unchecked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        147.399,
+        744.307,
+        383.469,
+        757.127
+      ],
+      "text": "HVA B-StB Weitere Besondere Vertragsbedingungen",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        147.399,
+        757.307,
+        291.209,
+        770.127
+      ],
+      "text": "HVA B-StB Stoffpreisgleitklausel",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        147.399,
+        16.307,
+        320.159,
+        29.127
+      ],
+      "text": "HVA B-StB Beschleunigungsvergütung",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        147.399,
+        29.307,
+        411.199,
+        42.127
+      ],
+      "text": "HVA B-StB Sanktionierung Nichterfüllung Technischer Wert",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        147.399,
+        42.307,
+        491.229,
+        55.127
+      ],
+      "text": "HVA B-StB Besondere Bestimmungen Implementierung Verfügbarkeitsmodell",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        147.399,
+        55.307,
+        382.969,
+        68.127
+      ],
+      "text": "Kabelschutzanweisung und Trigonometrische Punkte",
+      "state": "checked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        147.399,
+        68.307,
+        180.639,
+        81.127
+      ],
+      "text": "............",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        147.399,
+        81.307,
+        180.639,
+        94.127
+      ],
+      "text": "............",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        147.399,
+        94.307,
+        180.639,
+        107.127
+      ],
+      "text": "............",
+      "state": "unchecked"
+    }
+  ]
+}

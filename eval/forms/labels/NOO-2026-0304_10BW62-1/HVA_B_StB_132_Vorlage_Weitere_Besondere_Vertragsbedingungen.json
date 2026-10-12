@@ -1,0 +1,72 @@
+{
+  "tender": "NOO-2026-0304_10BW62-1",
+  "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_132_Vorlage_Weitere_Besondere_Vertragsbedingungen.pdf",
+  "form_id": "HVA B-StB 132",
+  "kind": "flattened",
+  "labelled_pages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "lines": [
+    {
+      "page": 1,
+      "bbox": [
+        128.601,
+        578.083,
+        265.701,
+        592.173
+      ],
+      "text": "Getrennte Rechnungstellung",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        128.601,
+        709.806,
+        232.461,
+        723.896
+      ],
+      "text": "Nachweis der Massen",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        128.601,
+        634.833,
+        276.791,
+        648.923
+      ],
+      "text": "Bauabrechnung mit IT-Anlagen",
+      "state": "checked"
+    },
+    {
+      "page": 3,
+      "bbox": [
+        128.601,
+        699.833,
+        190.761,
+        713.923
+      ],
+      "text": "Aufrechnung",
+      "state": "unchecked"
+    },
+    {
+      "page": 4,
+      "bbox": [
+        128.601,
+        153.833,
+        197.431,
+        167.923
+      ],
+      "text": "Bauablaufplan",
+      "state": "checked"
+    }
+  ]
+}

@@ -136,6 +136,23 @@ publishes a new version of every `<query_key>.<language>.yaml` file. **Katalog s
 any catalog table has rows; `--reset` truncates and reseeds. Type generation for the UI
 (`npm run gen:types`) reruns whenever backend DTOs change.
 
+## Developer Tools
+
+Tools that read the local training corpus (`server/training`, gitignored) and never touch the
+compose stack live in `server/scripts/`. They need the `tools` dependency group:
+
+```bash
+uv sync --group tools
+uv run --group tools streamlit run server/scripts/form_labeler/app.py   # Formblatt labeler
+PYTHONPATH=server uv run python -m scripts.eval_form_labels --boxes --detector none
+PYTHONPATH=server uv run python -m scripts.eval_form_labels --facts --modality plus --bm25
+```
+
+The labeler writes the Formblatt ground truth under `eval/forms/` (box state per extracted
+line, fact questions with gold answers); `eval_form_labels` scores a toggle detector against the
+box labels offline and the chat API of a running stack against the facts. Both are described in
+`eval/forms/README.md`.
+
 ## Scaling
 
 Ingestion, eval and project-info throughput scale horizontally: `docker compose up --scale

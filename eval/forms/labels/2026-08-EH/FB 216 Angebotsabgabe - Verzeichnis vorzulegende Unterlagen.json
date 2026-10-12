@@ -1,0 +1,287 @@
+{
+  "tender": "2026-08-EH",
+  "pdf": "Vergabeunterlagen/FB 216 Angebotsabgabe - Verzeichnis vorzulegende Unterlagen.pdf",
+  "form_id": "VHB 216",
+  "kind": "acroform",
+  "labelled_pages": [
+    1,
+    2
+  ],
+  "lines": [
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        297.008,
+        426.965,
+        305.333
+      ],
+      "text": "Angebotsschreiben (bei Abgabe mehrerer Hauptangebote für jedes Hauptangebot)",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        310.658,
+        568.893,
+        318.983
+      ],
+      "text": "Angaben zur Preisermittlung entsprechend den Formblättern 221 oder 222 (bei Abgabe mehrerer Hauptangebote für",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        333.418,
+        568.893,
+        341.743
+      ],
+      "text": "224 - Angebot Lohngleitklausel (wenn ein Änderungssatz angeboten wird; bei Abgabe mehrerer Hauptangebote für",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        356.178,
+        569.201,
+        364.503
+      ],
+      "text": "233 - Verzeichnis der Nachunternehmerleistungen (wenn Teile der Leistung an Nachunternehmer vergeben werden",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        390.318,
+        568.996,
+        398.643
+      ],
+      "text": "234 - Erklärung Bieter-/Arbeitsgemeinschaft (wenn das Angebot von einer Bietergemeinschaft abgegeben wird; bei",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        413.078,
+        569.004,
+        421.403
+      ],
+      "text": "235 - Verzeichnis der Leistungen/Kapazitäten anderer Unternehmen (wenn sich der Bieter der Kapazitäten anderer",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        450.638,
+        556.765,
+        458.963
+      ],
+      "text": "248 - Erklärung zur Verwendung von Holzprodukten (bei Abgabe mehrerer Hauptangebote für jedes Hauptangebot)",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        566.708,
+        308.539,
+        575.033
+      ],
+      "text": "Angabe der PQ-Nummer im Angebotsschreiben oder",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        467.698,
+        486.165,
+        476.023
+      ],
+      "text": "Vertragsformular/e Instandhaltung (bei Abgabe mehrerer Hauptangebote für jedes Hauptangebot)",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        683.918,
+        245.24,
+        692.243
+      ],
+      "text": "Leistungsverzeichnis mit den Preisen",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        96.73,
+        700.988,
+        261.453,
+        709.313
+      ],
+      "text": "Produktangaben in folgenden Positionen:",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        109.238,
+        435.24,
+        117.563
+      ],
+      "text": "Erfüllung von Mindestanforderungen, z. B. Datenblätter, Muster, spezielle Nachweise",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        223.038,
+        470.691,
+        231.363
+      ],
+      "text": "126 - Sicherheitsauskunft und Verpflichtungserklärung Nachunternehmer/Unterauftragnehmer",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        240.108,
+        304.952,
+        248.433
+      ],
+      "text": "236 - Verpflichtungserklärung anderer Unternehmen",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        257.178,
+        341.942,
+        265.503
+      ],
+      "text": "Aufgliederung der Einheitspreise entsprechend Formblatt 223",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        348.218,
+        457.357,
+        356.543
+      ],
+      "text": "Referenznachweise mit den im Formblatt Eigenerklärung zur Eignung genannten Angaben",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        361.868,
+        569.002,
+        370.193
+      ],
+      "text": "Erklärung zur Zahl der in den letzten 3 Jahren jahresdurchschnittlich beschäftigten Arbeitskräfte, gegliedert nach",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        384.628,
+        568.995,
+        392.953
+      ],
+      "text": "Gewerbeanmeldung, Handelsregisterauszug und Eintragung in der Handwerksrolle (Handwerkskarte) bzw. bei der",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        407.388,
+        569.12,
+        415.713
+      ],
+      "text": "rechtskräftig bestätigter Insolvenzplan (falls eine Erklärung über das Vorliegen eines solchen Insolvenzplanes",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        433.568,
+        506.83,
+        441.893
+      ],
+      "text": "Unbedenklichkeitsbescheinigung der tariflichen Sozialkasse, falls das Unternehmen beitragspflichtig ist",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        450.068,
+        569.0,
+        458.393
+      ],
+      "text": "Unbedenklichkeitsbescheinigung des Finanzamtes bzw. Bescheinigung in Steuersachen, falls das Finanzamt eine",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        475.098,
+        354.266,
+        483.423
+      ],
+      "text": "Freistellungsbescheinigung nach § 48b Einkommensteuergesetz",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        597.428,
+        258.342,
+        605.753
+      ],
+      "text": "Produktdatenblätter benannter Fabrikate",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        489.898,
+        568.995,
+        498.223
+      ],
+      "text": "Unbedenklichkeitsbescheinigung der Berufsgenossenschaft des zuständigen Versicherungsträgers mit Angabe der",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        96.73,
+        691.888,
+        525.242,
+        700.213
+      ],
+      "text": "Urkalkulation (die Urkalkulation wird für die Prüfung der Preise geöffnet, im Anschluss wieder verschlossen)",
+      "state": "unchecked"
+    }
+  ]
+}

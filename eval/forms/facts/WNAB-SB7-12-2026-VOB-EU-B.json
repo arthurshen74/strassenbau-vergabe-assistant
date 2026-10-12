@@ -1,0 +1,213 @@
+{
+  "tender": "WNAB-SB7-12-2026-VOB-EU-B",
+  "facts": [
+    {
+      "key": "nebenangebote_zugelassen",
+      "question": "Sind Nebenangebote für dieses Projekt zugelassen?",
+      "kind": "yes_no",
+      "gold": "ja",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "6 Nebenangebote"
+      }
+    },
+    {
+      "key": "losweise_vergabe",
+      "question": "Erfolgt die Vergabe losweise?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "4 Losweise Vergabe"
+      }
+    },
+    {
+      "key": "mehrere_hauptangebote",
+      "question": "Sind mehrere Hauptangebote zugelassen?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "5 Mehrere Hauptangebote"
+      }
+    },
+    {
+      "key": "nachforderung",
+      "question": "Werden fehlende Unterlagen nachgefordert?",
+      "kind": "yes_no",
+      "gold": "ja",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "3.3 Nachforderung (teilweise)"
+      }
+    },
+    {
+      "key": "kommunikation_elektronisch",
+      "question": "Erfolgt die Kommunikation elektronisch über die Vergabeplattform?",
+      "kind": "yes_no",
+      "gold": "ja",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "2 Kommunikation"
+      }
+    },
+    {
+      "key": "angebotsform",
+      "question": "In welcher Form ist das Angebot einzureichen?",
+      "kind": "list",
+      "gold": [
+        "elektronisch",
+        "Textform"
+      ],
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "8 Zugelassene Angebotsabgabe"
+      }
+    },
+    {
+      "key": "zuschlagskriterien",
+      "question": "Welche Zuschlagskriterien gelten?",
+      "kind": "list",
+      "gold": [
+        "Preis",
+        "Technischer Wert"
+      ],
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.3 FB 313-B Gewichtung Zuschlagskriterien.pdf",
+        "page": 1,
+        "section": "1 Gewichtung der Zuschlagskriterien"
+      }
+    },
+    {
+      "key": "zuschlagsfrist",
+      "question": "Wann endet die Zuschlags-/Bindefrist?",
+      "kind": "value",
+      "gold": "14.12.2026",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "Bindefrist endet am"
+      }
+    },
+    {
+      "key": "vergabeart",
+      "question": "Welche Vergabeart liegt vor?",
+      "kind": "value",
+      "gold": "Offenes Verfahren",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "Vergabeart"
+      }
+    },
+    {
+      "key": "ausfuehrungsbeginn",
+      "question": "Wann ist mit der Ausführung zu beginnen?",
+      "kind": "value",
+      "gold": "3 Wochen",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.14 FB 352-B Besondere Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "(5) Ausführungsfristen"
+      }
+    },
+    {
+      "key": "fertigstellung",
+      "question": "Bis wann ist die Leistung fertigzustellen?",
+      "kind": "value",
+      "gold": "29 Monate",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.14 FB 352-B Besondere Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "(5) Ausführungsfristen"
+      }
+    },
+    {
+      "key": "sicherheit_vertragserfuellung",
+      "question": "Wie hoch ist die Sicherheit für die Vertragserfüllung?",
+      "kind": "value",
+      "gold": "5 %",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.14 FB 352-B Besondere Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "(12) Sicherheitsleistung für die Vertragserfüllung"
+      }
+    },
+    {
+      "key": "sicherheit_maengel",
+      "question": "Wie hoch ist die Sicherheit für Mängelansprüche?",
+      "kind": "value",
+      "gold": "3 %",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.14 FB 352-B Besondere Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "(13) Sicherheitsleistung für Mängelansprüche"
+      }
+    },
+    {
+      "key": "stoffpreisgleitklausel",
+      "question": "Gilt eine Stoffpreisgleitklausel?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.14 FB 352-B Besondere Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "(2) Vergütung, Stoffgleitung"
+      }
+    },
+    {
+      "key": "unterlagen_mit_angebot",
+      "question": "Welche Unterlagen sind mit dem Angebot einzureichen?",
+      "kind": "list",
+      "gold": [
+        "Angebotsschreiben",
+        "Bieterangabenverzeichnis",
+        "Urkalkulation"
+      ],
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.4 FB 317-B Verzeichnis vorzulegenden Unterlagen.pdf",
+        "page": 1,
+        "section": "1 Unterlagen, die mit dem Angebot vorzulegen sind"
+      }
+    },
+    {
+      "key": "verjaehrungsfrist_maengel",
+      "question": "Wie lang ist die Verjährungsfrist für Mängelansprüche?",
+      "kind": "value",
+      "gold": "4 Jahre",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.14 FB 352-B Besondere Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "(9) Verjährungsfrist für Mängelansprüche"
+      }
+    },
+    {
+      "key": "abnahme_foermlich",
+      "question": "Wird eine förmliche Abnahme durchgeführt?",
+      "kind": "yes_no",
+      "gold": "ja",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.14 FB 352-B Besondere Vertragsbedingungen.pdf",
+        "page": 1,
+        "section": "(8) Abnahme"
+      }
+    },
+    {
+      "key": "ortsbesichtigung",
+      "question": "Ist ein Termin für eine Ortsbesichtigung vorgesehen?",
+      "kind": "yes_no",
+      "gold": "nein",
+      "source": {
+        "pdf": "Vergabeunterlagen/T1 WNA/T1.1 FB 312-B Aufforderung Angebot.pdf",
+        "page": 1,
+        "section": "10 Weitere Angaben"
+      }
+    }
+  ]
+}

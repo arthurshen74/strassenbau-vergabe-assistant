@@ -44,6 +44,9 @@ dev = [
     "pytest",
     "pytest-asyncio",
 ]
+tools = [
+    "streamlit>=1.40",
+]
 
 [tool.uv]
 # Deps-only project: server/, tests/ and eval/ share one environment.

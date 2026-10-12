@@ -1,0 +1,233 @@
+{
+  "tender": "NOO-2026-0304_10BW62-1",
+  "pdf": "Heftung 1 Angebotsaufforderung/HVA_B_StB_109_Vorlage_Vorzulegende_Unterlagen.pdf",
+  "form_id": "HVA B-StB 109",
+  "kind": "flattened",
+  "labelled_pages": [
+    1,
+    2,
+    3
+  ],
+  "lines": [
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        332.344,
+        542.635,
+        345.164
+      ],
+      "text": "HVA B-StB Angebotsschreiben (bei Abgabe mehrerer Hauptangebote für jedes Hauptangebot gesondert)",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        347.344,
+        506.455,
+        360.164
+      ],
+      "text": "HVA B-StB Unterauftrag-/Nachunternehmerleistungen (wenn Teile der Leistung an Unterauftrag-/",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        65.196,
+        392.344,
+        518.095,
+        405.164
+      ],
+      "text": "X HVA B-StB Erklärung Bieter-/Arbeitsgemeinschaft (wenn das Angebot von einer Bietergemeinschaft",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        65.196,
+        422.344,
+        242.645,
+        435.164
+      ],
+      "text": "X Eigenerklärung Finanzsanktion Bieter",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        528.674,
+        532.535,
+        541.494
+      ],
+      "text": "HVA B-StB Eigenerklärung zur Eignung (falls keine PQ-Nummer vorhanden bzw. die PQ-Qualifizierung",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        558.674,
+        390.395,
+        571.494
+      ],
+      "text": "HVA B-StB Eignungsleihe technische und berufliche Leistungsfähigkeit",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        573.674,
+        389.265,
+        586.494
+      ],
+      "text": "HVA B-StB Eignungsleihe wirtschaftliche und finanzielle Eignungsleihe",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        588.674,
+        285.985,
+        601.494
+      ],
+      "text": "Vordrucke 141a und 145a Stoffpreisgleitklausel",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        603.674,
+        453.695,
+        616.494
+      ],
+      "text": "Eigenerklärung Bezug Russland zur Umsetzung von Artikel 5k VO (EU) Nr. 833-2014",
+      "state": "unchecked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        65.196,
+        618.674,
+        281.415,
+        631.494
+      ],
+      "text": "X KOR-Schein nach ZTV-ING Teil 4, Abschnitt 3",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        65.196,
+        633.674,
+        506.435,
+        646.494
+      ],
+      "text": "X Nachweis der Qualifikation gemäß MVAS 99 auf der Grundlage der RSA 21 zu Arbeitsstellen von",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        65.196,
+        678.674,
+        299.855,
+        691.494
+      ],
+      "text": "X Nachweis für Sicherungsarbeiten an Arbeitsstellen",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        739.94,
+        332.655,
+        752.76
+      ],
+      "text": "Leistungsverzeichnis/Leistungsprogramm mit den Preisen",
+      "state": "checked"
+    },
+    {
+      "page": 1,
+      "bbox": [
+        76.535,
+        754.94,
+        263.755,
+        767.76
+      ],
+      "text": "X84-Datei oder D84-Datei (Hauptangebot)",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        76.535,
+        71.165,
+        259.335,
+        83.985
+      ],
+      "text": "Produktangaben in folgenden Positionen:",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        76.535,
+        355.155,
+        519.885,
+        367.975
+      ],
+      "text": "Für das Zuschlagskriterium Beschleunigungsregelung: Angabe des verbindlichen Endes der Bauzeit",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        76.535,
+        542.687,
+        438.135,
+        555.507
+      ],
+      "text": "HVA B-StB Verpflichtungserklärung anderer Unternehmen (nur bei EU-Verfahren)",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        76.535,
+        557.687,
+        424.795,
+        570.507
+      ],
+      "text": "Angaben zur Preisermittlung entsprechend EFB Formblatt 221 oder 222 (VHB)",
+      "state": "checked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        76.535,
+        572.687,
+        465.905,
+        585.507
+      ],
+      "text": "Angaben zur Preisermittlung entsprechend EFB Formblatt V 221 oder V 222 (Autobahn)",
+      "state": "unchecked"
+    },
+    {
+      "page": 2,
+      "bbox": [
+        65.196,
+        587.687,
+        296.565,
+        600.507
+      ],
+      "text": "X Eigenerklärung Finanzsanktion Nachunternehmer",
+      "state": "checked"
+    }
+  ]
+}
