@@ -126,7 +126,7 @@ def _kwargs(search: _RecordingSearch, langchain: _FakeLangchain) -> dict[str, An
 async def test_process_one_claims_runs_and_marks_done(
     conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(service_module, "render_thumbnails", lambda _pdf: [])
+    monkeypatch.setattr(service_module, "count_pages", lambda _pdf: 0)
     monkeypatch.setattr(
         service_module,
         "extract_source_lines",
@@ -155,7 +155,7 @@ async def test_process_one_empty_queue_returns_false(conn: AsyncConnection) -> N
 async def test_process_one_marks_failed_on_error(
     conn: AsyncConnection, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(service_module, "render_thumbnails", lambda _pdf: [])
+    monkeypatch.setattr(service_module, "count_pages", lambda _pdf: 0)
 
     def _boom(_b: bytes, _doc: UUID) -> list[NewSourceLine]:
         raise RuntimeError("extraction blew up")

@@ -60,7 +60,7 @@ from shared.services.ingestion.progress import (
     log_progress,
     record_event,
 )
-from shared.services.ingestion.thumbnails import render_thumbnails
+from shared.services.ingestion.thumbnails import count_pages, render_pages
 
 UnitOfWorkFactory = Callable[[], AbstractAsyncContextManager[UnitOfWork]]
 # Sink for granular activity lines (message, phase value). The worker wires this to the
@@ -485,35 +485,39 @@ class IngestionService:
         return len(items), len(texts), lv_chunks
 
     async def _generate_thumbnails(self, document_uuid: UUID, pdf_bytes: bytes) -> int:
-        """Render one thumbnail per page, store each in object storage, and upsert a
-        Thumbnail row per page (keyed by (document_uuid, page_number), so re-ingest
-        replaces in place). Rendering and the synchronous storage writes are offloaded
-        to threads."""
-        rendered = await asyncio.to_thread(render_thumbnails, pdf_bytes)
-        if not rendered:
+        """Render one thumbnail per page in page-range batches, store each in object
+        storage, and upsert a Thumbnail row per page (keyed by (document_uuid,
+        page_number), so re-ingest replaces in place). Rendering and the synchronous
+        storage writes are offloaded to threads; one activity line per batch."""
+        total = await asyncio.to_thread(count_pages, pdf_bytes)
+        if total == 0:
             return 0
+        batch_size = settings.activity_thumbnail_every
         new_thumbnails: list[NewThumbnail] = []
-        for page in rendered:
-            object_key = thumbnail_object_key(document_uuid, page.page_number)
-            await asyncio.to_thread(
-                self._storage.put_object, object_key, page.data, page.content_type
+        for first_page in range(1, total + 1, batch_size):
+            last_page = min(first_page + batch_size - 1, total)
+            rendered = await asyncio.to_thread(
+                render_pages, pdf_bytes, first_page, last_page
             )
-            new_thumbnails.append(
-                NewThumbnail(
-                    document_uuid=document_uuid,
-                    page_number=page.page_number,
-                    object_key=object_key,
-                    bucket=self._storage.bucket,
-                    width=page.width,
-                    height=page.height,
-                    content_type=page.content_type,
+            for page in rendered:
+                object_key = thumbnail_object_key(document_uuid, page.page_number)
+                await asyncio.to_thread(
+                    self._storage.put_object, object_key, page.data, page.content_type
                 )
+                new_thumbnails.append(
+                    NewThumbnail(
+                        document_uuid=document_uuid,
+                        page_number=page.page_number,
+                        object_key=object_key,
+                        bucket=self._storage.bucket,
+                        width=page.width,
+                        height=page.height,
+                        content_type=page.content_type,
+                    )
+                )
+            self._activity(
+                f"rendered thumbnails {last_page}/{total}", IngestPhase.THUMBNAILS
             )
-            if page.page_number % settings.activity_thumbnail_every == 0:
-                self._activity(
-                    f"rendered thumbnail {page.page_number}/{len(rendered)}",
-                    IngestPhase.THUMBNAILS,
-                )
         async with self._uow_factory() as uow:
             await uow.thumbnails.add_many(new_thumbnails)
         return len(new_thumbnails)

@@ -106,7 +106,12 @@ _STUB_PAGES = [
 @pytest.fixture(autouse=True)
 def _stub_render(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stub PDF rasterisation so the thumbnails stage needs neither poppler nor a real PDF."""
-    monkeypatch.setattr(service_module, "render_thumbnails", lambda _pdf: _STUB_PAGES)
+    monkeypatch.setattr(service_module, "count_pages", lambda _pdf: len(_STUB_PAGES))
+    monkeypatch.setattr(
+        service_module,
+        "render_pages",
+        lambda _pdf, first, last: [p for p in _STUB_PAGES if first <= p.page_number <= last],
+    )
 
 
 def _factory(conn: AsyncConnection):

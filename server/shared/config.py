@@ -110,10 +110,10 @@ class Settings(BaseSettings):
     # larger set of cache misses into requests of this size.
     embedding_batch_size: int = 200
 
-    # Ingestion activity stream: emit one activity line every N thumbnails (the live
-    # console feed and the worker's lease heartbeat), flush buffered lines this often
-    # (keep well below worker_lease_seconds), and prune lines older than the retention
-    # window.
+    # Ingestion activity stream: render thumbnails in page batches of N and emit one
+    # activity line per batch (the live console feed and the worker's lease heartbeat),
+    # flush buffered lines this often (keep well below worker_lease_seconds), and prune
+    # lines older than the retention window.
     activity_thumbnail_every: int = 10
     activity_flush_seconds: float = 1.0
     activity_retention_hours: int = 24
