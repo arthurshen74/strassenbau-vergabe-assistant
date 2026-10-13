@@ -13,6 +13,7 @@ stable reference the LV extraction segments on (INGESTION.md)."""
 
 from __future__ import annotations
 
+import re
 import subprocess
 import xml.etree.ElementTree as ET
 from uuid import UUID
@@ -34,6 +35,11 @@ ATTR_YMIN = "yMin"
 ATTR_XMAX = "xMax"
 ATTR_YMAX = "yMax"
 
+# C0 control characters XML 1.0 forbids (everything below 0x20 except tab, LF, CR).
+# pdftotext emits raw glyph ids as such characters for CID fonts without a ToUnicode
+# map, which would abort the parse.
+XML_ILLEGAL_CHARS = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
 
 def extract_source_lines(pdf_bytes: bytes, document_uuid: UUID) -> list[NewSourceLine]:
     """Extract every visual line of a PDF as a NewSourceLine, with a global line_id."""
@@ -51,7 +57,7 @@ def parse_bbox_layout(xhtml: bytes, document_uuid: UUID) -> list[NewSourceLine]:
 
     One row per non-empty `<line>`; bbox is (xMin, yMin, xMax, yMax) in top-origin
     coordinates; page is 1-based; line_id is a single counter across pages."""
-    root = ET.fromstring(xhtml)
+    root = ET.fromstring(XML_ILLEGAL_CHARS.sub(b"", xhtml))
     lines: list[NewSourceLine] = []
     line_id = 0
     for page_number, page in enumerate(_find(root, TAG_PAGE), start=1):

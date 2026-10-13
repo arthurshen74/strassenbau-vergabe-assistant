@@ -54,6 +54,16 @@ def test_parse_groups_words_numbers_lines_and_maps_bbox() -> None:
     assert all(line.document_uuid == doc for line in lines)
 
 
+def test_parse_strips_xml_illegal_control_characters() -> None:
+    # pdftotext emits raw glyph ids as C0 control characters for CID fonts without a
+    # ToUnicode map; they must not abort the parse.
+    xhtml = SAMPLE_XHTML.replace(b">Mit<", b">M\x03i\x10t\x1d<")
+
+    lines = parse_bbox_layout(xhtml, uuid4())
+
+    assert lines[0].line_text == "Mit der Ausführung"
+
+
 def test_extract_source_lines_pipes_pdf_through_pdftotext(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
