@@ -8,7 +8,9 @@ from uuid import UUID
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from shared.db.batching import ASYNCPG_MAX_BIND_PARAMS
 from shared.db.tables.documents import documents
+from shared.db.tables.lv_items import lv_items
 from shared.models.document import NewDocument
 from shared.models.enums import DocumentType
 from shared.models.lv_item import NewLVItem
@@ -128,6 +130,23 @@ async def test_add_many_returns_all(conn: AsyncConnection) -> None:
     assert await repo.add_many([]) == []
 
 
+async def test_add_many_beyond_single_statement_bind_limit(
+    conn: AsyncConnection,
+) -> None:
+    repo = LVItemRepository(conn)
+    fx = await _fixture(conn)
+    # One row past asyncpg's bind-parameter cap for a single multi-row INSERT; a large
+    # GAEB file carries several thousand positions.
+    count = ASYNCPG_MAX_BIND_PARAMS // len(lv_items.c) + 1
+    inserted = await repo.add_many(
+        [_item(fx.lv_document_uuid, f"07.{i:04d}") for i in range(count)]
+    )
+    assert len(inserted) == count
+    listed = await repo.list_uuids_by_document(fx.lv_document_uuid)
+    assert len(listed) == count
+    assert set(listed) == {item.lv_item_uuid for item in inserted}
+
+
 async def test_add_many_upserts_on_natural_key(conn: AsyncConnection) -> None:
     repo = LVItemRepository(conn)
     fx = await _fixture(conn)
@@ -172,7 +191,9 @@ async def test_delete_missing_removes_absent_ozs(conn: AsyncConnection) -> None:
 async def test_delete_missing_empty_keep_removes_all(conn: AsyncConnection) -> None:
     repo = LVItemRepository(conn)
     fx = await _fixture(conn)
-    await repo.add_many([_item(fx.lv_document_uuid, oz) for oz in ("06.0010", "06.0020")])
+    await repo.add_many(
+        [_item(fx.lv_document_uuid, oz) for oz in ("06.0010", "06.0020")]
+    )
 
     removed = await repo.delete_missing(fx.lv_document_uuid, [])
 

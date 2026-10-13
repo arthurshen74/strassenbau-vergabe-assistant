@@ -82,8 +82,10 @@ class _RecordingSearch:
         self.calls: list[tuple[str, Any]] = []
         self.indexed: list[NewSimpleChunk] = []
 
-    async def archive_source(self, source_doc_uuid: UUID, source_doc_type: SourceDocType) -> int:
-        self.calls.append(("archive", (source_doc_uuid, source_doc_type)))
+    async def archive_sources(
+        self, source_doc_uuids: list[UUID], source_doc_type: SourceDocType
+    ) -> int:
+        self.calls.append(("archive", (set(source_doc_uuids), source_doc_type)))
         return 0
 
     async def index_chunks(self, chunks: list[NewSimpleChunk], *, refresh: bool = False) -> list[UUID]:
@@ -344,6 +346,7 @@ async def test_gaeb_reingest_is_idempotent(conn: AsyncConnection) -> None:
     item_11_before = await repo.get_by_project_and_oz(project_uuid, "1.1")
     item_12_before = await repo.get_by_project_and_oz(project_uuid, "1.2")
     assert item_11_before is not None and item_12_before is not None
+    search.calls.clear()
 
     # Re-ingest the same document: no (document_uuid, oz) collision, in-place updates.
     storage.data = second
@@ -358,8 +361,16 @@ async def test_gaeb_reingest_is_idempotent(conn: AsyncConnection) -> None:
     assert await repo.get_by_project_and_oz(project_uuid, "1.3") is not None  # added
     assert {i.oz for i in await repo.list_by_project(project_uuid)} == {"1", "1.1", "1.3"}
 
-    # The dropped position's LV_ITEM chunks were archived out of the live index.
-    assert ("archive", (item_12_before.lv_item_uuid, SourceDocType.LV_ITEM)) in search.calls
+    # One archive for the whole re-ingest: the survivors' stable uuids plus the dropped
+    # position's, so its LV_ITEM chunks leave the live index too.
+    archives = [c[1] for c in search.calls if c[0] == "archive"]
+    assert len(archives) == 1
+    archived_uuids, archived_type = archives[0]
+    assert archived_type is SourceDocType.LV_ITEM
+    assert item_12_before.lv_item_uuid in archived_uuids
+    assert item_11_before.lv_item_uuid in archived_uuids
+    assert len(search.indexed) > 0
+    assert len([c for c in search.calls if c[0] == "index"]) == 1
 
 
 async def test_thumbnails_rendered_stored_and_persisted(

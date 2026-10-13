@@ -93,7 +93,8 @@ Copy `.env.example` to `.env` to start.
 | `WORKER_LEASE_SECONDS` | `60.0` (job lease; heartbeats must land inside it) |
 | `WORKER_MAX_ATTEMPTS` | `3` (then the job parks as failed) |
 | `ACTIVITY_FLUSH_SECONDS` | `1.0` (activity buffer flush = lease heartbeat; keep well below the lease) |
-| `ACTIVITY_THUMBNAIL_EVERY` / `ACTIVITY_EMBED_EVERY` / `ACTIVITY_LV_ITEM_EVERY` | `10` / `10` / `1` (progress-line granularity) |
+| `EMBEDDING_BATCH_SIZE` | `200` (max texts per embeddings request; the client splits larger inputs) |
+| `ACTIVITY_THUMBNAIL_EVERY` | `10` (progress-line granularity for thumbnails) |
 | `ACTIVITY_RETENTION_HOURS` | `24` (hot activity log before archive) |
 | `INGEST_STATUS_POLL_INTERVAL_SECONDS` | `1.5` (poll of the SSE status, activity and console list streams) |
 

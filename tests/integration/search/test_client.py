@@ -181,8 +181,8 @@ async def test_plus_scope_adds_lv_items_to_document_chunks(indexed: Indexed) -> 
     assert {sc.chunk.chunk_uuid for sc in bm25} == expected
 
 
-async def test_archive_source_moves_chunks_and_stamps_archived_at(indexed: Indexed) -> None:
-    moved = await indexed.client.archive_source(indexed.prose_uuid, SourceDocType.DOCUMENT)
+async def test_archive_sources_moves_chunks_and_stamps_archived_at(indexed: Indexed) -> None:
+    moved = await indexed.client.archive_sources([indexed.prose_uuid], SourceDocType.DOCUMENT)
     assert moved == 1
 
     # Gone from the live index.
@@ -201,6 +201,27 @@ async def test_archive_source_moves_chunks_and_stamps_archived_at(indexed: Index
     assert source[FIELD_CHUNK_TEXT] == "Beton und Asphalt fuer die Strasse"
     # Parses as an ISO-8601 timestamp.
     datetime.fromisoformat(source[FIELD_ARCHIVED_AT])
+
+
+async def test_archive_sources_batches_many_uuids_of_one_type(indexed: Indexed) -> None:
+    # Both DOCUMENT sources go in one call; the LV_ITEM chunk is a different type and
+    # stays even though its uuid is not excluded by anything else.
+    moved = await indexed.client.archive_sources(
+        [indexed.prose_uuid, indexed.lv_document_uuid, indexed.lv_item_uuid],
+        SourceDocType.DOCUMENT,
+    )
+    assert moved == 2
+
+    live = await indexed.es.search(index=indexed.index, query={"match_all": {}})
+    assert {hit["_id"] for hit in live["hits"]["hits"]} == {str(indexed.lv_item_id)}
+
+    archived = await indexed.es.search(
+        index=indexed.archive_index, query={"match_all": {}}
+    )
+    hits = archived["hits"]["hits"]
+    assert {hit["_id"] for hit in hits} == {str(indexed.prose_id), str(indexed.lv_own_id)}
+    # The whole batch shares one archived_at stamp.
+    assert len({hit["_source"][FIELD_ARCHIVED_AT] for hit in hits}) == 1
 
 
 async def test_archive_and_delete_document_removes_lv_document_footprint(

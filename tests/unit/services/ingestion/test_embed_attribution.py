@@ -31,11 +31,13 @@ class _RecordingEmbeddings:
 
 class _RecordingSearch:
     def __init__(self) -> None:
-        self.archived: list[tuple[Any, SourceDocType]] = []
+        self.archived: list[tuple[list[Any], SourceDocType]] = []
         self.indexed: list[NewSimpleChunk] = []
 
-    async def archive_source(self, source_doc_uuid: Any, source_doc_type: SourceDocType) -> int:
-        self.archived.append((source_doc_uuid, source_doc_type))
+    async def archive_sources(
+        self, source_doc_uuids: list[Any], source_doc_type: SourceDocType
+    ) -> int:
+        self.archived.append((list(source_doc_uuids), source_doc_type))
         return 0
 
     async def index_chunks(self, chunks: list[NewSimpleChunk]) -> list[Any]:
@@ -71,7 +73,7 @@ async def test_document_chunks_attribute_usage_to_the_document() -> None:
     ]
 
     count = await service._embed_and_index(
-        drafts, document_uuid, SourceDocType.DOCUMENT, project_uuid, job_uuid, document_uuid
+        drafts, [document_uuid], SourceDocType.DOCUMENT, project_uuid, job_uuid, document_uuid
     )
 
     assert count == 1
@@ -98,7 +100,7 @@ async def test_lv_chunks_attribute_usage_to_owning_document_not_the_lv_item() ->
     ]
 
     count = await service._embed_and_index(
-        drafts, lv_item_uuid, SourceDocType.LV_ITEM, project_uuid, job_uuid, document_uuid
+        drafts, [lv_item_uuid], SourceDocType.LV_ITEM, project_uuid, job_uuid, document_uuid
     )
 
     assert count == 1
@@ -106,4 +108,4 @@ async def test_lv_chunks_attribute_usage_to_owning_document_not_the_lv_item() ->
     assert embeddings.calls[0]["document_uuid"] == document_uuid
     assert embeddings.calls[0]["document_uuid"] != lv_item_uuid
     # The lv_item is still what gets its prior chunks archived.
-    assert search.archived == [(lv_item_uuid, SourceDocType.LV_ITEM)]
+    assert search.archived == [([lv_item_uuid], SourceDocType.LV_ITEM)]

@@ -122,6 +122,24 @@ async def test_embed_empty_batch_makes_no_request() -> None:
     assert await client.embed([]) == []
 
 
+async def test_embed_splits_misses_into_batches(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "embedding_batch_size", 2)
+    requests: list[list[str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        texts = json.loads(request.content)[FIELD_INPUT]
+        requests.append(texts)
+        return _embeddings_response(
+            [[float(len(text))] * settings.embedding_dim for text in texts]
+        )
+
+    client = _client_with_handler(handler)
+    result = await client.embed(["a", "bb", "ccc", "dddd", "eeeee"])
+
+    assert requests == [["a", "bb"], ["ccc", "dddd"], ["eeeee"]]
+    assert [vector[0] for vector in result] == [1.0, 2.0, 3.0, 4.0, 5.0]
+
+
 async def test_embed_emits_usage_event_to_sink() -> None:
     sink = _RecordingSink()
 

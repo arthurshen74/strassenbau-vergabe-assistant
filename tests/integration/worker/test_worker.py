@@ -50,7 +50,9 @@ class _RecordingSearch:
     def __init__(self) -> None:
         self.indexed: list[NewSimpleChunk] = []
 
-    async def archive_source(self, source_doc_uuid: UUID, source_doc_type: SourceDocType) -> int:
+    async def archive_sources(
+        self, source_doc_uuids: list[UUID], source_doc_type: SourceDocType
+    ) -> int:
         return 0
 
     async def index_chunks(
