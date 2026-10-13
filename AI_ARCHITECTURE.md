@@ -64,8 +64,10 @@ flowchart TD
   flattened forms keep the poppler page text and attach each toggle by geometry
   (`forms/toggles.py`): the kind-specific reader only locates `Toggle`s (widget `/Rect` plus
   `/AS` state; or a 6–12pt vector square with a tick glyph centred inside it), and one shared
-  step re-attaches the tick glyphs and section numbers that `pdftotext -bbox-layout` emits as
-  blocks of their own, prefixes the state onto the printed line to the right of the box (the
+  step drops repeated page furniture (a line recurring on most pages at the same height, such
+  as the `111 HVA B-StB ... 03-23` footer or `Seite n`, found by repetition alone so it needs no
+  family-specific pattern; the first occurrence stays, `forms/furniture.py`), re-attaches the
+  tick glyphs and section numbers that `pdftotext -bbox-layout` emits as blocks of their own, prefixes the state onto the printed line to the right of the box (the
   `/TU` tooltip is the fallback when no printed line is there; a box with neither is counted as
   unresolved and logged), and opens a section at every numbered heading at the left margin
   (`## Seite n` for a page without one). Forms are never read by a VLM or OCR. `chunk_form` then

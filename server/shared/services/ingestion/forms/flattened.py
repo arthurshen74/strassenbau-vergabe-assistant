@@ -43,15 +43,16 @@ Bbox = tuple[float, float, float, float]
 
 def extract_flattened(pdf_bytes: bytes, document_uuid: UUID) -> FormExtraction:
     toggles = find_boxes(pdf_bytes)
-    lines, unresolved = finish_form_lines(
+    finished = finish_form_lines(
         extract_source_lines(pdf_bytes, document_uuid), toggles, document_uuid
     )
     return FormExtraction(
-        lines=lines,
-        fields=option_fields(lines, document_uuid),
+        lines=finished.lines,
+        fields=option_fields(finished.lines, document_uuid),
         toggles=len(toggles),
         checked=sum(1 for toggle in toggles if toggle.checked),
-        unresolved=unresolved,
+        unresolved=finished.unresolved,
+        furniture=finished.furniture,
     )
 
 

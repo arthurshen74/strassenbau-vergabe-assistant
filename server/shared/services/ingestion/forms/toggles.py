@@ -3,21 +3,23 @@
 The readers only locate toggles: a square on a page and whether it is ticked. What the
 option says is printed next to the square, so the state is attached to the pdftotext
 line to the right of it, and the result is the same line contract for both kinds.
-Before that, `pdftotext -bbox-layout` artefacts are repaired: a tick glyph or a section
-number that the layout emitted as a block of its own is re-attached to the line it sits
-in front of. Numbered headings then open the form sections, lines are put in reading
-order (page, y, x) and renumbered. Pure functions over `NewSourceLine`; `bbox` is the
-only geometry used.
+Before that, repeated page furniture is removed (`forms/furniture.py`) and `pdftotext
+-bbox-layout` artefacts are repaired: a tick glyph or a section number that the layout
+emitted as a block of its own is re-attached to the line it sits in front of. Numbered
+headings then open the form sections, lines are put in reading order (page, y, x) and
+renumbered. Pure functions over `NewSourceLine`; `bbox` is the only geometry used.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from typing import NamedTuple
 from uuid import UUID
 
 from shared.models.form_field import NewFormField
 from shared.models.source_line import NewSourceLine
+from shared.services.ingestion.forms.furniture import remove_furniture
 from shared.services.ingestion.forms.model import (
     CHECKED,
     FORM_SECTION_PREFIX,
@@ -51,14 +53,23 @@ def page_section(page: int) -> str:
     return SECTION_PAGE.format(page=page)
 
 
+class FinishedLines(NamedTuple):
+    lines: list[NewSourceLine]
+    unresolved: int
+    furniture: int
+
+
 def finish_form_lines(
     lines: list[NewSourceLine], toggles: list[Toggle], document_uuid: UUID
-) -> tuple[list[NewSourceLine], int]:
-    """The shared tail of the geometric readers: repair marginal tokens, attach the
-    toggles, open the sections. Returns the final lines and the unresolved count."""
-    merged = merge_marginal_tokens(lines)
+) -> FinishedLines:
+    """The shared tail of the geometric readers: drop repeated page furniture, repair
+    marginal tokens, attach the toggles, open the sections."""
+    content, furniture = remove_furniture(lines)
+    merged = merge_marginal_tokens(content)
     attached, unresolved = attach_toggles(merged, toggles, document_uuid)
-    return insert_headings(attached, document_uuid), unresolved
+    return FinishedLines(
+        insert_headings(attached, document_uuid), unresolved, furniture
+    )
 
 
 def merge_marginal_tokens(lines: list[NewSourceLine]) -> list[NewSourceLine]:

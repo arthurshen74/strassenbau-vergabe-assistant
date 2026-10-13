@@ -249,17 +249,17 @@ def test_shared_tail_and_fields() -> None:
         Toggle(page=1, bbox=NESTED_BOX, checked=False),
     ]
 
-    finished, unresolved = finish_form_lines(lines, toggles, DOC)
+    finished = finish_form_lines(lines, toggles, DOC)
 
-    assert _texts(finished) == [
+    assert _texts(finished.lines) == [
         "## 6 Nebenangebote",
         "[x] 6.1 Nebenangebote sind nicht zugelassen",
         "[ ] für die gesamte Leistung",
     ]
-    assert unresolved == 0
+    assert (finished.unresolved, finished.furniture) == (0, 0)
     assert [
         (f.section, f.name, f.label, f.value, f.page, f.field_order)
-        for f in option_fields(finished, DOC)
+        for f in option_fields(finished.lines, DOC)
     ] == [
         (
             "6 Nebenangebote",

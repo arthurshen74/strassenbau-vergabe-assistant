@@ -298,7 +298,8 @@ class IngestionService:
             self._activity(
                 f"form ({kind}): {len(extraction.fields)} fields, {sections} sections, "
                 f"{extraction.toggles} toggles, {extraction.checked} checked, "
-                f"{extraction.unresolved} unresolved",
+                f"{extraction.unresolved} unresolved, {extraction.furniture} furniture "
+                "lines",
                 IngestPhase.EXTRACT,
             )
             self._activity(

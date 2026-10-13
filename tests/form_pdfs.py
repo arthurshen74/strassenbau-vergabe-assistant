@@ -101,8 +101,14 @@ def acroform_pdf(
 def flattened_pdf(boxes: list[Box], texts: list[Text]) -> bytes:
     """A one-page PDF with no AcroForm: printed texts and drawn checkboxes, a tick
     glyph inside every checked box."""
+    return flattened_pdf_pages([(boxes, texts)])
+
+
+def flattened_pdf_pages(pages: list[tuple[list[Box], list[Text]]]) -> bytes:
+    """A multi-page PDF with no AcroForm, one (boxes, texts) pair per page."""
     writer = PdfWriter()
-    _add_page(writer, _content(texts, boxes))
+    for boxes, texts in pages:
+        _add_page(writer, _content(texts, boxes))
     return _bytes(writer)
 
 

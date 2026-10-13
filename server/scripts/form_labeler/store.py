@@ -28,8 +28,8 @@ class LineState(StrEnum):
 
 
 class PdfKind(StrEnum):
-    """`detect_form_kind` at label time, plus `flattened` for a zero-field PDF whose
-    filename carries a Formblatt id."""
+    """`detect_form_kind` at label time (`flattened` is a zero-field PDF whose footer
+    or filename names a known Formblatt)."""
 
     XFA = "xfa"
     ACROFORM = "acroform"

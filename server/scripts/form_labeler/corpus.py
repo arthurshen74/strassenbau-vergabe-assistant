@@ -1,9 +1,9 @@
 """Tender and form PDF discovery over the extracted training corpus.
 
 A tender is a directory of `server/training` (the `.json` and `.zip` siblings are
-skipped). A form is any PDF under it that `detect_form_kind` recognises, or a
-zero-field PDF whose filename carries a Formblatt id (then `flattened`). Vergabestelle
-and UNBEKANNT forms sort first, Bieter forms last.
+skipped). A form is any PDF under it that the pipeline's own `detect_form_kind`
+recognises (XFA, AcroForm, or a flattened form identified by its footer or filename).
+Vergabestelle and UNBEKANNT forms sort first, Bieter forms last.
 """
 
 from __future__ import annotations
@@ -15,13 +15,14 @@ from uuid import uuid4
 
 import pdfplumber
 from pydantic import BaseModel, ConfigDict
-
-from scripts.form_labeler.store import PdfKind
 from shared.models.enums import FormRole
 from shared.models.source_line import NewSourceLine
 from shared.services.ingestion.extraction import extract_source_lines
 from shared.services.ingestion.forms.detect import detect_form_kind
+from shared.services.ingestion.forms.identify import identify_formblatt
 from shared.services.ingestion.forms.role import classify_form_role
+
+from scripts.form_labeler.store import PdfKind
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +74,10 @@ def list_forms(tender: Tender) -> list[FormPdf]:
     return _unique_stems(forms)
 
 
-def form_kind(pdf_bytes: bytes, form_id: str | None) -> PdfKind | None:
-    """The detected kind, `flattened` for a zero-field PDF with a Formblatt id, else
-    None (not a form)."""
-    detected = detect_form_kind(pdf_bytes)
-    if detected is not None:
-        return PdfKind(detected.value)
-    return PdfKind.FLATTENED if form_id is not None else None
+def form_kind(pdf_bytes: bytes, file_name: str) -> PdfKind | None:
+    """The kind the pipeline detects, else None (not a form)."""
+    detected = detect_form_kind(pdf_bytes, file_name, identify_formblatt(pdf_bytes))
+    return PdfKind(detected.value) if detected is not None else None
 
 
 def page_lines(pdf_bytes: bytes, page: int) -> list[NewSourceLine]:
@@ -92,11 +90,13 @@ def all_lines(pdf_bytes: bytes) -> list[NewSourceLine]:
 
 
 def _classify(tender: Tender, path: Path) -> FormPdf | None:
-    role, form_id = classify_form_role(path.name)
     pdf_bytes = path.read_bytes()
-    kind = form_kind(pdf_bytes, form_id)
-    if kind is None:
+    content_id = identify_formblatt(pdf_bytes)
+    detected = detect_form_kind(pdf_bytes, path.name, content_id)
+    if detected is None:
         return None
+    role, form_id = classify_form_role(path.name, content_id)
+    kind = PdfKind(detected.value)
     return FormPdf(
         tender=tender.name,
         path=path,

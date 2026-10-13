@@ -63,11 +63,11 @@ class FormWidget(NamedTuple):
 def extract_acroform(pdf_bytes: bytes, document_uuid: UUID) -> FormExtraction:
     widgets = read_widgets(pdf_bytes)
     toggles = read_toggles(pdf_bytes)
-    lines, unresolved = finish_form_lines(
+    finished = finish_form_lines(
         extract_source_lines(pdf_bytes, document_uuid), toggles, document_uuid
     )
     return FormExtraction(
-        lines=lines,
+        lines=finished.lines,
         fields=[
             NewFormField(
                 document_uuid=document_uuid,
@@ -82,7 +82,8 @@ def extract_acroform(pdf_bytes: bytes, document_uuid: UUID) -> FormExtraction:
         ],
         toggles=len(toggles),
         checked=sum(1 for toggle in toggles if toggle.checked),
-        unresolved=unresolved,
+        unresolved=finished.unresolved,
+        furniture=finished.furniture,
     )
 
 

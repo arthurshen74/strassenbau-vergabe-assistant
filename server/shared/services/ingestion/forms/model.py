@@ -39,7 +39,7 @@ class Toggle(BaseModel):
 
 class FormExtraction(BaseModel):
     """One pass over a form: reading-order source lines, the structured fields, and
-    the toggle counts of the geometric readers (zero for XFA)."""
+    the toggle and furniture counts of the geometric readers (zero for XFA)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -48,6 +48,7 @@ class FormExtraction(BaseModel):
     toggles: int = 0
     checked: int = 0
     unresolved: int = 0
+    furniture: int = 0
 
 
 def section_heading(section: str) -> str:

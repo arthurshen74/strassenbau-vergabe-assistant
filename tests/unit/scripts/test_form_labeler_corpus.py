@@ -19,12 +19,12 @@ def _plain_pdf() -> bytes:
     return buf.getvalue()
 
 
-def test_flattened_rule_needs_a_form_id() -> None:
-    assert form_kind(_plain_pdf(), "HVA B-StB 111") is PdfKind.FLATTENED
-    assert form_kind(acroform_pdf([]), "HVA B-StB 111") is PdfKind.FLATTENED
-    assert form_kind(_plain_pdf(), None) is None
-    assert form_kind(three_field_form(), None) is PdfKind.ACROFORM
-    assert form_kind(acroform_pdf([], xfa=True), None) is PdfKind.XFA
+def test_kind_follows_the_pipeline_detection() -> None:
+    assert form_kind(_plain_pdf(), "HVA_B_StB_111.pdf") is PdfKind.FLATTENED
+    assert form_kind(acroform_pdf([]), "HVA_B_StB_111.pdf") is PdfKind.FLATTENED
+    assert form_kind(_plain_pdf(), "Plan.pdf") is None
+    assert form_kind(three_field_form(), "x.pdf") is PdfKind.ACROFORM
+    assert form_kind(acroform_pdf([], xfa=True), "x.pdf") is PdfKind.XFA
 
 
 def test_list_forms_orders_vergabestelle_first_and_skips_plans(tmp_path: Path) -> None:
