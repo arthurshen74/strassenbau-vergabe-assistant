@@ -6,8 +6,9 @@ returned vector is validated against `settings.embedding_dim` before being hande
 to the caller.
 
 An injected `EmbeddingCache` is consulted first: only the texts that miss the cache are
-sent to OpenRouter, and the freshly computed vectors are written back. Usage telemetry
-is recorded only for the miss batch that actually hit the API.
+sent to OpenRouter, in requests of at most `settings.embedding_batch_size` texts, and
+the freshly computed vectors are written back after each request. Usage telemetry is
+recorded per request that actually hit the API.
 """
 
 from __future__ import annotations
@@ -83,16 +84,19 @@ class EmbeddingsClient:
             if key not in vectors_by_key and key not in missing:
                 missing[key] = text
 
-        if missing:
-            miss_keys = list(missing.keys())
+        miss_keys = list(missing.keys())
+        miss_texts = list(missing.values())
+        batch_size = settings.embedding_batch_size
+        for start in range(0, len(miss_keys), batch_size):
+            batch_keys = miss_keys[start : start + batch_size]
             fresh = await self._embed_remote(
-                list(missing.values()),
+                miss_texts[start : start + batch_size],
                 project_uuid,
                 ingest_job_uuid,
                 document_uuid,
                 conversation_uuid,
             )
-            for key, vector in zip(miss_keys, fresh):
+            for key, vector in zip(batch_keys, fresh):
                 vectors_by_key[key] = vector
             await self._cache.put(
                 [
@@ -102,7 +106,7 @@ class EmbeddingsClient:
                         dim=settings.embedding_dim,
                         embedding=vector,
                     )
-                    for key, vector in zip(miss_keys, fresh)
+                    for key, vector in zip(batch_keys, fresh)
                 ]
             )
 

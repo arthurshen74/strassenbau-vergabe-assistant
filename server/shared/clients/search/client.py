@@ -181,13 +181,13 @@ def lv_items_filter(project_uuid: UUID) -> dict[str, Any]:
     }
 
 
-def _source_query(
-    source_doc_uuid: UUID, source_doc_type: SourceDocType
+def _sources_query(
+    source_doc_uuids: Sequence[UUID], source_doc_type: SourceDocType
 ) -> dict[str, Any]:
     return {
         "bool": {
             "filter": [
-                {"term": {FIELD_SOURCE_DOC_UUID: str(source_doc_uuid)}},
+                {"terms": {FIELD_SOURCE_DOC_UUID: [str(u) for u in source_doc_uuids]}},
                 {"term": {FIELD_SOURCE_DOC_TYPE: source_doc_type.value}},
             ]
         }
@@ -254,6 +254,7 @@ class SearchClient:
         self._es = es
         self._index = index or settings.elasticsearch_index
         self._archive_index = f"{self._index}_archive"
+        self._archive_index_ready = False
 
     @classmethod
     def from_settings(cls) -> SearchClient:
@@ -268,10 +269,15 @@ class SearchClient:
             await self._es.indices.create(index=self._index, mappings=_index_mapping())
 
     async def _ensure_archive_index(self) -> None:
+        """Create the archive index if missing; a successful check is remembered for the
+        client's lifetime."""
+        if self._archive_index_ready:
+            return
         if not await self._es.indices.exists(index=self._archive_index):
             await self._es.indices.create(
                 index=self._archive_index, mappings=_archive_mapping()
             )
+        self._archive_index_ready = True
 
     async def index_chunks(
         self,
@@ -367,16 +373,17 @@ class SearchClient:
         resp = await self._es.search(index=self._index, query=query, size=size)
         return [_hit_to_scored_chunk(hit) for hit in resp["hits"]["hits"]]
 
-    async def archive_source(
-        self, source_doc_uuid: UUID, source_doc_type: SourceDocType
+    async def archive_sources(
+        self, source_doc_uuids: Sequence[UUID], source_doc_type: SourceDocType
     ) -> int:
-        """Re-ingestion archival (INGESTION.md): copy every live chunk matching
-        (source_doc_uuid, source_doc_type) into the archive index with an archived_at
-        timestamp, then delete them from the live index. Matching the whole source (not
-        per chunk_index) means a re-ingest yielding fewer chunks leaves no stale rows.
-        Returns the number of chunks removed from the live index."""
+        """Re-ingestion archival (INGESTION.md): copy every live chunk whose
+        source_doc_uuid is in source_doc_uuids and whose type is source_doc_type into
+        the archive index with one shared archived_at timestamp, then delete them from
+        the live index. Matching the whole source (not per chunk_index) means a
+        re-ingest yielding fewer chunks leaves no stale rows. Returns the number of
+        chunks removed from the live index."""
         await self._ensure_archive_index()
-        query = _source_query(source_doc_uuid, source_doc_type)
+        query = _sources_query(source_doc_uuids, source_doc_type)
         archived_at = datetime.now(tz=timezone.utc).isoformat()
         await self._es.reindex(
             source={"index": self._index, "query": query},

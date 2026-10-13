@@ -216,7 +216,7 @@ class IngestionService:
             self._activity(f"{len(doc_drafts)} chunks drafted", IngestPhase.CHUNK)
             document_chunks = await self._embed_and_index(
                 doc_drafts,
-                document_uuid,
+                [document_uuid],
                 SourceDocType.DOCUMENT,
                 document.project_uuid,
                 job_uuid,
@@ -332,7 +332,7 @@ class IngestionService:
             self._activity(f"{len(drafts)} chunks drafted", IngestPhase.CHUNK)
             document_chunks = await self._embed_and_index(
                 drafts,
-                document_uuid,
+                [document_uuid],
                 SourceDocType.FORM,
                 document.project_uuid,
                 job_uuid,
@@ -448,40 +448,38 @@ class IngestionService:
             IngestPhase.LV,
         )
 
-        # Archive the Elasticsearch chunks of the removed positions and texts; the
-        # surviving items' prior chunks are archived per item below before re-indexing
-        # (their uuids are unchanged).
-        for removed_uuid in removed:
-            await self._search.archive_source(removed_uuid, SourceDocType.LV_ITEM)
-        for removed_uuid in removed_texts:
-            await self._search.archive_source(removed_uuid, SourceDocType.LV_TEXT)
-
-        lv_chunks = 0
-        for index, item in enumerate(items, start=1):
-            drafts = chunk_lv_item(
+        # One embed/archive/index pass per source type for the whole document: the
+        # surviving items' prior chunks (stable uuids) are archived together with the
+        # removed positions', and the replaced texts' with the new texts'.
+        item_drafts = [
+            draft
+            for item in items
+            for draft in chunk_lv_item(
                 item, pages_by_oz.get(item.oz, []), project_uuid=document.project_uuid
             )
-            lv_chunks += await self._embed_and_index(
-                drafts,
-                item.lv_item_uuid,
-                SourceDocType.LV_ITEM,
-                document.project_uuid,
-                job_uuid,
-                document.document_uuid,
-            )
-            if index % settings.activity_lv_item_every == 0:
-                self._activity(
-                    f"LV item {item.oz} ({index}/{len(items)})", IngestPhase.LV
-                )
-        for text in texts:
-            lv_chunks += await self._embed_and_index(
-                chunk_lv_text(text, project_uuid=document.project_uuid),
-                text.lv_text_uuid,
-                SourceDocType.LV_TEXT,
-                document.project_uuid,
-                job_uuid,
-                document.document_uuid,
-            )
+        ]
+        self._activity(f"chunked {len(items)} LV items", IngestPhase.LV)
+        lv_chunks = await self._embed_and_index(
+            item_drafts,
+            [item.lv_item_uuid for item in items] + removed,
+            SourceDocType.LV_ITEM,
+            document.project_uuid,
+            job_uuid,
+            document.document_uuid,
+        )
+        text_drafts = [
+            draft
+            for text in texts
+            for draft in chunk_lv_text(text, project_uuid=document.project_uuid)
+        ]
+        lv_chunks += await self._embed_and_index(
+            text_drafts,
+            [text.lv_text_uuid for text in texts] + removed_texts,
+            SourceDocType.LV_TEXT,
+            document.project_uuid,
+            job_uuid,
+            document.document_uuid,
+        )
         if texts:
             self._activity(f"{len(texts)} LV texts indexed", IngestPhase.LV)
         return len(items), len(texts), lv_chunks
@@ -523,46 +521,44 @@ class IngestionService:
     async def _embed_and_index(
         self,
         drafts: list[ChunkDraft],
-        source_doc_uuid: UUID,
+        source_doc_uuids: list[UUID],
         source_doc_type: SourceDocType,
         project_uuid: UUID,
         job_uuid: UUID | None,
         document_uuid: UUID,
     ) -> int:
-        """Embed the drafts, archive the source's prior chunks, then index the new ones.
-        The owning document_uuid (distinct from source_doc_uuid, which is the lv_item
-        or lv_text for LV chunks) tags the embeddings' OpenRouter usage."""
-        if not drafts:
-            return 0
+        """Embed the drafts, archive the sources' prior chunks in one call, then
+        bulk-index the new ones. The owning document_uuid (distinct from the source
+        uuids, which are the lv_items or lv_texts for LV chunks) tags the embeddings'
+        OpenRouter usage."""
+        page_text = source_doc_type in PAGE_TEXT_SOURCE_TYPES
+        activity_phase = IngestPhase.CHUNK if page_text else IngestPhase.LV
         vectors = await self._embeddings.embed(
             [draft.chunk_text for draft in drafts],
             project_uuid=project_uuid,
             ingest_job_uuid=job_uuid,
             document_uuid=document_uuid,
         )
-        page_text = source_doc_type in PAGE_TEXT_SOURCE_TYPES
-        activity_phase = IngestPhase.CHUNK if page_text else IngestPhase.LV
-        chunks: list[NewSimpleChunk] = []
-        for index, (draft, vector) in enumerate(zip(drafts, vectors), start=1):
-            chunks.append(
-                NewSimpleChunk(
-                    **draft.model_dump(),
-                    embedding=vector,
-                    embedding_model=settings.embedding_model,
-                )
+        chunks = [
+            NewSimpleChunk(
+                **draft.model_dump(),
+                embedding=vector,
+                embedding_model=settings.embedding_model,
             )
-            if index % settings.activity_embed_every == 0:
-                self._activity(f"embedded {index}/{len(drafts)} chunks", activity_phase)
-        await self._search.archive_source(source_doc_uuid, source_doc_type)
-        # LV items index one small batch each; only the document batch gets lines.
-        if page_text:
-            self._activity("archived previous chunks", activity_phase)
+            for draft, vector in zip(drafts, vectors)
+        ]
+        self._activity(f"embedded {len(chunks)} chunks", activity_phase)
+        # Between the archive and the bulk index the sources briefly have no live
+        # chunks; the worker retries and re-ingest is idempotent, so that window is
+        # accepted. Archiving must come first: old and new chunks share source_doc_uuid,
+        # so a query-based archive after indexing would sweep up the new ones.
+        await self._search.archive_sources(source_doc_uuids, source_doc_type)
+        self._activity("archived previous chunks", activity_phase)
         await self._search.index_chunks(chunks)
-        if page_text:
-            self._activity(
-                f"indexed {len(chunks)} chunks into {settings.elasticsearch_index}",
-                activity_phase,
-            )
+        self._activity(
+            f"indexed {len(chunks)} chunks into {settings.elasticsearch_index}",
+            activity_phase,
+        )
         return len(chunks)
 
     async def _download(self, document_uuid: UUID) -> bytes:

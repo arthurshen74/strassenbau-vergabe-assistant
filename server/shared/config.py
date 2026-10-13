@@ -106,13 +106,15 @@ class Settings(BaseSettings):
     worker_max_attempts: int = 3
     ingest_status_poll_interval_seconds: float = 1.5
 
-    # Ingestion activity stream: emit one activity line every N units of work (the live
+    # Max texts per OpenRouter embeddings request; the embeddings client splits a
+    # larger set of cache misses into requests of this size.
+    embedding_batch_size: int = 200
+
+    # Ingestion activity stream: emit one activity line every N thumbnails (the live
     # console feed and the worker's lease heartbeat), flush buffered lines this often
     # (keep well below worker_lease_seconds), and prune lines older than the retention
     # window.
     activity_thumbnail_every: int = 10
-    activity_embed_every: int = 10
-    activity_lv_item_every: int = 1
     activity_flush_seconds: float = 1.0
     activity_retention_hours: int = 24
 
